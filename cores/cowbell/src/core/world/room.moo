@@ -274,6 +274,30 @@ object ROOM [
     endfork
   endmethod
 
+  method test_announce_shares_renders_only_while_telling owner: ARCH_WIZARD
+    "Listeners share renders during an announcement, across a suspend, and none are left after it, even when a listener fails.";
+    const room = create($room, $arch_wizard);
+    const spy = create($player, $arch_wizard);
+    const before = task_local();
+    try
+      set_player_flag(spy, 1);
+      move(spy, room);
+      add_property(spy, "shared", {}, {$arch_wizard, ""});
+      add_verb(spy, {$arch_wizard, "rxd", "tell"}, {"this", "none", "this"});
+      set_verb_code(spy, "tell", {"suspend(0);", "this.shared = {@this.shared, maphaskey(task_local(), 'document_renders)};"});
+      room:announce($arch_wizard:mk_say_event("hello"));
+      spy.shared == {true} || raise(E_ASSERT, "Renders should be shared while telling, after a suspend: " + toliteral(spy.shared));
+      maphaskey(task_local(), 'document_renders) && raise(E_ASSERT, "Shared renders should end with the announcement.");
+      set_verb_code(spy, "tell", {"raise(E_ASSERT, \"listener failed\");"});
+      `room:announce($arch_wizard:mk_say_event("hello")) ! E_ASSERT => 0';
+      maphaskey(task_local(), 'document_renders) && raise(E_ASSERT, "Shared renders should end when a listener fails.");
+    finally
+      set_task_local(before);
+      recycle(spy);
+      recycle(room);
+    endtry
+  endmethod
+
   method test_panels_wait_for_a_still_room owner: ARCH_WIZARD
     "Everyone but the mover gets one panel once the room is still; a move in the meantime replaces that round with its own.";
     const room = create($room, $arch_wizard);
@@ -458,14 +482,19 @@ object ROOM [
     "Tell everyone here, except any objects in the optional excluded list, as audience narrows it, and those elsewhere overhearers adds; then propagate sound.";
     const {event, ?excluded = {}} = args;
     "Local announcement";
-    for who in (this:audience(event, excluded))
-      suspend_if_needed();
-      `who:tell(event) ! E_VERBNF';
-    endfor
-    for who in (this:overhearers(event))
-      suspend_if_needed();
-      who in excluded || `who:tell(event) ! E_VERBNF';
-    endfor
+    const sharing = $document_resolver:share_renders();
+    try
+      for who in (this:audience(event, excluded))
+        suspend_if_needed();
+        `who:tell(event) ! E_VERBNF';
+      endfor
+      for who in (this:overhearers(event))
+        suspend_if_needed();
+        who in excluded || `who:tell(event) ! E_VERBNF';
+      endfor
+    finally
+      sharing && $document_resolver:stop_sharing_renders();
+    endtry
     "Check for acoustic propagation";
     if (typeof(event) != TYPE_FLYWEIGHT)
       return;
@@ -1144,10 +1173,15 @@ object ROOM [
       event = event:with_metadata('source_room, source_room);
     endif
     "Tell everyone in this room about the distant event";
-    for who in (this:audience(event, {}))
-      suspend_if_needed();
-      `who:tell(event) ! E_VERBNF';
-    endfor
+    const sharing = $document_resolver:share_renders();
+    try
+      for who in (this:audience(event, {}))
+        suspend_if_needed();
+        `who:tell(event) ! E_VERBNF';
+      endfor
+    finally
+      sharing && $document_resolver:stop_sharing_renders();
+    endtry
   endmethod
 
   verb "shout yell" (any any any) owner: ARCH_WIZARD flags: "rd"

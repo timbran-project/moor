@@ -20,7 +20,76 @@ object DOCUMENT_RESOLVER [
     "Resolve once, then finalize and encode once for the requested delivery representations.";
     set_task_perms(caller_perms());
     const {blocks, viewer, facts, requests} = args;
-    return $document:render_many(this:_resolve(blocks, viewer, facts), requests);
+    return $document_resolver:_rendered(this:_resolve(blocks, viewer, facts), requests);
+  endmethod
+
+  method share_renders owner: ARCH_WIZARD
+    "Let this task reuse rendered documents until stop_sharing_renders. Returns whether this call began it, so nested callers leave it to the outermost.";
+    let local = task_local();
+    typeof(local) == TYPE_MAP && !maphaskey(local, 'document_renders) || return false;
+    local['document_renders] = [];
+    set_task_local(local);
+    return true;
+  endmethod
+
+  method stop_sharing_renders owner: ARCH_WIZARD
+    "Drop this task's shared renders, leaving anything else in its task-local value. They must not be saved with a long-running task.";
+    const local = task_local();
+    if (typeof(local) == TYPE_MAP && maphaskey(local, 'document_renders))
+      set_task_local(mapdelete(local, 'document_renders));
+    endif
+  endmethod
+
+  method _rendered owner: ARCH_WIZARD
+    "Check and render depend only on a resolved document, so viewers who resolved the same one can share the result. At most 16 are kept.";
+    caller == this || raise(E_PERM);
+    const {document, requests} = args;
+    let local = task_local();
+    if (typeof(local) != TYPE_MAP || !maphaskey(local, 'document_renders))
+      return $document:render_many(document, requests);
+    endif
+    let shared = local['document_renders];
+    const key = toliteral({document, requests});
+    maphaskey(shared, key) && return shared[key];
+    const rendered = $document:render_many(document, requests);
+    length(shared) < 16 || (shared = []);
+    shared[key] = rendered;
+    local['document_renders] = shared;
+    set_task_local(local);
+    return rendered;
+  endmethod
+
+  method test_shared_renders owner: ARCH_WIZARD
+    "Sharing gives the same results, stays bounded, keeps other task-local values, and needs a map to work with.";
+    const before = task_local();
+    const requests = {['format -> 'text_djot]};
+    const say = $arch_wizard:mk_say_event("shared");
+    const viewer = create($player, $arch_wizard);
+    try
+      const plain = {say:render_for($arch_wizard, requests), say:render_for(viewer, requests)};
+      "Other code's values stay.";
+      set_task_local(['other -> 1]);
+      $document_resolver:share_renders() || raise(E_ASSERT, "The first caller should begin sharing.");
+      $document_resolver:share_renders() && raise(E_ASSERT, "A nested caller should not begin sharing.");
+      const shared = {say:render_for($arch_wizard, requests), say:render_for(viewer, requests), say:render_for($arch_wizard, requests)};
+      shared[1] == plain[1] && shared[2] == plain[2] && shared[3] == plain[1] || raise(E_ASSERT, "Sharing should not change a result.");
+      length(task_local()['document_renders]) == 2 || raise(E_ASSERT, "Two documents should be two entries.");
+      for i in [1..20]
+        $arch_wizard:mk_say_event(tostr("line ", i)):render_for(viewer, requests);
+      endfor
+      length(task_local()['document_renders]) <= 16 || raise(E_ASSERT, "Shared renders should stay bounded.");
+      $document_resolver:stop_sharing_renders();
+      task_local() == ['other -> 1] || raise(E_ASSERT, "Stopping should leave only other values.");
+      "Without a map there is nowhere to share, and rendering still works.";
+      set_task_local(5);
+      $document_resolver:share_renders() && raise(E_ASSERT, "Sharing needs a map.");
+      say:render_for(viewer, requests) == plain[2] || raise(E_ASSERT, "Rendering should not need sharing.");
+      $document_resolver:stop_sharing_renders();
+      task_local() == 5 || raise(E_ASSERT, "Stopping should leave a value that is not a map.");
+    finally
+      set_task_local(before);
+      recycle(viewer);
+    endtry
   endmethod
 
   method _resolve owner: ARCH_WIZARD
