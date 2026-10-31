@@ -98,6 +98,10 @@ mod tests {
             "256",
             "--rpc-control-sockets",
             "8",
+            "--rpc-host-sockets",
+            "2",
+            "--rpc-control-acquire-timeout-ms",
+            "9000",
             "--rpc-max-waiters",
             "512",
             "--rpc-control-max-waiters",
@@ -116,6 +120,8 @@ mod tests {
         args.validate().unwrap();
         assert_eq!(args.pool.max_sockets, 256);
         assert_eq!(args.pool.control_reserved_sockets, 8);
+        assert_eq!(args.pool.host_reserved_sockets, 2);
+        assert_eq!(args.pool.control_acquire_timeout_ms, 9000);
         assert_eq!(args.pool.max_waiters, 512);
         assert_eq!(args.pool.control_max_waiters, 300);
         assert_eq!(args.pool.acquire_timeout_ms, 2000);
@@ -128,6 +134,9 @@ mod tests {
         invalid.pool.control_reserved_sockets = 0;
         assert!(invalid.validate().is_err());
         invalid.pool.control_reserved_sockets = 4;
+        invalid.pool.host_reserved_sockets = 0;
+        assert!(invalid.validate().is_err());
+        invalid.pool.host_reserved_sockets = 4;
         invalid.zmq_max_sockets = invalid.pool.max_sockets as i32;
         assert!(invalid.validate().is_err());
     }
@@ -148,7 +157,7 @@ mod tests {
         args.validate().unwrap();
         assert_eq!(args.pool.max_sockets, 256);
         assert_eq!(args.pool.control_reserved_sockets, 8);
-        assert_eq!(args.pool.control_max_waiters, 256);
+        assert_eq!(args.pool.control_max_waiters, 2048);
         assert_eq!(args.pool.acquire_timeout_ms, 5000);
         assert_eq!(args.zmq_max_sockets, 8192);
     }

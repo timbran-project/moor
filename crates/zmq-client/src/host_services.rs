@@ -214,7 +214,7 @@ mod tests {
         let defaults = HostRpcArgs::default();
         let services = defaults.host_services(&connection, None).await.unwrap();
         assert_eq!(services.zmq_context.get_max_sockets().unwrap(), 4096);
-        assert_eq!(services.rpc_client.pool_size().await, 4);
+        assert_eq!(services.rpc_client.pool_size().await, 20);
         let mut subscriptions = Vec::new();
         for _ in 0..160 {
             subscriptions.push(
@@ -223,13 +223,13 @@ mod tests {
                     .unwrap(),
             );
         }
-        assert_eq!(services.rpc_client.pool_size().await, 4);
+        assert_eq!(services.rpc_client.pool_size().await, 20);
         let mut configured = defaults;
         configured.zmq_max_sockets = 2048;
         configured.pool.control_reserved_sockets = 2;
         configured.pool.max_sockets = 128;
         let services = configured.host_services(&connection, None).await.unwrap();
         assert_eq!(services.zmq_context.get_max_sockets().unwrap(), 2048);
-        assert_eq!(services.rpc_client.pool_size().await, 2);
+        assert_eq!(services.rpc_client.pool_size().await, 6);
     }
 }
