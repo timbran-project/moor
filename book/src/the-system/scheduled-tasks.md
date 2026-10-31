@@ -236,6 +236,12 @@ the cadence point after the one being served, with `catchup` applied to the poin
 the server was down, just as if the firing had started normally. If the schedule was stopped, or was
 not persistent, the restored task still runs to completion, and its result is ignored.
 
+A crash can lose a firing that was running, or that had only just suspended, because a task is saved
+about a second after it begins to wait. A clean shutdown loses neither. After such a crash, a
+one-shot fires again from the start, repeating any work its lost firing had committed, and a
+recurring schedule goes on to its next cadence point. A verb run by a one-shot should tolerate
+running twice.
+
 ### `player`
 
 The value of `player` inside the fired verb. Default: the target object. Set it when the verb
