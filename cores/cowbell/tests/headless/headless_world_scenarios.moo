@@ -445,6 +445,7 @@ object HEADLESS_WORLD_SCENARIOS [
     const room = create($room, #90100, 2);
     const who = player;
     const prior_location = who.location;
+    const seen_before = who.rooms_seen;
     add_property(room, "shown", {}, {#90100, "rw"});
     add_verb(room, {#90100, "rxd", "show_arrival"}, {"this", "none", "this"});
     set_verb_code(room, "show_arrival", {"this.shown = {@this.shown, args[1]};"});
@@ -469,8 +470,13 @@ object HEADLESS_WORLD_SCENARIOS [
       room.brief_revisits = true;
       $test_utils:assert_eq(room:_note_visit(who), false, "a first visit is new");
       $test_utils:assert_eq(room:_note_visit(who), true, "a second visit is a revisit");
-      $test_utils:assert_eq(room.visitors, {who}, "visitors are kept once");
+      $test_utils:assert_eq({ seen for seen in (who.rooms_seen) if seen == room }, {room}, "a room is kept once on its visitor");
+      $test_utils:assert_eq(room.visitors, {}, "visits are not kept on the room");
+      who.rooms_seen = seen_before;
+      room.visitors = {who};
+      $test_utils:assert_eq(room:_note_visit(who), true, "a visitor the room recorded before counts as a revisit");
     finally
+      who.rooms_seen = seen_before;
       `clear_object_metadata(who, 'cowbell_connecting) ! ANY => 0';
       move(who, prior_location);
       recycle(room);
