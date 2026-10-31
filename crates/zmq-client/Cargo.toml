@@ -12,6 +12,8 @@ rust-version.workspace = true
 description = "ZeroMQ-backed mooR runtime client and host service utilities."
 
 [dependencies]
+clap.workspace = true
+clap_derive.workspace = true
 # Internal Dependencies
 moor-common = { path = "../common" }
 moor-runtime-api = { path = "../runtime-api" }

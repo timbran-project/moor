@@ -473,6 +473,9 @@ async fn swamp_mode_workload(
         "Starting swamp mode - running {} concurrent threads for {} seconds",
         args.max_concurrent_workload, args.swamp_duration_seconds
     );
+    info!(
+        "Each workload task owns a separate RPC pool and sends one request at a time; this run does not measure shared host-pool admission"
+    );
 
     let start_time = Instant::now();
     let duration = Duration::from_secs(args.swamp_duration_seconds);
