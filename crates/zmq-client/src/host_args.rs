@@ -12,6 +12,8 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use moor_runtime_api::{RpcError, client_args::RpcClientConfig};
+#[cfg(unix)]
+use tracing::{info, warn};
 
 use crate::{ZmqHostServices, rpc_client::RpcConfig};
 
@@ -53,6 +55,7 @@ impl HostRpcArgs {
         curve_keys: Option<(String, String, String)>,
     ) -> Result<ZmqHostServices, RpcError> {
         self.validate()?;
+        raise_open_file_limit(self.zmq_max_sockets);
         let context = r0z::Context::new();
         context
             .set_max_sockets(self.zmq_max_sockets)
@@ -69,15 +72,102 @@ impl HostRpcArgs {
     }
 }
 
+/// Open files a host can need: each ZeroMQ socket holds about three descriptors once connected,
+/// and the rest is room for the host's own listeners and client connections.
+fn open_files_wanted(zmq_max_sockets: i32) -> u64 {
+    u64::try_from(zmq_max_sockets).unwrap_or(0) * 3 + 1024
+}
+
+/// The soft limit to ask for, if the current one is too low: as much as wanted, within the hard
+/// limit.
+fn soft_limit_to_set(soft: u64, hard: u64, wanted: u64) -> Option<u64> {
+    (soft < wanted && soft < hard).then(|| wanted.min(hard))
+}
+
+/// Raise this process's soft limit on open files to suit the ZeroMQ socket limit. Soft limits are
+/// often 1024, which a host would reach long before its socket limit, with far hard limits above.
+#[cfg(unix)]
+// rlim_t is u64 on the common platforms, but not on all.
+#[allow(clippy::useless_conversion, clippy::unnecessary_cast)]
+fn raise_open_file_limit(zmq_max_sockets: i32) {
+    let wanted = open_files_wanted(zmq_max_sockets);
+    let mut limit = libc::rlimit {
+        rlim_cur: 0,
+        rlim_max: 0,
+    };
+    // SAFETY: getrlimit only writes the limit it is given, which outlives the call.
+    if unsafe { libc::getrlimit(libc::RLIMIT_NOFILE, &raw mut limit) } != 0 {
+        warn!(
+            "Cannot read the open file limit: {}",
+            std::io::Error::last_os_error()
+        );
+        return;
+    }
+    let (soft, hard) = (u64::from(limit.rlim_cur), u64::from(limit.rlim_max));
+    let mut reached = soft;
+    if let Some(target) = soft_limit_to_set(soft, hard, wanted) {
+        limit.rlim_cur = target as libc::rlim_t;
+        // SAFETY: setrlimit only reads the limit it is given, which outlives the call.
+        if unsafe { libc::setrlimit(libc::RLIMIT_NOFILE, &raw const limit) } == 0 {
+            info!(from = soft, to = target, "Raised the open file limit");
+            reached = target;
+        } else {
+            warn!(
+                "Cannot raise the open file limit: {}",
+                std::io::Error::last_os_error()
+            );
+        }
+    }
+    if reached < wanted {
+        warn!(
+            limit = reached,
+            wanted,
+            zmq_max_sockets,
+            "The open file limit is too low for the ZeroMQ socket limit, and sessions may fail \
+             before reaching it"
+        );
+    }
+}
+
+#[cfg(not(unix))]
+fn raise_open_file_limit(_zmq_max_sockets: i32) {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use clap::Parser;
 
+    #[test]
+    fn open_file_limit_rises_only_as_far_as_needed_and_allowed() {
+        assert_eq!(open_files_wanted(4096), 13312);
+        assert_eq!(soft_limit_to_set(1024, 524288, 13312), Some(13312));
+        assert_eq!(soft_limit_to_set(1024, 4096, 13312), Some(4096));
+        assert_eq!(soft_limit_to_set(4096, 4096, 13312), None);
+        assert_eq!(soft_limit_to_set(20000, 524288, 13312), None);
+    }
+
     #[derive(clap_derive::Parser, serde::Serialize, serde::Deserialize)]
     struct Args {
         #[command(flatten)]
         rpc: HostRpcArgs,
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn raising_the_open_file_limit_reaches_what_the_hard_limit_allows() {
+        raise_open_file_limit(4096);
+        let mut limit = libc::rlimit {
+            rlim_cur: 0,
+            rlim_max: 0,
+        };
+        // SAFETY: getrlimit only writes the limit it is given, which outlives the call.
+        assert_eq!(
+            unsafe { libc::getrlimit(libc::RLIMIT_NOFILE, &raw mut limit) },
+            0
+        );
+        #[allow(clippy::useless_conversion)]
+        let (soft, hard) = (u64::from(limit.rlim_cur), u64::from(limit.rlim_max));
+        assert!(soft >= open_files_wanted(4096).min(hard));
     }
 
     #[test]

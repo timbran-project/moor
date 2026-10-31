@@ -227,8 +227,11 @@ measured capacity target. Measure reply latency and admission failures with your
 choosing limits. Increasing the limit does not increase daemon capacity.
 
 Each connected session also uses two subscription sockets. Leave room for these sockets and host
-subscriptions below `zmq_max_sockets`, and account for the process file-descriptor limit. The RPC
-limit must be greater than the control reservation and less than the native context limit.
+subscriptions below `zmq_max_sockets`. A connected socket holds about three file descriptors, so the
+host raises its soft limit on open files to suit `zmq_max_sockets`, as far as the hard limit allows,
+and logs a warning if that isn't enough. Sessions can fail before reaching the socket limit if it
+warns. The RPC limit must be greater than the control and host reservations together and less than
+the native context limit.
 
 Set the same options under `rpc:` in the standalone host's YAML configuration:
 

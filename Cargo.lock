@@ -4861,6 +4861,7 @@ dependencies = [
  "eyre",
  "futures-util",
  "hostname",
+ "libc",
  "moor-common",
  "moor-runtime-api",
  "moor-schema",
