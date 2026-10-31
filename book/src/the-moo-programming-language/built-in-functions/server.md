@@ -1117,6 +1117,42 @@ implementation, ensuring it always matches the running program.
 - : The ID of the task to wait for `task_id`
 - `timeout`: Optional timeout in seconds
 
+### `task_local`
+
+**Description:** Returns the value set by [`set_task_local`](#set_task_local) in the current task,
+or an empty map if the task has not set one.
+
+**Syntax:** `any task_local()`
+
+**Errors:**
+
+- `E_PERM`: Caller is not a wizard
+
+### `set_task_local`
+
+**Description:** Sets a value that belongs to the current task, which any verb in the task can read
+with `task_local()` without it being passed as an argument. This is a ToastStunt-compatible
+function.
+
+**Syntax:** `int set_task_local(any value)`
+
+**Returns:** 0.
+
+**Errors:**
+
+- `E_PERM`: Caller is not a wizard
+
+**Behavior:**
+
+- **Verb calls and `eval()`:** Every verb call and nested `eval()` in the task shares one value. A
+  change made inside a nested `eval()` is still there after it returns.
+- **Suspending:** The value is kept across `suspend`, `read`, `commit` and similar functions, and is
+  saved with a suspended task, so it survives a server restart.
+- **Conflict retries:** If a task is retried because of a transaction conflict, the value goes back
+  to what it was at the last commit, along with the rest of the task's state.
+- **Forks:** A forked task does not inherit the value. It starts with an empty map, and changes made
+  by the parent or the child do not affect the other.
+
 ### `task_send`
 
 **Description:** Sends a message to another task's message queue. The message is buffered and only

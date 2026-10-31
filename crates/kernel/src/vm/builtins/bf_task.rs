@@ -29,8 +29,8 @@ use crate::vm::{FinallyReason, TaskSuspend};
 use moor_common::builtins::offset_for_builtin;
 use moor_common::tasks::TaskId;
 use moor_var::{
-    E_ARGS, E_INVARG, E_PERM, E_TYPE, List, Obj, Symbol, Var, Variant, v_arc_str, v_bool, v_float,
-    v_int, v_list, v_list_iter, v_map, v_obj, v_str, v_string, v_sym,
+    E_ARGS, E_INVARG, E_PERM, E_TYPE, List, Obj, Symbol, Var, Variant, v_arc_str, v_bool,
+    v_empty_map, v_float, v_int, v_list, v_list_iter, v_map, v_obj, v_str, v_string, v_sym,
 };
 use std::time::{Duration, SystemTime};
 
@@ -814,6 +814,38 @@ fn bf_task_id(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     Ok(Ret(v_int(bf_args.exec_state.task_id as i64)))
 }
 
+/// Usage: `any task_local()`
+/// Returns the value set by `set_task_local()` in this task, or an empty map if there is none.
+/// Wizard-only.
+fn bf_task_local(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if !bf_args.args.is_empty() {
+        return Err(ErrValue(
+            E_ARGS.msg("task_local() does not take any arguments"),
+        ));
+    }
+    bf_args.require_wizard_or_builtin_call()?;
+
+    Ok(Ret(bf_args
+        .exec_state
+        .task_local
+        .clone()
+        .unwrap_or_else(v_empty_map)))
+}
+
+/// Usage: `int set_task_local(any value)`
+/// Sets a value that every verb and nested `eval()` in this task can read with `task_local()`.
+/// It survives suspending and restarts. A conflict retry restores the value from the last commit.
+/// A forked task does not inherit it. Returns 0. Wizard-only.
+fn bf_set_task_local(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
+    if bf_args.args.len() != 1 {
+        return Err(ErrValue(E_ARGS.msg("set_task_local() requires 1 argument")));
+    }
+    bf_args.require_wizard_or_builtin_call()?;
+
+    bf_args.exec_state.task_local = Some(bf_args.args[0].clone());
+    Ok(Ret(v_int(0)))
+}
+
 /// Usage: `bool valid_task(int task_id)`
 /// Returns true if task_id refers to a currently running or suspended task, false otherwise.
 fn bf_valid_task(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
@@ -1317,4 +1349,6 @@ pub(crate) fn register_bf_task(builtins: &mut [BuiltinFunction]) {
     builtins[offset_for_builtin("schedule_info")] = bf_schedule_info;
     builtins[offset_for_builtin("schedules")] = bf_schedules;
     builtins[offset_for_builtin("schedules_for")] = bf_schedules_for;
+    builtins[offset_for_builtin("task_local")] = bf_task_local;
+    builtins[offset_for_builtin("set_task_local")] = bf_set_task_local;
 }

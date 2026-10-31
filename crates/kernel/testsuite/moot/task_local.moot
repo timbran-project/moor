@@ -1,0 +1,91 @@
+// Copyright (C) 2026 Ryan Daum <ryan.daum@gmail.com> This program is free
+// software: you can redistribute it and/or modify it under the terms of the GNU
+// Affero General Public License as published by the Free Software Foundation,
+// version 3.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+// details.
+//
+// You should have received a copy of the GNU Affero General Public License along
+// with this program. If not, see <https://www.gnu.org/licenses/>.
+
+// task_local() and set_task_local(): a value shared by a whole task.
+
+@programmer
+; return `task_local() ! ANY';
+E_PERM
+; return `set_task_local(1) ! ANY';
+E_PERM
+
+@wizard
+; return `task_local(1) ! ANY';
+E_ARGS
+; return `set_task_local() ! ANY';
+E_ARGS
+; return `set_task_local(1, 2) ! ANY';
+E_ARGS
+
+// A task with no value reads an empty map, and setting one returns 0.
+; return task_local();
+[]
+; return set_task_local("x");
+0
+
+// Each task starts over: the previous test's value is gone.
+; return task_local();
+[]
+
+// Any value can be stored, and setting it again replaces it.
+; set_task_local({"foo", ["k" -> 1]});
+> first = task_local();
+> set_task_local(2);
+> return {first, task_local()};
+{{"foo", ["k" -> 1]}, 2}
+
+// It is shared across verb calls in both directions.
+; target = create(#-1);
+> add_verb(target, {player, "rxd", "bump"}, {"this", "none", "this"});
+> set_verb_code(target, "bump", {"set_task_local(task_local() + 1);"});
+> set_task_local(1);
+> target:bump();
+> target:bump();
+> result = task_local();
+> recycle(target);
+> return result;
+3
+
+// It survives commit, suspend and a raised error.
+; set_task_local("kept");
+> commit();
+> a = task_local();
+> suspend(0);
+> b = task_local();
+> suspend(0.01);
+> c = task_local();
+> try
+>   1 / 0;
+> except (E_DIV)
+> endtry
+> return {a, b, c, task_local()};
+{"kept", "kept", "kept", "kept"}
+
+// A nested eval runs in the same task: it reads the value and can change it.
+; set_task_local("outer");
+> seen = eval("return task_local();");
+> eval("set_task_local(\"inner\");");
+> return {seen[2], task_local()};
+{"outer", "inner"}
+
+// A fork starts with no value, and parent and child do not affect each other.
+; set_task_local("parent");
+> parent = task_id();
+> fork (0)
+>   seen = task_local();
+>   set_task_local("child");
+>   resume(parent, {seen, task_local()});
+> endfork
+> child = suspend();
+> return {child, task_local()};
+{{[], "child"}, "parent"}

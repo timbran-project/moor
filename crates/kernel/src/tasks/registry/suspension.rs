@@ -1311,6 +1311,30 @@ mod tests {
     }
 
     #[test]
+    fn saved_task_restores_task_local_value_for_running_and_retrying() {
+        use crate::tasks::convert_task::{suspended_task_from_ref, suspended_task_to_flatbuffer};
+        use planus::{ReadAsRoot, WriteAsOffset};
+
+        let value = moor_var::v_str("kept");
+        let mut task = mock_task(1);
+        task.vm_host.vm_exec_state_mut().task_local = Some(value.clone());
+        let suspended = SuspendedTask::new(WakeCondition::Never, task, mock_session(), None);
+
+        let fb_task = suspended_task_to_flatbuffer(&suspended).unwrap();
+        let mut builder = planus::Builder::new();
+        let offset = fb_task.prepare(&mut builder);
+        let bytes = builder.finish(offset, None);
+        let fb_ref = moor_schema::task::SuspendedTaskRef::read_as_root(bytes).unwrap();
+        let restored = suspended_task_from_ref(fb_ref).unwrap();
+
+        assert_eq!(
+            restored.task.vm_host.vm_exec_state().task_local,
+            Some(value.clone())
+        );
+        assert_eq!(restored.task.retry_state.task_local, Some(value));
+    }
+
+    #[test]
     fn collected_timer_remains_a_gc_root() {
         let (mut queue, anon, _) = expired_task_queue();
         assert!(queue.collect_anonymous_object_references().contains(&anon));

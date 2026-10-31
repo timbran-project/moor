@@ -353,6 +353,8 @@ fn mk_builtin_table() -> Vec<Builtin> {
         mk_builtin("schedule_info", Q(1), Q(1), vec![Typed(TYPE_INT)], true),
         mk_builtin("schedules", Q(0), Q(1), vec![Typed(TYPE_OBJ)], true),
         mk_builtin("schedules_for", Q(1), Q(1), vec![Typed(TYPE_OBJ)], true),
+        mk_builtin("task_local", Q(0), Q(0), vec![], true),
+        mk_builtin("set_task_local", Q(1), Q(1), vec![Any], true),
     ]);
     // IMPORTANT: ALWAYS APPEND NEW BUILTINS ABOVE THIS LINE
     pad_group(&mut builtins, start, "task/scheduler");

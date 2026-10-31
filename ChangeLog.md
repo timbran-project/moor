@@ -14,6 +14,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.0 series (`main`) branch
 
+- Added the wizard-only `task_local()` and `set_task_local()` from ToastStunt, for a value shared by
+  every verb in a task. The value survives suspends and restarts and returns to its last committed
+  state on a conflict retry. A forked task starts with an empty map. Existing saved tasks still
+  load.
 - Suspended tasks restored at startup keep their saved copies until they wake. They had none until
   the next clean shutdown, so a crash soon after a restart lost them however long they had been
   waiting, and a restored one-shot schedule firing would fire again.

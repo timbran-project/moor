@@ -144525,6 +144525,9 @@ mod root {
             /// The field `root_caller_perms` in the table `VMExecState`
             pub root_caller_perms:
                 ::core::option::Option<::planus::alloc::boxed::Box<super::moor_common::Obj>>,
+            /// The field `task_local` in the table `VMExecState`
+            pub task_local:
+                ::core::option::Option<::planus::alloc::boxed::Box<super::moor_var::Var>>,
         }
 
         #[allow(clippy::derivable_impls)]
@@ -144535,6 +144538,7 @@ mod root {
                     tick_count: 0,
                     start_time_nanos: 0,
                     root_caller_perms: ::core::default::Default::default(),
+                    task_local: ::core::default::Default::default(),
                 }
             }
         }
@@ -144557,13 +144561,15 @@ mod root {
                 field_root_caller_perms: impl ::planus::WriteAsOptional<
                     ::planus::Offset<super::moor_common::Obj>,
                 >,
+                field_task_local: impl ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
             ) -> ::planus::Offset<Self> {
                 let prepared_activation_stack = field_activation_stack.prepare(builder);
                 let prepared_tick_count = field_tick_count.prepare(builder, &0);
                 let prepared_start_time_nanos = field_start_time_nanos.prepare(builder, &0);
                 let prepared_root_caller_perms = field_root_caller_perms.prepare(builder);
+                let prepared_task_local = field_task_local.prepare(builder);
 
-                let mut table_writer: ::planus::table_writer::TableWriter<12> =
+                let mut table_writer: ::planus::table_writer::TableWriter<14> =
                     ::core::default::Default::default();
                 if prepared_tick_count.is_some() {
                     table_writer.write_entry::<u64>(1);
@@ -144575,6 +144581,9 @@ mod root {
                     .write_entry::<::planus::Offset<[::planus::Offset<self::Activation>]>>(0);
                 if prepared_root_caller_perms.is_some() {
                     table_writer.write_entry::<::planus::Offset<super::moor_common::Obj>>(3);
+                }
+                if prepared_task_local.is_some() {
+                    table_writer.write_entry::<::planus::Offset<super::moor_var::Var>>(4);
                 }
 
                 unsafe {
@@ -144594,6 +144603,11 @@ mod root {
                             prepared_root_caller_perms
                         {
                             object_writer.write::<_, _, 4>(&prepared_root_caller_perms);
+                        }
+                        if let ::core::option::Option::Some(prepared_task_local) =
+                            prepared_task_local
+                        {
+                            object_writer.write::<_, _, 4>(&prepared_task_local);
                         }
                     });
                 }
@@ -144631,6 +144645,7 @@ mod root {
                     self.tick_count,
                     self.start_time_nanos,
                     &self.root_caller_perms,
+                    &self.task_local,
                 )
             }
         }
@@ -144717,6 +144732,26 @@ mod root {
         }
 
         impl<T0, T1, T2, T3> VmExecStateBuilder<(T0, T1, T2, T3)> {
+            /// Setter for the [`task_local` field](VmExecState#structfield.task_local).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn task_local<T4>(self, value: T4) -> VmExecStateBuilder<(T0, T1, T2, T3, T4)>
+            where
+                T4: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
+            {
+                let (v0, v1, v2, v3) = self.0;
+                VmExecStateBuilder((v0, v1, v2, v3, value))
+            }
+
+            /// Sets the [`task_local` field](VmExecState#structfield.task_local) to null.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn task_local_as_null(self) -> VmExecStateBuilder<(T0, T1, T2, T3, ())> {
+                self.task_local(())
+            }
+        }
+
+        impl<T0, T1, T2, T3, T4> VmExecStateBuilder<(T0, T1, T2, T3, T4)> {
             /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [VmExecState].
             #[inline]
             pub fn finish(self, builder: &mut ::planus::Builder) -> ::planus::Offset<VmExecState>
@@ -144732,8 +144767,9 @@ mod root {
             T1: ::planus::WriteAsDefault<u64, u64>,
             T2: ::planus::WriteAsDefault<u64, u64>,
             T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+            T4: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
         > ::planus::WriteAs<::planus::Offset<VmExecState>>
-            for VmExecStateBuilder<(T0, T1, T2, T3)>
+            for VmExecStateBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<VmExecState>;
 
@@ -144748,8 +144784,9 @@ mod root {
             T1: ::planus::WriteAsDefault<u64, u64>,
             T2: ::planus::WriteAsDefault<u64, u64>,
             T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
+            T4: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
         > ::planus::WriteAsOptional<::planus::Offset<VmExecState>>
-            for VmExecStateBuilder<(T0, T1, T2, T3)>
+            for VmExecStateBuilder<(T0, T1, T2, T3, T4)>
         {
             type Prepared = ::planus::Offset<VmExecState>;
 
@@ -144767,12 +144804,13 @@ mod root {
             T1: ::planus::WriteAsDefault<u64, u64>,
             T2: ::planus::WriteAsDefault<u64, u64>,
             T3: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Obj>>,
-        > ::planus::WriteAsOffset<VmExecState> for VmExecStateBuilder<(T0, T1, T2, T3)>
+            T4: ::planus::WriteAsOptional<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOffset<VmExecState> for VmExecStateBuilder<(T0, T1, T2, T3, T4)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<VmExecState> {
-                let (v0, v1, v2, v3) = &self.0;
-                VmExecState::create(builder, v0, v1, v2, v3)
+                let (v0, v1, v2, v3, v4) = &self.0;
+                VmExecState::create(builder, v0, v1, v2, v3, v4)
             }
         }
 
@@ -144816,6 +144854,14 @@ mod root {
             {
                 self.0.access(3, "VmExecState", "root_caller_perms")
             }
+
+            /// Getter for the [`task_local` field](VmExecState#structfield.task_local).
+            #[inline]
+            pub fn task_local(
+                &self,
+            ) -> ::planus::Result<::core::option::Option<super::moor_var::VarRef<'a>>> {
+                self.0.access(4, "VmExecState", "task_local")
+            }
         }
 
         impl<'a> ::core::fmt::Debug for VmExecStateRef<'a> {
@@ -144828,6 +144874,11 @@ mod root {
                     self.root_caller_perms().transpose()
                 {
                     f.field("root_caller_perms", &field_root_caller_perms);
+                }
+                if let ::core::option::Option::Some(field_task_local) =
+                    self.task_local().transpose()
+                {
+                    f.field("task_local", &field_task_local);
                 }
                 f.finish()
             }
@@ -144849,6 +144900,15 @@ mod root {
                     {
                         ::core::option::Option::Some(::planus::alloc::boxed::Box::new(
                             ::core::convert::TryInto::try_into(root_caller_perms)?,
+                        ))
+                    } else {
+                        ::core::option::Option::None
+                    },
+                    task_local: if let ::core::option::Option::Some(task_local) =
+                        value.task_local()?
+                    {
+                        ::core::option::Option::Some(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryInto::try_into(task_local)?,
                         ))
                     } else {
                         ::core::option::Option::None
@@ -144933,7 +144993,7 @@ mod root {
         /// The table `VmHost` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `VmHost` in the file `task.fbs:447`
+        /// * Table `VmHost` in the file `task.fbs:449`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct VmHost {
             /// The field `task_id` in the table `VmHost`
@@ -145362,7 +145422,7 @@ mod root {
         /// The table `Task` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `Task` in the file `task.fbs:459`
+        /// * Table `Task` in the file `task.fbs:461`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct Task {
             /// The field `version` in the table `Task`
@@ -146239,7 +146299,7 @@ mod root {
         /// The table `SuspendedTask` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `SuspendedTask` in the file `task.fbs:484`
+        /// * Table `SuspendedTask` in the file `task.fbs:486`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct SuspendedTask {
             /// The field `version` in the table `SuspendedTask`
@@ -146555,7 +146615,7 @@ mod root {
         /// The table `ScheduleFiring` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `ScheduleFiring` in the file `task.fbs:498`
+        /// * Table `ScheduleFiring` in the file `task.fbs:500`
         #[derive(
             Clone,
             Debug,
@@ -146933,7 +146993,7 @@ mod root {
         /// The table `Schedule` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `Schedule` in the file `task.fbs:504`
+        /// * Table `Schedule` in the file `task.fbs:506`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct Schedule {
             /// The field `version` in the table `Schedule`

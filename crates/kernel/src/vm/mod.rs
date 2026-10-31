@@ -237,6 +237,10 @@ pub(crate) fn extract_anonymous_refs_from_vm_exec_state(
     for activation in &vm_state.stack {
         extract_anonymous_refs_from_activation(activation, refs);
     }
+
+    if let Some(task_local) = &vm_state.task_local {
+        extract_anonymous_refs_from_var(task_local, refs);
+    }
 }
 
 #[cfg(test)]
@@ -244,6 +248,17 @@ mod tests {
     use crate::vm::VMHostResponse;
     use moor_vm::{Activation, BuiltinFrame, Frame};
     use std::mem::size_of;
+
+    #[test]
+    fn task_local_value_is_a_gc_root() {
+        let anonymous = moor_var::Obj::mk_anonymous_generated();
+        let mut state = moor_vm::ExecState::new(1, 1000);
+        state.task_local = Some(moor_var::v_list(&[moor_var::v_obj(anonymous)]));
+
+        let mut refs = std::collections::HashSet::new();
+        super::extract_anonymous_refs_from_vm_exec_state(&state, &mut refs);
+        assert!(refs.contains(&anonymous));
+    }
 
     #[test]
     fn test_width_structs_enums() {

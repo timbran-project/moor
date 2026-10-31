@@ -442,6 +442,8 @@ table VMExecState {
     // What caller_perms() reports when no MOO activation is below the current one.
     // Absent means #-1.
     root_caller_perms: MoorCommon.Obj;
+    // The value set by set_task_local(). Absent means the task has not set one.
+    task_local: MoorVar.Var;
 }
 
 table VmHost {

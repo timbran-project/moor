@@ -89,6 +89,11 @@ pub struct ExecState {
     /// `NOTHING` for ordinary top-level tasks; a scheduled firing seeds it with the schedule's
     /// captured authority principal.
     pub root_caller_perms: Obj,
+    /// The value set by `set_task_local()`, or `None` if this task has not set one. It belongs to
+    /// the task rather than a frame, so every verb and nested `eval()` in the task shares it. It
+    /// is part of the retry snapshot, so a conflict retry discards changes made since the last
+    /// commit. A forked task starts with `None`.
+    pub task_local: Option<Var>,
     /// Pending error to raise when execution resumes
     pub pending_raise_error: Option<moor_var::Error>,
     /// Program-cache stats for the currently running task.
@@ -122,6 +127,7 @@ impl ExecState {
             tick_slice: 0,
             maximum_time: None,
             root_caller_perms: NOTHING,
+            task_local: None,
             pending_raise_error: None,
             program_cache_stats: ProgramCacheLocalSnapshot::default(),
             program_cache_total_slots: 0,
@@ -764,6 +770,7 @@ impl Clone for ExecState {
             start_instant: self.start_instant,
             maximum_time: self.maximum_time,
             root_caller_perms: self.root_caller_perms,
+            task_local: self.task_local.clone(),
             pending_raise_error: self.pending_raise_error.clone(),
             program_cache_stats: self.program_cache_stats,
             program_cache_total_slots: self.program_cache_total_slots,

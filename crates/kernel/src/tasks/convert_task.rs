@@ -1610,11 +1610,19 @@ pub(crate) fn vm_exec_state_to_flatbuffer(
         ))
     });
 
+    let task_local = state
+        .task_local
+        .as_ref()
+        .map(var_to_db_flatbuffer)
+        .transpose()?
+        .map(Box::new);
+
     Ok(fb::VmExecState {
         activation_stack: fb_activation_stack,
         tick_count: state.tick_count as u64,
         start_time_nanos,
         root_caller_perms,
+        task_local,
     })
 }
 
@@ -1656,6 +1664,13 @@ pub(crate) fn vm_exec_state_from_ref(
         None => NOTHING,
     };
 
+    // Records saved before task-local values existed have no field, and load as unset.
+    let task_local = fb
+        .task_local()
+        .map_err(|e| TaskConversionError::DecodingError(format!("task_local: {e}")))?
+        .map(var_from_db_flatbuffer_ref)
+        .transpose()?;
+
     Ok(KernelExecState {
         task_id: 0, // Will be set by caller
         stack,
@@ -1666,6 +1681,7 @@ pub(crate) fn vm_exec_state_from_ref(
         start_instant: None,
         maximum_time: None, // Will be set by caller
         root_caller_perms,
+        task_local,
         pending_raise_error: None,
         program_cache_stats: Default::default(),
         program_cache_total_slots: 0,
@@ -2582,7 +2598,9 @@ mod tests {
     use super::*;
     use crate::tasks::task_program_cache::ProgramSlot;
     use moor_compiler::{CompileOptions, compile};
-    use moor_var::{NOTHING, SYSTEM_OBJECT, v_empty_list, v_empty_str, v_obj, v_symbol_str};
+    use moor_var::{
+        NOTHING, SYSTEM_OBJECT, v_empty_list, v_empty_str, v_list, v_obj, v_symbol_str,
+    };
 
     #[test]
     fn slot_backed_moo_frame_serializes_without_materialization() {
@@ -2702,6 +2720,39 @@ mod tests {
             roundtrip_exec_state(&state).root_caller_perms,
             Obj::mk_id(42)
         );
+    }
+
+    #[test]
+    fn task_local_survives_flatbuffer_roundtrip() {
+        let mut state = KernelExecState::new(1, 1000);
+        assert_eq!(roundtrip_exec_state(&state).task_local, None);
+        let value = v_list(&[v_str("secret"), v_int(1)]);
+        state.task_local = Some(value.clone());
+        assert_eq!(roundtrip_exec_state(&state).task_local, Some(value));
+    }
+
+    #[test]
+    fn exec_state_saved_without_task_local_field_loads_as_unset() {
+        use planus::{ReadAsRoot, WriteAsOffset};
+
+        // Encode the table as it was before the field existed: only its earlier fields, leaving
+        // task_local out of the vtable.
+        let mut builder = planus::Builder::new();
+        let activations: Vec<fb::Activation> = Vec::new();
+        let offset = fb::VmExecState::builder()
+            .activation_stack(activations)
+            .tick_count(7u64)
+            .start_time_nanos_as_default()
+            .root_caller_perms_as_null()
+            .task_local_as_null()
+            .prepare(&mut builder);
+        let bytes = builder.finish(offset, None);
+        let fb_ref = fb::VmExecStateRef::read_as_root(bytes).unwrap();
+        assert!(fb_ref.task_local().unwrap().is_none());
+
+        let restored = vm_exec_state_from_ref(fb_ref).unwrap();
+        assert_eq!(restored.tick_count, 7);
+        assert_eq!(restored.task_local, None);
     }
 
     #[test]

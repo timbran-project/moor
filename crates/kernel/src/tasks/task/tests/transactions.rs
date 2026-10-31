@@ -252,16 +252,26 @@ impl Database for SequencedGateDatabase {
 fn run_with_conflict_schedule(
     conflicts_per_boundary: &[u32],
 ) -> (Result<Var, SchedulerError>, Vec<Duration>) {
+    run_boundaries_with_conflict_schedule("", "return 7;", conflicts_per_boundary)
+}
+
+/// Runs `boundary_prefix` before each conflicting commit in the schedule, then `epilogue`.
+fn run_boundaries_with_conflict_schedule(
+    boundary_prefix: &str,
+    epilogue: &str,
+    conflicts_per_boundary: &[u32],
+) -> (Result<Var, SchedulerError>, Vec<Duration>) {
     let verb = Symbol::mk("conflict_schedule");
     let mut program = String::new();
     for _ in conflicts_per_boundary {
+        program.push_str(boundary_prefix);
         // `name` is a special built-in property (object metadata) with
         // its own storage, not the ordinary `object_propvalues` relation
         // the conflict detector tracks -- writing it never conflicts
         // with anything. Use a real user-defined property instead.
         program.push_str("v = this.conflict_counter; this.conflict_counter = v; commit(); ");
     }
-    program.push_str("return 7;");
+    program.push_str(epilogue);
     let database = setup_database(&[TestVerb {
         name: verb,
         program: compile(&program, CompileOptions::default()).unwrap(),
@@ -358,6 +368,22 @@ fn run_with_conflict_schedule(
 
     let handle = submit.join().unwrap().unwrap();
     (wait_result(&handle), retry_durations)
+}
+
+/// A conflict retry runs from the last commit, so it must not see changes
+/// to the task-local value made by an attempt that never committed. Each
+/// boundary adds one entry and conflicts twice, so a value that leaked
+/// across attempts would hold six entries instead of two. The first
+/// boundary also covers retrying back to a task with no value set.
+#[test]
+fn task_local_rolls_back_on_conflict_retry() {
+    let (result, retries) = run_boundaries_with_conflict_schedule(
+        "t = task_local(); t[length(t) + 1] = 1; set_task_local(t); ",
+        "return length(task_local());",
+        &[2, 2],
+    );
+    assert_eq!(result, Ok(v_int(2)));
+    assert_eq!(retries.len(), 4, "every injected conflict should retry");
 }
 
 /// A successful transaction boundary resets the consecutive-retry

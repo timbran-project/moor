@@ -14,6 +14,50 @@
 use super::*;
 
 #[test]
+fn read_keeps_task_local_value() {
+    let verb = Symbol::mk("read_task_local_helper");
+    let (client, _sched) = setup_scheduler(&[TestVerb {
+        name: verb,
+        program: compile(
+            "set_task_local(\"kept\"); line = read(); return {line, task_local()};",
+            CompileOptions::default(),
+        )
+        .unwrap(),
+        argspec: VerbArgsSpec::this_none_this(),
+    }]);
+    let player = Obj::mk_id(4);
+    let session = Arc::new(MockClientSession::new());
+    let handle = client
+        .submit_verb_task(
+            &player,
+            &ObjectRef::Id(SYSTEM_OBJECT),
+            verb,
+            List::mk_list(&[]),
+            v_empty_str(),
+            &SYSTEM_OBJECT,
+            session.clone(),
+        )
+        .unwrap();
+
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let input_request_id = loop {
+        if let Some((_, input_request_id, _)) = session.input_requests().into_iter().next() {
+            break input_request_id;
+        }
+        assert!(Instant::now() < deadline, "input request timed out");
+        std::thread::yield_now();
+    };
+
+    client
+        .submit_requested_input(&player, &player, input_request_id, v_str("hello"))
+        .unwrap();
+    assert_eq!(
+        wait_result(&handle).unwrap(),
+        moor_var::v_list(&[v_str("hello"), v_str("kept")])
+    );
+}
+
+#[test]
 fn read_uses_task_player_when_authority_differs() {
     let verb = Symbol::mk("read_helper");
     let (client, _sched) = setup_scheduler(&[TestVerb {
