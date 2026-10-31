@@ -97,7 +97,7 @@ impl TasksDb for ScheduleIdTasksDb {
         Ok(vec![])
     }
 
-    fn save_task(&self, _task: &SuspendedTask) -> Result<(), TasksDbError> {
+    fn save_task(&self, _task: &crate::tasks::convert_task::SavedTask) -> Result<(), TasksDbError> {
         Ok(())
     }
 
@@ -170,7 +170,7 @@ impl TasksDb for RestoredScheduleDb {
         Ok(self.tasks.lock().take().unwrap())
     }
 
-    fn save_task(&self, _task: &SuspendedTask) -> Result<(), TasksDbError> {
+    fn save_task(&self, _task: &crate::tasks::convert_task::SavedTask) -> Result<(), TasksDbError> {
         Ok(())
     }
 

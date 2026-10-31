@@ -145380,7 +145380,7 @@ mod root {
             /// The field `retries` in the table `Task`
             pub retries: u8,
             /// The field `retry_state` in the table `Task`
-            pub retry_state: ::planus::alloc::boxed::Box<self::VmExecState>,
+            pub retry_state: ::core::option::Option<::planus::alloc::boxed::Box<self::VmExecState>>,
             /// The field `handling_uncaught_error` in the table `Task`
             pub handling_uncaught_error: bool,
             /// The field `pending_exception` in the table `Task`
@@ -145412,7 +145412,7 @@ mod root {
                 field_vm_host: impl ::planus::WriteAs<::planus::Offset<self::VmHost>>,
                 field_perms: impl ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
                 field_retries: impl ::planus::WriteAsDefault<u8, u8>,
-                field_retry_state: impl ::planus::WriteAs<::planus::Offset<self::VmExecState>>,
+                field_retry_state: impl ::planus::WriteAsOptional<::planus::Offset<self::VmExecState>>,
                 field_handling_uncaught_error: impl ::planus::WriteAsDefault<bool, bool>,
                 field_pending_exception: impl ::planus::WriteAsOptional<
                     ::planus::Offset<super::moor_common::Exception>,
@@ -145452,7 +145452,9 @@ mod root {
                 table_writer.write_entry::<::planus::Offset<self::TaskState>>(3);
                 table_writer.write_entry::<::planus::Offset<self::VmHost>>(4);
                 table_writer.write_entry::<::planus::Offset<super::moor_common::Obj>>(5);
-                table_writer.write_entry::<::planus::Offset<self::VmExecState>>(7);
+                if prepared_retry_state.is_some() {
+                    table_writer.write_entry::<::planus::Offset<self::VmExecState>>(7);
+                }
                 if prepared_pending_exception.is_some() {
                     table_writer.write_entry::<::planus::Offset<super::moor_common::Exception>>(9);
                 }
@@ -145491,7 +145493,11 @@ mod root {
                         object_writer.write::<_, _, 4>(&prepared_state);
                         object_writer.write::<_, _, 4>(&prepared_vm_host);
                         object_writer.write::<_, _, 4>(&prepared_perms);
-                        object_writer.write::<_, _, 4>(&prepared_retry_state);
+                        if let ::core::option::Option::Some(prepared_retry_state) =
+                            prepared_retry_state
+                        {
+                            object_writer.write::<_, _, 4>(&prepared_retry_state);
+                        }
                         if let ::core::option::Option::Some(prepared_pending_exception) =
                             prepared_pending_exception
                         {
@@ -145695,10 +145701,17 @@ mod root {
             #[allow(clippy::type_complexity)]
             pub fn retry_state<T7>(self, value: T7) -> TaskBuilder<(T0, T1, T2, T3, T4, T5, T6, T7)>
             where
-                T7: ::planus::WriteAs<::planus::Offset<self::VmExecState>>,
+                T7: ::planus::WriteAsOptional<::planus::Offset<self::VmExecState>>,
             {
                 let (v0, v1, v2, v3, v4, v5, v6) = self.0;
                 TaskBuilder((v0, v1, v2, v3, v4, v5, v6, value))
+            }
+
+            /// Sets the [`retry_state` field](Task#structfield.retry_state) to null.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn retry_state_as_null(self) -> TaskBuilder<(T0, T1, T2, T3, T4, T5, T6, ())> {
+                self.retry_state(())
             }
         }
 
@@ -145879,7 +145892,7 @@ mod root {
             T4: ::planus::WriteAs<::planus::Offset<self::VmHost>>,
             T5: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
             T6: ::planus::WriteAsDefault<u8, u8>,
-            T7: ::planus::WriteAs<::planus::Offset<self::VmExecState>>,
+            T7: ::planus::WriteAsOptional<::planus::Offset<self::VmExecState>>,
             T8: ::planus::WriteAsDefault<bool, bool>,
             T9: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Exception>>,
             T10: ::planus::WriteAsDefault<u64, u64>,
@@ -145904,7 +145917,7 @@ mod root {
             T4: ::planus::WriteAs<::planus::Offset<self::VmHost>>,
             T5: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
             T6: ::planus::WriteAsDefault<u8, u8>,
-            T7: ::planus::WriteAs<::planus::Offset<self::VmExecState>>,
+            T7: ::planus::WriteAsOptional<::planus::Offset<self::VmExecState>>,
             T8: ::planus::WriteAsDefault<bool, bool>,
             T9: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Exception>>,
             T10: ::planus::WriteAsDefault<u64, u64>,
@@ -145932,7 +145945,7 @@ mod root {
             T4: ::planus::WriteAs<::planus::Offset<self::VmHost>>,
             T5: ::planus::WriteAs<::planus::Offset<super::moor_common::Obj>>,
             T6: ::planus::WriteAsDefault<u8, u8>,
-            T7: ::planus::WriteAs<::planus::Offset<self::VmExecState>>,
+            T7: ::planus::WriteAsOptional<::planus::Offset<self::VmExecState>>,
             T8: ::planus::WriteAsDefault<bool, bool>,
             T9: ::planus::WriteAsOptional<::planus::Offset<super::moor_common::Exception>>,
             T10: ::planus::WriteAsDefault<u64, u64>,
@@ -145999,8 +146012,10 @@ mod root {
 
             /// Getter for the [`retry_state` field](Task#structfield.retry_state).
             #[inline]
-            pub fn retry_state(&self) -> ::planus::Result<self::VmExecStateRef<'a>> {
-                self.0.access_required(7, "Task", "retry_state")
+            pub fn retry_state(
+                &self,
+            ) -> ::planus::Result<::core::option::Option<self::VmExecStateRef<'a>>> {
+                self.0.access(7, "Task", "retry_state")
             }
 
             /// Getter for the [`handling_uncaught_error` field](Task#structfield.handling_uncaught_error).
@@ -146065,7 +146080,11 @@ mod root {
                 f.field("vm_host", &self.vm_host());
                 f.field("perms", &self.perms());
                 f.field("retries", &self.retries());
-                f.field("retry_state", &self.retry_state());
+                if let ::core::option::Option::Some(field_retry_state) =
+                    self.retry_state().transpose()
+                {
+                    f.field("retry_state", &field_retry_state);
+                }
                 f.field("handling_uncaught_error", &self.handling_uncaught_error());
                 if let ::core::option::Option::Some(field_pending_exception) =
                     self.pending_exception().transpose()
@@ -146110,9 +146129,15 @@ mod root {
                         value.perms()?,
                     )?),
                     retries: ::core::convert::TryInto::try_into(value.retries()?)?,
-                    retry_state: ::planus::alloc::boxed::Box::new(
-                        ::core::convert::TryInto::try_into(value.retry_state()?)?,
-                    ),
+                    retry_state: if let ::core::option::Option::Some(retry_state) =
+                        value.retry_state()?
+                    {
+                        ::core::option::Option::Some(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryInto::try_into(retry_state)?,
+                        ))
+                    } else {
+                        ::core::option::Option::None
+                    },
                     handling_uncaught_error: ::core::convert::TryInto::try_into(
                         value.handling_uncaught_error()?,
                     )?,
@@ -146214,7 +146239,7 @@ mod root {
         /// The table `SuspendedTask` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `SuspendedTask` in the file `task.fbs:482`
+        /// * Table `SuspendedTask` in the file `task.fbs:484`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct SuspendedTask {
             /// The field `version` in the table `SuspendedTask`
@@ -146530,7 +146555,7 @@ mod root {
         /// The table `ScheduleFiring` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `ScheduleFiring` in the file `task.fbs:496`
+        /// * Table `ScheduleFiring` in the file `task.fbs:498`
         #[derive(
             Clone,
             Debug,
@@ -146908,7 +146933,7 @@ mod root {
         /// The table `Schedule` in the namespace `MoorTask`
         ///
         /// Generated from these locations:
-        /// * Table `Schedule` in the file `task.fbs:502`
+        /// * Table `Schedule` in the file `task.fbs:504`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct Schedule {
             /// The field `version` in the table `Schedule`

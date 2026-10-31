@@ -26,7 +26,7 @@ impl TasksDb for LoadedTasksDb {
         Ok(self.0.lock().take().unwrap())
     }
 
-    fn save_task(&self, _task: &SuspendedTask) -> Result<(), TasksDbError> {
+    fn save_task(&self, _task: &crate::tasks::convert_task::SavedTask) -> Result<(), TasksDbError> {
         Ok(())
     }
 

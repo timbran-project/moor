@@ -38,6 +38,7 @@ mod cancellation;
 mod completion;
 mod persistence;
 mod suspension;
+mod task_writer;
 
 pub(crate) use active::{
     LiveTaskRegistration, LiveTaskRegistry, RunningTask, RunningTaskPhase, TaskDispatch,

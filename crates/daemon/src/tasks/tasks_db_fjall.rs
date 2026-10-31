@@ -18,8 +18,7 @@ use moor_kernel::{
     tasks::{
         TasksDb, TasksDbError,
         convert_task::{
-            schedule_from_ref, schedule_to_flatbuffer, suspended_task_from_ref,
-            suspended_task_to_flatbuffer,
+            SavedTask, schedule_from_ref, schedule_to_flatbuffer, suspended_task_from_ref,
         },
         schedule_q::{ScheduleEntry, ScheduleId},
     },
@@ -118,11 +117,11 @@ impl TasksDb for FjallTasksDB {
         Ok(tasks)
     }
 
-    fn save_task(&self, task: &SuspendedTask) -> Result<(), TasksDbError> {
-        let task_id = task.task.task_id.to_le_bytes();
+    fn save_task(&self, task: &SavedTask) -> Result<(), TasksDbError> {
+        let task_id = task.task_id().to_le_bytes();
 
         // Convert to FlatBuffer
-        let fb_task = suspended_task_to_flatbuffer(task).map_err(|e| {
+        let fb_task = task.to_flatbuffer().map_err(|e| {
             error!("Failed to convert task to FlatBuffer: {:?}", e);
             TasksDbError::CouldNotSaveTask
         })?;
@@ -282,6 +281,7 @@ mod tests {
         tasks::NoopClientSession,
         util::{Deadline, Instant, Timestamp},
     };
+    use moor_kernel::tasks::convert_task::{SavedTask, suspended_task_from_ref};
     use moor_kernel::tasks::schedule_q::{
         CatchupPolicy, OverlapPolicy, ScheduleEntry, ScheduleKind, ScheduleOptions,
     };
@@ -294,6 +294,7 @@ mod tests {
         tasks::{ServerOptions, TaskStart, TasksDb},
     };
     use moor_var::{List, Obj, SYSTEM_OBJECT, Symbol, v_int, v_str};
+    use planus::{ReadAsRoot, WriteAsOffset};
     use std::{
         sync::Arc,
         time::{Duration, UNIX_EPOCH},
@@ -320,6 +321,65 @@ mod tests {
             assert!(!is_fresh);
             let tasks = db.load_tasks().unwrap();
             assert_eq!(tasks.len(), 0);
+        }
+    }
+
+    /// A saved task has its VM state once, and a retry starts from that state. A record written
+    /// before this, with its own retry state, still loads.
+    #[test]
+    fn a_task_is_saved_with_one_copy_of_its_state() {
+        let so = ServerOptions {
+            bg_seconds: 0.0,
+            bg_ticks: 0,
+            fg_seconds: 0.0,
+            fg_ticks: 0,
+            max_stack_depth: 0,
+            dump_interval: None,
+            gc_interval: None,
+            max_task_retries: DEFAULT_MAX_TASK_RETRIES,
+            max_task_mailbox: DEFAULT_MAX_TASK_MAILBOX,
+            db_commit_queue_warn: DEFAULT_DB_COMMIT_QUEUE_WARN,
+            db_commit_queue_timeout: DEFAULT_DB_COMMIT_QUEUE_TIMEOUT,
+            rollback_on_task_limit: false,
+        };
+        let task = Task::new(
+            7,
+            SYSTEM_OBJECT,
+            SYSTEM_OBJECT,
+            TaskStart::StartEval {
+                player: SYSTEM_OBJECT,
+                program: Default::default(),
+                initial_env: None,
+            },
+            &so,
+            Arc::new(TaskControl::new()),
+        );
+        let suspended = SuspendedTask {
+            enqueued_at: Timestamp::now(),
+            wake_condition: WakeCondition::Never,
+            task,
+            session: Arc::new(NoopClientSession::new()),
+            result_sender: None,
+            timer_generation: 0,
+        };
+        let saved = SavedTask::of(&suspended).unwrap();
+        let record = saved.to_flatbuffer().unwrap();
+        assert!(record.task.retry_state.is_none());
+
+        let mut older = record.clone();
+        older.task.retry_state = Some(older.task.vm_host.exec_state.clone());
+        let bytes = |record: &moor_schema::task::SuspendedTask| {
+            let mut builder = planus::Builder::new();
+            let offset = record.prepare(&mut builder);
+            builder.finish(offset, None).to_vec()
+        };
+        for record in [&record, &older] {
+            let encoded = bytes(record);
+            let decoded = suspended_task_from_ref(
+                moor_schema::task::SuspendedTaskRef::read_as_root(&encoded).unwrap(),
+            )
+            .unwrap();
+            assert_eq!(decoded.task.task_id, 7);
         }
     }
 
@@ -370,7 +430,7 @@ mod tests {
         {
             let (db, is_fresh) = FjallTasksDB::open(path);
             assert!(is_fresh);
-            db.save_task(&suspended).unwrap();
+            db.save_task(&SavedTask::of(&suspended).unwrap()).unwrap();
             let tasks = db.load_tasks().unwrap();
             assert_eq!(tasks.len(), 1);
             assert_eq!(tasks[0].task.task_id, task_id);
@@ -437,7 +497,7 @@ mod tests {
             let (db, is_fresh) = FjallTasksDB::open(path);
             assert!(is_fresh);
             for task in tasks.iter() {
-                db.save_task(task).unwrap();
+                db.save_task(&SavedTask::of(task).unwrap()).unwrap();
             }
         }
 
@@ -504,7 +564,7 @@ mod tests {
             let (db, is_fresh) = FjallTasksDB::open(path);
             assert!(is_fresh);
             for task in tasks.iter() {
-                db.save_task(task).unwrap();
+                db.save_task(&SavedTask::of(task).unwrap()).unwrap();
             }
         }
 
@@ -608,7 +668,7 @@ mod tests {
             let (db, is_fresh) = FjallTasksDB::open(path);
             assert!(is_fresh);
             for (_, task) in &tasks {
-                db.save_task(task).unwrap();
+                db.save_task(&SavedTask::of(task).unwrap()).unwrap();
             }
         }
 
@@ -707,7 +767,7 @@ mod tests {
             let (db, _) = FjallTasksDB::open(&tmpdir.path().join(format!("edge_case_{i}")));
 
             // Should not panic during save
-            db.save_task(&suspended)
+            db.save_task(&SavedTask::of(&suspended).unwrap())
                 .unwrap_or_else(|_| panic!("Failed to save edge case {i}"));
 
             // Should not panic during load
@@ -775,7 +835,7 @@ mod tests {
         // Save the task
         {
             let (db, _) = FjallTasksDB::open(path);
-            db.save_task(&suspended).unwrap();
+            db.save_task(&SavedTask::of(&suspended).unwrap()).unwrap();
         }
 
         // Load the task from the reopened database.

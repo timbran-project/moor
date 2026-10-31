@@ -1679,20 +1679,6 @@ pub(crate) fn vm_exec_state_from_ref(
 // VmHost Conversion
 // ============================================================================
 
-pub(crate) fn vm_host_to_flatbuffer(
-    host: &KernelVmHost,
-) -> Result<fb::VmHost, TaskConversionError> {
-    let fb_exec_state = vm_exec_state_to_flatbuffer(&host.vm_exec_state)?;
-
-    Ok(fb::VmHost {
-        task_id: host.vm_exec_state.task_id as u64,
-        max_stack_depth: host.max_stack_depth as u64,
-        max_ticks: host.max_ticks as u64,
-        max_time_ms: host.max_time.as_millis() as u64,
-        exec_state: Box::new(fb_exec_state),
-    })
-}
-
 pub(crate) fn vm_host_from_ref(fb: fb::VmHostRef<'_>) -> Result<KernelVmHost, TaskConversionError> {
     let task_id = fb
         .task_id()
@@ -2156,37 +2142,88 @@ pub(crate) fn fork_from_ref(fb: fb::ForkRef<'_>) -> Result<Fork, TaskConversionE
 // Task Conversion
 // ============================================================================
 
-pub(crate) fn task_to_flatbuffer(task: &KernelTask) -> Result<fb::Task, TaskConversionError> {
-    let fb_task_state = task_state_to_flatbuffer(&task.state)?;
-    let fb_vm_host = vm_host_to_flatbuffer(&task.vm_host)?;
-    let fb_retry_state = vm_exec_state_to_flatbuffer(&task.retry_state)?;
+/// What is saved of a suspended task, copied out of it so that it can be serialized and written
+/// without holding the scheduler's lock. The VM state's programs are materialized, so it has no
+/// pointers into the task's program cache.
+pub struct SavedTask {
+    task_id: moor_common::tasks::TaskId,
+    player: Obj,
+    authority_principal: Obj,
+    state: KernelTaskState,
+    exec_state: KernelExecState,
+    max_stack_depth: usize,
+    max_ticks: usize,
+    max_time: Duration,
+    retries: u8,
+    handling_uncaught_error: bool,
+    pending_exception: Option<moor_common::tasks::Exception>,
+    wake_condition: fb::WakeCondition,
+}
 
-    let fb_pending_exception = task
-        .pending_exception
-        .as_ref()
-        .map(exception_to_flatbuffer)
-        .transpose()?;
+impl SavedTask {
+    pub fn of(suspended_task: &KernelSuspendedTask) -> Result<Self, TaskConversionError> {
+        let task = &*suspended_task.task;
+        Ok(Self {
+            task_id: task.task_id,
+            player: task.player(),
+            authority_principal: task.authority_principal(),
+            state: task.state.clone(),
+            exec_state: task.vm_host.snapshot_state(),
+            max_stack_depth: task.vm_host.max_stack_depth,
+            max_ticks: task.vm_host.max_ticks,
+            max_time: task.vm_host.max_time,
+            retries: task.retries,
+            handling_uncaught_error: task.handling_uncaught_error,
+            pending_exception: task.pending_exception.clone(),
+            wake_condition: wake_condition_to_flatbuffer(&suspended_task.wake_condition)?,
+        })
+    }
 
-    Ok(fb::Task {
-        version: CURRENT_TASK_VERSION,
-        task_id: task.task_id as u64,
-        player: Box::new(convert_schema::obj_to_flatbuffer_struct(&task.player())),
-        state: Box::new(fb_task_state),
-        vm_host: Box::new(fb_vm_host),
-        perms: Box::new(convert_schema::obj_to_flatbuffer_struct(
-            &task.authority_principal(),
-        )),
-        retries: task.retries,
-        retry_state: Box::new(fb_retry_state),
-        handling_uncaught_error: task.handling_uncaught_error,
-        pending_exception: fb_pending_exception.map(Box::new),
-        // Note: waiting_for_exception_handler_task removed - exception handlers no longer suspend
-        waiting_for_exception_handler_task: 0,
-        has_waiting_for_exception_handler_task: false,
-        // Message queue is stored externally in TaskQ; not serialized with task for now.
-        // On restart, message queues for suspended tasks will be empty.
-        message_queue: None,
-    })
+    pub fn task_id(&self) -> moor_common::tasks::TaskId {
+        self.task_id
+    }
+
+    pub fn to_flatbuffer(&self) -> Result<fb::SuspendedTask, TaskConversionError> {
+        let fb_vm_host = fb::VmHost {
+            task_id: self.exec_state.task_id as u64,
+            max_stack_depth: self.max_stack_depth as u64,
+            max_ticks: self.max_ticks as u64,
+            max_time_ms: self.max_time.as_millis() as u64,
+            exec_state: Box::new(vm_exec_state_to_flatbuffer(&self.exec_state)?),
+        };
+        let fb_pending_exception = self
+            .pending_exception
+            .as_ref()
+            .map(exception_to_flatbuffer)
+            .transpose()?;
+        let fb_task = fb::Task {
+            version: CURRENT_TASK_VERSION,
+            task_id: self.task_id as u64,
+            player: Box::new(convert_schema::obj_to_flatbuffer_struct(&self.player)),
+            state: Box::new(task_state_to_flatbuffer(&self.state)?),
+            vm_host: Box::new(fb_vm_host),
+            perms: Box::new(convert_schema::obj_to_flatbuffer_struct(
+                &self.authority_principal,
+            )),
+            retries: self.retries,
+            // A task suspends just after committing, so a retry starts from this same state,
+            // and loading rebuilds it from the VM state.
+            retry_state: None,
+            handling_uncaught_error: self.handling_uncaught_error,
+            pending_exception: fb_pending_exception.map(Box::new),
+            // Note: waiting_for_exception_handler_task removed - exception handlers no longer suspend
+            waiting_for_exception_handler_task: 0,
+            has_waiting_for_exception_handler_task: false,
+            // Message queue is stored externally in TaskQ; not serialized with task for now.
+            // On restart, message queues for suspended tasks will be empty.
+            message_queue: None,
+        };
+        Ok(fb::SuspendedTask {
+            version: CURRENT_TASK_VERSION,
+            wake_condition: Box::new(self.wake_condition.clone()),
+            task: Box::new(fb_task),
+        })
+    }
 }
 
 pub(crate) fn task_from_ref(fb: fb::TaskRef<'_>) -> Result<KernelTask, TaskConversionError> {
@@ -2213,10 +2250,14 @@ pub(crate) fn task_from_ref(fb: fb::TaskRef<'_>) -> Result<KernelTask, TaskConve
         .map_err(|e| TaskConversionError::DecodingError(format!("vm_host: {e}")))?;
     let vm_host = vm_host_from_ref(vm_host_ref)?;
 
-    let retry_state_ref = fb
+    // Older records carry their retry state. Newer ones retry from the state they suspended in.
+    let mut retry_state = match fb
         .retry_state()
-        .map_err(|e| TaskConversionError::DecodingError(format!("retry_state: {e}")))?;
-    let mut retry_state = vm_exec_state_from_ref(retry_state_ref)?;
+        .map_err(|e| TaskConversionError::DecodingError(format!("retry_state: {e}")))?
+    {
+        Some(retry_state_ref) => vm_exec_state_from_ref(retry_state_ref)?,
+        None => vm_host.vm_exec_state.clone(),
+    };
     retry_state.task_id = task_id as usize;
 
     let retries = fb
@@ -2271,16 +2312,7 @@ pub(crate) fn task_from_ref(fb: fb::TaskRef<'_>) -> Result<KernelTask, TaskConve
 pub fn suspended_task_to_flatbuffer(
     suspended_task: &KernelSuspendedTask,
 ) -> Result<fb::SuspendedTask, TaskConversionError> {
-    let wake_condition = &suspended_task.wake_condition;
-    let task = &*suspended_task.task;
-    let fb_wake_condition = wake_condition_to_flatbuffer(wake_condition)?;
-    let fb_task = task_to_flatbuffer(task)?;
-
-    Ok(fb::SuspendedTask {
-        version: CURRENT_TASK_VERSION,
-        wake_condition: Box::new(fb_wake_condition),
-        task: Box::new(fb_task),
-    })
+    SavedTask::of(suspended_task)?.to_flatbuffer()
 }
 
 /// Convert a FlatBuffer SuspendedTaskRef directly to a kernel SuspendedTask without copying.
