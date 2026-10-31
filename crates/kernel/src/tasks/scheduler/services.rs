@@ -344,6 +344,9 @@ impl Scheduler {
             {
                 let mut lc = self.lifecycle.lock();
                 lc.settle_schedule_firings();
+                lc.task_q
+                    .suspended
+                    .save_due_tasks(moor_common::util::Instant::now());
             }
             self.collect_and_fire_schedules();
 
@@ -566,8 +569,11 @@ mod tests {
         fn load_tasks(&self) -> Result<Vec<SuspendedTask>, TasksDbError> {
             Ok(self.tasks.lock().take().unwrap_or_default())
         }
-        fn save_task(&self, task: &SuspendedTask) -> Result<(), TasksDbError> {
-            self.saved.lock().push(task.task.task_id);
+        fn save_task(
+            &self,
+            task: &crate::tasks::convert_task::SavedTask,
+        ) -> Result<(), TasksDbError> {
+            self.saved.lock().push(task.task_id());
             Ok(())
         }
         fn delete_task(&self, _: TaskId) -> Result<(), TasksDbError> {

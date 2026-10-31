@@ -11,6 +11,7 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::tasks::convert_task::SavedTask;
 use crate::tasks::registry::SuspendedTask;
 use crate::tasks::schedule_q::{ScheduleEntry, ScheduleId};
 use moor_common::tasks::TaskId;
@@ -33,9 +34,9 @@ pub enum TasksDbError {
     CouldNotDeleteSchedule,
 }
 
-pub trait TasksDb: Send {
+pub trait TasksDb: Send + Sync {
     fn load_tasks(&self) -> Result<Vec<SuspendedTask>, TasksDbError>;
-    fn save_task(&self, task: &SuspendedTask) -> Result<(), TasksDbError>;
+    fn save_task(&self, task: &SavedTask) -> Result<(), TasksDbError>;
     fn delete_task(&self, task_id: TaskId) -> Result<(), TasksDbError>;
     fn delete_all_tasks(&self) -> Result<(), TasksDbError>;
 
@@ -79,7 +80,7 @@ impl TasksDb for NoopTasksDb {
         Ok(vec![])
     }
 
-    fn save_task(&self, _task: &SuspendedTask) -> Result<(), TasksDbError> {
+    fn save_task(&self, _task: &SavedTask) -> Result<(), TasksDbError> {
         Ok(())
     }
 

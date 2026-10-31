@@ -466,7 +466,9 @@ table Task {
     vm_host: VmHost (required);
     perms: MoorCommon.Obj (required);
     retries: uint8;
-    retry_state: VMExecState (required);
+    // Absent in records that saved a suspended task, whose retry state is its VM state. Older
+    // records have it, and it is still read from them.
+    retry_state: VMExecState;
     handling_uncaught_error: bool;
     pending_exception: MoorCommon.Exception;  // Optional - empty if None
     waiting_for_exception_handler_task: uint64;  // Use 0 for None
