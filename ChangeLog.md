@@ -15,8 +15,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## Unreleased 2.0 series (`main`) branch
 
 - ZeroMQ hosts share RPC sockets across sessions and limit concurrent calls and queue waits.
-  Long-running calls reuse sockets, and host registration and heartbeat replies have reserved
-  capacity. RPC overload returns a recoverable error instead of opening sockets without a limit.
+  Long-running calls reuse sockets. Host registration and both host and session heartbeat replies
+  use reserved sockets, which the host creates before accepting sessions and retains between calls.
+  CLI and YAML settings control these limits and the ZeroMQ context limit, now 4096 by default. RPC
+  overload returns a recoverable error instead of opening sockets without a limit.
 - Meadow draws the room panel from the document Cowbell sends, which keeps list numbering, table
   alignment and captions, task checkboxes and strikethrough that the HTML body lost. It uses the
   rendered body if the document is missing or not valid.

@@ -40,7 +40,7 @@ use moor_runtime_api::{
 };
 use moor_var::SYSTEM_OBJECT;
 use moor_zmq_client::{
-    ZmqHostServices, process_hosts_events_with_services, start_host_session_with_services,
+    HostRpcArgs, process_hosts_events_with_services, start_host_session_with_services,
 };
 use tokio::{select, sync::watch};
 use tracing::info;
@@ -64,6 +64,7 @@ pub struct TelnetHostConfig {
 #[derive(Clone, Debug)]
 pub struct ZmqTelnetHostConfig {
     pub connection: RpcClientConfig,
+    pub rpc: HostRpcArgs,
     pub host: TelnetHostConfig,
 }
 
@@ -81,6 +82,7 @@ impl Default for HostRuntime {
 }
 
 pub async fn run(config: ZmqTelnetHostConfig, runtime: HostRuntime) -> Result<()> {
+    config.rpc.validate()?;
     let curve_keys = moor_zmq_client::enrollment_client::setup_curve_auth(
         &config.connection.rpc_address,
         &config.connection.enrollment_address,
@@ -90,12 +92,12 @@ pub async fn run(config: ZmqTelnetHostConfig, runtime: HostRuntime) -> Result<()
     )
     .map_err(|e| eyre!("Failed to setup CURVE authentication: {e}"))?;
 
-    let host_services = Arc::new(ZmqHostServices::new(
-        r0z_async::Context::new(),
-        config.connection.rpc_address.clone(),
-        config.connection.events_address.clone(),
-        curve_keys.clone(),
-    )) as Arc<dyn HostServices>;
+    let host_services = Arc::new(
+        config
+            .rpc
+            .host_services(&config.connection, curve_keys)
+            .await?,
+    ) as Arc<dyn HostServices>;
     run_with_host_services(config.host, runtime, host_services).await
 }
 
