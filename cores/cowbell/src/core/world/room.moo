@@ -20,6 +20,7 @@ object ROOM [
   property listing_form (owner: HACKER, flags: "rc") = 'indefinite;
   property passage_areas (owner: ARCH_WIZARD, flags: "r") = {};
   property visitors (owner: ARCH_WIZARD, flags: "") = {};
+  property panel_refresh_delay (owner: ARCH_WIZARD, flags: "rc") = 0.5;
 
   override description (owner: HACKER, flags: "rc") = "Parent prototype for all rooms in the system, defining room behavior and event broadcasting.";
 
@@ -250,16 +251,67 @@ object ROOM [
           endif
         endfor
       endif
-      for viewer in (this.contents)
+      this:_refresh_panels(who);
+      this:_run_hook(this, 'on_contents_enter, {who});
+    endfork
+    `pass(@args) ! E_TYPE, E_VERBNF => 0';
+  endmethod
+
+  method _refresh_panels owner: ARCH_WIZARD
+    "After who moved in or out, show everyone else here the room, once it has been still for panel_refresh_delay seconds. Called from a task started after the move commits, so the last move's call sees every earlier one, and it is the one that finds the room unchanged. Panels take one render per viewer, so a crowd arriving costs one round rather than one per arrival.";
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    const {who} = args;
+    const seen = this.contents;
+    fork (this.panel_refresh_delay)
+      valid(this) && this.contents == seen || return;
+      for viewer in (seen)
         suspend_if_needed();
         if (!is_player(viewer) || viewer == who)
           continue;
         endif
         `viewer:emit_room_snapshot_state(viewer, this) ! ANY => 0';
       endfor
-      this:_run_hook(this, 'on_contents_enter, {who});
     endfork
-    `pass(@args) ! E_TYPE, E_VERBNF => 0';
+  endmethod
+
+  method test_panels_wait_for_a_still_room owner: ARCH_WIZARD
+    "Everyone but the mover gets one panel once the room is still; a move in the meantime replaces that round with its own.";
+    const room = create($room, $arch_wizard);
+    room.panel_refresh_delay = 0.05;
+    let made = {};
+    try
+      for i in [1..3]
+        const spy = create($player, $arch_wizard);
+        made = {@made, spy};
+        set_player_flag(spy, 1);
+        add_property(spy, "panels", 0, {$arch_wizard, ""});
+        add_verb(spy, {$arch_wizard, "rxd", "emit_room_snapshot_state"}, {"this", "none", "this"});
+        set_verb_code(spy, "emit_room_snapshot_state", {"this.panels = this.panels + 1;"});
+      endfor
+      const {mover, watcher, late} = made;
+      move(mover, room);
+      move(watcher, room);
+      "Let the rounds from those arrivals pass.";
+      suspend(0.3);
+      mover.panels = 0;
+      watcher.panels = 0;
+      room:_refresh_panels(mover);
+      suspend(0.3);
+      watcher.panels == 1 || raise(E_ASSERT, tostr("A still room should show a watcher one panel, not ", watcher.panels, "."));
+      mover.panels == 0 || raise(E_ASSERT, "The mover has seen the room already.");
+      watcher.panels = 0;
+      "This round is to wait, but the room changes first.";
+      room:_refresh_panels(mover);
+      move(late, room);
+      suspend(0.3);
+      watcher.panels == 1 || raise(E_ASSERT, tostr("A move should replace the waiting round, leaving one panel, not ", watcher.panels, "."));
+      late.panels == 0 || raise(E_ASSERT, "Who moved last has seen the room already.");
+    finally
+      for spy in (made)
+        recycle(spy);
+      endfor
+      recycle(room);
+    endtry
   endmethod
 
   method _run_hook owner: ARCH_WIZARD
@@ -327,13 +379,7 @@ object ROOM [
           this:_run_hook(item, 'on_location_exit, {who});
         endif
       endfor
-      for viewer in (this.contents)
-        suspend_if_needed();
-        if (!is_player(viewer))
-          continue;
-        endif
-        `viewer:emit_room_snapshot_state(viewer, this) ! ANY => 0';
-      endfor
+      this:_refresh_panels(who);
       this:_run_hook(this, 'on_contents_exit, {who});
     endfork
     `pass(@args) ! E_TYPE, E_VERBNF => 0';
