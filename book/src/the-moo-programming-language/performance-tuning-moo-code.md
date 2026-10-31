@@ -335,7 +335,10 @@ of the design, such as a loop that waits for the next tick or the next batch of 
 
 When `task_recv(wait_time)` actually waits, the task moves into a queued state. It is not sitting on
 a worker thread burning CPU while it waits for the next message. That makes this pattern practical
-for long-lived event loops and controller tasks that spend much of their time idle between events.
+for long-lived event loops and controller tasks that spend much of their time idle between events. A
+waiting task is saved to the tasks database only after it has waited about 5 seconds, so a loop that
+keeps receiving messages doesn't pay for saves. A crash can therefore lose a task that began its
+wait within about the last 6 seconds. A clean shutdown saves every waiting task.
 
 In other words:
 

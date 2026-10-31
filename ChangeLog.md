@@ -14,6 +14,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.0 series (`main`) branch
 
+- Suspending a task no longer writes it to the tasks database at once, which took about 17% of the
+  daemon's CPU in a test with many tasks looping on `task_recv()`, while holding the scheduler's
+  lock. A task waiting on its mailbox or a timer is saved after 5 seconds, by a separate thread, and
+  one that wakes sooner is never written. A crash can now lose tasks that suspended within about the
+  last 6 seconds, and other waits within about the last second. A clean shutdown saves them all.
+  Existing saved tasks still load.
 - ZeroMQ hosts share RPC sockets across sessions and limit concurrent calls and queue waits.
   Long-running calls reuse sockets. Session pongs and the host's own registration and pongs each use
   reserved sockets and their own queue, which the host creates before accepting sessions and retains

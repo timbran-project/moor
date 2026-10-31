@@ -14,6 +14,9 @@
 //! Suspended tasks and wake indexes, mutated under the scheduler lifecycle lock.
 
 use super::active::{LiveTaskRegistration, LiveTaskRegistry};
+#[cfg(test)]
+use super::persistence::SAVE_PASS_INTERVAL;
+use super::{persistence::MESSAGE_OR_TIMER_SAVE_DELAY, task_writer::TaskWriter};
 use crate::tasks::{
     TaskDescription, TaskNotification, TaskStart, TasksDb,
     scheduler::ResumeAction,
@@ -31,7 +34,7 @@ use moor_common::{
 };
 use moor_var::{Obj, Var};
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     hash::BuildHasherDefault,
     sync::Arc,
     time::{Duration, SystemTime},
@@ -168,7 +171,7 @@ impl WakeCondition {
 /// keeping them in sync.
 pub struct SuspensionQ {
     /// All suspended tasks - the master storage
-    tasks: HashMap<TaskId, RegisteredSuspendedTask, BuildHasherDefault<AHasher>>,
+    pub(super) tasks: HashMap<TaskId, RegisteredSuspendedTask, BuildHasherDefault<AHasher>>,
 
     /// Time-based tasks use a hash wheel timer (O(1) amortized)
     timer_wheel: QuadWheelWithOverflow<TimerEntry>,
@@ -200,12 +203,26 @@ pub struct SuspensionQ {
     /// Monotonic counter for timer entry generation stamps.
     next_generation: u64,
 
-    tasks_database: Box<dyn TasksDb>,
+    tasks_database: Arc<dyn TasksDb>,
+
+    /// Writes saved tasks, away from the scheduler's lock.
+    pub(super) writer: TaskWriter,
+
+    /// Suspended tasks not saved yet, and when each is due to be.
+    pub(super) unsaved: HashMap<TaskId, Instant, BuildHasherDefault<AHasher>>,
+
+    /// Suspended tasks handed to the writer to save, whose records need deleting when they wake.
+    pub(super) saved: HashSet<TaskId, BuildHasherDefault<AHasher>>,
+
+    /// When to next look for tasks due to be saved.
+    pub(super) next_save_pass: Instant,
+
     pub(super) live_tasks: LiveTaskRegistry,
 }
 
 impl SuspensionQ {
     pub fn new(tasks_database: Box<dyn TasksDb>) -> Self {
+        let tasks_database: Arc<dyn TasksDb> = Arc::from(tasks_database);
         Self {
             tasks: Default::default(),
             // Create timer wheel with pruner that keeps all entries
@@ -219,7 +236,11 @@ impl SuspensionQ {
             retry_tasks: Vec::new(),
             message_waiting_tasks: Vec::new(),
             next_generation: 0,
+            writer: TaskWriter::new(tasks_database.clone()),
             tasks_database,
+            unsaved: HashMap::default(),
+            saved: HashSet::default(),
+            next_save_pass: Instant::now(),
             live_tasks: LiveTaskRegistry::new(),
         }
     }
@@ -470,7 +491,15 @@ impl SuspensionQ {
         assert_eq!(task.task.task_id, registration.task_id());
         let should_persist = self.register_wake(&mut task, input_player);
         if should_persist {
-            self.persist_task(&task);
+            let delay = match task.wake_condition {
+                WakeCondition::TaskMessage(_) | WakeCondition::Time(_) => {
+                    MESSAGE_OR_TIMER_SAVE_DELAY
+                }
+                // These wait on something slower, or on nothing at all: save at the next pass.
+                _ => Duration::ZERO,
+            };
+            self.unsaved
+                .insert(task.task.task_id, Instant::now() + delay);
         }
         self.tasks.insert(
             task.task.task_id,
@@ -865,7 +894,10 @@ mod tests {
             fn load_tasks(&self) -> Result<Vec<SuspendedTask>, TasksDbError> {
                 Ok(std::mem::take(&mut *self.0.lock()))
             }
-            fn save_task(&self, _: &SuspendedTask) -> Result<(), TasksDbError> {
+            fn save_task(
+                &self,
+                _: &crate::tasks::convert_task::SavedTask,
+            ) -> Result<(), TasksDbError> {
                 panic!("restoration must not rewrite each loaded task")
             }
             fn delete_task(&self, _: TaskId) -> Result<(), TasksDbError> {
@@ -1097,8 +1129,11 @@ mod tests {
         fn load_tasks(&self) -> Result<Vec<SuspendedTask>, crate::tasks::TasksDbError> {
             Ok(vec![])
         }
-        fn save_task(&self, task: &SuspendedTask) -> Result<(), crate::tasks::TasksDbError> {
-            self.0.lock().saved.push(task.task.task_id);
+        fn save_task(
+            &self,
+            task: &crate::tasks::convert_task::SavedTask,
+        ) -> Result<(), crate::tasks::TasksDbError> {
+            self.0.lock().saved.push(task.task_id());
             Ok(())
         }
         fn delete_task(&self, task_id: TaskId) -> Result<(), crate::tasks::TasksDbError> {
@@ -1136,6 +1171,93 @@ mod tests {
         );
         *events.lock() = PersistenceEvents::default();
         (crate::tasks::registry::TaskQ::new(suspended), anon, events)
+    }
+
+    fn recording_queue() -> (SuspensionQ, Arc<parking_lot::Mutex<PersistenceEvents>>) {
+        let events = Arc::new(parking_lot::Mutex::new(PersistenceEvents::default()));
+        (
+            SuspensionQ::new(Box::new(RecordingTasksDb(events.clone()))),
+            events,
+        )
+    }
+
+    fn suspend(queue: &mut SuspensionQ, task_id: TaskId, wake_condition: WakeCondition) {
+        let registration = queue.live_tasks.register(task_id);
+        queue.add_task(
+            wake_condition,
+            mock_task(task_id),
+            mock_session(),
+            None,
+            registration,
+        );
+    }
+
+    fn message_wait() -> WakeCondition {
+        WakeCondition::TaskMessage(Deadline::from_now(Duration::from_secs(600)).instant())
+    }
+
+    #[test]
+    fn a_task_that_wakes_soon_is_never_written() {
+        let (mut queue, events) = recording_queue();
+        suspend(&mut queue, 1, message_wait());
+        queue.save_due_tasks(Instant::now());
+        assert!(queue.remove_task(1).is_some());
+        queue.writer.wait_until_written();
+        let events = events.lock();
+        assert!(events.saved.is_empty(), "it wasn't due to be saved yet");
+        assert!(events.deleted.is_empty(), "it had no record to delete");
+    }
+
+    #[test]
+    fn a_long_wait_is_saved_once_and_deleted_on_waking() {
+        let (mut queue, events) = recording_queue();
+        suspend(&mut queue, 2, message_wait());
+        let due = Instant::now() + MESSAGE_OR_TIMER_SAVE_DELAY + Duration::from_secs(1);
+        queue.save_due_tasks(due);
+        queue.save_due_tasks(due + Duration::from_secs(60));
+        queue.writer.wait_until_written();
+        assert_eq!(
+            events.lock().saved,
+            vec![2],
+            "saved once, however long it waits"
+        );
+        assert!(queue.remove_task(2).is_some());
+        queue.writer.wait_until_written();
+        assert_eq!(events.lock().deleted, vec![2]);
+    }
+
+    #[test]
+    fn a_task_waiting_on_something_slower_is_saved_at_the_next_pass() {
+        let (mut queue, events) = recording_queue();
+        suspend(&mut queue, 3, WakeCondition::Never);
+        queue.save_due_tasks(Instant::now() + Duration::from_millis(1));
+        queue.writer.wait_until_written();
+        assert_eq!(events.lock().saved, vec![3]);
+    }
+
+    #[test]
+    fn a_save_pass_waits_for_its_interval() {
+        let (mut queue, events) = recording_queue();
+        let start = Instant::now() + Duration::from_millis(1);
+        queue.save_due_tasks(start);
+        suspend(&mut queue, 4, WakeCondition::Never);
+        queue.save_due_tasks(start + Duration::from_millis(100));
+        queue.writer.wait_until_written();
+        assert!(
+            events.lock().saved.is_empty(),
+            "too soon after the last pass"
+        );
+        queue.save_due_tasks(start + SAVE_PASS_INTERVAL);
+        queue.writer.wait_until_written();
+        assert_eq!(events.lock().saved, vec![4]);
+    }
+
+    #[test]
+    fn shutdown_saves_tasks_that_were_not_due_yet() {
+        let (mut queue, events) = recording_queue();
+        suspend(&mut queue, 5, message_wait());
+        queue.save_tasks();
+        assert_eq!(events.lock().saved, vec![5]);
     }
 
     #[test]
@@ -1229,9 +1351,12 @@ mod tests {
         queue
             .suspended
             .defer_resume(task, ResumeAction::Return(moor_var::v_int(42)));
+        queue
+            .suspended
+            .save_due_tasks(Instant::now() + Duration::from_secs(60));
         queue.suspended.save_tasks();
         let events = events.lock();
-        assert_eq!(events.deleted, vec![71]);
+        assert!(events.deleted.is_empty(), "it had no record to delete");
         assert!(events.saved.is_empty());
         assert!(queue.suspended.get(71).is_some());
     }

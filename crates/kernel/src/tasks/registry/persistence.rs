@@ -18,16 +18,39 @@
 //! Accepted responses awaiting dispatch are runtime work. Shutdown cancels them, and save excludes
 //! them because the persisted record does not contain their pending return value or raised error.
 //!
+//! A suspended task isn't saved when it suspends. Many tasks wake within moments, such as one
+//! looping on its mailbox, and for those a save would be wasted. So a suspension is noted, and
+//! `save_due_tasks` copies out those that are still suspended once they have waited long enough,
+//! for `TaskWriter` to write off the lifecycle lock. A task that wakes first costs no write and
+//! no delete. A crash can therefore lose a task that suspended within the last
+//! `MESSAGE_OR_TIMER_SAVE_DELAY` plus `SAVE_PASS_INTERVAL`, along with the writes still queued.
+//! A clean shutdown saves everything.
+//!
 //! This module preserves the existing error policy. Load and session-construction errors panic
 //! during startup. Save and bulk-deletion errors are logged and do not reverse in-memory changes.
 //! Individual deletion errors are ignored. A deletion failure can therefore leave a stale record
-//! for restart; changing that policy requires a separate recovery design. No persistence runs in
-//! a destructor.
+//! for restart; changing that policy requires a separate recovery design. No persistence starts
+//! in a destructor, though the writer finishes what it was already given.
 
-use super::suspension::{SuspendedTask, SuspensionQ, WakeCondition};
-use moor_common::tasks::{SessionFactory, TaskId};
-use std::sync::Arc;
+use super::suspension::{SuspensionQ, WakeCondition};
+use crate::tasks::convert_task::SavedTask;
+use moor_common::{
+    tasks::{SessionFactory, TaskId},
+    util::Instant,
+};
+use std::{sync::Arc, time::Duration};
 use tracing::{error, info};
+
+/// How often to look for suspended tasks that are due to be saved.
+pub(super) const SAVE_PASS_INTERVAL: Duration = Duration::from_secs(1);
+
+/// How long a task must wait on its mailbox or a timer before it is saved. Tasks doing these
+/// often wake soon, and many do so again and again.
+pub(super) const MESSAGE_OR_TIMER_SAVE_DELAY: Duration = Duration::from_secs(5);
+
+/// The most tasks to copy out in one pass, to keep the time holding the lifecycle lock short. Any
+/// more wait for the next pass.
+const MAX_SAVES_PER_PASS: usize = 256;
 
 impl SuspensionQ {
     /// Load all tasks from the tasks database. Called on startup to reconstitute the task list
@@ -60,8 +83,45 @@ impl SuspensionQ {
         max_task_id
     }
 
+    /// Hand the writer those suspended tasks whose time to be saved has come.
+    pub(crate) fn save_due_tasks(&mut self, now: Instant) {
+        if now < self.next_save_pass {
+            return;
+        }
+        self.next_save_pass = now + SAVE_PASS_INTERVAL;
+        let due: Vec<TaskId> = self
+            .unsaved
+            .iter()
+            .filter(|(_, due)| **due <= now)
+            .map(|(task_id, _)| *task_id)
+            .take(MAX_SAVES_PER_PASS)
+            .collect();
+        let mut tasks = Vec::with_capacity(due.len());
+        for task_id in due {
+            self.unsaved.remove(&task_id);
+            // Accepted responses have left their persisted wait, and have nothing to save.
+            let Some(task) = self.tasks.get(&task_id) else {
+                continue;
+            };
+            if task.pending_resume.is_some() {
+                continue;
+            }
+            match SavedTask::of(&task.record) {
+                Ok(saved) => {
+                    tasks.push(saved);
+                    self.saved.insert(task_id);
+                }
+                Err(error) => error!(?error, task_id, "Could not save suspended task"),
+            }
+        }
+        if !tasks.is_empty() {
+            self.writer.save(tasks);
+        }
+    }
+
     /// Synchronize the suspended tasks with the tasks database. Called on shutdown.
     pub(crate) fn save_tasks(&self) {
+        let mut tasks = vec![];
         for st in self.persistable_records() {
             // Skip retry tasks - they're transient and their transaction context
             // would be invalid after restart anyway
@@ -73,19 +133,20 @@ impl SuspensionQ {
             ) {
                 continue;
             }
-            self.persist_task(st);
+            match SavedTask::of(st) {
+                Ok(saved) => tasks.push(saved),
+                Err(error) => error!(?error, "Could not save suspended task"),
+            }
         }
+        self.writer.save(tasks);
+        self.writer.wait_until_written();
     }
 
-    /// Best-effort save. A storage error does not undo suspension registration.
-    pub(super) fn persist_task(&self, task: &SuspendedTask) {
-        if let Err(error) = self.tasks_db().save_task(task) {
-            error!(?error, "Could not save suspended task");
+    /// Forget a task's record, if it has one.
+    pub(super) fn delete_persisted_task(&mut self, task_id: TaskId) {
+        self.unsaved.remove(&task_id);
+        if self.saved.remove(&task_id) {
+            self.writer.delete(task_id);
         }
-    }
-
-    /// Preserve the current best-effort deletion policy, including absent records.
-    pub(super) fn delete_persisted_task(&self, task_id: TaskId) {
-        let _ = self.tasks_db().delete_task(task_id);
     }
 }
