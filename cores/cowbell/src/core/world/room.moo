@@ -296,9 +296,10 @@ object ROOM [
     caller == this || caller_perms().wizard || raise(E_PERM);
     const {who} = args;
     `this.brief_revisits ! E_PROPNF => false' || return false;
-    const visitors = `this.visitors ! E_PROPNF => {}';
-    who in visitors && return true;
-    this.visitors = {@visitors, who};
+    "Kept on the visitor, so that a crowd arriving doesn't conflict over one list. visitors holds those seen before this was so.";
+    who in `this.visitors ! E_PROPNF => {}' && return true;
+    this in who.rooms_seen && return true;
+    who.rooms_seen = {@who.rooms_seen, this};
     return false;
   endmethod
 
@@ -1027,7 +1028,8 @@ object ROOM [
     "Remove an actor's engagement record from this room.";
     "Does NOT call remove_occupant - use this after the object has already removed them.";
     {actor} = args;
-    this.engagements = `mapdelete(this.engagements, actor) ! E_RANGE => this.engagements';
+    "Most who leave aren't engaged, and writing regardless would conflict with everyone else leaving.";
+    maphaskey(this.engagements, actor) && (this.engagements = mapdelete(this.engagements, actor));
   endmethod
 
   method get_engagement owner: ARCH_WIZARD

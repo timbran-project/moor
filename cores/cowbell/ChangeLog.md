@@ -357,6 +357,9 @@ Cowbell entries.
 
 ### Fixed
 
+- Players entering and leaving a room at the same time no longer conflict over its `visitors` and
+  `engagements`. Rooms with `brief_revisits` now record who has seen them on the player, in
+  `rooms_seen`, and still honor names already in `visitors`.
 - `$ansi` is back, as it was before document delivery removed it: colours and styles, 256-colour
   and RGB codes, `colorize`, `wrap` and `strip`. Document rendering already passes ANSI style
   sequences through to clients that show them.

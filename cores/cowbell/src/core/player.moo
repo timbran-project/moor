@@ -25,6 +25,7 @@ object PLAYER [
   property llm_assist_contexts (owner: ARCH_WIZARD, flags: "") = {};
   property llm_suggestions (owner: ARCH_WIZARD, flags: "") = {};
   property oauth2_identities (owner: ARCH_WIZARD, flags: "") = {};
+  property rooms_seen (owner: ARCH_WIZARD, flags: "") = {};
   property object_gaglist (owner: ARCH_WIZARD, flags: "rc") = {};
   property password (owner: ARCH_WIZARD, flags: "c") clear;
   property profile_picture (owner: ARCH_WIZARD, flags: "rc") = false;
