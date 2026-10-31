@@ -194,6 +194,67 @@ These options are only needed for clustered deployments with TCP transport. See
 | `--enrollment-listen`     | `tcp://0.0.0.0:7900`                                      | Enrollment endpoint for host/worker registration |
 | `--enrollment-token-file` | `${XDG_CONFIG_HOME:-$HOME/.config}/moor/enrollment-token` | Path to enrollment token file                    |
 
+## Standalone Host RPC Limits
+
+Each standalone `moor-web-host` or `moor-telnet-host` process shares one RPC pool across its
+sessions. These options do not apply to embedded hosts in the combined `moor` server.
+
+| Option                             | Default | Purpose                                                                   |
+| ---------------------------------- | ------- | ------------------------------------------------------------------------- |
+| `--rpc-max-sockets`                | `80`    | Total RPC sockets, including idle sockets and reserved control sockets    |
+| `--rpc-control-sockets`            | `16`    | Reserved sockets for session pongs                                        |
+| `--rpc-host-sockets`               | `4`     | Reserved sockets for the host's own registration and pongs                |
+| `--rpc-max-idle-sockets`           | `10`    | Idle ordinary-client sockets retained between calls                       |
+| `--rpc-max-waiters`                | `128`   | Maximum queued ordinary-client calls                                      |
+| `--rpc-control-max-waiters`        | `2048`  | Maximum queued session pongs                                              |
+| `--rpc-control-acquire-timeout-ms` | `20000` | Maximum wait for a session pong's admission                               |
+| `--rpc-acquire-timeout-ms`         | `5000`  | Maximum wait for admission of other calls                                 |
+| `--rpc-send-timeout-ms`            | `5000`  | Maximum wait to send a request; `-1` disables this timeout                |
+| `--rpc-receive-timeout-ms`         | `5000`  | Default reply timeout; captured calls can extend it, and `-1` disables it |
+| `--zmq-max-sockets`                | `4096`  | Native context limit, including RPC and subscription sockets              |
+
+Reserved sockets are created before the host accepts sessions and kept between calls. Each kind has
+its own queue, so ordinary calls can't take a pong's place, and a burst of session pongs can't delay
+the host's own. The daemon pings every session at once, every 5 seconds, and drops a session after
+30 seconds without an answer and a host after 10. A session pong can therefore wait longer than
+other calls, and the queue holds one pong per session the default context limit allows. A full queue
+or expired admission wait returns a recoverable error. The client does not automatically replay
+requests.
+
+The default allows 60 ordinary-client calls at once across all sessions on the host. Slow calls hold
+their slots until a reply or timeout and can delay other ordinary calls. The default is not a
+measured capacity target. Measure reply latency and admission failures with your workload before
+choosing limits. Increasing the limit does not increase daemon capacity.
+
+Each connected session also uses two subscription sockets. Leave room for these sockets and host
+subscriptions below `zmq_max_sockets`. A connected socket holds about three file descriptors, so the
+host raises its soft limit on open files to suit `zmq_max_sockets`, as far as the hard limit allows,
+and logs a warning if that isn't enough. Sessions can fail before reaching the socket limit if it
+warns. The RPC limit must be greater than the control and host reservations together and less than
+the native context limit.
+
+Set the same options under `rpc:` in the standalone host's YAML configuration:
+
+```yaml
+rpc:
+  max_sockets: 80
+  control_reserved_sockets: 16
+  host_reserved_sockets: 4
+  max_pool_size: 10
+  max_waiters: 128
+  control_max_waiters: 2048
+  control_acquire_timeout_ms: 20000
+  acquire_timeout_ms: 5000
+  send_timeout_ms: 5000
+  receive_timeout_ms: 5000
+  zmq_max_sockets: 4096
+```
+
+The `load-test` binary (`verb-dispatch-load-test.rs`) creates a separate RPC client for each
+workload task. Each task sends one request at a time, including in swamp mode. Its concurrency does
+not measure admission through one shared host pool. Compare its results with the same pool ownership
+and workload settings.
+
 ## Database Configuration
 
 - `<PATH>` (positional argument): Path to the database directory

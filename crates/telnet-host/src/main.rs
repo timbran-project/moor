@@ -42,6 +42,10 @@ struct Args {
     #[serde(flatten)]
     client_args: RpcClientArgs,
 
+    #[command(flatten)]
+    #[serde(default)]
+    rpc: moor_zmq_client::HostRpcArgs,
+
     #[arg(
         long,
         value_name = "telnet-address",
@@ -133,6 +137,7 @@ async fn main() -> Result<(), eyre::Error> {
 
     let config = ZmqTelnetHostConfig {
         connection: RpcClientConfig::from(&args.client_args),
+        rpc: args.rpc,
         host: TelnetHostConfig {
             telnet_address: args.telnet_address,
             telnet_port: args.telnet_port,
@@ -164,4 +169,30 @@ async fn main() -> Result<(), eyre::Error> {
     info!("Done.");
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn standalone_host_accepts_rpc_capacity_options() {
+        let args = Args::try_parse_from([
+            "host",
+            "--rpc-max-sockets",
+            "256",
+            "--rpc-control-sockets",
+            "8",
+            "--rpc-control-max-waiters",
+            "320",
+            "--zmq-max-sockets",
+            "8192",
+        ])
+        .unwrap();
+        args.rpc.validate().unwrap();
+        assert_eq!(args.rpc.pool.max_sockets, 256);
+        assert_eq!(args.rpc.pool.control_reserved_sockets, 8);
+        assert_eq!(args.rpc.pool.control_max_waiters, 320);
+        assert_eq!(args.rpc.zmq_max_sockets, 8192);
+    }
 }

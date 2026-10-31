@@ -17,6 +17,7 @@ pub use host::{
     process_hosts_events, process_hosts_events_with_services, start_host_session,
     start_host_session_with_services,
 };
+pub use host_args::HostRpcArgs;
 pub use host_services::ZmqHostServices;
 pub use listeners::{ListenerInfo, ListenersClient, ListenersError, ListenersMessage};
 pub use r0z;
@@ -27,6 +28,7 @@ pub use worker_rpc_client::WorkerRpcSendClient;
 pub mod curve_keys;
 pub mod enrollment_client;
 mod host;
+mod host_args;
 mod host_services;
 mod listeners;
 pub mod pubsub_client;

@@ -28,13 +28,13 @@ use crate::{
         ZmqClientBroadcastSubscription, ZmqClientEventSubscription, ZmqHostEventSubscription,
     },
     r0z,
-    rpc_client::{CurveKeys, RpcClient},
+    rpc_client::{CurveKeys, RpcClient, RpcConfig},
 };
 
 #[derive(Clone)]
 pub struct ZmqHostServices {
     zmq_context: r0z_async::Context,
-    rpc_address: String,
+    rpc_client: Arc<RpcClient>,
     events_address: String,
     curve_keys: Option<(String, String, String)>,
 }
@@ -46,26 +46,44 @@ impl ZmqHostServices {
         events_address: String,
         curve_keys: Option<(String, String, String)>,
     ) -> Self {
-        Self {
+        Self::with_rpc_config(
             zmq_context,
             rpc_address,
             events_address,
             curve_keys,
-        }
+            RpcConfig::default(),
+        )
     }
 
-    pub fn rpc_client(&self) -> RpcClient {
-        RpcClient::new_with_defaults(
-            Arc::new(self.zmq_context.clone()),
-            self.rpc_address.clone(),
-            self.curve_keys
+    pub fn with_rpc_config(
+        zmq_context: r0z_async::Context,
+        rpc_address: String,
+        events_address: String,
+        curve_keys: Option<(String, String, String)>,
+        config: RpcConfig,
+    ) -> Self {
+        let rpc_client = Arc::new(RpcClient::new(
+            Arc::new(zmq_context.clone()),
+            rpc_address,
+            curve_keys
                 .as_ref()
                 .map(|(client_secret, client_public, server_public)| CurveKeys {
                     client_secret: client_secret.clone(),
                     client_public: client_public.clone(),
                     server_public: server_public.clone(),
                 }),
-        )
+            config,
+        ));
+        Self {
+            zmq_context,
+            rpc_client,
+            events_address,
+            curve_keys,
+        }
+    }
+
+    pub fn rpc_client(&self) -> RpcClient {
+        self.rpc_client.as_ref().clone()
     }
 
     fn subscriber(
@@ -97,7 +115,7 @@ impl ZmqHostServices {
 
 impl HostServices for ZmqHostServices {
     fn runtime_client(&self) -> Arc<dyn RuntimeClient> {
-        Arc::new(self.rpc_client())
+        self.rpc_client.clone()
     }
 
     fn client_subscriptions(
@@ -140,7 +158,7 @@ impl HostServices for ZmqHostServices {
             Box::new(RecoveringClientEventSubscription::new(
                 client_id,
                 live,
-                Arc::new(self.rpc_client()),
+                self.runtime_client(),
                 client_token,
             )),
             Box::new(ZmqClientBroadcastSubscription::new(broadcast_sub)),
@@ -178,5 +196,40 @@ impl HostServices for ZmqHostServices {
             })?;
 
         Ok(Box::new(ZmqHostEventSubscription::new(events_sub)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::HostRpcArgs;
+    use clap::Parser;
+    use moor_runtime_api::client_args::{RpcClientArgs, RpcClientConfig};
+
+    #[tokio::test]
+    async fn configured_host_reserves_control_sockets_before_session_subscriptions() {
+        let mut connection = RpcClientConfig::from(&RpcClientArgs::parse_from(["test"]));
+        connection.rpc_address = format!("inproc://configured-rpc-{}", Uuid::new_v4());
+        connection.events_address = format!("inproc://configured-events-{}", Uuid::new_v4());
+        let defaults = HostRpcArgs::default();
+        let services = defaults.host_services(&connection, None).await.unwrap();
+        assert_eq!(services.zmq_context.get_max_sockets().unwrap(), 4096);
+        assert_eq!(services.rpc_client.pool_size().await, 20);
+        let mut subscriptions = Vec::new();
+        for _ in 0..160 {
+            subscriptions.push(
+                services
+                    .client_subscriptions(Uuid::new_v4(), ClientToken("test".into()))
+                    .unwrap(),
+            );
+        }
+        assert_eq!(services.rpc_client.pool_size().await, 20);
+        let mut configured = defaults;
+        configured.zmq_max_sockets = 2048;
+        configured.pool.control_reserved_sockets = 2;
+        configured.pool.max_sockets = 128;
+        let services = configured.host_services(&connection, None).await.unwrap();
+        assert_eq!(services.zmq_context.get_max_sockets().unwrap(), 2048);
+        assert_eq!(services.rpc_client.pool_size().await, 6);
     }
 }
