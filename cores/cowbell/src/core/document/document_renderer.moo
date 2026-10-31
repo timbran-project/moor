@@ -204,10 +204,7 @@ object DOCUMENT_RENDERER [
     endif
     styles || (text = strsub(text, binary_to_str(b"Gw=="), "\\x1b", 1));
     if (format == 'text_djot)
-      const punctuation = "\\!\"#$%&'()*+,-./:;<=>?@[]^_`{|}~";
-      for i in [1..length(punctuation)]
-        text = strsub(text, punctuation[i], "\\" + punctuation[i], 1);
-      endfor
+      return pcre_replace(text, "s![\\\\\\x21\"#$%&'()*+,\\-./:;<=>?@\\[\\]^_`{|}~]!\\$0!g");
     endif
     return text;
   endmethod

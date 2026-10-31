@@ -8,6 +8,8 @@ Cowbell entries.
 
 ### Added
 
+- Rendering event text costs about half as much CPU, so chat and other announcements reach a room
+  sooner. The output is unchanged.
 - Room panel snapshots carry the panel's `document` beside its rendered body, so a client can lay
   out the room itself. The `room_snapshot` body now uses a format every attached connection can
   read, not always HTML. A panel reference that fails validation keeps its label and is logged.
