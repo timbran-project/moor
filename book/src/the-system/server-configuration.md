@@ -235,7 +235,7 @@ rpc:
   max_waiters: 128
   control_max_waiters: 256
   acquire_timeout_ms: 5000
-  connect_timeout_ms: 5000
+  send_timeout_ms: 5000
   receive_timeout_ms: 5000
   zmq_max_sockets: 4096
 ```

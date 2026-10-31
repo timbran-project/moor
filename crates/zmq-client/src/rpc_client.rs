@@ -59,7 +59,7 @@ pub struct RpcConfig {
     #[arg(long = "rpc-acquire-timeout-ms", default_value_t = 5000)]
     pub acquire_timeout_ms: u64,
     #[arg(long = "rpc-send-timeout-ms", default_value_t = DEFAULT_SOCK_CONNECT_TIMEOUT_MS, allow_negative_numbers = true)]
-    pub connect_timeout_ms: i32,
+    pub send_timeout_ms: i32,
     #[arg(long = "rpc-receive-timeout-ms", default_value_t = DEFAULT_SOCK_RECEIVE_TIMEOUT_MS, allow_negative_numbers = true)]
     pub receive_timeout_ms: i32,
 }
@@ -73,7 +73,7 @@ impl Default for RpcConfig {
             max_waiters: 128,
             control_max_waiters: 256,
             acquire_timeout_ms: 5000,
-            connect_timeout_ms: DEFAULT_SOCK_CONNECT_TIMEOUT_MS,
+            send_timeout_ms: DEFAULT_SOCK_CONNECT_TIMEOUT_MS,
             receive_timeout_ms: DEFAULT_SOCK_RECEIVE_TIMEOUT_MS,
         }
     }
@@ -95,7 +95,7 @@ impl RpcConfig {
                 "RPC limit exceeds semaphore capacity".into(),
             ));
         }
-        if self.connect_timeout_ms < -1 || self.receive_timeout_ms < -1 {
+        if self.send_timeout_ms < -1 || self.receive_timeout_ms < -1 {
             return Err(RpcError::Fatal(
                 "RPC socket timeouts must be -1 or nonnegative".into(),
             ));
@@ -340,7 +340,7 @@ impl RpcClient {
     /// Create a new socket with proper configuration
     fn create_socket(&self) -> Result<RequestReply, RpcError> {
         let mut socket_builder = r0z_async::request(&self.inner.zmq_context)
-            .set_sndtimeo(self.inner.config.connect_timeout_ms)
+            .set_sndtimeo(self.inner.config.send_timeout_ms)
             // Fail immediately if no connection instead of queuing messages indefinitely
             .set_immediate(true)
             // Don't linger on close - drop queued messages immediately
@@ -749,7 +749,7 @@ mod tests {
             format!("tcp://{}", listener.local_addr().unwrap()),
             None,
             RpcConfig {
-                connect_timeout_ms: 20,
+                send_timeout_ms: 20,
                 ..RpcConfig::default()
             },
         );

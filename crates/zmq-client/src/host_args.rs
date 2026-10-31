@@ -120,7 +120,7 @@ mod tests {
         assert_eq!(args.pool.control_max_waiters, 300);
         assert_eq!(args.pool.acquire_timeout_ms, 2000);
         assert_eq!(args.zmq_max_sockets, 8192);
-        assert_eq!(args.pool.connect_timeout_ms, -1);
+        assert_eq!(args.pool.send_timeout_ms, -1);
         assert_eq!(args.pool.receive_timeout_ms, -1);
         let mut invalid = args;
         invalid.pool.control_reserved_sockets = invalid.pool.max_sockets;
