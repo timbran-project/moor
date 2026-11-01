@@ -50,7 +50,12 @@ use std::fmt::Display;
 use std::{collections::VecDeque, hash::Hash};
 use uuid::Uuid;
 
-type RTx<Domain, Codomain> = RelationTransaction<Domain, Codomain, FjallProvider<Domain, Codomain>>;
+type RTx<Domain, Codomain> = RelationTransaction<
+    Domain,
+    Codomain,
+    FjallProvider<Domain, Codomain>,
+    crate::engine::moor_db::TransactionRelations,
+>;
 
 pub(crate) struct PropertyPermMemo {
     known_propflags: HashSet<ObjAndUUIDHolder>,

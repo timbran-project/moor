@@ -184,6 +184,12 @@ macro_rules! define_relations {
                 $( $field: R<$domain, $codomain>, )*
             }
 
+            /// What one transaction's relations borrow their indexes and sources from.
+            pub(crate) struct TransactionRelations {
+                snapshot: std::sync::Arc<WorldStateSnapshot>,
+                relations: std::sync::Arc<Relations>,
+            }
+
             /// Wrapper struct for relation checkers during transaction commit.
             ///
             /// This struct holds the checking state for all relations during the
@@ -631,7 +637,8 @@ macro_rules! define_relations {
                 /// - `db`: Database handle used for direct commit processing
                 /// - `seed`: Transaction startup context with tx metadata, snapshot, sequences,
                 ///   and forked resolution caches.
-                fn start_transaction(&self,
+                fn start_transaction(
+                    self: &std::sync::Arc<Self>,
                     db: std::sync::Arc<dyn TransactionContext>,
                     seed: crate::engine::moor_db::TxSeed,
                 ) -> WorldStateTransaction {
@@ -646,10 +653,19 @@ macro_rules! define_relations {
                         prop_resolution_cache,
                         ancestry_cache,
                     } = caches;
+                    let owner = std::sync::Arc::new(TransactionRelations {
+                        snapshot,
+                        relations: self.clone(),
+                    });
                     WorldStateTransaction {
                         tx,
                         db,
-                        $( $field: self.$field.start_from_snapshot(&tx, snapshot.$field.clone()), )*
+                        $( $field: self.$field.start_borrowed(
+                            &tx,
+                            &owner,
+                            |owner| &owner.snapshot.$field,
+                            |owner| owner.relations.$field.shared_source(),
+                        ), )*
                         sequences,
                         verb_resolution_cache: std::cell::RefCell::new(verb_resolution_cache),
                         prop_resolution_cache: std::cell::RefCell::new(prop_resolution_cache),
@@ -735,7 +751,7 @@ macro_rules! define_relations {
                 /// Database handle used for direct commit processing.
                 pub(crate) db: std::sync::Arc<dyn TransactionContext>,
                 /// Relation transactions for each defined relation
-                $( pub(crate) $field: RelationTransaction<$domain, $codomain, FjallProvider<$domain, $codomain>>, )*
+                $( pub(crate) $field: RelationTransaction<$domain, $codomain, FjallProvider<$domain, $codomain>, TransactionRelations>, )*
                 /// Array of sequence counters for object ID generation
                 pub(crate) sequences: Arc<crate::engine::moor_db::SequenceState>,
                 /// Local fork of the verb resolution cache
@@ -751,7 +767,7 @@ macro_rules! define_relations {
             /// A mutation view cannot perform cached resolution while its caches are borrowed.
             pub(crate) struct WorldStateEdit<'a> {
                 // Generate the whole relation view, including relations without cached readers.
-                $( #[allow(dead_code)] pub(crate) $field: &'a mut RelationTransaction<$domain, $codomain, FjallProvider<$domain, $codomain>>, )*
+                $( #[allow(dead_code)] pub(crate) $field: &'a mut RelationTransaction<$domain, $codomain, FjallProvider<$domain, $codomain>, TransactionRelations>, )*
                 _invalidation: crate::engine::ws_transaction::edit::EditInvalidation<'a>,
             }
 

@@ -198,7 +198,7 @@ impl SequenceState {
 pub struct MoorDB {
     monotonic: CachePadded<AtomicU64>,
     keyspace: Database,
-    relations: Relations,
+    relations: Arc<Relations>,
     snapshot_planes: SnapshotPlanes,
     sequences: Arc<SequenceState>,
     sequences_partition: fjall::Keyspace,
@@ -399,7 +399,7 @@ impl MoorDB {
 
         let s = Arc::new(Self {
             monotonic: CachePadded::new(AtomicU64::new(start_tx_num)),
-            relations,
+            relations: Arc::new(relations),
             snapshot_planes,
             sequences,
             sequences_partition,
