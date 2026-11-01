@@ -227,7 +227,11 @@ object ROOT [
 
   method set_description owner: ARCH_WIZARD
     "Set this object's description. Permission: wizard, owner, or 'set_description capability.";
-    const actor = caller_perms();
+    let actor = caller_perms();
+    "Direct client calls have no MOO caller; nested and scheduled calls retain their own authority.";
+    if (actor == #-1 && !callers() && caller == player)
+      actor = player;
+    endif
     const {target, perms, grants} = $root:_check_permissions_with_grants_as(this, actor, 'set_description);
     set_task_perms(perms, grants);
     const {description, ?kind = target.description_kind} = args;
