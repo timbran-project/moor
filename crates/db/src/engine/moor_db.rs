@@ -103,6 +103,85 @@ impl WorldStateSnapshot {
     }
 }
 
+/// A cache that a transaction forks for itself.
+pub(crate) trait ForkableCache {
+    fn fork_cache(&self) -> Self;
+}
+
+impl ForkableCache for VerbResolutionCache {
+    fn fork_cache(&self) -> Self {
+        self.fork()
+    }
+}
+
+impl ForkableCache for PropResolutionCache {
+    fn fork_cache(&self) -> Self {
+        self.fork()
+    }
+}
+
+impl ForkableCache for AncestryCache {
+    fn fork_cache(&self) -> Self {
+        self.fork()
+    }
+}
+
+/// One of a transaction's caches, forked the first time the transaction uses it. A fork takes
+/// reference counts that every transaction on every core shares, and many transactions never
+/// consult some of their caches.
+pub(crate) struct LazyCacheFork<T> {
+    owner: Arc<TransactionRelations>,
+    base: for<'a> fn(&'a Caches) -> &'a T,
+    fork: std::cell::OnceCell<std::cell::RefCell<T>>,
+}
+
+impl<T: ForkableCache> LazyCacheFork<T> {
+    pub(crate) fn new(
+        owner: Arc<TransactionRelations>,
+        base: for<'a> fn(&'a Caches) -> &'a T,
+    ) -> Self {
+        Self {
+            owner,
+            base,
+            fork: std::cell::OnceCell::new(),
+        }
+    }
+
+    fn cell(&self) -> &std::cell::RefCell<T> {
+        self.fork
+            .get_or_init(|| std::cell::RefCell::new((self.base)(&self.owner.caches).fork_cache()))
+    }
+
+    pub(crate) fn borrow(&self) -> std::cell::Ref<'_, T> {
+        self.cell().borrow()
+    }
+
+    pub(crate) fn borrow_mut(&self) -> std::cell::RefMut<'_, T> {
+        self.cell().borrow_mut()
+    }
+
+    pub(crate) fn get_mut(&mut self) -> &mut T {
+        self.cell();
+        self.fork
+            .get_mut()
+            .expect("the cache was just forked")
+            .get_mut()
+    }
+
+    pub(crate) fn into_inner(self) -> T {
+        self.cell();
+        self.fork
+            .into_inner()
+            .expect("the cache was just forked")
+            .into_inner()
+    }
+
+    /// The fork, if this transaction has used this cache at all.
+    pub(crate) fn if_forked(&self) -> Option<std::cell::Ref<'_, T>> {
+        self.fork.get().map(std::cell::RefCell::borrow)
+    }
+}
+
 /// Transaction-scoped bundle of resolution caches.
 ///
 /// These caches are forked together at transaction start and published together

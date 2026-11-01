@@ -2040,8 +2040,14 @@ impl WorldStateTransaction {
         // Did we have any mutations at all?  If not, just fire and forget the verb cache and
         // return immediate success.
         if !self.has_mutations() {
-            let caches_changed = self.verb_resolution_cache.borrow().has_changed()
-                || self.prop_resolution_cache.borrow().has_changed();
+            let caches_changed = self
+                .verb_resolution_cache
+                .if_forked()
+                .is_some_and(|cache| cache.has_changed())
+                || self
+                    .prop_resolution_cache
+                    .if_forked()
+                    .is_some_and(|cache| cache.has_changed());
             if caches_changed {
                 self.db.commit_read_only(
                     self.tx.snapshot_version,
