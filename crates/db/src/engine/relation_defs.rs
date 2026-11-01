@@ -188,6 +188,7 @@ macro_rules! define_relations {
             pub(crate) struct TransactionRelations {
                 snapshot: std::sync::Arc<WorldStateSnapshot>,
                 relations: std::sync::Arc<Relations>,
+                caches: std::sync::Arc<crate::engine::moor_db::Caches>,
             }
 
             /// Wrapper struct for relation checkers during transaction commit.
@@ -648,14 +649,10 @@ macro_rules! define_relations {
                         sequences,
                         caches,
                     } = seed;
-                    let crate::engine::moor_db::Caches {
-                        verb_resolution_cache,
-                        prop_resolution_cache,
-                        ancestry_cache,
-                    } = caches;
                     let owner = std::sync::Arc::new(TransactionRelations {
                         snapshot,
                         relations: self.clone(),
+                        caches,
                     });
                     WorldStateTransaction {
                         tx,
@@ -667,9 +664,18 @@ macro_rules! define_relations {
                             |owner| owner.relations.$field.shared_source(),
                         ), )*
                         sequences,
-                        verb_resolution_cache: std::cell::RefCell::new(verb_resolution_cache),
-                        prop_resolution_cache: std::cell::RefCell::new(prop_resolution_cache),
-                        ancestry_cache: std::cell::RefCell::new(ancestry_cache),
+                        verb_resolution_cache: crate::engine::moor_db::LazyCacheFork::new(
+                            owner.clone(),
+                            |caches| &caches.verb_resolution_cache,
+                        ),
+                        prop_resolution_cache: crate::engine::moor_db::LazyCacheFork::new(
+                            owner.clone(),
+                            |caches| &caches.prop_resolution_cache,
+                        ),
+                        ancestry_cache: crate::engine::moor_db::LazyCacheFork::new(
+                            owner,
+                            |caches| &caches.ancestry_cache,
+                        ),
                         prop_perm_memo: crate::engine::ws_transaction::PropertyPermMemo::new(),
                         inherited_policy_reads: std::collections::HashSet::new(),
                         owner_change_reads: std::collections::HashSet::new(),
@@ -755,11 +761,11 @@ macro_rules! define_relations {
                 /// Array of sequence counters for object ID generation
                 pub(crate) sequences: Arc<crate::engine::moor_db::SequenceState>,
                 /// Local fork of the verb resolution cache
-                pub(crate) verb_resolution_cache: std::cell::RefCell<VerbResolutionCache>,
+                pub(crate) verb_resolution_cache: crate::engine::moor_db::LazyCacheFork<VerbResolutionCache>,
                 /// Local fork of the property resolution cache
-                pub(crate) prop_resolution_cache: std::cell::RefCell<PropResolutionCache>,
+                pub(crate) prop_resolution_cache: crate::engine::moor_db::LazyCacheFork<PropResolutionCache>,
                 /// Local fork of the ancestry cache
-                pub(crate) ancestry_cache: std::cell::RefCell<AncestryCache>,
+                pub(crate) ancestry_cache: crate::engine::moor_db::LazyCacheFork<AncestryCache>,
                 /// Per-transaction memo state for property permission lookups.
                 pub(crate) prop_perm_memo: crate::engine::ws_transaction::PropertyPermMemo,
             }

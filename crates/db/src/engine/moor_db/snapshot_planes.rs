@@ -51,11 +51,11 @@ impl SnapshotPlanes {
         }
     }
 
-    /// Load a consistent startup snapshot and forked caches for a new transaction.
+    /// Load a consistent startup snapshot and the caches a new transaction will fork from.
     ///
     /// If the cache sidecar matches the root snapshot version, use it. Otherwise,
     /// fall back to caches embedded in the root snapshot.
-    pub(super) fn acquire_seed_caches(&self) -> (Arc<WorldStateSnapshot>, Caches) {
+    pub(super) fn acquire_seed_caches(&self) -> (Arc<WorldStateSnapshot>, Arc<Caches>) {
         let snapshot = self.root_state.load();
         let cache_publication = self.cache_publication.load();
         let base_caches = if cache_publication.version == snapshot.version {
@@ -63,7 +63,7 @@ impl SnapshotPlanes {
         } else {
             &snapshot.caches
         };
-        (Arc::clone(&snapshot), base_caches.fork())
+        (Arc::clone(&snapshot), Arc::clone(base_caches))
     }
 
     /// Publish read-only cache updates for the given snapshot version.
@@ -122,5 +122,5 @@ pub(crate) struct TxSeed {
     pub(crate) tx: Tx,
     pub(crate) snapshot: Arc<WorldStateSnapshot>,
     pub(crate) sequences: Arc<SequenceState>,
-    pub(crate) caches: Caches,
+    pub(crate) caches: Arc<Caches>,
 }
