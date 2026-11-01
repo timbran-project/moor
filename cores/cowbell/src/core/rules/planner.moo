@@ -74,6 +74,58 @@ object PLANNER [
     return lines;
   endmethod
 
+  method status owner: ARCH_WIZARD
+    "What an NPC is pursuing, as data rather than the text of why: the playbook, status, latest setback, and each open goal, outermost first, with its approach, bindings and step. 0 if it has no plan.";
+    const {npc} = args;
+    const plan = `npc.plan ! ANY => 0';
+    typeof(plan) == TYPE_MAP || return 0;
+    let frames = {};
+    for frame in (plan['frames])
+      const approach = frame['approach] == 0 ? 0 | $planner:_approach(plan['playbook], frame);
+      frames = {@frames, ['goal -> frame['goal], 'inputs -> mapdelete(frame['inputs], 'actor), 'approach -> frame['approach], 'bindings -> frame['bindings], 'step -> frame['step], 'steps -> approach == 0 ? 0 | length(approach['steps]), 'working -> frame['working] != 0]};
+    endfor
+    return ['playbook -> plan['playbook], 'status -> plan['status], 'setback -> plan['setback], 'frames -> frames];
+  endmethod
+
+  method explain owner: ARCH_WIZARD
+    "Why an NPC's current goal is going the way it is: each of its approaches in the order they're tried, whether its condition holds now and which matches recently failed, with the condition's explanation. For the NPC's owner, as the conditions run as them.";
+    const {npc} = args;
+    const principal = callers() ? caller_perms() | player;
+    principal == npc.owner || principal.wizard || raise(E_PERM);
+    const plan = `npc.plan ! ANY => 0';
+    typeof(plan) == TYPE_MAP && length(plan['frames]) > 0 || return {};
+    const frame = plan['frames][$];
+    const playbook = plan['playbook];
+    let answers = {};
+    for approach in ($playbook:compiled_for(playbook, frame['goal]))
+      const name = approach['source]['name];
+      if (maphaskey(approach, 'error))
+        answers = {@answers, ['name -> name, 'holds -> false, 'error -> approach['error]]};
+      else
+        answers = {@answers, mapmerge(['name -> name], $planner:_explained(npc, plan['owner], frame['goal], name, approach['requires], frame['inputs], playbook.settings))};
+      endif
+    endfor
+    return answers;
+  endmethod
+
+  method _explained owner: ARCH_WIZARD
+    "Evaluate one approach's condition as the NPC's owner, with its explanation, and say which of its matches recently failed.";
+    callers()[1][4] == $planner || raise(E_PERM);
+    const {npc, owner, goal, name, rule, inputs, settings} = args;
+    const failed = {bindings} => $plan_failures:member({npc, goal, name, value_hash(bindings)});
+    if (rule == 0)
+      return ['holds -> true, 'failed -> failed([]) ? 1 | 0];
+    endif
+    set_task_perms(owner);
+    try
+      const result = $rule_engine:evaluate(rule, inputs, settings, [], false, true);
+      const matches = result['success] ? {result['bindings], @result['alternatives]} | {};
+      return ['holds -> result['success], 'failed -> length({ match for match in (matches) if failed(match) }), 'matches -> length(matches), 'explanation -> result['explanation]];
+    except error (E_INVARG, E_TYPE, E_PERM, E_PROPNF, E_QUOTA, E_INVIND)
+      return ['holds -> false, 'error -> error[2]];
+    endtry
+  endmethod
+
   method _tick owner: ARCH_WIZARD
     "Advance one NPC's plan by at most one action. Return the delay before the next tick, or 0 when the plan ends.";
     caller_perms().wizard || raise(E_PERM);
@@ -338,6 +390,78 @@ object PLANNER [
     return true;
   endmethod
 
+  method test_a_playbook_reads_for_an_editor owner: HACKER
+    "A playbook can be read whole, a draft checked without being stored, and approaches reordered, with their notes and labels kept.";
+    const book = $playbook:create(true);
+    $playbook:define_goal(book, 'tidy, ['thing -> 'object], "Put a thing away.", "tidy away {thing}");
+    $test_utils:assert_raises(E_INVARG, $playbook, "define_goal", {book, 'bad, [], "", "tidy {nothing}"}, "A label names only what's there");
+    $playbook:define_approach(book, 'tidy, 'first, "location_of(object: input.thing) -> (location: Where)", {{'action, 'drop, ['target -> "input.thing"]}}, "When it's somewhere.");
+    $playbook:define_approach(book, 'tidy, 'second, "", {});
+    $playbook:define_goal(book, 'outer, []);
+    $playbook:define_approach(book, 'outer, 'go, "", {{'goal, 'tidy, ['thing -> "#1"]}});
+    const read = $playbook:document(book)['goals]['tidy];
+    $test_utils:assert_eq(read['label], "tidy away {thing}", "A goal keeps its label");
+    $test_utils:assert_eq({ approach['name] for approach in (read['approaches]) }, {'first, 'second}, "In the order they're tried");
+    const first = read['approaches][1];
+    $test_utils:assert_eq(first['note], "When it's somewhere.", "An approach keeps its note");
+    $test_utils:assert_eq(first['bindings], ['Where -> 'object], "It says what its condition binds");
+    $test_utils:assert_eq(first['condition]['kind], 'predicate, "It carries the tree");
+    const good = $playbook:check(book, ['goal -> 'tidy, 'name -> 'third, 'requires -> first['condition], 'steps -> {}]);
+    $test_utils:assert_eq(good['ok], true, "A tree checks as well as text");
+    $test_utils:assert_eq(good['requires], "location_of(object: input.thing) -> (location: Where)", "And comes back as the text that's stored");
+    const bad = $playbook:check(book, ['goal -> 'tidy, 'name -> 'third, 'requires -> "", 'steps -> {{'action, 'drop, ['target -> "binding.Nowhere"]}}]);
+    $test_utils:assert_eq(bad['ok], false, "A bad draft says so");
+    typeof(bad['message]) == TYPE_STR && length(bad['message]) > 0 || raise(E_ASSERT, "And says why");
+    $test_utils:assert_eq(length($playbook:document(book)['goals]['tidy]['approaches]), 2, "Checking stores nothing");
+    $test_utils:assert_raises(E_INVARG, $playbook, "order_approaches", {book, 'tidy, {'first}}, "Reordering names them all");
+    $playbook:order_approaches(book, 'tidy, {'second, 'first});
+    $test_utils:assert_eq({ entry['source]['name] for entry in ($playbook:compiled_for(book, 'tidy)) }, {'second, 'first}, "The new order holds");
+    $test_utils:assert_raises(E_INVARG, $playbook, "remove_goal", {book, 'tidy}, "A goal that's still a step stays");
+    $playbook:remove_goal(book, 'outer);
+    $playbook:remove_goal(book, 'tidy);
+    $test_utils:assert_eq(book.approaches, {}, "Its approaches go with it");
+    return true;
+  endmethod
+
+  method test_positions_are_lists_of_three_numbers owner: HACKER
+    "A position serves where a list does, and a list of anything else doesn't serve as a position.";
+    $test_utils:assert_eq($behavior_schema:type_of({1, 2.5, 3}), 'position, "Three numbers are a position");
+    $test_utils:assert_eq($behavior_schema:type_of({1, 2}), 'list, "Two aren't");
+    $test_utils:assert_eq($behavior_schema:type_of({1, "2", 3}), 'list, "Nor is text");
+    $behavior_schema:_type({1, 2, 3}, 'list, "a position is a list");
+    $behavior_schema:_compatible('position, 'list, "a position is a list");
+    $test_utils:assert_raises(E_INVARG, $behavior_schema, "_type", {{1, 2}, 'position, "two numbers"}, "A list isn't a position");
+    $test_utils:assert_raises(E_INVARG, $behavior_schema, "_compatible", {'list, 'position, "a list"}, "Not statically either");
+    return true;
+  endmethod
+
+  method test_the_core_vocabulary_is_labelled owner: HACKER
+    "Everything the core offers authors has a label that names only what it has.";
+    const vocabulary = $playbook:vocabulary();
+    for name in (mapkeys($world_facts:schemas()))
+      const fact = vocabulary['predicates][name];
+      maphaskey(fact, 'label) || raise(E_ASSERT, "No label for " + tostr(name));
+      $behavior_schema:_label(fact['label], {@mapkeys(fact['inputs]), @mapkeys(fact['outputs])}, tostr(name));
+    endfor
+    for name in (mapkeys($reaction:_builtin_action_schemas()))
+      const action = vocabulary['actions][name];
+      maphaskey(action, 'label) || raise(E_ASSERT, "No label for " + tostr(name));
+      $behavior_schema:_label(action['label], mapkeys(action['inputs]), tostr(name));
+    endfor
+    return true;
+  endmethod
+
+  method test_conditions_survive_printing owner: HACKER
+    "Every condition in the errands reads back as the same tree from its printed text, so an editor can work on trees and store text.";
+    for approach in ($errands.approaches)
+      if (approach['requires] != "")
+        const tree = $condition:parse(approach['requires]);
+        $test_utils:assert_eq($condition:print($condition:parse($condition:print(tree))), $condition:print(tree), "Printing settles: " + approach['requires]);
+      endif
+    endfor
+    return true;
+  endmethod
+
   method test_errands_validate owner: HACKER
     "Every approach in the core errands playbook validates.";
     for goal in (mapkeys($errands.goals))
@@ -357,6 +481,21 @@ object PLANNER [
     $test_utils:assert_raises(E_PERM, $planner, "pursue", {$actor, $errands, 'go_to, ['place -> #-1]}, "Only an NPC's owner starts its plan");
     $test_utils:assert_raises(E_PERM, $planner, "_tick", {npc}, "Only the planner's schedule advances a plan");
     $test_utils:assert_eq($planner:why(npc), {npc.name + " has no plan."}, "An NPC without a plan says so");
+    $test_utils:assert_eq($planner:status(npc), 0, "And has no status");
+    $test_utils:assert_eq($planner:status($root), 0, "Nor does what can't have a plan");
+    $test_utils:assert_eq($planner:explain(npc), {}, "Nor anything to explain");
+    $test_utils:assert_raises(E_PERM, $planner, "explain", {$actor}, "Only an NPC's owner asks why");
+    npc:moveto(player.location);
+    $planner:pursue(npc, $errands, 'go_to, ['place -> player.location]);
+    schedule_stop(npc.plan_schedule);
+    const status = $planner:status(npc);
+    $test_utils:assert_eq(status['status], 'running, "A plan has a status");
+    $test_utils:assert_eq(status['frames][1]['goal], 'go_to, "And its goals");
+    const reasons = $planner:explain(npc);
+    $test_utils:assert_eq({ reason['name] for reason in (reasons) }, {'here, 'walk}, "Its goal's approaches, in order");
+    $test_utils:assert_eq(reasons[1]['holds], true, "It's already there");
+    maphaskey(reasons[1], 'explanation) || raise(E_ASSERT, "With an explanation of that");
+    $planner:abandon(npc);
     return true;
   endmethod
 endobject

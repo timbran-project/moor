@@ -94,23 +94,23 @@ object REACTION [
     const here = reach + " AND NOT location_is(object: input.target, location: input.actor)";
     const carried_key = "location_is(object: input.key, location: input.actor)";
     return [
-      'open -> ['description -> "Open a nearby container.", 'inputs -> basic, 'requires -> reach + " AND NOT is_open(object: input.target) AND NOT is_locked(object: input.target)", 'changes -> "is_open(object: input.target)"],
-      'close -> ['description -> "Close a nearby container.", 'inputs -> basic, 'requires -> reach + " AND is_open(object: input.target)", 'changes -> "NOT is_open(object: input.target)"],
-      'lock -> ['description -> "Lock a container with a carried key.", 'inputs -> key, 'requires -> reach + " AND " + carried_key + " AND NOT is_locked(object: input.target)", 'changes -> "is_locked(object: input.target)"],
-      'unlock -> ['description -> "Unlock a container with a carried key.", 'inputs -> key, 'requires -> reach + " AND " + carried_key + " AND is_locked(object: input.target)", 'changes -> "NOT is_locked(object: input.target)"],
-      'open_exit -> ['description -> "Open a passage door at the target room's named exit.", 'inputs -> exit],
-      'close_exit -> ['description -> "Close a passage door at the target room's named exit.", 'inputs -> exit],
-      'lock_exit -> ['description -> "Lock a passage door using the actor's access rule and carried keys.", 'inputs -> exit],
-      'unlock_exit -> ['description -> "Unlock a passage door using the actor's access rule and carried keys.", 'inputs -> exit],
-      'go -> ['description -> "Travel through a named exit of the room the actor is in.", 'inputs -> exit, 'requires -> "location_is(object: input.actor, location: input.target)"],
-      'take_from -> ['description -> "Take an item from a container.", 'inputs -> item, 'requires -> reach + " AND is_open(object: input.target) AND contains(container: input.target, item: input.item)", 'changes -> "location_is(object: input.item, location: input.actor)"],
-      'put_into -> ['description -> "Put a carried item in a container.", 'inputs -> item, 'requires -> reach + " AND is_open(object: input.target) AND location_is(object: input.item, location: input.actor)", 'changes -> "contains(container: input.target, item: input.item)"],
-      'get -> ['description -> "Pick up a nearby item.", 'inputs -> basic, 'requires -> here, 'changes -> "location_is(object: input.target, location: input.actor)"],
-      'drop -> ['description -> "Drop a carried item.", 'inputs -> basic, 'requires -> "location_is(object: input.target, location: input.actor)", 'changes -> "NOT location_is(object: input.target, location: input.actor)"],
-      'sit -> ['description -> "Sit on nearby furniture.", 'inputs -> basic, 'requires -> here + " AND NOT sitting(actor: input.actor, seat: input.target)", 'changes -> "sitting(actor: input.actor, seat: input.target)"],
-      'stand -> ['description -> "Stand up from furniture.", 'inputs -> basic, 'requires -> "sitting(actor: input.actor, seat: input.target)", 'changes -> "NOT sitting(actor: input.actor, seat: input.target)"],
-      'wear -> ['description -> "Put on a carried wearable item.", 'inputs -> basic, 'requires -> "location_is(object: input.target, location: input.actor) AND NOT wearing(actor: input.actor, item: input.target)", 'changes -> "wearing(actor: input.actor, item: input.target)"],
-      'remove -> ['description -> "Take off a worn item.", 'inputs -> basic, 'requires -> "location_is(object: input.target, location: input.actor) AND wearing(actor: input.actor, item: input.target)", 'changes -> "NOT wearing(actor: input.actor, item: input.target)"]
+      'open -> ['description -> "Open a nearby container.", 'label -> "open {target}", 'inputs -> basic, 'requires -> reach + " AND NOT is_open(object: input.target) AND NOT is_locked(object: input.target)", 'changes -> "is_open(object: input.target)"],
+      'close -> ['description -> "Close a nearby container.", 'label -> "close {target}", 'inputs -> basic, 'requires -> reach + " AND is_open(object: input.target)", 'changes -> "NOT is_open(object: input.target)"],
+      'lock -> ['description -> "Lock a container with a carried key.", 'label -> "lock {target} with {key}", 'inputs -> key, 'requires -> reach + " AND " + carried_key + " AND NOT is_locked(object: input.target)", 'changes -> "is_locked(object: input.target)"],
+      'unlock -> ['description -> "Unlock a container with a carried key.", 'label -> "unlock {target} with {key}", 'inputs -> key, 'requires -> reach + " AND " + carried_key + " AND is_locked(object: input.target)", 'changes -> "NOT is_locked(object: input.target)"],
+      'open_exit -> ['description -> "Open a passage door at the target room's named exit.", 'label -> "open the door {exit} of {target}", 'inputs -> exit],
+      'close_exit -> ['description -> "Close a passage door at the target room's named exit.", 'label -> "close the door {exit} of {target}", 'inputs -> exit],
+      'lock_exit -> ['description -> "Lock a passage door using the actor's access rule and carried keys.", 'label -> "lock the door {exit} of {target}", 'inputs -> exit],
+      'unlock_exit -> ['description -> "Unlock a passage door using the actor's access rule and carried keys.", 'label -> "unlock the door {exit} of {target}", 'inputs -> exit],
+      'go -> ['description -> "Travel through a named exit of the room the actor is in.", 'label -> "go {exit} from {target}", 'inputs -> exit, 'requires -> "location_is(object: input.actor, location: input.target)"],
+      'take_from -> ['description -> "Take an item from a container.", 'label -> "take {item} from {target}", 'inputs -> item, 'requires -> reach + " AND is_open(object: input.target) AND contains(container: input.target, item: input.item)", 'changes -> "location_is(object: input.item, location: input.actor)"],
+      'put_into -> ['description -> "Put a carried item in a container.", 'label -> "put {item} into {target}", 'inputs -> item, 'requires -> reach + " AND is_open(object: input.target) AND location_is(object: input.item, location: input.actor)", 'changes -> "contains(container: input.target, item: input.item)"],
+      'get -> ['description -> "Pick up a nearby item.", 'label -> "pick up {target}", 'inputs -> basic, 'requires -> here, 'changes -> "location_is(object: input.target, location: input.actor)"],
+      'drop -> ['description -> "Drop a carried item.", 'label -> "drop {target}", 'inputs -> basic, 'requires -> "location_is(object: input.target, location: input.actor)", 'changes -> "NOT location_is(object: input.target, location: input.actor)"],
+      'sit -> ['description -> "Sit on nearby furniture.", 'label -> "sit on {target}", 'inputs -> basic, 'requires -> here + " AND NOT sitting(actor: input.actor, seat: input.target)", 'changes -> "sitting(actor: input.actor, seat: input.target)"],
+      'stand -> ['description -> "Stand up from furniture.", 'label -> "stand up from {target}", 'inputs -> basic, 'requires -> "sitting(actor: input.actor, seat: input.target)", 'changes -> "NOT sitting(actor: input.actor, seat: input.target)"],
+      'wear -> ['description -> "Put on a carried wearable item.", 'label -> "put on {target}", 'inputs -> basic, 'requires -> "location_is(object: input.target, location: input.actor) AND NOT wearing(actor: input.actor, item: input.target)", 'changes -> "wearing(actor: input.actor, item: input.target)"],
+      'remove -> ['description -> "Take off a worn item.", 'label -> "take off {target}", 'inputs -> basic, 'requires -> "location_is(object: input.target, location: input.actor) AND wearing(actor: input.actor, item: input.target)", 'changes -> "NOT wearing(actor: input.actor, item: input.target)"]
     ];
   endmethod
 

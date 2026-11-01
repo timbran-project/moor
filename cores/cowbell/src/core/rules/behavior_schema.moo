@@ -126,7 +126,7 @@ object BEHAVIOR_SCHEMA [
       node['op] in {'eq, 'ne, 'lt, 'le, 'gt, 'ge} || raise(E_INVARG, path + ": unknown comparison");
       const left_type = $behavior_schema:expression(node['left], scope, path + ".left", predicates);
       const right_type = $behavior_schema:expression(node['right], scope, path + ".right", predicates);
-      $behavior_schema:_compatible(left_type, right_type, path);
+      left_type == 'position && right_type == 'list || $behavior_schema:_compatible(left_type, right_type, path);
       if (!(node['op] in {'eq, 'ne}))
         left_type in {'integer, 'float, 'string} || raise(E_INVARG, path + ": ordered comparison requires numbers or strings");
       endif
@@ -289,8 +289,11 @@ object BEHAVIOR_SCHEMA [
   endmethod
 
   method type_of owner: HACKER
-    "Return a behavioral value type. Opaque MOO values have type any.";
+    "Return a behavioral value type. Opaque MOO values have type any. A list of three numbers is a position, which serves wherever a list does.";
     const {value} = args;
+    if (typeof(value) == TYPE_LIST && length(value) == 3)
+      typeof(value[1]) in {TYPE_INT, TYPE_FLOAT} && typeof(value[2]) in {TYPE_INT, TYPE_FLOAT} && typeof(value[3]) in {TYPE_INT, TYPE_FLOAT} && return 'position;
+    endif
     const types = [TYPE_OBJ -> 'object, TYPE_INT -> 'integer, TYPE_FLOAT -> 'float, TYPE_BOOL -> 'boolean, TYPE_STR -> 'string, TYPE_SYM -> 'symbol, TYPE_LIST -> 'list, TYPE_MAP -> 'map];
     return `types[typeof(value)] ! E_RANGE => 'any';
   endmethod
@@ -306,7 +309,8 @@ object BEHAVIOR_SCHEMA [
         $behavior_schema:_name(name, path);
         const entry = vocabulary[category][name];
         const fields = category == 'predicates ? {'description, 'inputs, 'outputs} | {'description, 'inputs};
-        $behavior_schema:_fields(entry, fields, category == 'actions ? {'requires, 'changes, 'seconds} | {}, path);
+        const optional = category == 'actions ? {'requires, 'changes, 'seconds, 'label} | (category == 'predicates ? {'label} | {});
+        $behavior_schema:_fields(entry, fields, optional, path);
         for part in ({'requires, 'changes})
           maphaskey(entry, part) && $behavior_schema:_type(entry[part], 'string, path + "." + tostr(part));
         endfor
@@ -319,6 +323,10 @@ object BEHAVIOR_SCHEMA [
           $behavior_schema:_types(entry['outputs], path + ".outputs");
         elseif (category == 'triggers)
           maphaskey(entry['inputs], 'Self) && entry['inputs]['Self] == 'object || raise(E_INVARG, path + ": triggers require Self of type object");
+        endif
+        if (maphaskey(entry, 'label))
+          const named = category == 'predicates ? {@mapkeys(entry['inputs]), @mapkeys(entry['outputs])} | mapkeys(entry['inputs]);
+          $behavior_schema:_label(entry['label], named, path + ".label");
         endif
       endfor
     endfor
@@ -388,6 +396,23 @@ object BEHAVIOR_SCHEMA [
     endfor
   endmethod
 
+  method _label owner: HACKER
+    "Require display text whose {name} parts are among the names it may show, such as \"dig out {at}\".";
+    const {label, names, path} = args;
+    typeof(label) == TYPE_STR && length(label) > 0 || raise(E_INVARG, path + ": expected text");
+    let rest = label;
+    let open = index(rest, "{");
+    while (open > 0)
+      const close = index(rest, "}");
+      close > open + 1 || raise(E_INVARG, path + ": unclosed name");
+      const name = rest[open + 1..close - 1];
+      name in { tostr(known) for known in (names) } || raise(E_INVARG, path + ": unknown name " + name);
+      rest = rest[close + 1..$];
+      open = index(rest, "{");
+    endwhile
+    index(rest, "}") == 0 || raise(E_INVARG, path + ": unopened name");
+  endmethod
+
   method _name owner: HACKER
     "Require an identifier that authors can spell without MOO symbol quoting.";
     const {name, path} = args;
@@ -398,18 +423,19 @@ object BEHAVIOR_SCHEMA [
   method _type_name owner: HACKER
     "Reject unknown declared types.";
     const {type, path} = args;
-    type in {'object, 'integer, 'float, 'boolean, 'string, 'symbol, 'list, 'map, 'any} || raise(E_INVARG, path + ": unknown type");
+    type in {'object, 'integer, 'float, 'boolean, 'string, 'symbol, 'list, 'position, 'map, 'any} || raise(E_INVARG, path + ": unknown type");
   endmethod
 
   method _type owner: HACKER
     "Check an actual value without resolving objects or executing callbacks.";
     const {value, expected, path} = args;
-    expected == 'any || $behavior_schema:type_of(value) == expected || raise(E_INVARG, path + ": expected " + tostr(expected));
+    const actual = $behavior_schema:type_of(value);
+    expected == 'any || actual == expected || (expected == 'list && actual == 'position) || raise(E_INVARG, path + ": expected " + tostr(expected));
   endmethod
 
   method _compatible owner: HACKER
     "A statically unknown value cannot satisfy a typed operation argument.";
     const {actual, expected, path} = args;
-    expected == 'any || actual == expected || raise(E_INVARG, path + ": expected " + tostr(expected) + ", got " + tostr(actual));
+    expected == 'any || actual == expected || (expected == 'list && actual == 'position) || raise(E_INVARG, path + ": expected " + tostr(expected) + ", got " + tostr(actual));
   endmethod
 endobject

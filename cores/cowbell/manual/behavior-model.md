@@ -75,8 +75,9 @@ Names are symbols containing letters, digits, and underscores. A name starts wit
 underscore. Symbol names are case insensitive. `Actor` is a readability convention, not a separate
 name from `actor`.
 
-The supported types are `object`, `integer`, `float`, `boolean`, `string`, `symbol`, `list`, `map`,
-and `any`. Integers and booleans are distinct. A typed argument cannot accept a statically unknown
+The supported types are `object`, `integer`, `float`, `boolean`, `string`, `symbol`, `list`,
+`position`, `map`, and `any`. A `position` is a list of three numbers, and serves wherever a `list`
+does, though not the reverse. Integers and booleans are distinct. A typed argument cannot accept a statically unknown
 `any` value. An `object` value is an object reference, including a UUID or anonymous reference.
 Operations check validity and access when they use that reference.
 
@@ -107,6 +108,10 @@ from the core's trusted registration service and checks the caller's authority s
 
 A vocabulary contains `triggers`, `predicates`, and `actions` maps. Each map associates a name with
 a description and typed inputs. Predicate records also declare typed outputs.
+
+A predicate or action can also have a `label`, display text for authoring tools that names its parts
+in braces, such as `"dig out {at}"` or `"{actor} can reach {object}"`. It may name only the record's
+own inputs and outputs. Labels change nothing about how a rule runs.
 
 ```moo
 [
@@ -364,6 +369,19 @@ Steps run with the NPC owner's permissions, and every action checks its caller. 
 playbooks owned by the NPC's owner or by a wizard, and stops if the owner changes. Players do not
 run plans. Plans are at most 32 goals deep. The world facts `location_of(object) -> (location)` and
 `next_step(from, to) -> (exit, room)` and the action `go(target, exit)` support travel.
+
+Authoring tools read and change playbooks through data rather than text. `$playbook:vocabulary()`
+lists the predicates and actions with their labels and types. `$playbook:document(book)` returns the
+settings and each goal with its approaches in the order they're tried, each with its source text,
+parsed condition tree, bound types, and any validation error. `$playbook:check(book, draft)` tests a
+draft approach and stores nothing; its condition may be text or a tree, and it returns the parsed
+form or a message saying what's wrong. An approach can carry a `note`, a goal a `label`, and
+`order_approaches(book, goal, names)` and `remove_goal(book, goal)` rearrange a playbook. Approaches
+stay stored as text, so a tool prints the trees it edits and saves with `define_approach`.
+
+`$planner:status(npc)` gives what `why` describes as data. `$planner:explain(npc)`, for the NPC's
+owner, evaluates each approach to the current goal and reports whether it holds, how many of its
+matches recently failed, and the condition's explanation.
 
 ## Fact changes, lifetimes, and provenance
 
