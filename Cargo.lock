@@ -5758,9 +5758,9 @@ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
 name = "r0z"
-version = "0.2.2"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a910e6543c266af3c68dc9420448663e9aaf94461a7580fa9f7483219609b0a"
+checksum = "c990aea999fde34b11f7772df5e706c9f9b9ad12cadd291629a62c914ad23e19"
 dependencies = [
  "bitflags 2.13.2",
  "libc",
@@ -5769,9 +5769,9 @@ dependencies = [
 
 [[package]]
 name = "r0z-async"
-version = "0.2.2"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc90ce7df75fba9dcf620f68c74f978e456273630a4584537b686445a7c30db6"
+checksum = "f1e37ed298e97843b41ea0e317d4b13d2fe9ebd126d0cbc2a32e1bb5cd2032e2"
 dependencies = [
  "futures",
  "log",
@@ -5782,9 +5782,9 @@ dependencies = [
 
 [[package]]
 name = "r0z-sys"
-version = "0.2.2"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf113da2dc2509e41c004649410e2f4c40e6532ff3a03ddd6a8455edb138ff27"
+checksum = "164a3113057344f32b57ec51d51b40ce5f24b1ddeaf6b6dfaa4a8f424772b406"
 dependencies = [
  "cc",
  "libc",
