@@ -150,6 +150,13 @@ impl ThreadPlacement {
     }
 }
 
+/// What the process may use, as it stood before any of its threads were pinned.
+struct ProcessCpuLimits {
+    allowed_logical_processor_ids: Option<Vec<usize>>,
+    parallelism: Option<usize>,
+}
+
+static PROCESS_CPU_LIMITS: OnceLock<ProcessCpuLimits> = OnceLock::new();
 static THREAD_PLACEMENT: OnceLock<ThreadPlacement> = OnceLock::new();
 static TASK_WORKER_COUNT: AtomicUsize = AtomicUsize::new(0);
 static TASK_POOL_PINNING_MODE: AtomicUsize = AtomicUsize::new(TaskPoolPinningMode::Auto.as_usize());
@@ -157,6 +164,39 @@ static TASK_POOL_SERVICE_PERF_CORES: AtomicUsize = AtomicUsize::new(UNSET_SERVIC
 
 thread_local! {
     static TASK_WORKER_INDEX: Cell<Option<usize>> = const { Cell::new(None) };
+}
+
+/// Affinity is per thread and a pinned thread reports only its own core, so this is read once, on
+/// first use, and everything that pins a thread comes through here first.
+fn process_cpu_limits() -> &'static ProcessCpuLimits {
+    PROCESS_CPU_LIMITS.get_or_init(|| ProcessCpuLimits {
+        allowed_logical_processor_ids: current_thread_allowed_logical_processor_ids(),
+        parallelism: std::thread::available_parallelism()
+            .ok()
+            .map(|parallelism| parallelism.get()),
+    })
+}
+
+fn current_thread_allowed_logical_processor_ids() -> Option<Vec<usize>> {
+    #[cfg(target_os = "linux")]
+    {
+        let mut cpuset: libc::cpu_set_t = unsafe { std::mem::zeroed() };
+        let result = unsafe {
+            libc::sched_getaffinity(0, std::mem::size_of::<libc::cpu_set_t>(), &mut cpuset)
+        };
+        if result != 0 {
+            return None;
+        }
+        let allowed: Vec<usize> = (0..libc::CPU_SETSIZE as usize)
+            .filter(|core_id| unsafe { libc::CPU_ISSET(*core_id, &cpuset) })
+            .collect();
+        (!allowed.is_empty()).then_some(allowed)
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        None
+    }
 }
 
 fn thread_placement() -> &'static ThreadPlacement {
@@ -273,6 +313,8 @@ pub fn set_current_thread_background_priority() -> io::Result<()> {
 }
 
 pub fn pin_current_thread_to_core(core_id: usize) -> io::Result<()> {
+    process_cpu_limits();
+
     #[cfg(target_os = "linux")]
     {
         // We bind each worker to a single logical CPU to avoid migration churn.
@@ -366,6 +408,15 @@ pub fn detect_performance_cores() -> io::Result<DetectionResult> {
 
 pub fn logical_core_count() -> usize {
     detect_all_logical_processor_ids().len()
+}
+
+/// How many threads this process can usefully run at once: its allowed CPUs, capped by any CPU
+/// quota. A container sees all of the host's CPUs in sysfs, so sysfs alone would overstate this.
+pub fn usable_core_count() -> usize {
+    let cores = logical_core_count();
+    process_cpu_limits()
+        .parallelism
+        .map_or(cores, |parallelism| cores.min(parallelism))
 }
 
 pub fn physical_core_count() -> Option<usize> {
@@ -553,6 +604,9 @@ fn read_logical_processor_ids() -> io::Result<Vec<usize>> {
             logical_processor_ids.push(lp_id);
         }
     }
+    if let Some(allowed) = &process_cpu_limits().allowed_logical_processor_ids {
+        logical_processor_ids.retain(|core_id| allowed.contains(core_id));
+    }
     logical_processor_ids.sort_unstable();
     Ok(logical_processor_ids)
 }
@@ -701,5 +755,31 @@ mod tests {
         assert_eq!(clamp_service_reservation(4, 1), 0);
         assert_eq!(clamp_service_reservation(4, 2), 1);
         assert_eq!(clamp_service_reservation(4, 8), 4);
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn placement_stays_within_the_cpus_the_process_may_use() {
+        use super::{
+            detect_all_logical_processor_ids, pin_current_thread_to_core, process_cpu_limits,
+            usable_core_count,
+        };
+
+        let allowed = process_cpu_limits()
+            .allowed_logical_processor_ids
+            .clone()
+            .expect("Linux reports an affinity");
+        let detected = detect_all_logical_processor_ids();
+        assert!(!detected.is_empty());
+        assert!(detected.iter().all(|core_id| allowed.contains(core_id)));
+        assert!(usable_core_count() <= allowed.len());
+
+        // A pinned thread reports one core, which must not shrink what the process may use.
+        std::thread::spawn(move || {
+            pin_current_thread_to_core(*detected.first().unwrap()).unwrap();
+            assert_eq!(detect_all_logical_processor_ids(), detected);
+        })
+        .join()
+        .unwrap();
     }
 }

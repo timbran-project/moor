@@ -14,6 +14,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.0 series (`main`) branch
 
+- The task pool and thread pinning now use only the CPUs the daemon may run on. In a container
+  they used to read the whole host's CPUs, so a daemon limited to 8 of 80 CPUs ran 80 task workers
+  and logged failures pinning threads to CPUs it couldn't use. A CPU quota also limits the pool.
 - The compiler reports a parse error for a non-ASCII character outside a string or comment, such as
   `é = 1;`. It used to panic.
 - Added the wizard-only `task_local()` and `set_task_local()` from ToastStunt, for a value shared by

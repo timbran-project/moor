@@ -13,8 +13,8 @@
 
 use flume::{Receiver, Sender};
 use moor_common::threading::{
-    DetectionResult, TaskPoolPinningMode, detect_performance_cores, logical_core_count,
-    task_pool_pinning_mode,
+    DetectionResult, TaskPoolPinningMode, detect_performance_cores, task_pool_pinning_mode,
+    usable_core_count,
 };
 use moor_common::threading::{
     pin_current_thread_to_core, set_current_task_worker_index, set_task_worker_count,
@@ -49,9 +49,9 @@ pub(crate) struct TaskThreadPool {
 
 impl TaskThreadPool {
     pub(crate) fn configured() -> io::Result<Self> {
-        // Use topology-derived logical core count for fallback worker sizing so the
-        // scheduler pool is not accidentally limited by current-thread affinity.
-        let fallback_threads = logical_core_count().max(1);
+        // Size the pool from the CPUs the process may use, which are recorded before any thread
+        // is pinned, so it isn't limited by the current thread's affinity.
+        let fallback_threads = usable_core_count().max(1);
         let pinning_mode = task_pool_pinning_mode();
 
         let pinned_core_ids = match pinning_mode {
