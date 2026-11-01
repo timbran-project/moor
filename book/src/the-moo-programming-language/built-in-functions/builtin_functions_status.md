@@ -148,6 +148,9 @@ open an issue on the [mooR GitHub issue tracker](https://github.com/timbran-proj
 | [`verb_code_hash`](verbs.md#verb_code_hash)                            | &check;  | mooR extension                                           |
 | [`verb_info_hash`](verbs.md#verb_info_hash)                            | &check;  | mooR extension                                           |
 | [`verb_metadata_hash`](verbs.md#verb_metadata_hash)                    | &check;  | mooR extension                                           |
+| [`set_verb_native`](verbs.md#set_verb_native)                          | &check;  | mooR extension                                           |
+| [`verb_native`](verbs.md#verb_native)                                  | &check;  | mooR extension                                           |
+| [`native_libraries`](verbs.md#native_libraries)                        | &check;  | mooR extension                                           |
 | [`verb_metadata`](../../the-database/entity-metadata.md#verb-metadata) | &check;  | mooR extension                                           |
 | [`prepositions`](verbs.md#prepositions)                                | &check;  | mooR extension. Returns list of all valid prepositions   |
 

@@ -12,7 +12,7 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::tasks::TaskProgramCache;
+use crate::tasks::{TaskProgramCache, task_program_cache::ResolvedVerbProgram};
 use moor_common::model::HasUuid;
 use moor_var::v_list;
 
@@ -121,6 +121,10 @@ fn program_cache_observes_loader_edits_and_rollback() {
                 definition.uuid(),
             )
             .unwrap()
+    };
+    let resolve = |cache: &mut TaskProgramCache, tx: &dyn WorldState| match resolve(cache, tx) {
+        ResolvedVerbProgram::Moo(slot) => slot,
+        ResolvedVerbProgram::Native(native) => panic!("expected MOO code, got {native:?}"),
     };
     let first = resolve(&mut cache, tx.as_ref());
     assert!(!first.cache_hit);

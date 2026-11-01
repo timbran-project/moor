@@ -166,7 +166,7 @@ impl Scheduler {
             db_commit_queue_timeout: DEFAULT_DB_COMMIT_QUEUE_TIMEOUT,
             rollback_on_task_limit: false,
         };
-        let builtin_registry = BuiltinRegistry::new();
+        let builtin_registry = BuiltinRegistry::with_native_verbs(config.native_verbs.clone());
 
         let database: Arc<dyn Database> = Arc::from(database);
 

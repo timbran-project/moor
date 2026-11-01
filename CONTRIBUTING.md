@@ -606,6 +606,11 @@ allowing the project maintainer to negotiate alternative licensing terms on a ca
 - **Documentation**: The contents of the `book/` directory are licensed separately under the terms
   specified in `book/src/legal.md`.
 
+- **Native verb interface**: `crates/native-verb`, with its C header, is licensed under the GNU
+  Lesser General Public License, version 3 or later, so native verb libraries can use it.
+  [NATIVE-VERB-EXCEPTION.md](NATIVE-VERB-EXCEPTION.md) is an additional permission letting those
+  libraries carry licenses of their own.
+
 ---
 
 Thank you for contributing to mooR! Your efforts help build a vibrant, modern platform for online
