@@ -35,7 +35,7 @@ use local_operations::LocalOperations;
 /// A key-value caching store that is scoped for the lifetime of a transaction.
 /// When the transaction is completed, it collapses into a WorkingSet which can be applied to the
 /// global transactional cache.
-pub struct RelationTransaction<Domain, Codomain, Source>
+pub struct RelationTransaction<Domain, Codomain, Source, Owner = ()>
 where
     Source: Provider<Domain, Codomain>,
     Domain: RelationDomain,
@@ -44,30 +44,59 @@ where
     tx: Tx,
     relation_name: Symbol,
 
-    index: Inner<Domain, Codomain>,
-    backing_source: Arc<Source>,
+    index: Inner<Domain, Codomain, Owner>,
+    backing_source: BackingSource<Source, Owner>,
 }
 
-struct Inner<Domain, Codomain>
+/// Finds a relation's part inside what a transaction's relations borrow from: one allocation per
+/// transaction, holding its snapshot and the database's relations. Counting references to it stays
+/// on a cache line nothing else touches, where the snapshot's and sources' own counts are shared by
+/// every transaction on every core.
+pub(crate) type OwnedPart<Owner, T> = for<'a> fn(&'a Owner) -> &'a Arc<T>;
+
+enum BackingSource<Source, Owner> {
+    Shared(Arc<Source>),
+    Borrowed {
+        owner: Arc<Owner>,
+        source: OwnedPart<Owner, Source>,
+    },
+}
+
+impl<Source, Owner> Deref for BackingSource<Source, Owner> {
+    type Target = Source;
+
+    fn deref(&self) -> &Source {
+        match self {
+            Self::Shared(source) => source,
+            Self::Borrowed { owner, source } => source(owner),
+        }
+    }
+}
+
+struct Inner<Domain, Codomain, Owner>
 where
     Domain: RelationDomain,
     Codomain: RelationCodomain,
 {
     local_operations: LocalOperations<Domain, Codomain>,
-    master_entries: TransactionIndex<Domain, Codomain>,
+    master_entries: TransactionIndex<Domain, Codomain, Owner>,
     provider_fully_loaded: bool,
 }
 
-enum TransactionIndex<Domain, Codomain>
+enum TransactionIndex<Domain, Codomain, Owner>
 where
     Domain: RelationDomain,
     Codomain: RelationCodomain,
 {
     Shared(Arc<dyn RelationIndex<Domain, Codomain>>),
+    Borrowed {
+        owner: Arc<Owner>,
+        index: OwnedPart<Owner, dyn RelationIndex<Domain, Codomain>>,
+    },
     Owned(Box<dyn RelationIndex<Domain, Codomain>>),
 }
 
-impl<Domain, Codomain> TransactionIndex<Domain, Codomain>
+impl<Domain, Codomain, Owner> TransactionIndex<Domain, Codomain, Owner>
 where
     Domain: RelationDomain,
     Codomain: RelationCodomain,
@@ -75,12 +104,13 @@ where
     fn into_shared(self) -> Arc<dyn RelationIndex<Domain, Codomain>> {
         match self {
             Self::Shared(index) => index,
+            Self::Borrowed { owner, index } => Arc::clone(index(&owner)),
             Self::Owned(index) => Arc::from(index),
         }
     }
 }
 
-impl<Domain, Codomain> Deref for TransactionIndex<Domain, Codomain>
+impl<Domain, Codomain, Owner> Deref for TransactionIndex<Domain, Codomain, Owner>
 where
     Domain: RelationDomain,
     Codomain: RelationCodomain,
@@ -90,19 +120,22 @@ where
     fn deref(&self) -> &Self::Target {
         match self {
             Self::Shared(index) => &**index,
+            Self::Borrowed { owner, index } => &**index(owner),
             Self::Owned(index) => &**index,
         }
     }
 }
 
-impl<Domain, Codomain> DerefMut for TransactionIndex<Domain, Codomain>
+impl<Domain, Codomain, Owner> DerefMut for TransactionIndex<Domain, Codomain, Owner>
 where
     Domain: RelationDomain,
     Codomain: RelationCodomain,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        if let Self::Shared(index) = self {
-            *self = Self::Owned(index.fork());
+        match self {
+            Self::Shared(index) => *self = Self::Owned(index.fork()),
+            Self::Borrowed { owner, index } => *self = Self::Owned(index(owner).fork()),
+            Self::Owned(_) => {}
         }
         let Self::Owned(index) = self else {
             unreachable!();
@@ -259,16 +292,6 @@ where
     Domain: RelationDomain,
     Codomain: RelationCodomain,
 {
-    #[inline]
-    fn visible_ts(&self) -> Timestamp {
-        self.tx.visible_ts
-    }
-
-    #[inline]
-    fn write_ts(&self) -> Timestamp {
-        self.tx.ts
-    }
-
     pub fn new(
         tx: Tx,
         relation_name: Symbol,
@@ -299,7 +322,53 @@ where
             tx,
             relation_name,
             index: inner,
-            backing_source,
+            backing_source: BackingSource::Shared(backing_source),
+        }
+    }
+}
+
+impl<Domain, Codomain, Source, Owner> RelationTransaction<Domain, Codomain, Source, Owner>
+where
+    Source: Provider<Domain, Codomain>,
+    Domain: RelationDomain,
+    Codomain: RelationCodomain,
+{
+    #[inline]
+    fn visible_ts(&self) -> Timestamp {
+        self.tx.visible_ts
+    }
+
+    #[inline]
+    fn write_ts(&self) -> Timestamp {
+        self.tx.ts
+    }
+
+    /// Start a relation that borrows its index and source through the transaction's owner, taking
+    /// no shared reference counts unless a commit needs the index.
+    pub(crate) fn new_borrowed(
+        tx: Tx,
+        relation_name: Symbol,
+        owner: &Arc<Owner>,
+        index: OwnedPart<Owner, dyn RelationIndex<Domain, Codomain>>,
+        source: OwnedPart<Owner, Source>,
+    ) -> RelationTransaction<Domain, Codomain, Source, Owner> {
+        let provider_fully_loaded = index(owner).is_provider_fully_loaded();
+        let inner = Inner {
+            local_operations: LocalOperations::new(),
+            master_entries: TransactionIndex::Borrowed {
+                owner: Arc::clone(owner),
+                index,
+            },
+            provider_fully_loaded,
+        };
+        RelationTransaction {
+            tx,
+            relation_name,
+            index: inner,
+            backing_source: BackingSource::Borrowed {
+                owner: Arc::clone(owner),
+                source,
+            },
         }
     }
 
@@ -1180,4 +1249,20 @@ where
             provider_fully_loaded,
         ))
     }
+}
+
+/// A caller of `new` shouldn't have to name an owner. This fails to compile if it must.
+#[cfg(test)]
+#[allow(dead_code)]
+fn new_needs_no_owner_annotation<Domain, Codomain, Source>(
+    tx: Tx,
+    relation_name: Symbol,
+    canonical: Box<dyn RelationIndex<Domain, Codomain>>,
+    backing_source: Source,
+) where
+    Source: Provider<Domain, Codomain>,
+    Domain: RelationDomain,
+    Codomain: RelationCodomain,
+{
+    let _transaction = RelationTransaction::new(tx, relation_name, canonical, backing_source);
 }

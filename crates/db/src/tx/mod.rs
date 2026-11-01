@@ -27,6 +27,7 @@ pub use relation::Relation;
 pub(crate) use resolve::Resolution;
 pub use resolve::{ConflictResolver, FailOnConflict};
 pub(crate) use transaction::OpType;
+pub(crate) use transaction::OwnedPart;
 pub use transaction::{RelationTransaction, WorkingSet};
 
 use std::fmt::{Debug, Display};

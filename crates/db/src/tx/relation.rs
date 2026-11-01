@@ -23,7 +23,7 @@ use std::sync::Arc;
 #[cfg(test)]
 use crate::tx::Canonical;
 use crate::tx::{
-    CheckRelation, RelationIndex, RelationTransaction,
+    CheckRelation, OwnedPart, RelationIndex, RelationTransaction,
     indexes::{HashRelationIndex, SecondaryIndexRelation},
 };
 
@@ -133,12 +133,19 @@ where
         )
     }
 
-    pub(crate) fn start_from_snapshot(
+    pub(crate) fn start_borrowed<Owner>(
         &self,
         tx: &Tx,
-        index: Arc<dyn RelationIndex<Domain, Codomain>>,
-    ) -> RelationTransaction<Domain, Codomain, Source> {
-        RelationTransaction::new_shared(*tx, self.relation_name, index, self.source.clone())
+        owner: &Arc<Owner>,
+        index: OwnedPart<Owner, dyn RelationIndex<Domain, Codomain>>,
+        source: OwnedPart<Owner, Source>,
+    ) -> RelationTransaction<Domain, Codomain, Source, Owner> {
+        RelationTransaction::new_borrowed(*tx, self.relation_name, owner, index, source)
+    }
+
+    /// This relation's source, for transactions to borrow.
+    pub(crate) fn shared_source(&self) -> &Arc<Source> {
+        &self.source
     }
 
     pub fn begin_check_from_index(
