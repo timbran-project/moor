@@ -167,6 +167,7 @@ These options control the basic server behavior:
 - `--private-key <PATH>` (default: `${XDG_CONFIG_HOME:-$HOME/.config}/moor/moor-signing-key.pem`):
   PEM encoded PASETO private key for token signing
 - `--num-io-threads <NUM>` (default: `8`): Number of ZeroMQ IO threads
+- `--rpc-workers <NUM>` (default: `7`): Number of threads that run RPC requests (daemon only)
 - `--debug` (default: `false`): Enable debug logging
 
 ### Transport Endpoint Configuration (Split-Process Only)

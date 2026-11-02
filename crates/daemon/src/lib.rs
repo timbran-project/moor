@@ -127,6 +127,8 @@ pub struct DaemonRuntimeConfig {
     pub endpoints: DaemonEndpoints,
     pub keys: DaemonKeys,
     pub num_io_threads: i32,
+    /// Threads that run RPC requests over ZeroMQ.
+    pub rpc_workers: usize,
     pub workers_enabled: bool,
     pub startup_config: Option<Var>,
 }
@@ -413,6 +415,7 @@ fn create_rpc_transport(
     rpc_listen: &str,
     curve_secret_key: Option<String>,
     ready_signal: Option<ReadySignal>,
+    rpc_workers: usize,
 ) -> Result<Arc<dyn Transport>, Report> {
     let transport = Arc::new(
         RpcTransport::new(
@@ -422,6 +425,7 @@ fn create_rpc_transport(
             rpc_listen,
             curve_secret_key,
             ready_signal,
+            rpc_workers,
         )
         .map_err(|e| eyre!("Failed to create RPC transport: {}", e))?,
     ) as Arc<dyn Transport>;
@@ -562,6 +566,7 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
         endpoints,
         keys,
         num_io_threads,
+        rpc_workers,
         workers_enabled,
         startup_config,
     } = runtime_config;
@@ -767,6 +772,7 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
                 None
             },
             ready_signal.clone(),
+            rpc_workers,
         )?
     };
 
