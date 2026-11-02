@@ -38,7 +38,8 @@ use uuid::Uuid;
 
 use crate::connections::NewConnectionParams;
 use crate::rpc::deferred_calls::{
-    ClientReplySink, NewDeferredCall, capture_result_response, capture_timeout_response,
+    CallSlot, ClientReplySink, NewDeferredCall, OnFinish, capture_on_finish,
+    capture_result_response, capture_timeout_response, deadline_instants, task_on_finish,
 };
 use crate::rpc::message_handler::{
     BF_SYM, DB_SYM, DO_LOGIN_COMMAND, RpcMessageHandler, SCHED_SYM, bf_counter_entries,
@@ -536,21 +537,13 @@ impl RuntimeApi for RpcMessageHandler {
                 InvocationMode::Connected { client_token } => {
                     let (connection, player) =
                         self.verify_tokens(client_token, auth_token, client_id)?;
-                    let session = Arc::new(self.new_rpc_session(client_id, connection, player));
-                    let task_handle = match scheduler_client.submit_eval_task(
-                        &player,
-                        &player,
+                    let task_handle = self.submit_connected_eval_task(
+                        &scheduler_client,
+                        client_id,
+                        connection,
+                        player,
                         expression,
-                        None,
-                        session,
-                        self.config.features.clone(),
-                    ) {
-                        Ok(t) => t,
-                        Err(e) => {
-                            error!(error = ?e, "Error submitting eval task");
-                            return Err(RpcMessageError::TaskError(e));
-                        }
-                    };
+                    )?;
                     use moor_kernel::tasks::TaskNotification;
                     let receiver = task_handle.into_receiver();
                     loop {
@@ -891,6 +884,27 @@ fn resolve_capture_deadline(
 
 fn invocation_reply(response: InvocationResponse) -> ClientReply {
     ClientReply::InvocationResponse { response }
+}
+
+fn batch_reply(
+    correlation_ids: Vec<String>,
+    result_sink: &moor_kernel::tasks::BatchResultSink,
+) -> Result<ClientReply, RpcMessageError> {
+    let results = result_sink
+        .lock()
+        .unwrap()
+        .take()
+        .unwrap_or(Err(SchedulerError::SchedulerNotResponding))
+        .map_err(RpcMessageError::TaskError)?;
+    let results = correlation_ids
+        .into_iter()
+        .zip(results)
+        .map(|(id, result)| WorldStateResultEntry {
+            id,
+            result: convert_kernel_ws_result_to_typed(result),
+        })
+        .collect();
+    Ok(ClientReply::BatchWorldStateReply { results })
 }
 
 fn system_handler_reply(response: InvocationResponse) -> ClientReply {
@@ -1425,27 +1439,121 @@ impl RpcMessageHandler {
                 output,
                 to_reply,
             }) => {
-                let task_id = task_handle.task_id();
-                self.deferred_calls.add(NewDeferredCall {
-                    task_id,
-                    execution_expires_at,
-                    expires_at,
-                    deadline,
-                    output,
-                    to_reply,
-                    sink,
-                    slot,
-                });
-                if let Err(error) = self.task_monitor.add_deferred_task(
-                    task_id,
+                self.defer_task(
                     task_handle,
-                    self.deferred_calls.clone(),
-                ) {
-                    error!(task_id, error, "Unable to monitor captured task");
-                    self.deferred_calls.result_channel_closed(task_id);
-                }
+                    (execution_expires_at, expires_at),
+                    capture_on_finish(deadline, output, to_reply, sink),
+                    slot,
+                );
                 None
             }
+        }
+    }
+
+    /// Hand a running task to the deferred calls and the monitor, freeing this thread.
+    fn defer_task(
+        &self,
+        task_handle: TaskHandle,
+        (execution_expires_at, expires_at): (Instant, Instant),
+        on_finish: OnFinish,
+        slot: CallSlot,
+    ) {
+        let task_id = task_handle.task_id();
+        self.deferred_calls.add(NewDeferredCall {
+            task_id,
+            execution_expires_at,
+            expires_at,
+            on_finish,
+            slot,
+        });
+        if let Err(error) =
+            self.task_monitor
+                .add_deferred_task(task_id, task_handle, self.deferred_calls.clone())
+        {
+            error!(task_id, error, "Unable to monitor deferred task");
+            self.deferred_calls.result_channel_closed(task_id);
+        }
+    }
+
+    /// Run a request that is not a captured invocation. A request that waits for its task replies
+    /// later through `sink`, freeing this thread, and anything else replies now.
+    pub(crate) fn run_request_deferred(
+        &self,
+        scheduler_client: SchedulerClient,
+        client_id: Uuid,
+        request: ClientRequest,
+        sink: ClientReplySink,
+    ) -> Option<Result<ClientReply, RpcMessageError>> {
+        match request {
+            ClientRequest::BatchWorldState {
+                auth_token,
+                actions,
+                rollback,
+            } => {
+                let player = match self.validate_auth_token(auth_token, None) {
+                    Ok(player) => player,
+                    Err(error) => return Some(Err(error)),
+                };
+                let Some(slot) = self.deferred_calls.try_reserve() else {
+                    return Some(Err(RpcMessageError::ServerBusy));
+                };
+                let (task_handle, correlation_ids, result_sink) = match self.submit_batch_task(
+                    &scheduler_client,
+                    client_id,
+                    &player,
+                    actions,
+                    rollback,
+                ) {
+                    Ok(submitted) => submitted,
+                    Err(error) => return Some(Err(error)),
+                };
+                let deadline = self.config.runtime.max_capture_deadline();
+                let on_finish = task_on_finish(
+                    deadline,
+                    move |_| batch_reply(correlation_ids, &result_sink),
+                    sink,
+                );
+                self.defer_task(task_handle, deadline_instants(deadline), on_finish, slot);
+                None
+            }
+            ClientRequest::Eval {
+                auth_token,
+                expression,
+                mode: InvocationMode::Connected { client_token },
+            } => {
+                let (connection, player) =
+                    match self.verify_tokens(client_token, auth_token, client_id) {
+                        Ok(identity) => identity,
+                        Err(error) => return Some(Err(error)),
+                    };
+                let Some(slot) = self.deferred_calls.try_reserve() else {
+                    return Some(Err(RpcMessageError::ServerBusy));
+                };
+                let task_handle = match self.submit_connected_eval_task(
+                    &scheduler_client,
+                    client_id,
+                    connection,
+                    player,
+                    expression,
+                ) {
+                    Ok(task_handle) => task_handle,
+                    Err(error) => return Some(Err(error)),
+                };
+                let deadline = self.config.runtime.max_capture_deadline();
+                let on_finish = task_on_finish(
+                    deadline,
+                    |result| Ok(ClientReply::EvalResult { result }),
+                    sink,
+                );
+                self.defer_task(task_handle, deadline_instants(deadline), on_finish, slot);
+                None
+            }
+            other => Some(RuntimeApi::handle_client_request(
+                self,
+                scheduler_client,
+                client_id,
+                other,
+            )),
         }
     }
 
@@ -1731,16 +1839,40 @@ impl RpcMessageHandler {
         })
     }
 
-    fn handle_batch_world_state_typed(
+    fn submit_connected_eval_task(
         &self,
-        scheduler_client: SchedulerClient,
+        scheduler_client: &SchedulerClient,
+        client_id: Uuid,
+        connection: Obj,
+        player: Obj,
+        expression: String,
+    ) -> Result<TaskHandle, RpcMessageError> {
+        let session = Arc::new(self.new_rpc_session(client_id, connection, player));
+        scheduler_client
+            .submit_eval_task(
+                &player,
+                &player,
+                expression,
+                None,
+                session,
+                self.config.features.clone(),
+            )
+            .map_err(|e| {
+                error!(error = ?e, "Error submitting eval task");
+                RpcMessageError::TaskError(e)
+            })
+    }
+
+    fn submit_batch_task(
+        &self,
+        scheduler_client: &SchedulerClient,
         client_id: Uuid,
         player: &Obj,
         actions: Vec<moor_runtime_api::api::BatchActionEntry>,
         rollback: bool,
-    ) -> Result<ClientReply, RpcMessageError> {
+    ) -> Result<(TaskHandle, Vec<String>, moor_kernel::tasks::BatchResultSink), RpcMessageError>
+    {
         use crate::rpc::output_capture_session::OutputCaptureSession;
-        use moor_kernel::tasks::TaskNotification;
         use moor_kernel::tasks::world_state_action::WorldStateAction;
 
         let correlation_ids: Vec<String> = actions.iter().map(|a| a.id.clone()).collect();
@@ -1763,34 +1895,27 @@ impl RpcMessageHandler {
                 error!(error = ?e, "Error submitting batch world state task");
                 RpcMessageError::TaskError(e)
             })?;
+        Ok((task_handle, correlation_ids, result_sink))
+    }
+
+    fn handle_batch_world_state_typed(
+        &self,
+        scheduler_client: SchedulerClient,
+        client_id: Uuid,
+        player: &Obj,
+        actions: Vec<moor_runtime_api::api::BatchActionEntry>,
+        rollback: bool,
+    ) -> Result<ClientReply, RpcMessageError> {
+        use moor_kernel::tasks::TaskNotification;
+
+        let (task_handle, correlation_ids, result_sink) =
+            self.submit_batch_task(&scheduler_client, client_id, player, actions, rollback)?;
 
         let receiver = task_handle.into_receiver();
         loop {
             match receiver.recv() {
                 Ok((_, Ok(TaskNotification::Result(_)))) => {
-                    let results = result_sink.lock().unwrap().take().unwrap_or_else(|| {
-                        Err(moor_common::tasks::SchedulerError::SchedulerNotResponding)
-                    });
-
-                    match results {
-                        Ok(ws_results) => {
-                            let result_entries: Vec<WorldStateResultEntry> = correlation_ids
-                                .into_iter()
-                                .zip(ws_results)
-                                .map(|(id, result)| {
-                                    let typed_result = convert_kernel_ws_result_to_typed(result);
-                                    WorldStateResultEntry {
-                                        id,
-                                        result: typed_result,
-                                    }
-                                })
-                                .collect();
-                            break Ok(ClientReply::BatchWorldStateReply {
-                                results: result_entries,
-                            });
-                        }
-                        Err(e) => break Err(RpcMessageError::TaskError(e)),
-                    }
+                    break batch_reply(correlation_ids, &result_sink);
                 }
                 Ok((_, Ok(TaskNotification::Suspended))) => continue,
                 Ok((_, Err(e))) => break Err(RpcMessageError::TaskError(e)),

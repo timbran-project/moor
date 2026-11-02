@@ -14,11 +14,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.0 series (`main`) branch
 
-- Web API calls and webhooks that wait on a task no longer hold an RPC worker while it runs, so slow
-  calls, such as a bot waiting on an outside service, no longer delay typed commands. Up to 256 may
-  wait at once, set with `--max-captured-calls`. Past that, the daemon refuses a call with a new
-  `ServerBusy` error, which the web host returns as HTTP 503. Hosts should be upgraded with the
-  daemon, because older hosts can't decode this error.
+- Web API calls, batch requests and webhooks that wait on a task no longer hold an RPC worker while
+  it runs, so slow calls, such as a bot waiting on an outside service, no longer delay typed
+  commands. Up to 256 may wait at once, set with `--max-captured-calls`. Past that, the daemon
+  refuses a call with a new `ServerBusy` error, which the web host returns as HTTP 503. Hosts should
+  be upgraded with the daemon, because older hosts can't decode this error.
 - The daemon gives each RPC request to the next free worker, so one slow call no longer delays
   requests while other workers are idle. Pongs get their own thread, so sessions and hosts survive
   slow calls even when every worker is busy. `--num-io-threads` sets the worker count as before.

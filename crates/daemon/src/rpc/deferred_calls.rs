@@ -11,7 +11,7 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Captured calls waiting for their tasks, without an RPC worker waiting too.
+//! Calls waiting for their tasks, without an RPC worker waiting too.
 //!
 //! A worker submits the task, adds a call here, and takes its next job. `TaskMonitor` reports what
 //! the task does, and a sweep thread cancels tasks past their deadlines. Every outcome goes through
@@ -52,6 +52,10 @@ const MIN_ABORT_WAIT: Duration = Duration::from_millis(100);
 type TaskResult = Result<TaskNotification, SchedulerError>;
 type FinishJob = Box<dyn FnOnce() + Send>;
 
+/// Builds and delivers a call's reply from how it ended. It runs on the finish thread, so it must
+/// not call the scheduler.
+pub(crate) type OnFinish = Box<dyn FnOnce(Finish) + Send>;
+
 /// Delivers a call's one reply. It may run on any thread.
 pub(crate) type ClientReplySink = Box<dyn FnOnce(Result<ClientReply, RpcMessageError>) + Send>;
 
@@ -67,7 +71,7 @@ enum Phase {
 
 /// How a call ended.
 #[derive(Debug)]
-enum Finish {
+pub(crate) enum Finish {
     Result(TaskResult),
     TimedOut,
     Failed(SchedulerError),
@@ -79,10 +83,7 @@ struct DeferredCall {
     execution_expires_at: Instant,
     /// The end of the whole deadline, including cancellation.
     expires_at: Instant,
-    deadline: Duration,
-    output: Option<Arc<CaptureAccumulator>>,
-    to_reply: fn(InvocationResponse) -> ClientReply,
-    sink: ClientReplySink,
+    on_finish: OnFinish,
     phase: Phase,
     /// The monitor reported the result channel closing while an abort was in progress.
     channel_closed: bool,
@@ -99,10 +100,7 @@ pub(crate) struct NewDeferredCall {
     pub(crate) task_id: TaskId,
     pub(crate) execution_expires_at: Instant,
     pub(crate) expires_at: Instant,
-    pub(crate) deadline: Duration,
-    pub(crate) output: Option<Arc<CaptureAccumulator>>,
-    pub(crate) to_reply: fn(InvocationResponse) -> ClientReply,
-    pub(crate) sink: ClientReplySink,
+    pub(crate) on_finish: OnFinish,
     pub(crate) slot: CallSlot,
 }
 
@@ -164,10 +162,7 @@ impl DeferredCalls {
             DeferredCall {
                 execution_expires_at: call.execution_expires_at,
                 expires_at: call.expires_at,
-                deadline: call.deadline,
-                output: call.output,
-                to_reply: call.to_reply,
-                sink: call.sink,
+                on_finish: call.on_finish,
                 phase: Phase::Running,
                 channel_closed: false,
                 _slot: call.slot,
@@ -306,8 +301,28 @@ impl DeferredCalls {
 
 impl DeferredCall {
     fn deliver(self, finish: Finish) {
+        // The slot is held until this returns, so it covers building and sending the reply.
+        (self.on_finish)(finish);
+    }
+}
+
+/// When to ask for cancellation, and the end of the whole deadline, leaving time for the abort.
+pub(crate) fn deadline_instants(deadline: Duration) -> (Instant, Instant) {
+    let expires_at = Instant::now() + deadline;
+    let cancellation_reserve = (deadline / 10).min(Duration::from_millis(100));
+    (expires_at - cancellation_reserve, expires_at)
+}
+
+/// Finish a captured invocation by replying with its result and committed output.
+pub(crate) fn capture_on_finish(
+    deadline: Duration,
+    output: Option<Arc<CaptureAccumulator>>,
+    to_reply: fn(InvocationResponse) -> ClientReply,
+    sink: ClientReplySink,
+) -> OnFinish {
+    Box::new(move |finish| {
         let take_output = || {
-            self.output
+            output
                 .as_ref()
                 .map(|output| output.take())
                 .unwrap_or_default()
@@ -317,20 +332,47 @@ impl DeferredCall {
         };
         let response = match finish {
             Finish::Result(result) => capture_result_response(result, take_output),
-            Finish::TimedOut => capture_timeout_response(self.deadline, take_output()),
+            Finish::TimedOut => capture_timeout_response(deadline, take_output()),
             Finish::Failed(error) => InvocationResponse {
                 outcome: InvocationOutcome::Error { error },
                 output: take_output(),
             },
             Finish::ResultLost => {
-                (self.sink)(Err(RpcMessageError::InternalError(
-                    "Task ended without a result".to_string(),
-                )));
+                sink(Err(result_lost_error()));
                 return;
             }
         };
-        (self.sink)(Ok((self.to_reply)(response)));
-    }
+        sink(Ok(to_reply(response)));
+    })
+}
+
+/// Finish a call that replies with its task's value, or with the task's error.
+pub(crate) fn task_on_finish(
+    deadline: Duration,
+    to_reply: impl FnOnce(moor_var::Var) -> Result<ClientReply, RpcMessageError> + Send + 'static,
+    sink: ClientReplySink,
+) -> OnFinish {
+    Box::new(move |finish| {
+        sink(match finish {
+            Finish::Result(Ok(TaskNotification::Result(result))) => to_reply(result),
+            Finish::Result(Ok(TaskNotification::Suspended)) => {
+                Err(RpcMessageError::TaskError(SchedulerError::TaskAbortedError))
+            }
+            Finish::Result(Err(error)) | Finish::Failed(error) => {
+                Err(RpcMessageError::TaskError(error))
+            }
+            Finish::TimedOut => Err(RpcMessageError::TaskError(
+                SchedulerError::TaskAbortedLimit(moor_common::tasks::AbortLimitReason::Time(
+                    deadline,
+                )),
+            )),
+            Finish::ResultLost => Err(result_lost_error()),
+        });
+    })
+}
+
+fn result_lost_error() -> RpcMessageError {
+    RpcMessageError::InternalError("Task ended without a result".to_string())
 }
 
 pub(crate) fn capture_timeout_response(
@@ -390,12 +432,14 @@ mod tests {
             task_id: TASK,
             execution_expires_at: now,
             expires_at: now + Duration::from_secs(1),
-            deadline: Duration::from_secs(1),
-            output: None,
-            to_reply: invocation_reply,
-            sink: Box::new(move |reply| {
-                reply_send.send(reply).unwrap();
-            }),
+            on_finish: capture_on_finish(
+                Duration::from_secs(1),
+                None,
+                invocation_reply,
+                Box::new(move |reply| {
+                    reply_send.send(reply).unwrap();
+                }),
+            ),
             slot: calls.try_reserve().unwrap(),
         });
         Harness { calls, replies }
@@ -601,6 +645,40 @@ mod tests {
     }
 
     #[test]
+    fn a_task_call_reports_each_ending() {
+        let finish = |finish| {
+            let (send, receive) = flume::unbounded();
+            let on_finish = task_on_finish(
+                Duration::from_secs(1),
+                |result| Ok(ClientReply::EvalResult { result }),
+                Box::new(move |reply| send.send(reply).unwrap()),
+            );
+            on_finish(finish);
+            receive.try_recv().unwrap()
+        };
+        assert!(matches!(
+            finish(Finish::Result(Ok(TaskNotification::Result(v_int(1))))),
+            Ok(ClientReply::EvalResult { .. })
+        ));
+        assert!(matches!(
+            finish(Finish::TimedOut),
+            Err(RpcMessageError::TaskError(
+                SchedulerError::TaskAbortedLimit(_)
+            ))
+        ));
+        assert!(matches!(
+            finish(Finish::Failed(SchedulerError::SchedulerNotResponding)),
+            Err(RpcMessageError::TaskError(
+                SchedulerError::SchedulerNotResponding
+            ))
+        ));
+        assert!(matches!(
+            finish(Finish::ResultLost),
+            Err(RpcMessageError::InternalError(_))
+        ));
+    }
+
+    #[test]
     fn calls_before_their_deadline_are_not_due() {
         let calls = DeferredCalls::new(10);
         let now = Instant::now();
@@ -608,10 +686,7 @@ mod tests {
             task_id: TASK,
             execution_expires_at: now + Duration::from_secs(60),
             expires_at: now + Duration::from_secs(61),
-            deadline: Duration::from_secs(61),
-            output: None,
-            to_reply: invocation_reply,
-            sink: Box::new(|_| {}),
+            on_finish: Box::new(|_| {}),
             slot: calls.try_reserve().unwrap(),
         });
         assert!(calls.take_due_calls(now).is_empty());
