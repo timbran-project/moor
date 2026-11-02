@@ -27,6 +27,8 @@ pub mod api_codec;
 #[cfg(feature = "task-client")]
 mod client_event_replay;
 #[cfg(feature = "task-client")]
+pub mod session_pong;
+#[cfg(feature = "task-client")]
 pub mod task_client;
 #[cfg(feature = "task-client")]
 pub use client_event_replay::RecoveringClientEventSubscription;

@@ -37,6 +37,7 @@ use eyre::eyre;
 use hickory_resolver::{TokioResolver, proto::rr::RData};
 use ipnet::IpNet;
 use moor_common::model::ObjectRef;
+use moor_runtime_api::session_pong::{PongIdentity, PongTask};
 use moor_runtime_api::{
     AuthToken, ClientToken, RpcError, RpcMessageError,
     api::{
@@ -594,11 +595,22 @@ impl WebHost {
             .client_subscriptions(client_id, client_token.clone())
             .map_err(|e| eyre::eyre!("Unable to subscribe to client events: {}", e))?;
 
+        let pong_task = PongTask::spawn(
+            broadcast_sub,
+            daemon_client.clone(),
+            PongIdentity {
+                client_id,
+                client_token: client_token.clone(),
+                player: *player,
+                socket_addr: peer_addr.to_string(),
+            },
+        );
+
         Ok(ClientSession {
             handler_object: *handler_object,
             player: *player,
             peer_addr,
-            broadcast_sub,
+            pong_task,
             narrative_sub,
             client_id,
             client_token,
