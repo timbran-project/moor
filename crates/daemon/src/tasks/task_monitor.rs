@@ -22,15 +22,24 @@ use std::{
 };
 use uuid::Uuid;
 
-use crate::rpc::SessionActions;
+use crate::rpc::{DeferredCalls, SessionActions};
 use flume::Sender;
 use moor_common::tasks::{SchedulerError, TaskId};
 use moor_kernel::tasks::TaskHandle;
 use moor_runtime_api::api::ClientEvent;
 
+/// Who is told about a monitored task.
+#[derive(Clone)]
+enum TaskOwner {
+    /// A connected client, through published events.
+    Client(Uuid),
+    /// A captured call waiting for this task.
+    Deferred(Arc<DeferredCalls>),
+}
+
 /// Monitors task completions and handles their lifecycle
 pub struct TaskMonitor {
-    task_handles: papaya::HashMap<TaskId, (Uuid, TaskHandle)>,
+    task_handles: papaya::HashMap<TaskId, (TaskOwner, TaskHandle)>,
     mailbox_sender: Sender<SessionActions>,
     wake_signal: (Sender<()>, flume::Receiver<()>),
 }
@@ -53,11 +62,30 @@ impl TaskMonitor {
         client_id: Uuid,
         task_handle: TaskHandle,
     ) -> Result<(), String> {
+        self.insert_task(task_id, TaskOwner::Client(client_id), task_handle)
+    }
+
+    /// Monitor a task on behalf of a captured call, which was added to `deferred` first.
+    pub(crate) fn add_deferred_task(
+        &self,
+        task_id: TaskId,
+        task_handle: TaskHandle,
+        deferred: Arc<DeferredCalls>,
+    ) -> Result<(), String> {
+        self.insert_task(task_id, TaskOwner::Deferred(deferred), task_handle)
+    }
+
+    fn insert_task(
+        &self,
+        task_id: TaskId,
+        owner: TaskOwner,
+        task_handle: TaskHandle,
+    ) -> Result<(), String> {
         // Insert the task handle into the map
         let guard = self.task_handles.guard();
         if self
             .task_handles
-            .insert(task_id, (client_id, task_handle), &guard)
+            .insert(task_id, (owner, task_handle), &guard)
             .is_some()
         {
             Err(format!("Task ID {task_id} already exists"))
@@ -82,9 +110,9 @@ impl TaskMonitor {
 
             {
                 let guard = self.task_handles.guard();
-                for (task_id, (client_id, task_handle)) in self.task_handles.iter(&guard) {
+                for (task_id, (owner, task_handle)) in self.task_handles.iter(&guard) {
                     receives.push(task_handle.receiver().clone());
-                    task_client_ids.push((*task_id, *client_id));
+                    task_client_ids.push((*task_id, owner.clone()));
                 }
             }
 
@@ -125,11 +153,30 @@ impl TaskMonitor {
             ),
             flume::RecvError,
         >,
-        task_client_ids: &[(TaskId, uuid::Uuid)],
+        task_client_ids: &[(TaskId, TaskOwner)],
     ) {
-        let client_id = task_client_ids[index].1;
         let task_id = task_client_ids[index].0;
         let guard = self.task_handles.guard();
+        let client_id = match &task_client_ids[index].1 {
+            TaskOwner::Client(client_id) => *client_id,
+            TaskOwner::Deferred(deferred) => {
+                match result {
+                    Ok((task_id, result)) => {
+                        let suspended =
+                            matches!(result, Ok(moor_kernel::tasks::TaskNotification::Suspended));
+                        deferred.task_result(task_id, result);
+                        if !suspended {
+                            self.task_handles.remove(&task_id, &guard);
+                        }
+                    }
+                    Err(_) => {
+                        deferred.result_channel_closed(task_id);
+                        self.task_handles.remove(&task_id, &guard);
+                    }
+                }
+                return;
+            }
+        };
         match result {
             Ok((task_id, r)) => match r {
                 Ok(moor_kernel::tasks::TaskNotification::Result(v)) => {

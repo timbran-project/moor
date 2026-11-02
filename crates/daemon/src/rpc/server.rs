@@ -31,7 +31,7 @@ use super::{
 use crate::{
     connections::{ConnectionRegistry, ConnectionStateSource},
     event_log::EventLogOps,
-    rpc::MessageHandler,
+    rpc::{DeferredCalls, MessageHandler},
     runtime::RuntimeApi,
     system_control::SystemControlHandle,
     tasks::task_monitor::TaskMonitor,
@@ -56,6 +56,7 @@ pub struct RpcServer {
 
     mailbox_receive: Receiver<SessionActions>,
     mailbox_sender: Sender<SessionActions>,
+    deferred_calls: Arc<DeferredCalls>,
 
     // Core server resources
     event_log: Arc<dyn EventLogOps>,
@@ -86,6 +87,7 @@ impl RpcServer {
 
         // Create the task monitor with mailbox sender
         let task_monitor = TaskMonitor::new(mailbox_sender.clone());
+        let deferred_calls = DeferredCalls::new(config.runtime.max_captured_calls());
 
         // Create hosts as Arc<RwLock> so it can be shared
         let hosts = Arc::new(RwLock::new(Default::default()));
@@ -100,6 +102,7 @@ impl RpcServer {
             mailbox_sender.clone(),
             event_log.clone() as Arc<dyn EventLogOps>,
             task_monitor.clone(),
+            deferred_calls.clone(),
             transport.clone(),
         ));
 
@@ -120,6 +123,7 @@ impl RpcServer {
             mailbox_receive,
             event_log,
             connection_state,
+            deferred_calls,
         };
 
         (server, task_monitor, system_control)
@@ -186,6 +190,20 @@ impl RpcServer {
             ) {
                 error!(error = ?e, "Transport layer failed");
             }
+        })?;
+
+        // Finish captured calls waiting for their tasks. Aborts can wait on a stalled scheduler, so
+        // they are kept apart from building replies.
+        let finisher_calls = self.deferred_calls.clone();
+        let finisher_kill_switch = self.kill_switch.clone();
+        spawn_efficient("moor-rpc-finish", move || {
+            finisher_calls.run_finisher(finisher_kill_switch);
+        })?;
+        let sweep_calls = self.deferred_calls.clone();
+        let sweep_kill_switch = self.kill_switch.clone();
+        let sweep_scheduler = scheduler_client.clone();
+        spawn_efficient("moor-rpc-sweep", move || {
+            sweep_calls.run_sweep(sweep_scheduler, sweep_kill_switch);
         })?;
 
         // Process task completions

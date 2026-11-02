@@ -18,7 +18,7 @@
 
 use flume::{Receiver, RecvTimeoutError};
 use moor_common::model::{ObjFlag, ObjectRef};
-use moor_common::tasks::{AbortLimitReason, NarrativeEvent, SchedulerError, Session, TaskId};
+use moor_common::tasks::{NarrativeEvent, SchedulerError, Session, TaskId};
 use moor_kernel::{
     SchedulerClient,
     tasks::{AbortTaskOutcome, TaskHandle, TaskNotification},
@@ -37,10 +37,14 @@ use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use crate::connections::NewConnectionParams;
+use crate::rpc::deferred_calls::{
+    ClientReplySink, NewDeferredCall, capture_result_response, capture_timeout_response,
+};
 use crate::rpc::message_handler::{
     BF_SYM, DB_SYM, DO_LOGIN_COMMAND, RpcMessageHandler, SCHED_SYM, bf_counter_entries,
     db_counter_entries, sched_counter_entries,
 };
+use crate::rpc::output_capture_session::CaptureAccumulator;
 use crate::runtime::RuntimeApi;
 
 fn require_player_flags(
@@ -171,6 +175,12 @@ impl RuntimeApi for RpcMessageHandler {
         client_id: Uuid,
         request: ClientRequest,
     ) -> Result<ClientReply, RpcMessageError> {
+        let request = match self.prepare_capture(client_id, request)? {
+            PreparedRequest::Capture(call) => {
+                return self.run_capture_blocking(scheduler_client, call);
+            }
+            PreparedRequest::Other(request) => request,
+        };
         match request {
             ClientRequest::EventStream {
                 client_token,
@@ -411,18 +421,8 @@ impl RuntimeApi for RpcMessageHandler {
                         command,
                     )
                 }
-                InvocationMode::CaptureOutput { timeout } => {
-                    let player = self.validate_auth_token(auth_token, None)?;
-                    let deadline = self.capture_deadline(timeout)?;
-                    debug!(%player, ?handler_object, ?deadline, "Submitting captured command");
-                    self.submit_captured_command_task_typed(
-                        scheduler_client,
-                        client_id,
-                        &player,
-                        &handler_object,
-                        command,
-                        deadline,
-                    )
+                InvocationMode::CaptureOutput { .. } => {
+                    unreachable!("prepare_capture handles captured commands")
                 }
             },
 
@@ -567,16 +567,8 @@ impl RuntimeApi for RpcMessageHandler {
                         }
                     }
                 }
-                InvocationMode::CaptureOutput { timeout } => {
-                    let player = self.validate_auth_token(auth_token, None)?;
-                    let deadline = self.capture_deadline(timeout)?;
-                    self.submit_captured_eval_task_typed(
-                        scheduler_client,
-                        client_id,
-                        &player,
-                        expression,
-                        deadline,
-                    )
+                InvocationMode::CaptureOutput { .. } => {
+                    unreachable!("prepare_capture handles captured evals")
                 }
             },
 
@@ -624,28 +616,8 @@ impl RuntimeApi for RpcMessageHandler {
                         task_id: task_id as u64,
                     })
                 }
-                InvocationMode::CaptureOutput { timeout } => {
-                    let player = self.validate_auth_token(auth_token, None)?;
-                    let deadline = self.capture_deadline(timeout)?;
-                    debug!(
-                        client_id = %client_id,
-                        player = %player,
-                        object = %object,
-                        verb = %verb,
-                        args = ?args,
-                        deadline = ?deadline,
-                        "Submitting captured invoke-verb request"
-                    );
-                    self.submit_captured_verb_task_typed(
-                        scheduler_client,
-                        client_id,
-                        &player,
-                        &object,
-                        verb,
-                        args,
-                        &player,
-                        deadline,
-                    )
+                InvocationMode::CaptureOutput { .. } => {
+                    unreachable!("prepare_capture handles captured verb calls")
                 }
             },
 
@@ -858,49 +830,8 @@ impl RuntimeApi for RpcMessageHandler {
                 Ok(ClientReply::PropertyUpdated)
             }
 
-            ClientRequest::InvokeSystemHandler {
-                host_id: _,
-                handler_type,
-                args,
-                auth_token,
-                timeout,
-            } => {
-                let player = match auth_token {
-                    Some(auth_token) => self.validate_auth_token(auth_token, None)?,
-                    None => SYSTEM_OBJECT,
-                };
-                let deadline = self.capture_deadline(timeout)?;
-                self.submit_captured_system_handler_task_typed(
-                    scheduler_client,
-                    client_id,
-                    &player,
-                    handler_type,
-                    args,
-                    deadline,
-                )
-            }
-
-            ClientRequest::InvokeWelcomeMessage => {
-                // The welcome message is what an unauthenticated client is shown before it has any
-                // credentials to authenticate with, so this is the one invocation that carries no
-                // auth token. It is not a general call: the target, the arguments and the authority
-                // are all fixed here, and none of them come from the request.
-                let deadline = self.capture_deadline(None)?;
-                debug!(
-                    client_id = %client_id,
-                    deadline = ?deadline,
-                    "Invoking welcome message"
-                );
-                self.submit_captured_verb_task_typed(
-                    scheduler_client,
-                    client_id,
-                    &SYSTEM_OBJECT,
-                    &ObjectRef::Id(SYSTEM_OBJECT),
-                    Symbol::mk("do_login_command"),
-                    vec![],
-                    &SYSTEM_OBJECT,
-                    deadline,
-                )
+            ClientRequest::InvokeSystemHandler { .. } | ClientRequest::InvokeWelcomeMessage => {
+                unreachable!("prepare_capture handles system handlers and the welcome message")
             }
 
             ClientRequest::BatchWorldState {
@@ -958,34 +889,88 @@ fn resolve_capture_deadline(
     Ok(requested)
 }
 
-fn capture_timeout_response(deadline: Duration, output: Vec<NarrativeEvent>) -> InvocationResponse {
-    InvocationResponse {
-        outcome: InvocationOutcome::Error {
-            error: SchedulerError::TaskAbortedLimit(AbortLimitReason::Time(deadline)),
-        },
-        output,
-    }
-}
-
-fn capture_result_response(
-    result: Result<TaskNotification, SchedulerError>,
-    take_output: impl FnOnce() -> Vec<NarrativeEvent>,
-) -> InvocationResponse {
-    let outcome = match result {
-        Ok(TaskNotification::Result(result)) => InvocationOutcome::Success { result },
-        Ok(TaskNotification::Suspended) => InvocationOutcome::Error {
-            error: SchedulerError::TaskAbortedError,
-        },
-        Err(error) => InvocationOutcome::Error { error },
-    };
-    InvocationResponse {
-        outcome,
-        output: take_output(),
-    }
-}
-
 fn invocation_reply(response: InvocationResponse) -> ClientReply {
     ClientReply::InvocationResponse { response }
+}
+
+fn system_handler_reply(response: InvocationResponse) -> ClientReply {
+    let output = response.output;
+    let response = match response.outcome {
+        InvocationOutcome::Success { result } => SystemHandlerResponse::Success { result },
+        InvocationOutcome::Error { error } => SystemHandlerResponse::Error { error },
+    };
+    ClientReply::SystemHandlerResponseReply { response, output }
+}
+
+fn take_captured_output(output: &Option<Arc<CaptureAccumulator>>) -> Vec<NarrativeEvent> {
+    output
+        .as_ref()
+        .map(|output| output.take())
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(_, event)| *event)
+        .collect()
+}
+
+type CaptureSubmit = Box<
+    dyn FnOnce(&SchedulerClient, Instant, Arc<dyn Session>) -> Result<TaskHandle, SchedulerError>
+        + Send,
+>;
+
+/// A captured invocation that has passed its authority check, ready to run.
+pub(crate) struct CaptureCall {
+    client_id: Uuid,
+    player: Obj,
+    deadline: Duration,
+    operation: &'static str,
+    submit: CaptureSubmit,
+    to_reply: fn(InvocationResponse) -> ClientReply,
+}
+
+pub(crate) enum PreparedRequest {
+    Capture(CaptureCall),
+    Other(ClientRequest),
+}
+
+enum StartedCapture {
+    Finished(ClientReply),
+    Running {
+        task_handle: TaskHandle,
+        execution_expires_at: Instant,
+        expires_at: Instant,
+        deadline: Duration,
+        output: Option<Arc<CaptureAccumulator>>,
+        to_reply: fn(InvocationResponse) -> ClientReply,
+    },
+}
+
+fn captured_verb_call(
+    client_id: Uuid,
+    player: Obj,
+    object: ObjectRef,
+    verb: Symbol,
+    args: Vec<Var>,
+    deadline: Duration,
+) -> CaptureCall {
+    CaptureCall {
+        client_id,
+        player,
+        deadline,
+        operation: "verb",
+        submit: Box::new(move |scheduler_client, expires_at, session| {
+            scheduler_client.submit_verb_task_before(
+                expires_at,
+                &player,
+                &object,
+                verb,
+                moor_var::List::from_iter(args),
+                v_empty_str(),
+                &player,
+                session,
+            )
+        }),
+        to_reply: invocation_reply,
+    }
 }
 
 impl RpcMessageHandler {
@@ -1212,186 +1197,186 @@ impl RpcMessageHandler {
         resolve_capture_deadline(requested, self.config.runtime.max_capture_deadline())
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn submit_captured_verb_task_typed(
+    /// If this is a captured invocation, check its authority and deadline, and prepare it to run.
+    /// Every route to a captured invocation comes through here.
+    pub(crate) fn prepare_capture(
         &self,
-        scheduler_client: SchedulerClient,
         client_id: Uuid,
-        player: &Obj,
-        object: &ObjectRef,
-        verb: Symbol,
-        args: Vec<Var>,
-        authority: &Obj,
-        deadline: Duration,
-    ) -> Result<ClientReply, RpcMessageError> {
-        self.submit_captured_task_typed(
-            scheduler_client,
-            client_id,
-            player,
-            deadline,
-            "verb",
-            move |scheduler_client, expires_at, session| {
-                scheduler_client.submit_verb_task_before(
-                    expires_at,
+        request: ClientRequest,
+    ) -> Result<PreparedRequest, RpcMessageError> {
+        let call = match request {
+            ClientRequest::Command {
+                auth_token,
+                handler_object,
+                command,
+                mode: InvocationMode::CaptureOutput { timeout },
+            } => {
+                let player = self.validate_auth_token(auth_token, None)?;
+                let deadline = self.capture_deadline(timeout)?;
+                debug!(%player, ?handler_object, ?deadline, "Submitting captured command");
+                CaptureCall {
+                    client_id,
                     player,
-                    object,
-                    verb,
-                    moor_var::List::from_iter(args),
-                    v_empty_str(),
-                    authority,
-                    session,
-                )
-            },
-        )
-        .map(invocation_reply)
-    }
-
-    fn submit_captured_command_task_typed(
-        &self,
-        scheduler_client: SchedulerClient,
-        client_id: Uuid,
-        player: &Obj,
-        handler_object: &Obj,
-        command: String,
-        deadline: Duration,
-    ) -> Result<ClientReply, RpcMessageError> {
-        self.submit_captured_task_typed(
-            scheduler_client,
-            client_id,
-            player,
-            deadline,
-            "command",
-            move |scheduler_client, expires_at, session| {
-                scheduler_client.submit_command_task_before(
-                    expires_at,
-                    handler_object,
+                    deadline,
+                    operation: "command",
+                    submit: Box::new(move |scheduler_client, expires_at, session| {
+                        scheduler_client.submit_command_task_before(
+                            expires_at,
+                            &handler_object,
+                            &player,
+                            &command,
+                            session,
+                        )
+                    }),
+                    to_reply: invocation_reply,
+                }
+            }
+            ClientRequest::Eval {
+                auth_token,
+                expression,
+                mode: InvocationMode::CaptureOutput { timeout },
+            } => {
+                let player = self.validate_auth_token(auth_token, None)?;
+                let deadline = self.capture_deadline(timeout)?;
+                let features = self.config.features.clone();
+                CaptureCall {
+                    client_id,
                     player,
-                    &command,
-                    session,
-                )
-            },
-        )
-        .map(invocation_reply)
-    }
-
-    fn submit_captured_eval_task_typed(
-        &self,
-        scheduler_client: SchedulerClient,
-        client_id: Uuid,
-        player: &Obj,
-        expression: String,
-        deadline: Duration,
-    ) -> Result<ClientReply, RpcMessageError> {
-        let features = self.config.features.clone();
-        self.submit_captured_task_typed(
-            scheduler_client,
-            client_id,
-            player,
-            deadline,
-            "eval",
-            move |scheduler_client, expires_at, session| {
-                scheduler_client.submit_eval_task_before(
-                    expires_at, player, player, expression, None, session, features,
-                )
-            },
-        )
-        .map(invocation_reply)
-    }
-
-    fn submit_captured_system_handler_task_typed(
-        &self,
-        scheduler_client: SchedulerClient,
-        client_id: Uuid,
-        player: &Obj,
-        handler_type: String,
-        args: Vec<Var>,
-        deadline: Duration,
-    ) -> Result<ClientReply, RpcMessageError> {
-        let response = self.submit_captured_task_typed(
-            scheduler_client,
-            client_id,
-            player,
-            deadline,
-            "system handler",
-            move |scheduler_client, expires_at, session| {
-                scheduler_client.submit_system_handler_task_before(
-                    expires_at,
+                    deadline,
+                    operation: "eval",
+                    submit: Box::new(move |scheduler_client, expires_at, session| {
+                        scheduler_client.submit_eval_task_before(
+                            expires_at, &player, &player, expression, None, session, features,
+                        )
+                    }),
+                    to_reply: invocation_reply,
+                }
+            }
+            ClientRequest::InvokeVerb {
+                auth_token,
+                object,
+                verb,
+                args,
+                mode: InvocationMode::CaptureOutput { timeout },
+            } => {
+                let player = self.validate_auth_token(auth_token, None)?;
+                let deadline = self.capture_deadline(timeout)?;
+                debug!(
+                    client_id = %client_id,
+                    player = %player,
+                    object = %object,
+                    verb = %verb,
+                    args = ?args,
+                    deadline = ?deadline,
+                    "Submitting captured invoke-verb request"
+                );
+                captured_verb_call(client_id, player, object, verb, args, deadline)
+            }
+            ClientRequest::InvokeSystemHandler {
+                host_id: _,
+                handler_type,
+                args,
+                auth_token,
+                timeout,
+            } => {
+                let player = match auth_token {
+                    Some(auth_token) => self.validate_auth_token(auth_token, None)?,
+                    None => SYSTEM_OBJECT,
+                };
+                let deadline = self.capture_deadline(timeout)?;
+                CaptureCall {
+                    client_id,
                     player,
-                    handler_type,
-                    args,
-                    session,
+                    deadline,
+                    operation: "system handler",
+                    submit: Box::new(move |scheduler_client, expires_at, session| {
+                        scheduler_client.submit_system_handler_task_before(
+                            expires_at,
+                            &player,
+                            handler_type,
+                            args,
+                            session,
+                        )
+                    }),
+                    to_reply: system_handler_reply,
+                }
+            }
+            ClientRequest::InvokeWelcomeMessage => {
+                // The welcome message is what an unauthenticated client is shown before it has any
+                // credentials to authenticate with, so this is the one invocation that carries no
+                // auth token. It is not a general call: the target, the arguments and the authority
+                // are all fixed here, and none of them come from the request.
+                let deadline = self.capture_deadline(None)?;
+                debug!(
+                    client_id = %client_id,
+                    deadline = ?deadline,
+                    "Invoking welcome message"
+                );
+                captured_verb_call(
+                    client_id,
+                    SYSTEM_OBJECT,
+                    ObjectRef::Id(SYSTEM_OBJECT),
+                    Symbol::mk("do_login_command"),
+                    vec![],
+                    deadline,
                 )
-            },
-        )?;
-        let output = response.output;
-        let response = match response.outcome {
-            InvocationOutcome::Success { result } => SystemHandlerResponse::Success { result },
-            InvocationOutcome::Error { error } => SystemHandlerResponse::Error { error },
+            }
+            other => return Ok(PreparedRequest::Other(other)),
         };
-        Ok(ClientReply::SystemHandlerResponseReply { response, output })
+        Ok(PreparedRequest::Capture(call))
     }
 
-    /// Run a task and wait for its result, collecting committed narrative output instead of
+    /// Submit a captured invocation's task, collecting committed narrative output instead of
     /// delivering it to a connection.
-    ///
-    /// The task keeps running while this waits, including across suspension. At the deadline,
-    /// cancellation wins unless the task has already claimed its terminal transaction commit. A
-    /// claimed completion is irrevocable, so the daemon waits for session finalization and returns
-    /// that result instead of reporting a timeout after committing its mutations.
     ///
     /// The deadline covers submission and cancellation as well as the run itself. Both of those
     /// are synchronous scheduler requests which can take seconds of their own under load, and a
     /// caller that gave up at the deadline would otherwise see its transport time out rather than
     /// the time-limit reply this returns.
-    fn submit_captured_task_typed(
+    fn start_capture(
         &self,
-        scheduler_client: SchedulerClient,
-        client_id: Uuid,
-        player: &Obj,
-        deadline: Duration,
-        operation: &'static str,
-        submit: impl FnOnce(
-            &SchedulerClient,
-            Instant,
-            Arc<dyn Session>,
-        ) -> Result<TaskHandle, SchedulerError>,
-    ) -> Result<InvocationResponse, RpcMessageError> {
+        scheduler_client: &SchedulerClient,
+        call: CaptureCall,
+    ) -> Result<StartedCapture, RpcMessageError> {
         use crate::rpc::output_capture_session::OutputCaptureSession;
-        use moor_kernel::tasks::TaskNotification;
 
+        let CaptureCall {
+            client_id,
+            player,
+            deadline,
+            operation,
+            submit,
+            to_reply,
+        } = call;
         let expires_at = Instant::now() + deadline;
 
         let session = Arc::new(OutputCaptureSession::new(
             client_id,
-            *player,
+            player,
             self.event_log.clone(),
             self.mailbox_sender.clone(),
         ));
         // Held separately: a conflict retry replaces the session the task runs under, but every
         // session in that lineage accumulates into this one buffer.
         let output = session.accumulator();
-        let take_output = || {
-            output
-                .as_ref()
-                .map(|o| o.take())
-                .unwrap_or_default()
-                .into_iter()
-                .map(|(_, event)| *event)
-                .collect::<Vec<_>>()
-        };
+        let take_output = || take_captured_output(&output);
 
         let submission_budget = expires_at.saturating_duration_since(Instant::now());
         if submission_budget.is_zero() {
-            return Ok(capture_timeout_response(deadline, take_output()));
+            return Ok(StartedCapture::Finished(to_reply(
+                capture_timeout_response(deadline, take_output()),
+            )));
         }
-        let task_handle = match submit(&scheduler_client, expires_at, session.clone()) {
+        let task_handle = match submit(scheduler_client, expires_at, session.clone()) {
             Ok(t) => t,
             Err(
                 e @ (SchedulerError::SchedulerNotResponding | SchedulerError::CouldNotStartTask),
             ) => {
                 error!(?operation, error = ?e, "Error submitting captured task");
                 if Instant::now() >= expires_at {
-                    return Ok(capture_timeout_response(deadline, take_output()));
+                    return Ok(StartedCapture::Finished(to_reply(
+                        capture_timeout_response(deadline, take_output()),
+                    )));
                 }
                 return Err(RpcMessageError::InternalError(e.to_string()));
             }
@@ -1399,52 +1384,141 @@ impl RpcMessageHandler {
                 // A request the scheduler refuses, such as code that does not compile, fails
                 // like a task that ran: the caller gets the error itself, not a server fault.
                 debug!(?operation, error = ?e, "Captured task was not started");
-                return Ok(InvocationResponse {
+                return Ok(StartedCapture::Finished(to_reply(InvocationResponse {
                     outcome: InvocationOutcome::Error { error: e },
                     output: take_output(),
-                });
+                })));
             }
         };
 
         let cancellation_reserve = (deadline / 10).min(Duration::from_millis(100));
-        let execution_expires_at = expires_at - cancellation_reserve;
+        Ok(StartedCapture::Running {
+            task_handle,
+            execution_expires_at: expires_at - cancellation_reserve,
+            expires_at,
+            deadline,
+            output,
+            to_reply,
+        })
+    }
+
+    /// Start a captured invocation, and reply when its task finishes without holding this thread.
+    /// Returns the reply if there is one already.
+    pub(crate) fn run_capture_deferred(
+        &self,
+        scheduler_client: &SchedulerClient,
+        call: CaptureCall,
+        sink: ClientReplySink,
+    ) -> Option<Result<ClientReply, RpcMessageError>> {
+        // Blocked workers used to be the only cap on these. Check before anything starts.
+        let Some(slot) = self.deferred_calls.try_reserve() else {
+            return Some(Err(RpcMessageError::ServerBusy));
+        };
+        match self.start_capture(scheduler_client, call) {
+            Err(error) => Some(Err(error)),
+            Ok(StartedCapture::Finished(reply)) => Some(Ok(reply)),
+            Ok(StartedCapture::Running {
+                task_handle,
+                execution_expires_at,
+                expires_at,
+                deadline,
+                output,
+                to_reply,
+            }) => {
+                let task_id = task_handle.task_id();
+                self.deferred_calls.add(NewDeferredCall {
+                    task_id,
+                    execution_expires_at,
+                    expires_at,
+                    deadline,
+                    output,
+                    to_reply,
+                    sink,
+                    slot,
+                });
+                if let Err(error) = self.task_monitor.add_deferred_task(
+                    task_id,
+                    task_handle,
+                    self.deferred_calls.clone(),
+                ) {
+                    error!(task_id, error, "Unable to monitor captured task");
+                    self.deferred_calls.result_channel_closed(task_id);
+                }
+                None
+            }
+        }
+    }
+
+    /// Run a captured invocation and wait for its result on this thread.
+    ///
+    /// The task keeps running while this waits, including across suspension. At the deadline,
+    /// cancellation wins unless the task has already claimed its terminal transaction commit. A
+    /// claimed completion is irrevocable, so the daemon waits for session finalization and returns
+    /// that result instead of reporting a timeout after committing its mutations.
+    fn run_capture_blocking(
+        &self,
+        scheduler_client: SchedulerClient,
+        call: CaptureCall,
+    ) -> Result<ClientReply, RpcMessageError> {
+        use moor_kernel::tasks::TaskNotification;
+
+        let (task_handle, execution_expires_at, expires_at, deadline, output, to_reply) =
+            match self.start_capture(&scheduler_client, call)? {
+                StartedCapture::Finished(reply) => return Ok(reply),
+                StartedCapture::Running {
+                    task_handle,
+                    execution_expires_at,
+                    expires_at,
+                    deadline,
+                    output,
+                    to_reply,
+                } => (
+                    task_handle,
+                    execution_expires_at,
+                    expires_at,
+                    deadline,
+                    output,
+                    to_reply,
+                ),
+            };
+        let take_output = || take_captured_output(&output);
         let task_id = task_handle.task_id();
         let receiver = task_handle.into_receiver();
         loop {
             let remaining = execution_expires_at.saturating_duration_since(Instant::now());
             if remaining.is_zero() {
-                return Ok(self.abandon_captured_task(
+                return Ok(to_reply(self.abandon_captured_task(
                     &scheduler_client,
                     task_id,
                     &receiver,
                     expires_at,
                     deadline,
                     take_output,
-                ));
+                )));
             }
             match receiver.recv_timeout(remaining) {
                 Ok((_, Ok(TaskNotification::Result(v)))) => {
-                    return Ok(InvocationResponse {
+                    return Ok(to_reply(InvocationResponse {
                         outcome: InvocationOutcome::Success { result: v },
                         output: take_output(),
-                    });
+                    }));
                 }
                 Ok((_, Ok(TaskNotification::Suspended))) => continue,
                 Ok((_, Err(e))) => {
-                    return Ok(InvocationResponse {
+                    return Ok(to_reply(InvocationResponse {
                         outcome: InvocationOutcome::Error { error: e },
                         output: take_output(),
-                    });
+                    }));
                 }
                 Err(RecvTimeoutError::Timeout) => {
-                    return Ok(self.abandon_captured_task(
+                    return Ok(to_reply(self.abandon_captured_task(
                         &scheduler_client,
                         task_id,
                         &receiver,
                         expires_at,
                         deadline,
                         take_output,
-                    ));
+                    )));
                 }
                 Err(e) => {
                     return Err(RpcMessageError::InternalError(e.to_string()));

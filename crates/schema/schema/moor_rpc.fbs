@@ -1364,7 +1364,8 @@ enum RpcMessageErrorCode: uint8 {
     TaskError = 7,
     EntityRetrievalError = 8,
     InternalError = 9,
-    EventStreamExpired = 10
+    EventStreamExpired = 10,
+    ServerBusy = 11
 }
 
 table RpcMessageError {

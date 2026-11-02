@@ -26,7 +26,7 @@ use std::{
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
-use super::message_handler::MessageHandler;
+use super::message_handler::{DaemonReplySink, MessageHandler};
 use crate::{ReadySignal, signal_ready};
 use moor_common::threading::spawn_efficient;
 use moor_kernel::SchedulerClient;
@@ -47,6 +47,26 @@ const MAX_QUEUED_CONTROL_REQUESTS: usize = 16384;
 
 /// The frames of a ZeroMQ message.
 type Frames = Vec<Vec<u8>>;
+
+/// Where a request's reply goes. It can be used from any thread.
+#[derive(Clone)]
+struct ReplyRoute {
+    transport: u8,
+    envelope: Frames,
+    replies: Arc<Mutex<Socket>>,
+}
+
+impl ReplyRoute {
+    fn send(self, reply: Vec<u8>) {
+        let mut frames = Vec::with_capacity(self.envelope.len() + 2);
+        frames.push(vec![self.transport]);
+        frames.extend(self.envelope);
+        frames.push(reply);
+        if let Err(e) = self.replies.lock().unwrap().send_multipart(frames, 0) {
+            warn!(error = ?e, "Unable to queue RPC reply");
+        }
+    }
+}
 
 /// One request waiting for a thread, with what the router needs to deliver its reply.
 struct RpcJob {
@@ -226,38 +246,33 @@ impl RpcTransport {
 
     /// Run queued requests on one thread, sending each reply back through the router.
     fn rpc_worker_loop(
-        zmq_context: r0z::Context,
+        replies: Arc<Mutex<Socket>>,
         kill_switch: Arc<AtomicBool>,
         scheduler_client: SchedulerClient,
         message_handler: Arc<dyn MessageHandler>,
         jobs: flume::Receiver<RpcJob>,
     ) -> eyre::Result<()> {
-        let replies = zmq_context.socket(r0z::PUSH)?;
-        replies.connect(RPC_REPLIES_ENDPOINT)?;
-
         while !kill_switch.load(Ordering::Relaxed) {
             let job = match jobs.recv_timeout(Duration::from_secs(1)) {
                 Ok(job) => job,
                 Err(flume::RecvTimeoutError::Timeout) => continue,
                 Err(flume::RecvTimeoutError::Disconnected) => return Ok(()),
             };
-            let reply = match Self::process_request(
+            let route = ReplyRoute {
+                transport: job.transport,
+                envelope: job.envelope,
+                replies: replies.clone(),
+            };
+            match Self::process_request(
                 job.request,
+                Some(route.clone()),
                 &scheduler_client,
                 message_handler.as_ref(),
             ) {
-                Ok(Some(reply)) => reply,
-                Ok(None) => continue,
-                Err(e) => {
-                    error!(error = ?e, "Error processing request");
-                    continue;
-                }
-            };
-            let mut frames = Vec::with_capacity(job.envelope.len() + 2);
-            frames.push(vec![job.transport]);
-            frames.extend(job.envelope);
-            frames.push(reply);
-            replies.send_multipart(frames, 0)?;
+                Ok(Some(reply)) => route.send(reply),
+                Ok(None) => {}
+                Err(e) => error!(error = ?e, "Error processing request"),
+            }
         }
         Ok(())
     }
@@ -357,6 +372,7 @@ impl RpcTransport {
                 Ok(request) => {
                     match Self::process_request(
                         request,
+                        None,
                         &scheduler_client,
                         message_handler.as_ref(),
                     ) {
@@ -372,6 +388,7 @@ impl RpcTransport {
     /// Process a single request message
     fn process_request(
         request: Vec<Vec<u8>>,
+        route: Option<ReplyRoute>,
         scheduler_client: &SchedulerClient,
         message_handler: &dyn MessageHandler,
     ) -> eyre::Result<Option<Vec<u8>>> {
@@ -447,11 +464,32 @@ impl RpcTransport {
                 };
 
                 // Process the request
-                let response = message_handler.handle_client_message(
-                    scheduler_client.clone(),
-                    client_id,
-                    request_fb,
-                );
+                // With a route, a request that waits for a task can reply later and free this
+                // thread. The direct inproc path has a REP socket, which must reply now.
+                let response = match route {
+                    Some(route) => {
+                        let sink: DaemonReplySink =
+                            Box::new(move |response| match Self::pack_client_response(response) {
+                                Ok(reply) => route.send(reply),
+                                Err(e) => error!(error = ?e, "Failed to encode client response"),
+                            });
+                        let response = message_handler.handle_client_message_deferred(
+                            scheduler_client.clone(),
+                            client_id,
+                            request_fb,
+                            sink,
+                        );
+                        let Some(response) = response else {
+                            return Ok(None);
+                        };
+                        response
+                    }
+                    None => message_handler.handle_client_message(
+                        scheduler_client.clone(),
+                        client_id,
+                        request_fb,
+                    ),
+                };
                 match Self::pack_client_response(response) {
                     Ok(response) => {
                         return Ok(Some(response));
@@ -548,6 +586,9 @@ impl RpcTransport {
                         None,
                         None,
                     ),
+                    RpcMessageError::ServerBusy => {
+                        (moor_rpc::RpcMessageErrorCode::ServerBusy, None, None)
+                    }
                     RpcMessageError::InternalError(msg) => (
                         moor_rpc::RpcMessageErrorCode::InternalError,
                         Some(msg.clone()),
@@ -648,6 +689,9 @@ impl RpcTransport {
                         None,
                         None,
                     ),
+                    RpcMessageError::ServerBusy => {
+                        (moor_rpc::RpcMessageErrorCode::ServerBusy, None, None)
+                    }
                     RpcMessageError::InternalError(msg) => (
                         moor_rpc::RpcMessageErrorCode::InternalError,
                         Some(msg.clone()),
@@ -739,6 +783,11 @@ impl Transport for RpcTransport {
         let replies = self.zmq_context.socket(r0z::PULL)?;
         replies.bind(RPC_REPLIES_ENDPOINT)?;
 
+        // Replies can come from workers and from whichever thread finishes a waiting call.
+        let reply_sender = self.zmq_context.socket(r0z::PUSH)?;
+        reply_sender.connect(RPC_REPLIES_ENDPOINT)?;
+        let reply_sender = Arc::new(Mutex::new(reply_sender));
+
         let (control_jobs, control_receive) = flume::bounded(MAX_QUEUED_CONTROL_REQUESTS);
         let (worker_jobs, worker_receive) = flume::bounded(MAX_QUEUED_REQUESTS);
 
@@ -750,10 +799,10 @@ impl Transport for RpcTransport {
             let handler = message_handler.clone();
             let sched_client = scheduler_client.clone();
             let kill_switch = self.kill_switch.clone();
-            let zmq_context = self.zmq_context.clone();
+            let replies = reply_sender.clone();
             spawn_efficient(name, move || {
                 if let Err(e) =
-                    Self::rpc_worker_loop(zmq_context, kill_switch, sched_client, handler, jobs)
+                    Self::rpc_worker_loop(replies, kill_switch, sched_client, handler, jobs)
                 {
                     error!(error = ?e, "RPC worker loop failed");
                 }

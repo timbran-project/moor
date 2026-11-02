@@ -333,6 +333,13 @@ pub struct RuntimeArgs {
     )]
     pub max_capture_deadline_seconds: Option<u16>,
 
+    #[arg(
+        long,
+        value_name = "max-captured-calls",
+        help = "How many captured calls, such as web API calls and webhooks, may wait for their tasks at once. Past this, a new call is refused as busy (default: 256)"
+    )]
+    pub max_captured_calls: Option<usize>,
+
     #[arg(long, help = "Enable or disable perf timing (default: enabled)")]
     pub perf_timing_enabled: Option<bool>,
 
@@ -361,6 +368,9 @@ impl RuntimeArgs {
         }
         if let Some(args) = self.max_capture_deadline_seconds {
             config.max_capture_deadline = Some(std::time::Duration::from_secs(u64::from(args)));
+        }
+        if let Some(args) = self.max_captured_calls {
+            config.max_captured_calls = Some(args);
         }
         if let Some(args) = self.perf_timing_enabled {
             config.perf_timing_enabled = Some(args);

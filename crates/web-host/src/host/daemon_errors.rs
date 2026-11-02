@@ -89,6 +89,11 @@ fn classify(error: &RpcError) -> (StatusCode, &'static str, String) {
         RpcError::Daemon(RpcMessageError::TaskError(scheduler_error)) => {
             classify_scheduler_error(scheduler_error)
         }
+        RpcError::Daemon(RpcMessageError::ServerBusy) => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            "server_busy",
+            "The server is busy".to_string(),
+        ),
         RpcError::CouldNotSend(_)
         | RpcError::CouldNotReceive(_)
         | RpcError::ConnectionLost(_)

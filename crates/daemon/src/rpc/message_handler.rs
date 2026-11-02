@@ -28,6 +28,8 @@ use std::{
 };
 use uuid::Uuid;
 
+use super::daemon_api_impl::PreparedRequest;
+use super::deferred_calls::DeferredCalls;
 use super::{
     client_event_buffer::{ClientEventBuffer, ClientEventBufferError},
     hosts::Hosts,
@@ -99,6 +101,9 @@ pub(crate) static SCHED_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("sch
 pub(crate) static DB_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("db"));
 pub(crate) static BF_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("bf"));
 
+/// Delivers a client request's reply when it comes later. It may run on any thread.
+pub type DaemonReplySink = Box<dyn FnOnce(Result<DaemonToClientReply, RpcMessageError>) + Send>;
+
 /// If we don't hear from a host in this time, we consider it dead and its listeners gone.
 pub const HOST_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -121,6 +126,19 @@ pub trait MessageHandler: RuntimeApi + Send + Sync {
         client_id: Uuid,
         message: HostClientToDaemonMessageRef<'_>,
     ) -> Result<DaemonToClientReply, RpcMessageError>;
+
+    /// Process a client message that may reply later. Returns the reply if there is one now.
+    /// Otherwise `sink` will receive it when the request's task finishes, so this thread is free.
+    fn handle_client_message_deferred(
+        &self,
+        scheduler_client: SchedulerClient,
+        client_id: Uuid,
+        message: HostClientToDaemonMessageRef<'_>,
+        sink: DaemonReplySink,
+    ) -> Option<Result<DaemonToClientReply, RpcMessageError>> {
+        let _ = sink;
+        Some(self.handle_client_message(scheduler_client, client_id, message))
+    }
 
     /// Broadcast a listen event to hosts
     fn broadcast_listen(
@@ -173,6 +191,7 @@ pub struct RpcMessageHandler {
 
     pub(crate) connections: Arc<dyn ConnectionRegistry>,
     pub(crate) task_monitor: Arc<TaskMonitor>,
+    pub(crate) deferred_calls: Arc<DeferredCalls>,
 
     pub(crate) hosts: Arc<RwLock<Hosts>>,
 
@@ -221,6 +240,7 @@ impl RpcMessageHandler {
         mailbox_sender: Sender<SessionActions>,
         event_log: Arc<dyn EventLogOps>,
         task_monitor: Arc<TaskMonitor>,
+        deferred_calls: Arc<DeferredCalls>,
         transport: Arc<dyn Transport>,
     ) -> Self {
         Self {
@@ -229,6 +249,7 @@ impl RpcMessageHandler {
             private_key,
             connections,
             task_monitor,
+            deferred_calls,
             hosts,
             auth_token_cache: Default::default(),
             client_token_cache: Default::default(),
@@ -262,6 +283,36 @@ impl MessageHandler for RpcMessageHandler {
         let request = super::api_codec::decode_client_request(message)?;
         let reply = RuntimeApi::handle_client_request(self, scheduler_client, client_id, request)?;
         super::api_codec::encode_client_reply(reply)
+    }
+
+    fn handle_client_message_deferred(
+        &self,
+        scheduler_client: SchedulerClient,
+        client_id: Uuid,
+        message: HostClientToDaemonMessageRef<'_>,
+        sink: DaemonReplySink,
+    ) -> Option<Result<DaemonToClientReply, RpcMessageError>> {
+        let request = match super::api_codec::decode_client_request(message) {
+            Ok(request) => request,
+            Err(error) => return Some(Err(error)),
+        };
+        let prepared = match self.prepare_capture(client_id, request) {
+            Ok(prepared) => prepared,
+            Err(error) => return Some(Err(error)),
+        };
+        let reply = match prepared {
+            PreparedRequest::Capture(call) => self.run_capture_deferred(
+                &scheduler_client,
+                call,
+                Box::new(move |reply| {
+                    sink(reply.and_then(super::api_codec::encode_client_reply));
+                }),
+            )?,
+            PreparedRequest::Other(request) => {
+                RuntimeApi::handle_client_request(self, scheduler_client, client_id, request)
+            }
+        };
+        Some(reply.and_then(super::api_codec::encode_client_reply))
     }
 
     fn broadcast_listen(
