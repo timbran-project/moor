@@ -300,18 +300,19 @@ impl MessageHandler for RpcMessageHandler {
             Ok(prepared) => prepared,
             Err(error) => return Some(Err(error)),
         };
+        let sink = Box::new(
+            move |reply: Result<moor_runtime_api::api::ClientReply, RpcMessageError>| {
+                sink(reply.and_then(super::api_codec::encode_client_reply));
+            },
+        );
         let reply = match prepared {
-            PreparedRequest::Capture(call) => self.run_capture_deferred(
-                &scheduler_client,
-                call,
-                Box::new(move |reply| {
-                    sink(reply.and_then(super::api_codec::encode_client_reply));
-                }),
-            )?,
-            PreparedRequest::Other(request) => {
-                RuntimeApi::handle_client_request(self, scheduler_client, client_id, request)
+            PreparedRequest::Capture(call) => {
+                self.run_capture_deferred(&scheduler_client, call, sink)
             }
-        };
+            PreparedRequest::Other(request) => {
+                self.run_request_deferred(scheduler_client, client_id, request, sink)
+            }
+        }?;
         Some(reply.and_then(super::api_codec::encode_client_reply))
     }
 
