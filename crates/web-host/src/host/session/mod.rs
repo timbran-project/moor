@@ -22,7 +22,7 @@ mod tests;
 use axum::extract::ws::{Message, WebSocket};
 use futures_util::{Sink, Stream, StreamExt};
 use moor_runtime_api::{
-    AuthToken, ClientToken,
+    AuthToken, ClientToken, RpcError,
     api::{
         ClientEvent, ClientEventSubscription, ClientReply, ClientRequest, InvocationMode,
         RuntimeClient,
@@ -78,6 +78,9 @@ fn message_len(message: &Message) -> usize {
         _ => 0,
     }
 }
+
+/// A command on its way to the daemon. Dropping this lets the call finish, and ignores its reply.
+type CommandSubmission = tokio::task::JoinHandle<Result<ClientReply, RpcError>>;
 
 pub struct ClientSession {
     pub(crate) player: Obj,
@@ -184,17 +187,23 @@ impl ClientSession {
         let mut deferred_bytes = 0;
         let mut ping_interval = tokio::time::interval(WEBSOCKET_PING_INTERVAL);
         let mut heartbeat_interval = tokio::time::interval(HEARTBEAT_INTERVAL);
-        let mut pending_heartbeat: Option<Instant> = None;
+        let mut pending_heartbeat: Option<tokio::time::Instant> = None;
+        // A command being submitted. The daemon can take a long time to answer, and heartbeats have
+        // to keep flowing meanwhile, so this is waited on beside the socket.
+        let mut submission: Option<CommandSubmission> = None;
+        // Client data read during a submission, which must not overtake the command sent before it.
+        let mut held_client_data = VecDeque::new();
         // Held outside `self` so the select below can wait on them beside the other branches.
         let mut channel_messages: Option<ChannelMessages> = None;
         let mut channel_open: Option<watch::Receiver<bool>> = None;
         loop {
             if expecting_input.is_empty()
                 && self.pending_task.is_none()
+                && submission.is_none()
                 && let Some(action) = deferred_actions.pop_front()
             {
                 deferred_bytes -= message_len(&action);
-                self.process_command_line(action).await;
+                submission = self.submit_command_line(action);
             }
             // Check for heartbeat timeout - if we sent a heartbeat and haven't received
             // a response within HEARTBEAT_TIMEOUT, the websocket connection is likely zombie.
@@ -213,7 +222,7 @@ impl ClientSession {
                 .as_ref()
                 .filter(|_| expecting_input.is_empty())
                 .map(|task| task.start_time + TASK_TIMEOUT);
-            let can_defer = deferred_actions.len() < MAX_DEFERRED_COMMANDS
+            let can_defer = deferred_actions.len() + held_client_data.len() < MAX_DEFERRED_COMMANDS
                 && deferred_bytes < MAX_DEFERRED_BYTES;
 
             select! {
@@ -225,8 +234,11 @@ impl ClientSession {
                         ReadEvent::Command(line) => {
                             // Keep commands behind the running task, and separate from read()
                             // replies, including prompt races.
-                            if expecting_input.is_empty() && self.pending_task.is_none() {
-                                self.process_command_line(line).await;
+                            if expecting_input.is_empty()
+                                && self.pending_task.is_none()
+                                && submission.is_none()
+                            {
+                                submission = self.submit_command_line(line);
                             } else {
                                 deferred_bytes += message_len(&line);
                                 deferred_actions.push_back(line);
@@ -256,9 +268,26 @@ impl ClientSession {
                                 break;
                             }
                         }
+                        ReadEvent::ClientData(body) if submission.is_some() => {
+                            deferred_bytes += body.len();
+                            held_client_data.push_back(body);
+                        }
                         ReadEvent::ClientData(body) => {
                             self.submit_client_data(WireFormat::of_frame_body(&body), &body).await;
                         }
+                    }
+                }
+                reply = async {
+                    match submission.as_mut() {
+                        Some(submission) => submission.await,
+                        None => std::future::pending().await,
+                    }
+                } => {
+                    submission = None;
+                    self.command_submitted(reply);
+                    while let Some(body) = held_client_data.pop_front() {
+                        deferred_bytes -= body.len();
+                        self.submit_client_data(WireFormat::of_frame_body(&body), &body).await;
                     }
                 }
                 _ = async {
@@ -281,7 +310,7 @@ impl ClientSession {
                     if !outbox.send(Message::Binary(vec![HEARTBEAT_REQUEST].into())).await {
                         break;
                     }
-                    pending_heartbeat = Some(Instant::now());
+                    pending_heartbeat = Some(tokio::time::Instant::now());
                 }
                 _ = ping_interval.tick() => {
                     trace!("Sending WebSocket ping");
@@ -317,7 +346,9 @@ impl ClientSession {
                     info!(client_id = %self.client_id, "Daemon no longer has this connection");
                     break;
                 }
-                Ok(event_msg) = self.narrative_sub.recv_client_event() => {
+                // Events wait until the submission replies, so that a task's completion can't be
+                // read before the session knows the task exists.
+                Ok(event_msg) = self.narrative_sub.recv_client_event(), if submission.is_none() => {
                     match &event_msg.event {
                         ClientEvent::RequestInput { request_id, .. } => {
                             expecting_input.push_back(*request_id);
@@ -382,7 +413,8 @@ impl ClientSession {
             .ok();
     }
 
-    async fn process_command_line(&mut self, line: Message) {
+    /// Start sending a command to the daemon, without waiting for its reply.
+    fn submit_command_line(&mut self, line: Message) -> Option<CommandSubmission> {
         let request = if let Message::Binary(ref bytes) = line
             && is_action_frame(bytes)
         {
@@ -396,7 +428,7 @@ impl ClientSession {
                 Ok(request) => request,
                 Err(error) => {
                     warn!(%error, "Invalid structured action");
-                    return;
+                    return None;
                 }
             }
         } else {
@@ -404,7 +436,7 @@ impl ClientSession {
                 Ok(line) => line,
                 Err(e) => {
                     warn!("Received non-text command message: {}", e);
-                    return;
+                    return None;
                 }
             };
             ClientRequest::Command {
@@ -417,14 +449,25 @@ impl ClientSession {
             }
         };
 
-        let reply = self
-            .daemon_client
-            .client_call(self.client_id, request)
-            .await;
+        let daemon_client = self.daemon_client.clone();
+        let client_id = self.client_id;
+        Some(tokio::spawn(async move {
+            daemon_client.client_call(client_id, request).await
+        }))
+    }
+
+    fn command_submitted(
+        &mut self,
+        reply: Result<Result<ClientReply, RpcError>, tokio::task::JoinError>,
+    ) {
         let reply = match reply {
-            Ok(reply) => reply,
-            Err(e) => {
+            Ok(Ok(reply)) => reply,
+            Ok(Err(e)) => {
                 warn!("Unable to send command to RPC server: {}", e);
+                return;
+            }
+            Err(e) => {
+                error!("Command submission failed: {}", e);
                 return;
             }
         };

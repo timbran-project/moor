@@ -14,6 +14,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.0 series (`main`) branch
 
+- A typed command or login now waits up to 2 minutes for a busy daemon, so players see lag instead
+  of an error. `--rpc-player-request-timeout-ms` on the hosts changes this wait, and -1 waits
+  forever. If it still gets no answer, telnet shows
+  `The server is busy. Your command may not have run.` and keeps the session, which it used to end.
 - Telnet and web sessions no longer end when one pong to the daemon fails, which dropped players
   while the daemon was busy. A failed pong is now logged, and the session ends only if the daemon
   has already dropped the connection. Slow pongs also no longer delay a session's input and output.

@@ -37,17 +37,24 @@ use moor_var::{Obj, v_int};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use super::{ClientSession, MAX_DEFERRED_COMMANDS, TASK_TIMEOUT};
+use super::websocket::HEARTBEAT_RESPONSE;
+use super::{ClientSession, HEARTBEAT_TIMEOUT, MAX_DEFERRED_COMMANDS, TASK_TIMEOUT};
 
 /// Records requests in order, and submits a new task for each command.
 struct Runtime {
     requests: mpsc::UnboundedSender<ClientRequest>,
     next_task: Mutex<u64>,
+    /// How long the daemon takes to answer the first command, as when it is lagging.
+    first_command_delay: Duration,
 }
 
 #[async_trait]
 impl RuntimeClient for Runtime {
     async fn client_call(&self, _: Uuid, request: ClientRequest) -> Result<ClientReply, RpcError> {
+        if matches!(request, ClientRequest::Command { .. }) && *self.next_task.lock().unwrap() == 0
+        {
+            tokio::time::sleep(self.first_command_delay).await;
+        }
         let reply = match &request {
             ClientRequest::Command { .. } => {
                 let mut next = self.next_task.lock().unwrap();
@@ -99,6 +106,10 @@ struct Harness {
 
 impl Harness {
     fn start() -> Self {
+        Self::start_with_command_delay(Duration::ZERO)
+    }
+
+    fn start_with_command_delay(first_command_delay: Duration) -> Self {
         let (requests_tx, requests) = mpsc::unbounded_channel();
         let (events, events_rx) = mpsc::unbounded_channel();
         let (client, client_rx) = mpsc::unbounded_channel();
@@ -107,6 +118,7 @@ impl Harness {
         let daemon_client: Arc<dyn RuntimeClient> = Arc::new(Runtime {
             requests: requests_tx,
             next_task: Mutex::new(0),
+            first_command_delay,
         });
         let mut session = ClientSession {
             player: Obj::mk_id(1),
@@ -263,6 +275,54 @@ async fn client_data_is_not_held_behind_a_running_task() {
         matches!(&request, ClientRequest::ClientData { kind, .. } if kind == "move"),
         "the next command ran before the task finished, or client data waited: {request:?}"
     );
+
+    harness.complete(1);
+    assert_eq!(command(&harness.next_request().await), Some("east"));
+    harness.close().await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_slow_command_does_not_stop_heartbeats() {
+    let delay = HEARTBEAT_TIMEOUT + Duration::from_secs(1);
+    let mut harness = Harness::start_with_command_delay(delay);
+    // The heartbeat request goes out as soon as the session starts.
+    settle().await;
+    harness.send(Message::Text("look".into()));
+    settle().await;
+    harness.send(Message::Binary(vec![HEARTBEAT_RESPONSE].into()));
+
+    assert_eq!(command(&harness.next_request().await), Some("look"));
+
+    // The session is still up, and still taking commands in order.
+    harness.complete(1);
+    harness.send(Message::Text("east".into()));
+    assert_eq!(command(&harness.next_request().await), Some("east"));
+    harness.close().await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn client_data_does_not_overtake_a_slow_command() {
+    let mut harness = Harness::start_with_command_delay(Duration::from_secs(3));
+    harness.send(Message::Text("look".into()));
+    harness.send(client_data_frame());
+
+    assert_eq!(command(&harness.next_request().await), Some("look"));
+    assert!(matches!(
+        harness.next_request().await,
+        ClientRequest::ClientData { .. }
+    ));
+    harness.close().await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_second_command_waits_for_a_slow_first_one() {
+    let mut harness = Harness::start_with_command_delay(Duration::from_secs(3));
+    harness.send(Message::Text("look".into()));
+    harness.send(Message::Text("east".into()));
+
+    assert_eq!(command(&harness.next_request().await), Some("look"));
+    settle().await;
+    harness.no_request();
 
     harness.complete(1);
     assert_eq!(command(&harness.next_request().await), Some("east"));

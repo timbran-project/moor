@@ -199,19 +199,20 @@ These options are only needed for clustered deployments with TCP transport. See
 Each standalone `moor-web-host` or `moor-telnet-host` process shares one RPC pool across its
 sessions. These options do not apply to embedded hosts in the combined `moor` server.
 
-| Option                             | Default | Purpose                                                                   |
-| ---------------------------------- | ------- | ------------------------------------------------------------------------- |
-| `--rpc-max-sockets`                | `80`    | Total RPC sockets, including idle sockets and reserved control sockets    |
-| `--rpc-control-sockets`            | `16`    | Reserved sockets for session pongs                                        |
-| `--rpc-host-sockets`               | `4`     | Reserved sockets for the host's own registration and pongs                |
-| `--rpc-max-idle-sockets`           | `10`    | Idle ordinary-client sockets retained between calls                       |
-| `--rpc-max-waiters`                | `128`   | Maximum queued ordinary-client calls                                      |
-| `--rpc-control-max-waiters`        | `2048`  | Maximum queued session pongs                                              |
-| `--rpc-control-acquire-timeout-ms` | `20000` | Maximum wait for a session pong's admission                               |
-| `--rpc-acquire-timeout-ms`         | `5000`  | Maximum wait for admission of other calls                                 |
-| `--rpc-send-timeout-ms`            | `5000`  | Maximum wait to send a request; `-1` disables this timeout                |
-| `--rpc-receive-timeout-ms`         | `5000`  | Default reply timeout; captured calls can extend it, and `-1` disables it |
-| `--zmq-max-sockets`                | `4096`  | Native context limit, including RPC and subscription sockets              |
+| Option                             | Default  | Purpose                                                                   |
+| ---------------------------------- | -------- | ------------------------------------------------------------------------- |
+| `--rpc-max-sockets`                | `80`     | Total RPC sockets, including idle sockets and reserved control sockets    |
+| `--rpc-control-sockets`            | `16`     | Reserved sockets for session pongs                                        |
+| `--rpc-host-sockets`               | `4`      | Reserved sockets for the host's own registration and pongs                |
+| `--rpc-max-idle-sockets`           | `10`     | Idle ordinary-client sockets retained between calls                       |
+| `--rpc-max-waiters`                | `128`    | Maximum queued ordinary-client calls                                      |
+| `--rpc-control-max-waiters`        | `2048`   | Maximum queued session pongs                                              |
+| `--rpc-control-acquire-timeout-ms` | `20000`  | Maximum wait for a session pong's admission                               |
+| `--rpc-acquire-timeout-ms`         | `5000`   | Maximum wait for admission of other calls                                 |
+| `--rpc-send-timeout-ms`            | `5000`   | Maximum wait to send a request; `-1` disables this timeout                |
+| `--rpc-receive-timeout-ms`         | `5000`   | Default reply timeout; captured calls can extend it, and `-1` disables it |
+| `--rpc-player-request-timeout-ms`  | `120000` | Reply timeout for a player's typed command or login; `-1` waits forever   |
+| `--zmq-max-sockets`                | `4096`   | Native context limit, including RPC and subscription sockets              |
 
 Reserved sockets are created before the host accepts sessions and kept between calls. Each kind has
 its own queue, so ordinary calls can't take a pong's place, and a burst of session pongs can't delay
@@ -247,6 +248,7 @@ rpc:
   acquire_timeout_ms: 5000
   send_timeout_ms: 5000
   receive_timeout_ms: 5000
+  player_request_timeout_ms: 120000
   zmq_max_sockets: 4096
 ```
 

@@ -204,6 +204,8 @@ mod tests {
             "-1",
             "--rpc-receive-timeout-ms",
             "-1",
+            "--rpc-player-request-timeout-ms",
+            "30000",
         ])
         .unwrap()
         .rpc;
@@ -218,6 +220,7 @@ mod tests {
         assert_eq!(args.zmq_max_sockets, 8192);
         assert_eq!(args.pool.send_timeout_ms, -1);
         assert_eq!(args.pool.receive_timeout_ms, -1);
+        assert_eq!(args.pool.player_request_timeout_ms, 30000);
         let mut invalid = args;
         invalid.pool.control_reserved_sockets = invalid.pool.max_sockets;
         assert!(invalid.validate().is_err());

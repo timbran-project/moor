@@ -38,6 +38,9 @@ const HOST_MAX_WAITERS: usize = 32;
 /// the same wait, so the margin is generous enough to cover that too.
 const RECEIVE_TIMEOUT_MARGIN_MS: i32 = 15000;
 
+/// The default wait for a player's typed command or login. See `RpcConfig`.
+const DEFAULT_PLAYER_REQUEST_TIMEOUT_MS: i32 = 120_000;
+
 /// Configuration for the RPC client
 #[derive(Debug, Clone, clap_derive::Args, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
@@ -70,6 +73,11 @@ pub struct RpcConfig {
     pub send_timeout_ms: i32,
     #[arg(long = "rpc-receive-timeout-ms", default_value_t = DEFAULT_SOCK_RECEIVE_TIMEOUT_MS, allow_negative_numbers = true)]
     pub receive_timeout_ms: i32,
+    /// How long a player's typed command or login waits for its reply, or -1 to wait forever. The
+    /// request stays queued at the daemon either way, so a short wait only turns lag into an error
+    /// for a command that still runs.
+    #[arg(long = "rpc-player-request-timeout-ms", default_value_t = DEFAULT_PLAYER_REQUEST_TIMEOUT_MS, allow_negative_numbers = true)]
+    pub player_request_timeout_ms: i32,
 }
 
 impl Default for RpcConfig {
@@ -85,6 +93,7 @@ impl Default for RpcConfig {
             acquire_timeout_ms: 5000,
             send_timeout_ms: DEFAULT_SOCK_CONNECT_TIMEOUT_MS,
             receive_timeout_ms: DEFAULT_SOCK_RECEIVE_TIMEOUT_MS,
+            player_request_timeout_ms: DEFAULT_PLAYER_REQUEST_TIMEOUT_MS,
         }
     }
 }
@@ -111,7 +120,10 @@ impl RpcConfig {
                 "RPC limit exceeds semaphore capacity".into(),
             ));
         }
-        if self.send_timeout_ms < -1 || self.receive_timeout_ms < -1 {
+        if self.send_timeout_ms < -1
+            || self.receive_timeout_ms < -1
+            || self.player_request_timeout_ms < -1
+        {
             return Err(RpcError::Fatal(
                 "RPC socket timeouts must be -1 or nonnegative".into(),
             ));
@@ -282,10 +294,15 @@ impl RpcClient {
         client_id: Uuid,
         rpc_msg: moor_rpc::HostClientToDaemonMessage,
     ) -> Result<Vec<u8>, RpcError> {
-        let configured_timeout = self.inner.config.receive_timeout_ms;
-        let receive_timeout = match required_receive_timeout_ms(&rpc_msg) {
-            Some(timeout_ms) if configured_timeout >= 0 => timeout_ms.max(configured_timeout),
-            _ => configured_timeout,
+        let config = &self.inner.config;
+        let configured_timeout = config.receive_timeout_ms;
+        let receive_timeout = if is_player_request(&rpc_msg) {
+            longer_receive_timeout(configured_timeout, config.player_request_timeout_ms)
+        } else {
+            match required_receive_timeout_ms(&rpc_msg) {
+                Some(timeout_ms) => longer_receive_timeout(configured_timeout, timeout_ms),
+                None => configured_timeout,
+            }
         };
         let class = if matches!(
             &rpc_msg.message,
@@ -496,6 +513,26 @@ async fn socket_operation<T>(
     .map_err(|e| e.to_string())
 }
 
+/// The longer of two receive timeouts, where a negative timeout means waiting forever.
+fn longer_receive_timeout(first_ms: i32, second_ms: i32) -> i32 {
+    if first_ms < 0 || second_ms < 0 {
+        -1
+    } else {
+        first_ms.max(second_ms)
+    }
+}
+
+/// Whether this is a player's typed command or login, which waits through daemon lag.
+fn is_player_request(rpc_msg: &moor_rpc::HostClientToDaemonMessage) -> bool {
+    match &rpc_msg.message {
+        moor_rpc::HostClientToDaemonMessageUnion::Command(command) => {
+            capture_deadline_ms(&command.mode).is_none()
+        }
+        moor_rpc::HostClientToDaemonMessageUnion::LoginCommand(_) => true,
+        _ => false,
+    }
+}
+
 /// The receive timeout a message needs, when it needs more than the configured default.
 ///
 /// Only a captured invocation does: the daemon holds the reply until the task finishes or its
@@ -566,6 +603,25 @@ mod tests {
         )
         .expect("message");
         assert_eq!(required_receive_timeout_ms(&msg), None);
+    }
+
+    #[test]
+    fn a_typed_command_is_a_player_request() {
+        let msg = moor_runtime_api::mk_command_msg(
+            &ClientToken("client".to_string()),
+            &auth_token(),
+            &moor_var::Obj::mk_id(1),
+            "look".to_string(),
+        );
+        assert!(is_player_request(&msg));
+    }
+
+    #[test]
+    fn the_longer_receive_timeout_wins_and_negative_means_forever() {
+        assert_eq!(longer_receive_timeout(5000, 120_000), 120_000);
+        assert_eq!(longer_receive_timeout(200_000, 120_000), 200_000);
+        assert_eq!(longer_receive_timeout(5000, -1), -1);
+        assert_eq!(longer_receive_timeout(-1, 120_000), -1);
     }
 
     #[test]
