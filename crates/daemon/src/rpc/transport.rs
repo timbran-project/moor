@@ -153,6 +153,8 @@ pub struct RpcTransport {
     /// TCP endpoints for RPC (with CURVE)
     tcp_rpc_endpoints: Vec<String>,
     ready_signal: Option<ReadySignal>,
+    /// Threads that run RPC requests.
+    rpc_workers: usize,
 }
 
 impl RpcTransport {
@@ -184,6 +186,7 @@ impl RpcTransport {
         rpc_endpoints: &str,
         curve_secret_key: Option<String>,
         ready_signal: Option<ReadySignal>,
+        rpc_workers: usize,
     ) -> Result<Self, eyre::Error> {
         // Parse endpoints into IPC and TCP groups
         let (ipc_events_endpoints, tcp_events_endpoints) = Self::parse_endpoints(events_endpoints);
@@ -250,6 +253,7 @@ impl RpcTransport {
             ipc_rpc_endpoints,
             tcp_rpc_endpoints,
             ready_signal,
+            rpc_workers,
         })
     }
 
@@ -808,10 +812,6 @@ impl Transport for RpcTransport {
         let (control_jobs, control_receive) = flume::bounded(MAX_QUEUED_CONTROL_REQUESTS);
         let (worker_jobs, worker_receive) = flume::bounded(MAX_QUEUED_REQUESTS);
 
-        // Keep the existing worker count until measurements justify changing it.
-        let num_proxies = (has_ipc as i32) + (has_tcp as i32);
-        let num_workers = (num_io_threads - num_proxies).max(1);
-
         // A job that finds the queue full runs here instead: it finishes a request already started,
         // so it cannot be dropped, and this keeps its caller from waiting on the queue.
         let run_on_worker: RunOnWorker = {
@@ -845,7 +845,7 @@ impl Transport for RpcTransport {
             })
         };
         spawn_worker("moor-rpc-control".to_string(), control_receive)?;
-        for i in 0..num_workers {
+        for i in 0..self.rpc_workers {
             spawn_worker(format!("moor-rpc-srv{i}"), worker_receive.clone())?;
         }
 

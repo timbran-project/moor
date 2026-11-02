@@ -481,6 +481,8 @@ async fn run() -> Result<(), Report> {
             allowed_hosts_dir: resolved_allowed_hosts_dir(&args.data_dir),
         },
         num_io_threads: args.num_io_threads,
+        // This binary calls the runtime directly, without ZeroMQ RPC workers.
+        rpc_workers: 1,
         workers_enabled: services_config.curl_worker.enabled || services_config.git_worker.enabled,
         startup_config,
     };

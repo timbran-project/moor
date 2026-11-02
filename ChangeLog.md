@@ -14,6 +14,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.0 series (`main`) branch
 
+- `--rpc-workers` now sets the daemon's RPC worker count, 7 by default. `--num-io-threads` only sets
+  ZeroMQ IO threads. It used to set both, so if you raised it to get more workers, set
+  `--rpc-workers` instead.
 - The single-process `moor` binary no longer blocks its async threads on slow calls. Web API calls
   and logins that wait on a task no longer delay other players, as with the separate daemon and
   hosts.

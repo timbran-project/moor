@@ -188,6 +188,15 @@ pub struct Args {
     )]
     pub num_io_threads: i32,
 
+    #[arg(
+        long,
+        value_name = "rpc-workers",
+        help = "Number of threads that run RPC requests",
+        default_value = "7",
+        value_parser = clap::value_parser!(u16).range(1..)
+    )]
+    pub rpc_workers: u16,
+
     #[arg(long, help = "Enable debug logging", default_value = "false")]
     pub debug: bool,
 

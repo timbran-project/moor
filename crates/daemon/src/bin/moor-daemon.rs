@@ -123,6 +123,7 @@ fn main() -> Result<(), Report> {
             allowed_hosts_dir: args.resolved_allowed_hosts_dir(),
         },
         num_io_threads: args.num_io_threads,
+        rpc_workers: usize::from(args.rpc_workers),
         workers_enabled: true,
         startup_config,
     };
