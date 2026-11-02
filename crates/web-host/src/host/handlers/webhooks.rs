@@ -22,6 +22,7 @@ use axum::{
 };
 use moor_common::tasks::{AbortLimitReason, SchedulerError};
 use moor_runtime_api::api::{ClientReply, ClientRequest, SystemHandlerResponse};
+use moor_runtime_api::{RpcError, RpcMessageError};
 use moor_var::{List, SYSTEM_OBJECT, Var, Variant};
 use std::time::Duration;
 use std::{collections::HashMap, net::SocketAddr};
@@ -179,6 +180,10 @@ pub async fn web_hook_handler(
         Ok(reply) => {
             debug!("RPC call succeeded");
             reply
+        }
+        Err(RpcError::Daemon(RpcMessageError::ServerBusy)) => {
+            debug!("Daemon refused a web hook as busy");
+            return StatusCode::SERVICE_UNAVAILABLE.into_response();
         }
         Err(e) => {
             error!("RPC call failed for web hook: {:?}", e);

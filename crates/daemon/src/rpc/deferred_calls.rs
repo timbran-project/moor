@@ -126,6 +126,15 @@ impl Drop for CallSlot {
     }
 }
 
+/// Which limit a call counts against. Anyone can start logins and webhooks without credentials, so
+/// they have limits of their own and cannot crowd out other calls, or each other.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CallPool {
+    Authenticated,
+    Login,
+    Webhook,
+}
+
 pub struct DeferredCalls {
     /// When a refusal was last logged, in seconds, so a flood of refusals logs a line a second.
     last_refusal_logged: AtomicU64,
@@ -133,16 +142,18 @@ pub struct DeferredCalls {
     /// Capacity for calls made with credentials.
     calls_in_use: Arc<AtomicUsize>,
     max_calls: usize,
-    /// Capacity for logins and the welcome message, which anyone can trigger without credentials.
-    /// This is separate so they cannot crowd out other calls.
+    /// Capacity for logins and the welcome message.
     logins_in_use: Arc<AtomicUsize>,
     max_logins: usize,
+    /// Capacity for system handlers called without credentials, such as webhooks.
+    webhooks_in_use: Arc<AtomicUsize>,
+    max_webhooks: usize,
     finish_jobs: Sender<FinishJob>,
     finish_receiver: Receiver<FinishJob>,
 }
 
 impl DeferredCalls {
-    pub fn new(max_calls: usize, max_logins: usize) -> Arc<Self> {
+    pub fn new(max_calls: usize, max_logins: usize, max_webhooks: usize) -> Arc<Self> {
         let (finish_jobs, finish_receiver) = flume::unbounded();
         Arc::new(Self {
             last_refusal_logged: AtomicU64::new(0),
@@ -151,19 +162,20 @@ impl DeferredCalls {
             max_calls,
             logins_in_use: Arc::new(AtomicUsize::new(0)),
             max_logins,
+            webhooks_in_use: Arc::new(AtomicUsize::new(0)),
+            max_webhooks,
             finish_jobs,
             finish_receiver,
         })
     }
 
     /// Take capacity for a call about to start, or return `None` if there is none left.
-    pub(crate) fn try_reserve(&self) -> Option<Arc<CallSlot>> {
-        self.reserve_from(&self.calls_in_use, self.max_calls)
-    }
-
-    /// Take capacity for a login or welcome message about to start.
-    pub(crate) fn try_reserve_login(&self) -> Option<Arc<CallSlot>> {
-        self.reserve_from(&self.logins_in_use, self.max_logins)
+    pub(crate) fn try_reserve(&self, pool: CallPool) -> Option<Arc<CallSlot>> {
+        match pool {
+            CallPool::Authenticated => self.reserve_from(&self.calls_in_use, self.max_calls),
+            CallPool::Login => self.reserve_from(&self.logins_in_use, self.max_logins),
+            CallPool::Webhook => self.reserve_from(&self.webhooks_in_use, self.max_webhooks),
+        }
     }
 
     fn reserve_from(&self, in_use: &Arc<AtomicUsize>, limit: usize) -> Option<Arc<CallSlot>> {
@@ -451,7 +463,7 @@ mod tests {
     }
 
     fn harness() -> Harness {
-        let calls = DeferredCalls::new(10, 2);
+        let calls = DeferredCalls::new(10, 2, 2);
         let (reply_send, replies) = flume::unbounded();
         let now = Instant::now();
         calls.add(NewDeferredCall {
@@ -466,7 +478,7 @@ mod tests {
                     reply_send.send(reply).unwrap();
                 }),
             ),
-            slot: calls.try_reserve().unwrap(),
+            slot: calls.try_reserve(CallPool::Authenticated).unwrap(),
         });
         Harness { calls, replies }
     }
@@ -656,34 +668,43 @@ mod tests {
     fn a_slot_is_refused_at_the_limit_and_freed_after_the_reply() {
         let harness = harness();
         let calls = &harness.calls;
-        let held: Vec<_> = (0..9).map(|_| calls.try_reserve().unwrap()).collect();
+        let held: Vec<_> = (0..9)
+            .map(|_| calls.try_reserve(CallPool::Authenticated).unwrap())
+            .collect();
         assert!(
-            calls.try_reserve().is_none(),
+            calls.try_reserve(CallPool::Authenticated).is_none(),
             "the harness's call holds one"
         );
 
         calls.task_result(TASK, Ok(TaskNotification::Result(v_int(1))));
-        assert!(calls.try_reserve().is_none(), "the reply has not been sent");
+        assert!(
+            calls.try_reserve(CallPool::Authenticated).is_none(),
+            "the reply has not been sent"
+        );
 
         harness.run_finish_jobs();
-        assert!(calls.try_reserve().is_some());
+        assert!(calls.try_reserve(CallPool::Authenticated).is_some());
         drop(held);
     }
 
     #[test]
-    fn logins_have_their_own_capacity() {
-        let calls = DeferredCalls::new(1, 2);
-        let call = calls.try_reserve().unwrap();
-        assert!(calls.try_reserve().is_none());
+    fn each_pool_has_its_own_capacity() {
+        let calls = DeferredCalls::new(1, 2, 1);
+        let call = calls.try_reserve(CallPool::Authenticated).unwrap();
+        assert!(calls.try_reserve(CallPool::Authenticated).is_none());
 
-        let first = calls.try_reserve_login().unwrap();
-        let second = calls.try_reserve_login().unwrap();
-        assert!(calls.try_reserve_login().is_none());
-        assert!(calls.try_reserve().is_none());
+        let first_login = calls.try_reserve(CallPool::Login).unwrap();
+        let second_login = calls.try_reserve(CallPool::Login).unwrap();
+        assert!(calls.try_reserve(CallPool::Login).is_none());
 
-        drop(first);
-        assert!(calls.try_reserve_login().is_some());
-        drop((call, second));
+        let webhook = calls.try_reserve(CallPool::Webhook).unwrap();
+        assert!(calls.try_reserve(CallPool::Webhook).is_none());
+        assert!(calls.try_reserve(CallPool::Authenticated).is_none());
+
+        drop(first_login);
+        assert!(calls.try_reserve(CallPool::Login).is_some());
+        assert!(calls.try_reserve(CallPool::Webhook).is_none());
+        drop((call, second_login, webhook));
     }
 
     #[test]
@@ -722,14 +743,14 @@ mod tests {
 
     #[test]
     fn calls_before_their_deadline_are_not_due() {
-        let calls = DeferredCalls::new(10, 2);
+        let calls = DeferredCalls::new(10, 2, 2);
         let now = Instant::now();
         calls.add(NewDeferredCall {
             task_id: TASK,
             execution_expires_at: now + Duration::from_secs(60),
             expires_at: now + Duration::from_secs(61),
             on_finish: Box::new(|_| {}),
-            slot: calls.try_reserve().unwrap(),
+            slot: calls.try_reserve(CallPool::Authenticated).unwrap(),
         });
         assert!(calls.take_due_calls(now).is_empty());
     }

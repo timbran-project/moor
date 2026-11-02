@@ -14,6 +14,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.0 series (`main`) branch
 
+- Webhooks sent without credentials have their own limit of 16 waiting at once, set with
+  `--max-webhook-calls`, so they can't crowd out web API calls. Past that, the web host returns
+  HTTP 503. The web host does not rate limit webhooks, so do that in your proxy if they are publicly
+  reachable.
 - Logins no longer hold an RPC worker while their verbs run, so a slow or suspended login verb no
   longer delays other players. A login verb now has to finish within
   `--max-capture-deadline-seconds`, 60 seconds by default; it used to have no limit. Logins and

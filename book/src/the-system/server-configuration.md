@@ -456,11 +456,12 @@ output the call produced, instead of streaming that output to a connection. The 
 endpoint and the welcome-message endpoint both work this way. Those calls occupy an RPC worker while
 they wait, so the daemon puts an upper bound on how long a caller may ask it to wait.
 
-| Setting              | Command Line                            | Default | Description                                                                                                    |
-| -------------------- | --------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------- |
-| Max capture deadline | `--max-capture-deadline-seconds <SECS>` | `60`    | Longest deadline a client may request for a captured verb call                                                 |
-| Max captured calls   | `--max-captured-calls <N>`              | `256`   | Captured calls, such as web API calls and webhooks, that may wait at once; past this a call is refused as busy |
-| Max pending logins   | `--max-pending-logins <N>`              | `16`    | Logins and welcome messages that may run at once; past this a new one is refused as busy                       |
+| Setting              | Command Line                            | Default | Description                                                                                                                                  |
+| -------------------- | --------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Max capture deadline | `--max-capture-deadline-seconds <SECS>` | `60`    | Longest deadline a client may request for a captured verb call                                                                               |
+| Max captured calls   | `--max-captured-calls <N>`              | `256`   | Captured calls, such as web API calls and webhooks, that may wait at once; past this a call is refused as busy                               |
+| Max pending logins   | `--max-pending-logins <N>`              | `16`    | Logins and welcome messages that may run at once; past this a new one is refused as busy                                                     |
+| Max webhook calls    | `--max-webhook-calls <N>`               | `16`    | Webhooks and other calls without credentials that may wait at once; past this a new one is refused as busy. Rate limit senders in your proxy |
 
 A client may request a shorter deadline, but not a longer one: a request above the maximum is
 refused rather than quietly shortened, so the client's own receive timeout still matches what it
