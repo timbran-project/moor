@@ -88,28 +88,25 @@ impl TaskMonitor {
                 }
             }
 
-            // If no tasks, wait for wake signal or timeout
-            if receives.is_empty() {
-                match self.wake_signal.1.recv_timeout(Duration::from_millis(1000)) {
-                    Ok(_) => continue,  // Woken up by new task, restart loop
-                    Err(_) => continue, // Timeout, check kill switch
-                }
-            }
-
-            // Use flume's Selector to select across all task receivers simultaneously
-            let selector = flume::Selector::new();
+            // Wait on the new-task signal as well as every task, so a task added now is noticed
+            // without waiting for another task to finish or for the timeout.
+            let selector = flume::Selector::new().recv(&self.wake_signal.1, |_| None);
 
             // Add all task receivers to the selector with their index as the mapped value
             let selector = receives
                 .iter()
                 .enumerate()
                 .fold(selector, |sel, (index, recv)| {
-                    sel.recv(recv, move |result| (index, result))
+                    sel.recv(recv, move |result| Some((index, result)))
                 });
 
             match selector.wait_timeout(Duration::from_millis(1000)) {
-                Ok((index, result)) => {
+                Ok(Some((index, result))) => {
                     self.process_task_completion(index, result, &task_client_ids);
+                }
+                Ok(None) => {
+                    // New tasks were added. One rebuild covers them all.
+                    while self.wake_signal.1.try_recv().is_ok() {}
                 }
                 Err(_) => {
                     // Timeout, check kill switch and continue
@@ -191,5 +188,60 @@ impl TaskMonitor {
                 self.task_handles.remove(&task_id, &guard);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use moor_kernel::tasks::TaskNotification;
+    use moor_var::v_int;
+    use std::time::Instant;
+
+    #[test]
+    fn a_new_task_is_noticed_while_other_tasks_are_waiting() {
+        let (mailbox_sender, mailbox) = flume::unbounded();
+        let monitor = TaskMonitor::new(mailbox_sender);
+        let kill_switch = Arc::new(AtomicBool::new(false));
+
+        let (_waiting_send, waiting_receive) = flume::unbounded();
+        monitor
+            .add_task(1, Uuid::new_v4(), TaskHandle::new_mock(1, waiting_receive))
+            .unwrap();
+
+        let thread = std::thread::spawn({
+            let monitor = monitor.clone();
+            let kill_switch = kill_switch.clone();
+            move || monitor.wait_for_completions(kill_switch)
+        });
+        // Let the monitor settle into waiting on the first task alone.
+        std::thread::sleep(Duration::from_millis(100));
+
+        let (finished_send, finished_receive) = flume::unbounded();
+        finished_send
+            .send((2, Ok(TaskNotification::Result(v_int(1)))))
+            .unwrap();
+        let added = Instant::now();
+        monitor
+            .add_task(2, Uuid::new_v4(), TaskHandle::new_mock(2, finished_receive))
+            .unwrap();
+
+        let published = mailbox.recv_timeout(Duration::from_secs(5));
+        let elapsed = added.elapsed();
+        kill_switch.store(true, Ordering::Relaxed);
+        monitor.wake_signal.0.send(()).unwrap();
+        thread.join().unwrap();
+
+        assert!(matches!(
+            published,
+            Ok(SessionActions::PublishTaskCompletion(
+                _,
+                ClientEvent::TaskSuccess { task_id: 2, .. }
+            ))
+        ));
+        assert!(
+            elapsed < Duration::from_millis(500),
+            "new task's result took {elapsed:?} to be noticed"
+        );
     }
 }
