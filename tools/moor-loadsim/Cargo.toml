@@ -1,0 +1,19 @@
+[package]
+name = "moor-loadsim"
+version = "2.0.0-dev"
+authors.workspace = true
+categories.workspace = true
+edition.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Runs simulated loads against a throwaway daemon and telnet host, and reports what players would see"
+
+[dependencies]
+clap.workspace = true
+clap_derive.workspace = true
+color-eyre.workspace = true
+eyre.workspace = true
+signal-hook.workspace = true
