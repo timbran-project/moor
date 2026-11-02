@@ -15,4 +15,4 @@
 
 mod api;
 
-pub use api::RuntimeApi;
+pub use api::{ClientReplySink, RunOnWorker, RuntimeApi, WorkerJob};

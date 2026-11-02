@@ -43,6 +43,7 @@ use moor_runtime_api::{
 use tracing::{debug, error, warn};
 
 use super::output_capture_session::CaptureAccumulator;
+use crate::runtime::{ClientReplySink, RunOnWorker};
 
 /// How often the sweep looks for calls past their deadlines.
 const SWEEP_INTERVAL: Duration = Duration::from_millis(50);
@@ -56,20 +57,12 @@ type FinishJob = Box<dyn FnOnce() + Send>;
 /// not call the scheduler.
 pub(crate) type OnFinish = Box<dyn FnOnce(Finish) + Send>;
 
-/// Work that may block on the scheduler, which an RPC worker runs.
-pub type WorkerJob = Box<dyn FnOnce() + Send>;
-/// Queues a job for an RPC worker.
-pub type RunOnWorker = Arc<dyn Fn(WorkerJob) + Send + Sync>;
-
 /// What a request needs to reply later.
 pub(crate) struct DeferredContext {
     pub(crate) scheduler_client: SchedulerClient,
     pub(crate) sink: ClientReplySink,
     pub(crate) run_on_worker: RunOnWorker,
 }
-
-/// Delivers a call's one reply. It may run on any thread.
-pub(crate) type ClientReplySink = Box<dyn FnOnce(Result<ClientReply, RpcMessageError>) + Send>;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Phase {

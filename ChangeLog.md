@@ -14,6 +14,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.0 series (`main`) branch
 
+- The single-process `moor` binary no longer blocks its async threads on slow calls. Web API calls
+  and logins that wait on a task no longer delay other players, as with the separate daemon and
+  hosts.
 - Webhooks sent without credentials have their own limit of 16 waiting at once, set with
   `--max-webhook-calls`, so they can't crowd out web API calls. Past that, the web host returns
   HTTP 503. The web host does not rate limit webhooks, so do that in your proxy if they are publicly

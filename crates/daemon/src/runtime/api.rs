@@ -22,13 +22,21 @@
 use moor_kernel::SchedulerClient;
 use moor_runtime_api::RpcMessageError;
 use moor_runtime_api::api::{ClientReply, ClientRequest, HostReply, HostRequest};
+use std::sync::Arc;
 use uuid::Uuid;
+
+/// Delivers a request's reply when it comes later. It may run on any thread.
+pub type ClientReplySink = Box<dyn FnOnce(Result<ClientReply, RpcMessageError>) + Send>;
+/// Work that may block on the scheduler, for a thread that is allowed to do that.
+pub type WorkerJob = Box<dyn FnOnce() + Send>;
+/// Queues a job for a thread that can block.
+pub type RunOnWorker = Arc<dyn Fn(WorkerJob) + Send + Sync>;
 
 /// Runtime business logic operating on typed requests.
 ///
 /// Implementations are sync because the daemon request loop runs on blocking
-/// worker threads; the kernel's `SchedulerClient` is itself sync. A future
-/// in-process adapter embedded in a tokio host can call these directly.
+/// worker threads; the kernel's `SchedulerClient` is itself sync. These can block, so a tokio host
+/// must call them off its executor threads.
 pub trait RuntimeApi: Send + Sync {
     fn handle_host_request(
         &self,
@@ -42,4 +50,18 @@ pub trait RuntimeApi: Send + Sync {
         client_id: Uuid,
         request: ClientRequest,
     ) -> Result<ClientReply, RpcMessageError>;
+
+    /// Start a request without waiting for any task it runs. Returns the reply if there is one now.
+    /// Otherwise `sink` will receive it when the task finishes, and nothing is waiting in between.
+    fn start_client_request(
+        &self,
+        scheduler_client: SchedulerClient,
+        client_id: Uuid,
+        request: ClientRequest,
+        sink: ClientReplySink,
+        run_on_worker: RunOnWorker,
+    ) -> Option<Result<ClientReply, RpcMessageError>> {
+        let _ = (sink, run_on_worker);
+        Some(self.handle_client_request(scheduler_client, client_id, request))
+    }
 }
