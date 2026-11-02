@@ -14,6 +14,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.0 series (`main`) branch
 
+- The daemon gives each RPC request to the next free worker, so one slow call no longer delays
+  requests while other workers are idle. Pongs get their own thread, so sessions and hosts survive
+  slow calls even when every worker is busy. `--num-io-threads` sets the worker count as before.
 - A typed command or login now waits up to 2 minutes for a busy daemon, so players see lag instead
   of an error. `--rpc-player-request-timeout-ms` on the hosts changes this wait, and -1 waits
   forever. If it still gets no answer, telnet shows

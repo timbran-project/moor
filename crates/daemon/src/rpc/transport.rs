@@ -38,9 +38,59 @@ use moor_runtime_api::{
     scheduler_error_to_flatbuffer_struct,
 };
 use moor_schema::rpc as moor_rpc;
+/// Where workers send replies for the router to deliver.
+const RPC_REPLIES_ENDPOINT: &str = "inproc://rpc-replies";
+/// Requests that can wait for a free worker. Past this, a request is dropped and its host times out.
+const MAX_QUEUED_REQUESTS: usize = 8192;
+/// Pongs that can wait for the control thread. A round from every session can arrive at once.
+const MAX_QUEUED_CONTROL_REQUESTS: usize = 16384;
+
+/// The frames of a ZeroMQ message.
+type Frames = Vec<Vec<u8>>;
+
+/// One request waiting for a thread, with what the router needs to deliver its reply.
+struct RpcJob {
+    /// Index of the client socket the request arrived on.
+    transport: u8,
+    /// The routing frames, through the empty delimiter, returned unchanged with the reply.
+    envelope: Vec<Vec<u8>>,
+    /// The frames after the envelope.
+    request: Vec<Vec<u8>>,
+}
+
+/// Split a `ROUTER` message into its routing envelope, through the empty delimiter, and its body.
+fn split_envelope(mut frames: Frames) -> Option<(Frames, Frames)> {
+    let delimiter = frames.iter().position(Vec::is_empty)?;
+    let request = frames.split_off(delimiter + 1);
+    Some((frames, request))
+}
+
+/// Whether a request is a pong. Anything malformed is not, and gets its error from a worker.
+fn request_is_pong(request: &[Vec<u8>]) -> bool {
+    let [discriminator, body] = request else {
+        return false;
+    };
+    let Ok(Ok(message_type)) =
+        MessageTypeRef::read_as_root(discriminator).map(|message| message.message())
+    else {
+        return false;
+    };
+    match message_type {
+        moor_rpc::MessageTypeUnionRef::HostToDaemonMsg(_) => matches!(
+            HostToDaemonMessageRef::read_as_root(body).and_then(|message| message.message()),
+            Ok(moor_rpc::HostToDaemonMessageUnionRef::HostPong(_))
+        ),
+        moor_rpc::MessageTypeUnionRef::HostClientToDaemonMsg(_) => matches!(
+            moor_rpc::HostClientToDaemonMessageRef::read_as_root(body)
+                .and_then(|message| message.message()),
+            Ok(moor_rpc::HostClientToDaemonMessageUnionRef::ClientPong(_))
+        ),
+    }
+}
+
 /// Trait for the transport layer that handles communication between hosts and the daemon
 pub trait Transport: Send + Sync {
-    /// Start the request processing loop with ZMQ proxy architecture
+    /// Start the request processing loop
     fn start_request_loop(
         &self,
         rpc_endpoint: String,
@@ -174,53 +224,103 @@ impl RpcTransport {
         })
     }
 
-    /// Individual RPC process loop that runs in worker threads
-    fn rpc_process_loop(
+    /// Run queued requests on one thread, sending each reply back through the router.
+    fn rpc_worker_loop(
         zmq_context: r0z::Context,
         kill_switch: Arc<AtomicBool>,
         scheduler_client: SchedulerClient,
         message_handler: Arc<dyn MessageHandler>,
-        connect_ipc: bool,
-        connect_tcp: bool,
+        jobs: flume::Receiver<RpcJob>,
     ) -> eyre::Result<()> {
-        let rpc_socket = zmq_context.socket(r0z::REP)?;
-        // Connect to IPC workers if IPC endpoints are configured
-        if connect_ipc {
-            rpc_socket.connect("inproc://rpc-workers-ipc")?;
-        }
-        // Connect to TCP workers if TCP endpoints are configured
-        if connect_tcp {
-            rpc_socket.connect("inproc://rpc-workers-tcp")?;
-        }
+        let replies = zmq_context.socket(r0z::PUSH)?;
+        replies.connect(RPC_REPLIES_ENDPOINT)?;
 
-        loop {
-            if kill_switch.load(Ordering::Relaxed) {
-                return Ok(());
-            }
-
-            let poll_result = rpc_socket
-                .poll(r0z::POLLIN, 1000)
-                .with_context(|| "Error polling ZMQ socket. Bailing out.")?;
-            if poll_result == 0 {
-                continue;
-            }
-
-            match rpc_socket.recv_multipart(0) {
-                Err(_) => {
-                    info!("ZMQ socket closed, exiting");
-                    return Ok(());
+        while !kill_switch.load(Ordering::Relaxed) {
+            let job = match jobs.recv_timeout(Duration::from_secs(1)) {
+                Ok(job) => job,
+                Err(flume::RecvTimeoutError::Timeout) => continue,
+                Err(flume::RecvTimeoutError::Disconnected) => return Ok(()),
+            };
+            let reply = match Self::process_request(
+                job.request,
+                &scheduler_client,
+                message_handler.as_ref(),
+            ) {
+                Ok(Some(reply)) => reply,
+                Ok(None) => continue,
+                Err(e) => {
+                    error!(error = ?e, "Error processing request");
+                    continue;
                 }
-                Ok(request) => {
-                    if let Err(e) = Self::process_request(
-                        &rpc_socket,
-                        request,
-                        &scheduler_client,
-                        message_handler.as_ref(),
-                    ) {
-                        error!(error = ?e, "Error processing request");
+            };
+            let mut frames = Vec::with_capacity(job.envelope.len() + 2);
+            frames.push(vec![job.transport]);
+            frames.extend(job.envelope);
+            frames.push(reply);
+            replies.send_multipart(frames, 0)?;
+        }
+        Ok(())
+    }
+
+    /// Own the client-facing sockets: queue each request for a free thread, and send back replies.
+    /// This never runs a handler, so a slow request cannot delay other requests or their replies.
+    fn run_router(
+        &self,
+        clients: Vec<Socket>,
+        replies: Socket,
+        control_jobs: flume::Sender<RpcJob>,
+        worker_jobs: flume::Sender<RpcJob>,
+    ) -> eyre::Result<()> {
+        while !self.kill_switch.load(Ordering::Relaxed) {
+            let mut items: Vec<_> = clients
+                .iter()
+                .map(|client| client.as_poll_item(r0z::POLLIN))
+                .collect();
+            items.push(replies.as_poll_item(r0z::POLLIN));
+            r0z::poll(&mut items, 1000).with_context(|| "Error polling RPC sockets")?;
+            let readable: Vec<bool> = items.iter().map(|item| item.is_readable()).collect();
+            drop(items);
+
+            for (transport, client) in clients.iter().enumerate() {
+                if readable[transport] {
+                    while let Ok(frames) = client.recv_multipart(r0z::DONTWAIT) {
+                        Self::queue_request(transport as u8, frames, &control_jobs, &worker_jobs);
                     }
                 }
             }
+            if readable[clients.len()] {
+                while let Ok(mut frames) = replies.recv_multipart(r0z::DONTWAIT) {
+                    let transport = frames.remove(0)[0] as usize;
+                    if let Err(e) = clients[transport].send_multipart(frames, 0) {
+                        warn!(error = ?e, "Unable to send RPC reply");
+                    }
+                }
+            }
+        }
+        info!("Kill switch activated, exiting");
+        Ok(())
+    }
+
+    fn queue_request(
+        transport: u8,
+        frames: Vec<Vec<u8>>,
+        control_jobs: &flume::Sender<RpcJob>,
+        worker_jobs: &flume::Sender<RpcJob>,
+    ) {
+        let Some((envelope, request)) = split_envelope(frames) else {
+            warn!("Dropping an RPC request with no routing envelope");
+            return;
+        };
+        let is_pong = request_is_pong(&request);
+        let queue = if is_pong { control_jobs } else { worker_jobs };
+        let job = RpcJob {
+            transport,
+            envelope,
+            request,
+        };
+        // A host that gets no reply times out, as it does when any request is lost.
+        if queue.try_send(job).is_err() {
+            warn!(is_pong, "RPC queue is full; dropping a request");
         }
     }
 
@@ -255,13 +355,14 @@ impl RpcTransport {
                     return Ok(());
                 }
                 Ok(request) => {
-                    if let Err(e) = Self::process_request(
-                        &rpc_socket,
+                    match Self::process_request(
                         request,
                         &scheduler_client,
                         message_handler.as_ref(),
                     ) {
-                        error!(error = ?e, "Error processing request");
+                        Ok(Some(reply)) => rpc_socket.send_multipart(vec![reply], 0)?,
+                        Ok(None) => {}
+                        Err(e) => error!(error = ?e, "Error processing request"),
                     }
                 }
             }
@@ -270,16 +371,14 @@ impl RpcTransport {
 
     /// Process a single request message
     fn process_request(
-        rpc_socket: &Socket,
         request: Vec<Vec<u8>>,
         scheduler_client: &SchedulerClient,
         message_handler: &dyn MessageHandler,
-    ) -> eyre::Result<()> {
+    ) -> eyre::Result<Option<Vec<u8>>> {
         // Components are: [discriminator, request_body]
         // discriminator is a MessageType FlatBuffer that tells us what's in request_body
         if request.len() != 2 {
-            Self::reply_invalid_request(rpc_socket, "Incorrect message length")?;
-            return Ok(());
+            return Self::invalid_request_reply("Incorrect message length").map(Some);
         }
 
         let (discriminator, request_body) = (&request[0], &request[1]);
@@ -288,8 +387,7 @@ impl RpcTransport {
         let message_type_ref = match MessageTypeRef::read_as_root(discriminator) {
             Ok(msg) => msg,
             Err(_) => {
-                Self::reply_invalid_request(rpc_socket, "Could not decode message type")?;
-                return Ok(());
+                return Self::invalid_request_reply("Could not decode message type").map(Some);
             }
         };
 
@@ -303,33 +401,29 @@ impl RpcTransport {
                 let host_id_ref = match host_msg.host_id() {
                     Ok(id) => id,
                     Err(_) => {
-                        Self::reply_invalid_request(rpc_socket, "Missing host_id")?;
-                        return Ok(());
+                        return Self::invalid_request_reply("Missing host_id").map(Some);
                     }
                 };
                 let host_id_data = match host_id_ref.data() {
                     Ok(data) => data,
                     Err(_) => {
-                        Self::reply_invalid_request(rpc_socket, "Invalid host_id")?;
-                        return Ok(());
+                        return Self::invalid_request_reply("Invalid host_id").map(Some);
                     }
                 };
                 let Ok(host_id) = Uuid::from_slice(host_id_data) else {
-                    Self::reply_invalid_request(rpc_socket, "Bad host_id")?;
-                    return Ok(());
+                    return Self::invalid_request_reply("Bad host_id").map(Some);
                 };
 
                 // Decode the actual HostToDaemonMessage from request_body
                 let Ok(host_message_fb) = HostToDaemonMessageRef::read_as_root(request_body) else {
-                    Self::reply_invalid_request(rpc_socket, "Could not decode host message")?;
-                    return Ok(());
+                    return Self::invalid_request_reply("Could not decode host message").map(Some);
                 };
 
                 // Process
                 let response = message_handler.handle_host_message(host_id, host_message_fb);
                 match Self::pack_host_response(response) {
                     Ok(response) => {
-                        rpc_socket.send_multipart(vec![response], 0)?;
+                        return Ok(Some(response));
                     }
                     Err(e) => {
                         error!(error = ?e, "Failed to encode host response");
@@ -339,20 +433,17 @@ impl RpcTransport {
             MessageTypeUnionRef::HostClientToDaemonMsg(client_msg) => {
                 // Extract client_id from discriminator
                 let Ok(client_data) = client_msg.client_data() else {
-                    Self::reply_invalid_request(rpc_socket, "Missing client data")?;
-                    return Ok(());
+                    return Self::invalid_request_reply("Missing client data").map(Some);
                 };
                 let Ok(client_id) = Uuid::from_slice(client_data) else {
-                    Self::reply_invalid_request(rpc_socket, "Bad client id")?;
-                    return Ok(());
+                    return Self::invalid_request_reply("Bad client id").map(Some);
                 };
 
                 // Decode the actual HostClientToDaemonMessage from request_body
                 let Ok(request_fb) =
                     moor_rpc::HostClientToDaemonMessageRef::read_as_root(request_body)
                 else {
-                    Self::reply_invalid_request(rpc_socket, "Could not decode request body")?;
-                    return Ok(());
+                    return Self::invalid_request_reply("Could not decode request body").map(Some);
                 };
 
                 // Process the request
@@ -363,7 +454,7 @@ impl RpcTransport {
                 );
                 match Self::pack_client_response(response) {
                     Ok(response) => {
-                        rpc_socket.send_multipart(vec![response], 0)?;
+                        return Ok(Some(response));
                     }
                     Err(e) => {
                         error!(error = ?e, "Failed to encode client response");
@@ -372,15 +463,12 @@ impl RpcTransport {
             }
         }
 
-        Ok(())
+        Ok(None)
     }
 
-    fn reply_invalid_request(socket: &Socket, reason: &str) -> eyre::Result<()> {
+    fn invalid_request_reply(reason: &str) -> eyre::Result<Vec<u8>> {
         warn!("Invalid request received, replying with error: {reason}");
-        let response =
-            Self::pack_client_response(Err(RpcMessageError::InvalidRequest(reason.to_string())))?;
-        socket.send_multipart(vec![response], 0)?;
-        Ok(())
+        Self::pack_client_response(Err(RpcMessageError::InvalidRequest(reason.to_string())))
     }
 
     fn pack_client_response(
@@ -585,7 +673,7 @@ impl RpcTransport {
 }
 
 impl Transport for RpcTransport {
-    /// Start the request processing loop with ZMQ proxy architecture
+    /// Start the request processing loop
     fn start_request_loop(
         &self,
         _rpc_endpoint: String, // Ignored - we use ipc_rpc_endpoints and tcp_rpc_endpoints
@@ -612,33 +700,21 @@ impl Transport for RpcTransport {
             return self.rpc_direct_inproc_loop(scheduler_client, message_handler);
         }
 
-        // Set up IPC ROUTER/DEALER if we have IPC endpoints
-        if has_ipc {
-            let mut ipc_clients = self.zmq_context.socket(r0z::ROUTER)?;
-            let mut ipc_workers = self.zmq_context.socket(r0z::DEALER)?;
+        let mut clients = Vec::with_capacity(2);
 
-            // Bind all IPC endpoints to the same socket (no CURVE)
+        // Bind all IPC endpoints to one socket (no CURVE)
+        if has_ipc {
+            let ipc_clients = self.zmq_context.socket(r0z::ROUTER)?;
             for endpoint in &self.ipc_rpc_endpoints {
                 ipc_clients.bind(endpoint)?;
                 info!("IPC RPC endpoint bound at {}", endpoint);
             }
-            ipc_workers.bind("inproc://rpc-workers-ipc")?;
-
-            // Start IPC proxy
-            let mut ipc_control_socket = self.zmq_context.socket(r0z::REP)?;
-            ipc_control_socket.bind("inproc://rpc-proxy-ipc-steer")?;
-            spawn_efficient("moor-rpc-proxy-ipc", move || {
-                r0z::proxy_steerable(&mut ipc_clients, &mut ipc_workers, &mut ipc_control_socket)
-                    .expect("Unable to start IPC proxy");
-            })?;
+            clients.push(ipc_clients);
         }
 
-        // Set up TCP ROUTER/DEALER with CURVE if we have TCP endpoints
+        // Bind all TCP endpoints to one socket, with CURVE encryption if configured
         if has_tcp {
-            let mut tcp_clients = self.zmq_context.socket(r0z::ROUTER)?;
-            let mut tcp_workers = self.zmq_context.socket(r0z::DEALER)?;
-
-            // Configure CURVE encryption on TCP
+            let tcp_clients = self.zmq_context.socket(r0z::ROUTER)?;
             if let Some(ref secret_key) = self.curve_secret_key {
                 tcp_clients
                     .set_zap_domain("moor")
@@ -653,82 +729,44 @@ impl Transport for RpcTransport {
                     .context("Failed to set CURVE secret key on TCP ROUTER socket")?;
                 info!("CURVE encryption enabled on TCP RPC server with ZAP authentication");
             }
-
-            // Bind all TCP endpoints to the same socket
             for endpoint in &self.tcp_rpc_endpoints {
                 tcp_clients.bind(endpoint)?;
                 info!("TCP RPC endpoint bound at {}", endpoint);
             }
-            tcp_workers.bind("inproc://rpc-workers-tcp")?;
-
-            // Start TCP proxy
-            let mut tcp_control_socket = self.zmq_context.socket(r0z::REP)?;
-            tcp_control_socket.bind("inproc://rpc-proxy-tcp-steer")?;
-            spawn_efficient("moor-rpc-proxy-tcp", move || {
-                r0z::proxy_steerable(&mut tcp_clients, &mut tcp_workers, &mut tcp_control_socket)
-                    .expect("Unable to start TCP proxy");
-            })?;
+            clients.push(tcp_clients);
         }
 
-        // Calculate number of workers (reserve threads for proxies)
+        let replies = self.zmq_context.socket(r0z::PULL)?;
+        replies.bind(RPC_REPLIES_ENDPOINT)?;
+
+        let (control_jobs, control_receive) = flume::bounded(MAX_QUEUED_CONTROL_REQUESTS);
+        let (worker_jobs, worker_receive) = flume::bounded(MAX_QUEUED_REQUESTS);
+
+        // Keep the existing worker count until measurements justify changing it.
         let num_proxies = (has_ipc as i32) + (has_tcp as i32);
         let num_workers = (num_io_threads - num_proxies).max(1);
 
-        for i in 0..num_workers {
+        let spawn_worker = |name: String, jobs: flume::Receiver<RpcJob>| {
             let handler = message_handler.clone();
             let sched_client = scheduler_client.clone();
             let kill_switch = self.kill_switch.clone();
             let zmq_context = self.zmq_context.clone();
-            let connect_ipc = has_ipc;
-            let connect_tcp = has_tcp;
-
-            spawn_efficient(format!("moor-rpc-srv{i}"), move || {
-                if let Err(e) = Self::rpc_process_loop(
-                    zmq_context,
-                    kill_switch,
-                    sched_client,
-                    handler,
-                    connect_ipc,
-                    connect_tcp,
-                ) {
-                    error!(error = ?e, "RPC process loop failed");
+            spawn_efficient(name, move || {
+                if let Err(e) =
+                    Self::rpc_worker_loop(zmq_context, kill_switch, sched_client, handler, jobs)
+                {
+                    error!(error = ?e, "RPC worker loop failed");
                 }
-            })?;
+            })
+        };
+        spawn_worker("moor-rpc-control".to_string(), control_receive)?;
+        for i in 0..num_workers {
+            spawn_worker(format!("moor-rpc-srv{i}"), worker_receive.clone())?;
         }
-
-        // Set up control sockets for graceful shutdown
-        let ipc_control = if has_ipc {
-            let sock = self.zmq_context.socket(r0z::REQ)?;
-            sock.connect("inproc://rpc-proxy-ipc-steer")?;
-            Some(sock)
-        } else {
-            None
-        };
-
-        let tcp_control = if has_tcp {
-            let sock = self.zmq_context.socket(r0z::REQ)?;
-            sock.connect("inproc://rpc-proxy-tcp-steer")?;
-            Some(sock)
-        } else {
-            None
-        };
 
         signal_ready(&self.ready_signal);
 
-        loop {
-            if self.kill_switch.load(Ordering::Relaxed) {
-                info!("Kill switch activated, exiting");
-                if let Some(ref sock) = ipc_control {
-                    sock.send("TERMINATE", 0)?;
-                }
-                if let Some(ref sock) = tcp_control {
-                    sock.send("TERMINATE", 0)?;
-                }
-                return Ok(());
-            }
-
-            std::thread::sleep(Duration::from_millis(1000));
-        }
+        self.run_router(clients, replies, control_jobs, worker_jobs)
     }
     /// Broadcast events to hosts
     fn broadcast_host_event(&self, event: HostBroadcastEvent) -> Result<(), eyre::Error> {
@@ -809,5 +847,29 @@ impl Transport for RpcTransport {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod router_tests {
+    use super::*;
+
+    #[test]
+    fn the_envelope_runs_through_the_empty_delimiter() {
+        let frames = vec![b"id".to_vec(), vec![], b"a".to_vec(), b"b".to_vec()];
+        let (envelope, request) = split_envelope(frames).unwrap();
+        assert_eq!(envelope, vec![b"id".to_vec(), vec![]]);
+        assert_eq!(request, vec![b"a".to_vec(), b"b".to_vec()]);
+    }
+
+    #[test]
+    fn a_message_with_no_delimiter_has_no_envelope() {
+        assert!(split_envelope(vec![b"id".to_vec(), b"a".to_vec()]).is_none());
+    }
+
+    #[test]
+    fn malformed_requests_are_not_pongs() {
+        assert!(!request_is_pong(&[]));
+        assert!(!request_is_pong(&[b"junk".to_vec(), b"junk".to_vec()]));
     }
 }
