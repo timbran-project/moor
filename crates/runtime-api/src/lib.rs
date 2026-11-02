@@ -186,6 +186,9 @@ impl<T> RpcErr<T> for Result<T, String> {
 pub enum RpcMessageError {
     #[error("Event stream retention or generation expired")]
     EventStreamExpired,
+    /// The daemon is at a limit and did not start this request, so it is safe to retry.
+    #[error("Server is busy")]
+    ServerBusy,
     #[error("Already connected")]
     AlreadyConnected,
     #[error("Invalid request")]

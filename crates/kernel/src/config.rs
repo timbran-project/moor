@@ -30,6 +30,9 @@ pub struct Config {
     pub runtime: RuntimeConfig,
 }
 
+/// How many captured calls may wait at once, unless configured otherwise.
+const DEFAULT_MAX_CAPTURED_CALLS: usize = 256;
+
 /// Configuration for runtime/scheduler behavior
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
@@ -55,12 +58,21 @@ pub struct RuntimeConfig {
     /// A request asking for more than this is rejected. If None, defaults to 60s.
     #[serde(deserialize_with = "parse_duration")]
     pub max_capture_deadline: Option<Duration>,
+    /// How many captured calls may wait for their tasks at once. Past this, a new call is refused.
+    pub max_captured_calls: Option<usize>,
 }
 
 /// Deadline used for captured verb calls when the configuration does not set one.
 pub const DEFAULT_MAX_CAPTURE_DEADLINE: Duration = Duration::from_secs(60);
 
 impl RuntimeConfig {
+    /// How many captured calls may wait for their tasks at once.
+    #[must_use]
+    pub fn max_captured_calls(&self) -> usize {
+        self.max_captured_calls
+            .unwrap_or(DEFAULT_MAX_CAPTURED_CALLS)
+    }
+
     /// Longest deadline a captured verb call may wait for a result.
     #[must_use]
     pub fn max_capture_deadline(&self) -> Duration {

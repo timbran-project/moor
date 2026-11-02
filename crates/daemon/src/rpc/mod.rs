@@ -23,6 +23,7 @@
 mod api_codec;
 mod client_event_buffer;
 mod daemon_api_impl;
+mod deferred_calls;
 #[cfg(test)]
 pub mod hosts;
 #[cfg(not(test))]
@@ -39,6 +40,7 @@ mod session;
 mod session_event_buffer;
 pub mod transport;
 
+pub use deferred_calls::DeferredCalls;
 pub use message_handler::MessageHandler;
 pub use server::RpcServer;
 pub use session::SessionActions;

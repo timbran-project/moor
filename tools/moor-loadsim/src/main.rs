@@ -702,7 +702,11 @@ fn run_captured_calls(
                     )
                     .map(|(status, _)| status)
                     .map_err(|error| format!("{error:#}"));
+                    let refused = !matches!(outcome, Ok(200));
                     results.lock().unwrap().push((started.elapsed(), outcome));
+                    if refused {
+                        thread::sleep(Duration::from_millis(100));
+                    }
                 }
             })
         })
