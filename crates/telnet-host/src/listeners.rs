@@ -25,6 +25,7 @@ use eyre::bail;
 use futures_util::StreamExt;
 use hickory_resolver::{TokioResolver, proto::rr::RData};
 use moor_common::util::TokenBucket;
+use moor_runtime_api::session_pong::{PongIdentity, PongTask};
 use moor_runtime_api::{
     ClientToken, ListenerKind,
     api::{ClientReply, ClientRequest, ConnectionAttribute, HostServices, RuntimeClient},
@@ -421,6 +422,16 @@ impl Listener {
             // Re-ify the connection.
             let framed_stream = Framed::new(boxed_stream, codec);
             let (write, read) = framed_stream.split();
+            let pong_task = PongTask::spawn(
+                broadcast_sub,
+                daemon_client.clone(),
+                PongIdentity {
+                    client_id,
+                    client_token: client_token.clone(),
+                    player: connection_oid,
+                    socket_addr: accepted.peer_addr.to_string(),
+                },
+            );
             let mut tcp_connection = TelnetConnection {
                 handler_object: accepted.handler_object,
                 peer_addr: accepted.peer_addr,
@@ -431,7 +442,7 @@ impl Listener {
                 write,
                 read,
                 kill_switch: bootstrap.kill_switch,
-                broadcast_sub,
+                pong_task,
                 narrative_sub,
                 auth_token: None,
                 daemon_client,

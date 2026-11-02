@@ -14,6 +14,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.0 series (`main`) branch
 
+- Telnet and web sessions no longer end when one pong to the daemon fails, which dropped players
+  while the daemon was busy. A failed pong is now logged, and the session ends only if the daemon
+  has already dropped the connection. Slow pongs also no longer delay a session's input and output.
+  Telnet sessions now end if the client refuses output for 30 seconds.
+- The daemon notices a connected task's result without waiting for another task to finish. A result
+  could be delayed by almost a second, which held back the next telnet command.
 - The task pool and thread pinning now use only the CPUs the daemon may run on. In a container they
   used to read the whole host's CPUs, so a daemon limited to 8 of 80 CPUs ran 80 task workers and
   logged failures pinning threads to CPUs it couldn't use. A CPU quota also limits the pool.

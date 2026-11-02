@@ -24,10 +24,11 @@ use futures_util::{Sink, Stream, StreamExt};
 use moor_runtime_api::{
     AuthToken, ClientToken,
     api::{
-        BroadcastEvent, ClientBroadcastSubscription, ClientEvent, ClientEventSubscription,
-        ClientReply, ClientRequest, InvocationMode, RuntimeClient,
+        ClientEvent, ClientEventSubscription, ClientReply, ClientRequest, InvocationMode,
+        RuntimeClient,
     },
     api_codec::encode_client_event_bytes,
+    session_pong::PongTask,
 };
 use moor_schema::{convert::var_from_flatbuffer_ref, rpc as moor_rpc, var as moor_var_schema};
 use moor_var::{Obj, Var, v_str};
@@ -36,7 +37,7 @@ use std::{
     collections::VecDeque,
     net::SocketAddr,
     sync::Arc,
-    time::{Duration, Instant, SystemTime},
+    time::{Duration, Instant},
 };
 use tokio::{select, sync::watch};
 use tracing::{debug, error, info, trace, warn};
@@ -81,7 +82,8 @@ fn message_len(message: &Message) -> usize {
 pub struct ClientSession {
     pub(crate) player: Obj,
     pub(crate) peer_addr: SocketAddr,
-    pub(crate) broadcast_sub: Box<dyn ClientBroadcastSubscription>,
+    /// Answers the daemon's pings, and reports when the daemon has dropped this connection.
+    pub(crate) pong_task: PongTask,
     pub(crate) narrative_sub: Box<dyn ClientEventSubscription>,
     pub(crate) client_id: Uuid,
     pub(crate) client_token: ClientToken,
@@ -311,29 +313,9 @@ impl ClientSession {
                         Err(_) => channel_open = None,
                     }
                 }
-                Ok(event_msg) = self.broadcast_sub.recv_client_broadcast() => {
-                    trace!("broadcast_event");
-                    match event_msg.event {
-                        BroadcastEvent::PingPong => {
-                            let timestamp = match SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
-                                Ok(duration) => duration.as_nanos() as u64,
-                                Err(e) => {
-                                    warn!("System time before unix epoch during ping/pong handling: {}", e);
-                                    0
-                                }
-                            };
-                            let request = ClientRequest::ClientPong {
-                                client_token: self.client_token.clone(),
-                                client_sys_time: timestamp,
-                                player: self.player,
-                                socket_addr: self.peer_addr.to_string(),
-                            };
-                            if let Err(e) = self.daemon_client.client_call(self.client_id, request).await {
-                                warn!("Unable to send pong to RPC server: {}", e);
-                                break;
-                            }
-                        }
-                    }
+                _ = self.pong_task.connection_gone() => {
+                    info!(client_id = %self.client_id, "Daemon no longer has this connection");
+                    break;
                 }
                 Ok(event_msg) = self.narrative_sub.recv_client_event() => {
                     match &event_msg.event {

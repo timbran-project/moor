@@ -24,6 +24,7 @@ use async_trait::async_trait;
 use axum::extract::ws::Message;
 use futures_util::{Sink, Stream};
 use moor_common::util::TokenBucket;
+use moor_runtime_api::session_pong::{PongIdentity, PongTask};
 use moor_runtime_api::{
     AuthToken, ClientToken, RpcError,
     api::{
@@ -102,18 +103,29 @@ impl Harness {
         let (events, events_rx) = mpsc::unbounded_channel();
         let (client, client_rx) = mpsc::unbounded_channel();
         let (sent_tx, sent) = mpsc::unbounded_channel();
+        let client_id = Uuid::new_v4();
+        let daemon_client: Arc<dyn RuntimeClient> = Arc::new(Runtime {
+            requests: requests_tx,
+            next_task: Mutex::new(0),
+        });
         let mut session = ClientSession {
             player: Obj::mk_id(1),
             peer_addr: SocketAddr::from(([127, 0, 0, 1], 1)),
-            broadcast_sub: Box::new(NoBroadcasts),
+            pong_task: PongTask::spawn(
+                Box::new(NoBroadcasts),
+                daemon_client.clone(),
+                PongIdentity {
+                    client_id,
+                    client_token: ClientToken("client".into()),
+                    player: Obj::mk_id(1),
+                    socket_addr: "127.0.0.1:1".into(),
+                },
+            ),
             narrative_sub: Box::new(Events(events_rx)),
-            client_id: Uuid::new_v4(),
+            client_id,
             client_token: ClientToken("client".into()),
             auth_token: AuthToken("auth".into()),
-            daemon_client: Arc::new(Runtime {
-                requests: requests_tx,
-                next_task: Mutex::new(0),
-            }),
+            daemon_client,
             handler_object: Obj::mk_id(0),
             pending_task: None,
             close_code: None,

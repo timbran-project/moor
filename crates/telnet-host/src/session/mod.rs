@@ -24,7 +24,7 @@ use std::{
     net::SocketAddr,
     os::fd::RawFd,
     sync::{Arc, atomic::AtomicBool},
-    time::{Duration, Instant, SystemTime},
+    time::{Duration, Instant},
 };
 
 use self::{
@@ -46,10 +46,10 @@ use moor_common::{
 use moor_runtime_api::{
     AuthToken, ClientToken,
     api::{
-        BroadcastEvent, ClientBroadcastSubscription, ClientEvent, ClientEventSubscription,
-        ClientReply, ClientRequest, ConnectType as ApiConnectType, HostReply, HostRequest,
-        InvocationMode,
+        ClientEvent, ClientEventSubscription, ClientReply, ClientRequest,
+        ConnectType as ApiConnectType, HostReply, HostRequest, InvocationMode,
     },
+    session_pong::PongTask,
 };
 use moor_var::{List, Obj, Symbol, Var, Variant, v_str, v_string};
 use socket2::{SockRef, TcpKeepalive};
@@ -126,7 +126,8 @@ pub(crate) struct TelnetConnection {
     pub(crate) read: SplitStream<Framed<BoxedAsyncIo, ConnectionCodec>>,
     pub(crate) kill_switch: Arc<AtomicBool>,
 
-    pub(crate) broadcast_sub: Box<dyn ClientBroadcastSubscription>,
+    /// Answers the daemon's pings, and reports when the daemon has dropped this connection.
+    pub(crate) pong_task: PongTask,
     pub(crate) narrative_sub: Box<dyn ClientEventSubscription>,
     pub(crate) auth_token: Option<AuthToken>,
     pub(crate) daemon_client: Arc<dyn moor_runtime_api::api::RuntimeClient>,
@@ -326,6 +327,8 @@ pub enum ReadEvent {
 }
 
 const TASK_TIMEOUT: Duration = Duration::from_secs(10);
+/// How long a client may refuse output before its session is ended.
+const WRITE_TIMEOUT: Duration = Duration::from_secs(30);
 
 impl InputMetadata {
     /// Display the input prompt to the user based on the input type
@@ -500,16 +503,14 @@ impl TelnetConnection {
 
     /// Send a line with automatic newline appending (like LambdaMOO's network_send_line)
     pub async fn send_line(&mut self, line: &str) -> Result<(), eyre::Error> {
-        self.write
-            .send(ConnectionFrame::Line(line.to_string()))
+        self.write_frame(ConnectionFrame::Line(line.to_string()))
             .await
             .with_context(|| "Unable to send line to client")
     }
 
     /// Explicitly flush the output (like LambdaMOO's flush control)
     pub async fn flush(&mut self) -> Result<(), eyre::Error> {
-        self.write
-            .send(ConnectionFrame::Flush)
+        self.write_frame(ConnectionFrame::Flush)
             .await
             .with_context(|| "Unable to flush output to client")
     }
@@ -517,10 +518,18 @@ impl TelnetConnection {
     /// Write one frame. Every write goes through here or the helpers above, on the one sink, so
     /// frames reach the wire in the order they are written.
     async fn send_frame(&mut self, frame: ConnectionFrame) -> Result<(), eyre::Error> {
-        self.write
-            .send(frame)
+        self.write_frame(frame)
             .await
             .with_context(|| "Unable to write to client")
+    }
+
+    /// Write one frame, giving up on a client that has stopped reading. Pongs no longer stop when
+    /// writes do, so the daemon's ping timeout will not catch a client like this.
+    async fn write_frame(&mut self, frame: ConnectionFrame) -> Result<(), eyre::Error> {
+        tokio::time::timeout(WRITE_TIMEOUT, self.write.send(frame))
+            .await
+            .map_err(|_| eyre::eyre!("Client did not accept output for {WRITE_TIMEOUT:?}"))??;
+        Ok(())
     }
 
     /// Mark the end of a prompt (`IAC EOR`, `IAC GA`, or nothing) and flush.
@@ -884,7 +893,7 @@ impl TelnetConnection {
     pub(crate) async fn run(&mut self) -> Result<(), eyre::Error> {
         let result = self.run_session().await;
         if let Err(e) = &result {
-            info!("Connection closed: {e}");
+            info!(client_id = %self.client_id, peer = %self.peer_addr, "Connection closed: {e:#}");
         }
 
         // Let the server know this client is gone.
@@ -968,26 +977,8 @@ impl TelnetConnection {
     ) -> Result<(AuthToken, Obj, ApiConnectType), eyre::Error> {
         loop {
             select! {
-                Ok(event_msg) = self.broadcast_sub.recv_client_broadcast() => {
-                    trace!("broadcast_event");
-
-                    match event_msg.event {
-                        BroadcastEvent::PingPong => {
-                            let timestamp = SystemTime::now()
-                                .duration_since(std::time::UNIX_EPOCH)
-                                .map(|d| d.as_nanos() as u64)
-                                .unwrap_or_default();
-                            let _ = self.daemon_client.client_call(
-                                self.client_id,
-                                ClientRequest::ClientPong {
-                                    client_token: self.client_token.clone(),
-                                    client_sys_time: timestamp,
-                                    player: self.connection_object,
-                                    socket_addr: self.peer_addr.to_string(),
-                                },
-                            ).await?;
-                        }
-                    }
+                _ = self.pong_task.connection_gone() => {
+                    bail!("Daemon no longer has this connection");
                 }
                 Ok(event_msg) = self.narrative_sub.recv_client_event() => {
                     match event_msg.event {
@@ -1163,25 +1154,8 @@ impl TelnetConnection {
                         }
                     }
                 }
-                Ok(event_msg) = self.broadcast_sub.recv_client_broadcast() => {
-                    match event_msg.event {
-                        BroadcastEvent::PingPong => {
-                            let timestamp = SystemTime::now()
-                                .duration_since(std::time::UNIX_EPOCH)
-                                .map(|d| d.as_nanos() as u64)
-                                .unwrap_or_default();
-                            let _ = self.daemon_client.client_call(
-                                self.client_id,
-                                ClientRequest::ClientPong {
-                                    client_token: self.client_token.clone(),
-                                    client_sys_time: timestamp,
-                                    player: self.handler_object,
-                                    socket_addr: self.peer_addr.to_string(),
-                                },
-                            ).await.with_context(|| "Unable to send pong to RPC server")?;
-
-                        }
-                    }
+                _ = self.pong_task.connection_gone() => {
+                    bail!("Daemon no longer has this connection");
                 }
                 Ok(event_msg) = self.narrative_sub.recv_client_event() => {
                     if let Some(input_request) = self.handle_narrative_event(event_msg.event).await? {
