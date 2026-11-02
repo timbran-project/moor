@@ -90,6 +90,8 @@ enum Scenario {
     /// Hold RPC workers with logins that suspend. This is known to drop sessions, so it also
     /// serves as a control for the tool itself.
     HeldWorkers(HeldWorkers),
+    /// Run web API evals that wait on a slow task, as a bot calling out to a slow service does.
+    CapturedCalls(CapturedCalls),
 }
 
 #[derive(Args)]
@@ -166,6 +168,24 @@ struct HeldWorkers {
     /// How long to keep watching after the holds end.
     #[arg(long, default_value_t = 12)]
     cooldown_secs: u64,
+}
+
+#[derive(Args)]
+struct CapturedCalls {
+    #[command(flatten)]
+    common: Common,
+    /// Web API calls running at once. Each one sends another when it finishes.
+    #[arg(long, default_value_t = 14)]
+    calls: usize,
+    /// How long each call's task suspends.
+    #[arg(long, default_value_t = 5)]
+    call_secs: u64,
+    /// How long to run the load.
+    #[arg(long, default_value_t = 60)]
+    duration_secs: u64,
+    /// Web host binary. Defaults to moor-web-host next to this tool.
+    #[arg(long)]
+    web_bin: Option<PathBuf>,
 }
 
 /// A server process, killed when the run ends for any reason.
@@ -453,7 +473,7 @@ fn print_latency(label: &str, latencies: &[Duration]) {
     let mut sorted = latencies.to_vec();
     sorted.sort();
     println!(
-        "  {label}: {} probes, p50 {:?}, p95 {:?}, max {:?}",
+        "  {label}: {} completed, p50 {:?}, p95 {:?}, max {:?}",
         sorted.len(),
         percentile(&sorted, 0.50),
         percentile(&sorted, 0.95),
@@ -468,6 +488,8 @@ fn print_log_counts(run_dir: &Path) {
         "daemon.err.log",
         "telnet.log",
         "telnet.err.log",
+        "web.log",
+        "web.err.log",
     ]
     .iter()
     .filter_map(|name| fs::read(run_dir.join(name)).ok())
@@ -569,6 +591,148 @@ fn start_scheduled_tasks(stream: &mut TcpStream, args: &ScheduledTasks) -> eyre:
     ))
 }
 
+/// Send one HTTP request and return the status and response headers.
+fn http_post(
+    port: u16,
+    path: &str,
+    headers: &[(&str, &str)],
+    body: &str,
+    timeout: Duration,
+) -> eyre::Result<(u16, String)> {
+    let mut stream = TcpStream::connect(("127.0.0.1", port))?;
+    stream.set_read_timeout(Some(timeout))?;
+    let mut request = format!("POST {path} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n");
+    for (name, value) in headers {
+        request.push_str(&format!("{name}: {value}\r\n"));
+    }
+    request.push_str(&format!("Content-Length: {}\r\n\r\n{body}", body.len()));
+    stream.write_all(request.as_bytes())?;
+    let mut response = Vec::new();
+    stream.read_to_end(&mut response)?;
+    let response = String::from_utf8_lossy(&response);
+    let head = response.split("\r\n\r\n").next().unwrap_or_default();
+    let status = head
+        .split_whitespace()
+        .nth(1)
+        .and_then(|status| status.parse().ok())
+        .ok_or_else(|| eyre!("No HTTP status in the response: {head}"))?;
+    Ok((status, head.to_string()))
+}
+
+/// Start a web host on the running daemon, and log in through it.
+fn start_web_host(
+    servers: &Servers,
+    args: &CapturedCalls,
+) -> eyre::Result<(ManagedChild, u16, String)> {
+    let web_bin = server_binary(&args.web_bin, "moor-web-host")?;
+    let port = TcpListener::bind("127.0.0.1:0")?.local_addr()?.port();
+    let web = Command::new(web_bin)
+        .args(["--events-address", "ipc://events.sock"])
+        .args(["--rpc-address", "ipc://rpc.sock"])
+        .args(["--listen-address", &format!("127.0.0.1:{port}")])
+        .env("XDG_CONFIG_HOME", servers.run_dir.join("config"))
+        .current_dir(&servers.run_dir)
+        .stdin(Stdio::null())
+        .stdout(fs::File::create(servers.run_dir.join("web.log"))?)
+        .stderr(fs::File::create(servers.run_dir.join("web.err.log"))?)
+        .spawn()
+        .wrap_err("Could not start the web host")?;
+    let web = ManagedChild(web);
+
+    let deadline = Instant::now() + SERVER_START_TIMEOUT;
+    let mut last_problem = eyre!("the web host never answered");
+    while Instant::now() < deadline {
+        match http_post(
+            port,
+            "/auth/connect",
+            &[("Content-Type", "application/x-www-form-urlencoded")],
+            "player=%233&password=unused",
+            SESSION_LOGIN_TIMEOUT,
+        ) {
+            Ok((200, head)) => {
+                let token = head
+                    .lines()
+                    .find_map(|line| {
+                        let (name, value) = line.split_once(':')?;
+                        name.eq_ignore_ascii_case("x-moor-auth-token")
+                            .then(|| value.trim().to_string())
+                    })
+                    .ok_or_else(|| eyre!("The login reply had no auth token"))?;
+                return Ok((web, port, token));
+            }
+            Ok((status, _)) => last_problem = eyre!("the login returned HTTP {status}"),
+            Err(error) => last_problem = error,
+        }
+        thread::sleep(Duration::from_millis(500));
+    }
+    Err(last_problem.wrap_err(format!(
+        "The web host did not accept a login. See the logs in {}",
+        servers.run_dir.display()
+    )))
+}
+
+/// Run web API calls until told to stop, and return each one's time and outcome.
+fn run_captured_calls(
+    args: &CapturedCalls,
+    port: u16,
+    token: &str,
+    interrupted: &AtomicBool,
+) -> Vec<(Duration, Result<u16, String>)> {
+    let stop = Arc::new(AtomicBool::new(false));
+    let results = Arc::new(Mutex::new(Vec::new()));
+    let call_timeout = Duration::from_secs(args.call_secs + 30);
+    let path = format!("/v1/eval?timeout_ms={}", (args.call_secs + 10) * 1000);
+    let code = format!("suspend({}); return 1;", args.call_secs);
+    let threads: Vec<_> = (0..args.calls)
+        .map(|_| {
+            let (stop, results) = (stop.clone(), results.clone());
+            let (path, code, token) = (path.clone(), code.clone(), token.to_string());
+            thread::spawn(move || {
+                while !stop.load(Ordering::SeqCst) {
+                    let started = Instant::now();
+                    let outcome = http_post(
+                        port,
+                        &path,
+                        &[
+                            ("Content-Type", "text/plain"),
+                            ("X-Moor-Auth-Token", token.as_str()),
+                        ],
+                        &code,
+                        call_timeout,
+                    )
+                    .map(|(status, _)| status)
+                    .map_err(|error| format!("{error:#}"));
+                    results.lock().unwrap().push((started.elapsed(), outcome));
+                }
+            })
+        })
+        .collect();
+    wait(Duration::from_secs(args.duration_secs), interrupted);
+    stop.store(true, Ordering::SeqCst);
+    for thread in threads {
+        let _ = thread.join();
+    }
+    std::mem::take(&mut *results.lock().unwrap())
+}
+
+fn print_call_results(results: &[(Duration, Result<u16, String>)]) {
+    let succeeded: Vec<Duration> = results
+        .iter()
+        .filter(|(_, outcome)| matches!(outcome, Ok(200)))
+        .map(|(elapsed, _)| *elapsed)
+        .collect();
+    println!("Web API calls:");
+    print_latency("succeeded", &succeeded);
+    let failures: Vec<_> = results
+        .iter()
+        .filter(|(_, outcome)| !matches!(outcome, Ok(200)))
+        .collect();
+    println!("  failed: {}", failures.len());
+    if let Some((_, outcome)) = failures.first() {
+        println!("  first failure: {outcome:?}");
+    }
+}
+
 fn read_firings(port: u16, code: &str) -> eyre::Result<u64> {
     let mut stream = login(port, SESSION_LOGIN_TIMEOUT)?;
     let output = eval(&mut stream, code, "loadsim-firings-read")?;
@@ -632,6 +796,7 @@ fn run(common: &Common, scenario: &Scenario) -> eyre::Result<()> {
     let load_started = watch.started.elapsed().as_secs_f64();
     load_running.store(true, Ordering::SeqCst);
     let mut firings = None;
+    let mut call_results = None;
     match scenario {
         Scenario::ScheduledTasks(args) => {
             let read_code = start_scheduled_tasks(&mut admin, args)?;
@@ -644,6 +809,15 @@ fn run(common: &Common, scenario: &Scenario) -> eyre::Result<()> {
                 read_firings(servers.port, &read_code),
                 args.duration_secs * 1000 * args.schedules as u64 / args.interval_ms.max(1),
             ));
+        }
+        Scenario::CapturedCalls(args) => {
+            let (web, port, token) = start_web_host(&servers, args)?;
+            println!(
+                "Running {} web API calls of {}s each for {}s.",
+                args.calls, args.call_secs, args.duration_secs
+            );
+            call_results = Some(run_captured_calls(args, port, &token, &interrupted));
+            drop(web);
         }
         Scenario::HeldWorkers(args) => {
             eval(
@@ -699,6 +873,9 @@ fn run(common: &Common, scenario: &Scenario) -> eyre::Result<()> {
     if probe_results.gave_up {
         println!("  stopped early because the probe session ended");
     }
+    if let Some(results) = &call_results {
+        print_call_results(results);
+    }
     if let Some((measured, expected)) = firings {
         match measured {
             Ok(count) => println!("Schedule firings: {count} of about {expected} requested"),
@@ -716,6 +893,7 @@ fn main() -> eyre::Result<()> {
     let common = match &cli.scenario {
         Scenario::ScheduledTasks(args) => &args.common,
         Scenario::HeldWorkers(args) => &args.common,
+        Scenario::CapturedCalls(args) => &args.common,
     };
     run(common, &cli.scenario)
 }
