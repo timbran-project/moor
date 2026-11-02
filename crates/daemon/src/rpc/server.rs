@@ -90,6 +90,7 @@ impl RpcServer {
         let deferred_calls = DeferredCalls::new(
             config.runtime.max_captured_calls(),
             config.runtime.max_pending_logins(),
+            config.runtime.max_webhook_calls(),
         );
 
         // Create hosts as Arc<RwLock> so it can be shared

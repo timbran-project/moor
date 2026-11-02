@@ -38,7 +38,7 @@ use uuid::Uuid;
 
 use crate::connections::NewConnectionParams;
 use crate::rpc::deferred_calls::{
-    CallSlot, ClientReplySink, DeferredContext, Finish, NewDeferredCall, OnFinish,
+    CallPool, CallSlot, ClientReplySink, DeferredContext, Finish, NewDeferredCall, OnFinish,
     capture_on_finish, capture_result_response, capture_timeout_response, deadline_instants,
     task_on_finish,
 };
@@ -971,8 +971,7 @@ pub(crate) struct CaptureCall {
     operation: &'static str,
     submit: CaptureSubmit,
     to_reply: fn(InvocationResponse) -> ClientReply,
-    /// Anyone can trigger this without credentials, so it draws on the login capacity.
-    unauthenticated: bool,
+    pool: CallPool,
 }
 
 pub(crate) enum PreparedRequest {
@@ -1018,7 +1017,7 @@ fn captured_verb_call(
             )
         }),
         to_reply: invocation_reply,
-        unauthenticated: false,
+        pool: CallPool::Authenticated,
     }
 }
 
@@ -1224,7 +1223,7 @@ impl RpcMessageHandler {
                 command,
             ));
         };
-        let Some(slot) = self.deferred_calls.try_reserve_login() else {
+        let Some(slot) = self.deferred_calls.try_reserve(CallPool::Login) else {
             return Some(Err(RpcMessageError::ServerBusy));
         };
         let connect_type = login_connect_type(&command);
@@ -1393,7 +1392,7 @@ impl RpcMessageHandler {
                         )
                     }),
                     to_reply: invocation_reply,
-                    unauthenticated: false,
+                    pool: CallPool::Authenticated,
                 }
             }
             ClientRequest::Eval {
@@ -1415,7 +1414,7 @@ impl RpcMessageHandler {
                         )
                     }),
                     to_reply: invocation_reply,
-                    unauthenticated: false,
+                    pool: CallPool::Authenticated,
                 }
             }
             ClientRequest::InvokeVerb {
@@ -1445,9 +1444,13 @@ impl RpcMessageHandler {
                 auth_token,
                 timeout,
             } => {
-                let player = match auth_token {
-                    Some(auth_token) => self.validate_auth_token(auth_token, None)?,
-                    None => SYSTEM_OBJECT,
+                // Anyone can send a webhook, so calls with no credentials have their own limit.
+                let (player, pool) = match auth_token {
+                    Some(auth_token) => (
+                        self.validate_auth_token(auth_token, None)?,
+                        CallPool::Authenticated,
+                    ),
+                    None => (SYSTEM_OBJECT, CallPool::Webhook),
                 };
                 let deadline = self.capture_deadline(timeout)?;
                 CaptureCall {
@@ -1465,8 +1468,7 @@ impl RpcMessageHandler {
                         )
                     }),
                     to_reply: system_handler_reply,
-                    // A webhook with no auth token runs as the system object, and anyone can send it.
-                    unauthenticated: false,
+                    pool,
                 }
             }
             ClientRequest::InvokeWelcomeMessage => {
@@ -1481,7 +1483,7 @@ impl RpcMessageHandler {
                     "Invoking welcome message"
                 );
                 CaptureCall {
-                    unauthenticated: true,
+                    pool: CallPool::Login,
                     ..captured_verb_call(
                         client_id,
                         SYSTEM_OBJECT,
@@ -1518,7 +1520,7 @@ impl RpcMessageHandler {
             operation,
             submit,
             to_reply,
-            unauthenticated: _,
+            pool: _,
         } = call;
         let expires_at = Instant::now() + deadline;
 
@@ -1583,12 +1585,7 @@ impl RpcMessageHandler {
         sink: ClientReplySink,
     ) -> Option<Result<ClientReply, RpcMessageError>> {
         // Blocked workers used to be the only cap on these. Check before anything starts.
-        let slot = if call.unauthenticated {
-            self.deferred_calls.try_reserve_login()
-        } else {
-            self.deferred_calls.try_reserve()
-        };
-        let Some(slot) = slot else {
+        let Some(slot) = self.deferred_calls.try_reserve(call.pool) else {
             return Some(Err(RpcMessageError::ServerBusy));
         };
         match self.start_capture(scheduler_client, call) {
@@ -1713,7 +1710,7 @@ impl RpcMessageHandler {
                     Ok(player) => player,
                     Err(error) => return Some(Err(error)),
                 };
-                let Some(slot) = self.deferred_calls.try_reserve() else {
+                let Some(slot) = self.deferred_calls.try_reserve(CallPool::Authenticated) else {
                     return Some(Err(RpcMessageError::ServerBusy));
                 };
                 let (task_handle, correlation_ids, result_sink) = match self.submit_batch_task(
@@ -1750,7 +1747,7 @@ impl RpcMessageHandler {
                         Ok(identity) => identity,
                         Err(error) => return Some(Err(error)),
                     };
-                let Some(slot) = self.deferred_calls.try_reserve() else {
+                let Some(slot) = self.deferred_calls.try_reserve(CallPool::Authenticated) else {
                     return Some(Err(RpcMessageError::ServerBusy));
                 };
                 let task_handle = match self.submit_connected_eval_task(

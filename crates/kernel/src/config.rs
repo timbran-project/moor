@@ -35,6 +35,8 @@ const DEFAULT_MAX_CAPTURED_CALLS: usize = 256;
 /// How many logins may run at once, unless configured otherwise. Anyone can start a login without
 /// credentials, so this is kept small.
 const DEFAULT_MAX_PENDING_LOGINS: usize = 16;
+/// How many webhooks may wait at once, unless configured otherwise. Anyone can send one.
+const DEFAULT_MAX_WEBHOOK_CALLS: usize = 16;
 
 /// Configuration for runtime/scheduler behavior
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -65,12 +67,20 @@ pub struct RuntimeConfig {
     pub max_captured_calls: Option<usize>,
     /// How many logins and welcome messages may run at once. Past this, a new one is refused.
     pub max_pending_logins: Option<usize>,
+    /// How many webhooks and other calls without credentials may wait at once.
+    pub max_webhook_calls: Option<usize>,
 }
 
 /// Deadline used for captured verb calls when the configuration does not set one.
 pub const DEFAULT_MAX_CAPTURE_DEADLINE: Duration = Duration::from_secs(60);
 
 impl RuntimeConfig {
+    /// How many webhooks and other calls without credentials may wait at once.
+    #[must_use]
+    pub fn max_webhook_calls(&self) -> usize {
+        self.max_webhook_calls.unwrap_or(DEFAULT_MAX_WEBHOOK_CALLS)
+    }
+
     /// How many logins and welcome messages may run at once.
     #[must_use]
     pub fn max_pending_logins(&self) -> usize {

@@ -347,6 +347,13 @@ pub struct RuntimeArgs {
     )]
     pub max_pending_logins: Option<usize>,
 
+    #[arg(
+        long,
+        value_name = "max-webhook-calls",
+        help = "How many webhooks and other calls without credentials may wait for their tasks at once. Past this, a new one is refused as busy (default: 16)"
+    )]
+    pub max_webhook_calls: Option<usize>,
+
     #[arg(long, help = "Enable or disable perf timing (default: enabled)")]
     pub perf_timing_enabled: Option<bool>,
 
@@ -381,6 +388,9 @@ impl RuntimeArgs {
         }
         if let Some(args) = self.max_pending_logins {
             config.max_pending_logins = Some(args);
+        }
+        if let Some(args) = self.max_webhook_calls {
+            config.max_webhook_calls = Some(args);
         }
         if let Some(args) = self.perf_timing_enabled {
             config.perf_timing_enabled = Some(args);
