@@ -26,8 +26,8 @@ use std::{
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
-use super::deferred_calls::{RunOnWorker, WorkerJob};
 use super::message_handler::{DaemonReplySink, MessageHandler};
+use crate::runtime::{RunOnWorker, WorkerJob};
 use crate::{ReadySignal, signal_ready};
 use moor_common::threading::spawn_efficient;
 use moor_kernel::SchedulerClient;

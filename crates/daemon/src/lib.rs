@@ -73,7 +73,7 @@ use moor_common::model::{CommitResult, CompileError, loader::LoaderInterface};
 
 pub use curve_keys::CurveKeyPair;
 pub use rpc::{MessageHandler, RpcServer, Transport};
-pub use runtime::RuntimeApi;
+pub use runtime::{ClientReplySink, RunOnWorker, RuntimeApi, WorkerJob};
 pub use workers::WorkersMessageHandlerImpl;
 
 pub type ReadySignal = Arc<Mutex<Option<oneshot::Sender<()>>>>;

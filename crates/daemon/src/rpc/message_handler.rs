@@ -28,8 +28,7 @@ use std::{
 };
 use uuid::Uuid;
 
-use super::daemon_api_impl::PreparedRequest;
-use super::deferred_calls::{DeferredCalls, DeferredContext, RunOnWorker};
+use super::deferred_calls::DeferredCalls;
 use super::{
     client_event_buffer::{ClientEventBuffer, ClientEventBufferError},
     hosts::Hosts,
@@ -55,7 +54,7 @@ use moor_kernel::{
 };
 use std::sync::{OnceLock, Weak};
 
-use crate::runtime::RuntimeApi;
+use crate::runtime::{RunOnWorker, RuntimeApi};
 use moor_runtime_api::{
     AuthToken, ClientToken, ListenerKind, RpcMessageError,
     api::{BroadcastEvent, ClientEvent, ClientEventMessage, HostBroadcastEvent},
@@ -311,29 +310,19 @@ impl MessageHandler for RpcMessageHandler {
             Ok(request) => request,
             Err(error) => return Some(Err(error)),
         };
-        let prepared = match self.prepare_capture(client_id, request) {
-            Ok(prepared) => prepared,
-            Err(error) => return Some(Err(error)),
-        };
         let sink = Box::new(
             move |reply: Result<moor_runtime_api::api::ClientReply, RpcMessageError>| {
                 sink(reply.and_then(super::api_codec::encode_client_reply));
             },
         );
-        let reply = match prepared {
-            PreparedRequest::Capture(call) => {
-                self.run_capture_deferred(&scheduler_client, call, sink)
-            }
-            PreparedRequest::Other(request) => self.run_request_deferred(
-                DeferredContext {
-                    scheduler_client,
-                    sink,
-                    run_on_worker,
-                },
-                client_id,
-                request,
-            ),
-        }?;
+        let reply = RuntimeApi::start_client_request(
+            self,
+            scheduler_client,
+            client_id,
+            request,
+            sink,
+            run_on_worker,
+        )?;
         Some(reply.and_then(super::api_codec::encode_client_reply))
     }
 

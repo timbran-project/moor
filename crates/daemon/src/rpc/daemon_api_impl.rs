@@ -38,16 +38,15 @@ use uuid::Uuid;
 
 use crate::connections::NewConnectionParams;
 use crate::rpc::deferred_calls::{
-    CallPool, CallSlot, ClientReplySink, DeferredContext, Finish, NewDeferredCall, OnFinish,
-    capture_on_finish, capture_result_response, capture_timeout_response, deadline_instants,
-    task_on_finish,
+    CallPool, CallSlot, DeferredContext, Finish, NewDeferredCall, OnFinish, capture_on_finish,
+    capture_result_response, capture_timeout_response, deadline_instants, task_on_finish,
 };
 use crate::rpc::message_handler::{
     BF_SYM, DB_SYM, DO_LOGIN_COMMAND, RpcMessageHandler, SCHED_SYM, bf_counter_entries,
     db_counter_entries, sched_counter_entries,
 };
 use crate::rpc::output_capture_session::CaptureAccumulator;
-use crate::runtime::RuntimeApi;
+use crate::runtime::{ClientReplySink, RunOnWorker, RuntimeApi};
 
 fn require_player_flags(
     scheduler_client: &SchedulerClient,
@@ -67,6 +66,34 @@ fn require_player_flags(
 }
 
 impl RuntimeApi for RpcMessageHandler {
+    fn start_client_request(
+        &self,
+        scheduler_client: SchedulerClient,
+        client_id: Uuid,
+        request: ClientRequest,
+        sink: ClientReplySink,
+        run_on_worker: RunOnWorker,
+    ) -> Option<Result<ClientReply, RpcMessageError>> {
+        let prepared = match self.prepare_capture(client_id, request) {
+            Ok(prepared) => prepared,
+            Err(error) => return Some(Err(error)),
+        };
+        match prepared {
+            PreparedRequest::Capture(call) => {
+                self.run_capture_deferred(&scheduler_client, call, sink)
+            }
+            PreparedRequest::Other(request) => self.run_request_deferred(
+                DeferredContext {
+                    scheduler_client,
+                    sink,
+                    run_on_worker,
+                },
+                client_id,
+                request,
+            ),
+        }
+    }
+
     fn handle_host_request(
         &self,
         host_id: Uuid,

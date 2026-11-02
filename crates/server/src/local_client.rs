@@ -23,7 +23,8 @@ use moor_runtime_api::{
 };
 use uuid::Uuid;
 
-use moor_daemon::RuntimeApi;
+use moor_daemon::{RunOnWorker, RuntimeApi};
+use tokio::{runtime::Handle, sync::oneshot};
 
 /// A host-side client that calls the runtime APIs directly.
 pub struct LocalRuntimeClient {
@@ -69,14 +70,37 @@ impl RuntimeClient for LocalRuntimeClient {
                 "local runtime client has no scheduler client".to_string(),
             ));
         };
-        self.api
-            .handle_client_request(scheduler_client, client_id, request)
-            .map_err(RpcError::Daemon)
+        // Handlers can block on the scheduler, so they stay off the executor threads. A request that
+        // waits for a task replies through this channel, with no thread waiting in between.
+        let (reply_send, reply_receive) = oneshot::channel();
+        let sink = Box::new(move |reply| {
+            // The caller may have stopped waiting.
+            let _ = reply_send.send(reply);
+        });
+        let blocking = Handle::current();
+        let run_on_worker: RunOnWorker = Arc::new(move |job| {
+            blocking.spawn_blocking(job);
+        });
+        let api = self.api.clone();
+        let started = tokio::task::spawn_blocking(move || {
+            api.start_client_request(scheduler_client, client_id, request, sink, run_on_worker)
+        })
+        .await
+        .map_err(|error| RpcError::Fatal(format!("Runtime request failed: {error}")))?;
+        let reply = match started {
+            Some(reply) => reply,
+            None => reply_receive.await.map_err(|_| {
+                RpcError::ConnectionLost("Runtime dropped a waiting request".to_string())
+            })?,
+        };
+        reply.map_err(RpcError::Daemon)
     }
 
     async fn host_call(&self, host_id: Uuid, request: HostRequest) -> Result<HostReply, RpcError> {
-        self.api
-            .handle_host_request(host_id, request)
+        let api = self.api.clone();
+        tokio::task::spawn_blocking(move || api.handle_host_request(host_id, request))
+            .await
+            .map_err(|error| RpcError::Fatal(format!("Runtime request failed: {error}")))?
             .map_err(RpcError::Daemon)
     }
 }
