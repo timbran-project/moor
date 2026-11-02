@@ -21,7 +21,7 @@ use crate::host::actions::is_action_frame;
 use crate::host::client_data::CLIENT_DATA_PREFIX;
 use crate::webrtc::signaling::SIGNALING_PREFIX;
 
-const HEARTBEAT_RESPONSE: u8 = 0x01;
+pub(super) const HEARTBEAT_RESPONSE: u8 = 0x01;
 
 pub enum ReadEvent {
     Command(Message),

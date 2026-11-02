@@ -110,6 +110,20 @@ fn normalize_telnet_line_endings(text: &str) -> String {
     normalized
 }
 
+/// Whether an RPC failure means the daemon is slow or unreachable right now. The player's session
+/// is still good, so it should carry on.
+fn is_server_busy_error(error: &moor_runtime_api::RpcError) -> bool {
+    use moor_runtime_api::RpcError;
+    matches!(
+        error,
+        RpcError::CouldNotSend(_)
+            | RpcError::CouldNotReceive(_)
+            | RpcError::ConnectionLost(_)
+            | RpcError::Timeout(_)
+            | RpcError::Recoverable(_)
+    )
+}
+
 pub(crate) struct TelnetConnection {
     pub(crate) peer_addr: SocketAddr,
     /// The "handler" object, who is responsible for this connection, defaults to SYSTEM_OBJECT,
@@ -327,6 +341,8 @@ pub enum ReadEvent {
 }
 
 const TASK_TIMEOUT: Duration = Duration::from_secs(10);
+/// Shown when a request gets no answer. A retry could run it twice, so it says what we know.
+const SERVER_BUSY_MESSAGE: &str = "The server is busy. Your command may not have run.";
 /// How long a client may refuse output before its session is ended.
 const WRITE_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -496,6 +512,10 @@ impl TelnetConnection {
             moor_runtime_api::RpcError::Daemon(error) => {
                 error!("Unhandled daemon RPC error: {error:?}");
                 self.send_line(fallback_message).await
+            }
+            error if is_server_busy_error(&error) => {
+                warn!(client_id = %self.client_id, %error, "RPC failed; keeping the session");
+                self.send_line(SERVER_BUSY_MESSAGE).await
             }
             error => Err(error.into()),
         }
@@ -1042,7 +1062,7 @@ impl TelnetConnection {
                         ConnectionItem::Bytes(_) => continue,
                     };
                     let words = parse_into_words(&line);
-                    let reply = self.daemon_client.client_call(
+                    let reply = match self.daemon_client.client_call(
                         self.client_id,
                         ClientRequest::LoginCommand {
                             client_token: self.client_token.clone(),
@@ -1051,7 +1071,15 @@ impl TelnetConnection {
                             do_attach: true,
                             registration_data: None,
                         },
-                    ).await?;
+                    ).await {
+                        Ok(reply) => reply,
+                        Err(error) if is_server_busy_error(&error) => {
+                            warn!(client_id = %self.client_id, %error, "Login RPC failed; keeping the session");
+                            self.send_line(SERVER_BUSY_MESSAGE).await?;
+                            continue;
+                        }
+                        Err(error) => return Err(error.into()),
+                    };
 
                     if let ClientReply::LoginResult { success: true, auth_token: Some(auth_token), connect_type, player: Some(player), .. } = reply {
                         info!(?player, client_id = ?self.client_id, "Login successful");
@@ -2032,6 +2060,28 @@ fn output_str_format(
         // text/plain, None, or unknown
         _ => FormattedOutput::Plain(content.to_string()),
     })
+}
+
+#[cfg(test)]
+mod server_busy_tests {
+    use super::is_server_busy_error;
+    use moor_runtime_api::{RpcError, RpcMessageError};
+
+    #[test]
+    fn a_slow_or_unreachable_daemon_counts_as_busy() {
+        let text = || "timed out".to_string();
+        assert!(is_server_busy_error(&RpcError::CouldNotReceive(text())));
+        assert!(is_server_busy_error(&RpcError::CouldNotSend(text())));
+        assert!(is_server_busy_error(&RpcError::Recoverable(text())));
+    }
+
+    #[test]
+    fn other_failures_do_not_count_as_busy() {
+        assert!(!is_server_busy_error(&RpcError::Fatal("bad".to_string())));
+        assert!(!is_server_busy_error(&RpcError::Daemon(
+            RpcMessageError::NoConnection
+        )));
+    }
 }
 
 #[cfg(test)]
