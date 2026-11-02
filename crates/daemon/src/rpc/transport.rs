@@ -26,6 +26,7 @@ use std::{
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
+use super::deferred_calls::{RunOnWorker, WorkerJob};
 use super::message_handler::{DaemonReplySink, MessageHandler};
 use crate::{ReadySignal, signal_ready};
 use moor_common::threading::spawn_efficient;
@@ -54,6 +55,7 @@ struct ReplyRoute {
     transport: u8,
     envelope: Frames,
     replies: Arc<Mutex<Socket>>,
+    run_on_worker: RunOnWorker,
 }
 
 impl ReplyRoute {
@@ -69,13 +71,20 @@ impl ReplyRoute {
 }
 
 /// One request waiting for a thread, with what the router needs to deliver its reply.
-struct RpcJob {
+struct RpcRequest {
     /// Index of the client socket the request arrived on.
     transport: u8,
     /// The routing frames, through the empty delimiter, returned unchanged with the reply.
     envelope: Vec<Vec<u8>>,
     /// The frames after the envelope.
     request: Vec<Vec<u8>>,
+}
+
+/// Work for an RPC worker.
+enum RpcJob {
+    Request(RpcRequest),
+    /// The later part of a request that replies later, which can block on the scheduler.
+    Run(WorkerJob),
 }
 
 /// Split a `ROUTER` message into its routing envelope, through the empty delimiter, and its body.
@@ -251,10 +260,15 @@ impl RpcTransport {
         scheduler_client: SchedulerClient,
         message_handler: Arc<dyn MessageHandler>,
         jobs: flume::Receiver<RpcJob>,
+        run_on_worker: RunOnWorker,
     ) -> eyre::Result<()> {
         while !kill_switch.load(Ordering::Relaxed) {
             let job = match jobs.recv_timeout(Duration::from_secs(1)) {
-                Ok(job) => job,
+                Ok(RpcJob::Request(job)) => job,
+                Ok(RpcJob::Run(job)) => {
+                    job();
+                    continue;
+                }
                 Err(flume::RecvTimeoutError::Timeout) => continue,
                 Err(flume::RecvTimeoutError::Disconnected) => return Ok(()),
             };
@@ -262,6 +276,7 @@ impl RpcTransport {
                 transport: job.transport,
                 envelope: job.envelope,
                 replies: replies.clone(),
+                run_on_worker: run_on_worker.clone(),
             };
             match Self::process_request(
                 job.request,
@@ -328,11 +343,11 @@ impl RpcTransport {
         };
         let is_pong = request_is_pong(&request);
         let queue = if is_pong { control_jobs } else { worker_jobs };
-        let job = RpcJob {
+        let job = RpcJob::Request(RpcRequest {
             transport,
             envelope,
             request,
-        };
+        });
         // A host that gets no reply times out, as it does when any request is lost.
         if queue.try_send(job).is_err() {
             warn!(is_pong, "RPC queue is full; dropping a request");
@@ -468,6 +483,7 @@ impl RpcTransport {
                 // thread. The direct inproc path has a REP socket, which must reply now.
                 let response = match route {
                     Some(route) => {
+                        let run_on_worker = route.run_on_worker.clone();
                         let sink: DaemonReplySink =
                             Box::new(move |response| match Self::pack_client_response(response) {
                                 Ok(reply) => route.send(reply),
@@ -478,6 +494,7 @@ impl RpcTransport {
                             client_id,
                             request_fb,
                             sink,
+                            run_on_worker,
                         );
                         let Some(response) = response else {
                             return Ok(None);
@@ -795,15 +812,34 @@ impl Transport for RpcTransport {
         let num_proxies = (has_ipc as i32) + (has_tcp as i32);
         let num_workers = (num_io_threads - num_proxies).max(1);
 
+        // A job that finds the queue full runs here instead: it finishes a request already started,
+        // so it cannot be dropped, and this keeps its caller from waiting on the queue.
+        let run_on_worker: RunOnWorker = {
+            let worker_jobs = worker_jobs.clone();
+            Arc::new(move |job| {
+                if let Err(flume::TrySendError::Full(RpcJob::Run(job))) =
+                    worker_jobs.try_send(RpcJob::Run(job))
+                {
+                    job();
+                }
+            })
+        };
+
         let spawn_worker = |name: String, jobs: flume::Receiver<RpcJob>| {
             let handler = message_handler.clone();
             let sched_client = scheduler_client.clone();
             let kill_switch = self.kill_switch.clone();
             let replies = reply_sender.clone();
+            let run_on_worker = run_on_worker.clone();
             spawn_efficient(name, move || {
-                if let Err(e) =
-                    Self::rpc_worker_loop(replies, kill_switch, sched_client, handler, jobs)
-                {
+                if let Err(e) = Self::rpc_worker_loop(
+                    replies,
+                    kill_switch,
+                    sched_client,
+                    handler,
+                    jobs,
+                    run_on_worker,
+                ) {
                     error!(error = ?e, "RPC worker loop failed");
                 }
             })

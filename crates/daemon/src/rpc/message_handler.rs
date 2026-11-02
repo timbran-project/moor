@@ -29,7 +29,7 @@ use std::{
 use uuid::Uuid;
 
 use super::daemon_api_impl::PreparedRequest;
-use super::deferred_calls::DeferredCalls;
+use super::deferred_calls::{DeferredCalls, DeferredContext, RunOnWorker};
 use super::{
     client_event_buffer::{ClientEventBuffer, ClientEventBufferError},
     hosts::Hosts,
@@ -53,6 +53,7 @@ use moor_kernel::tasks::{TaskHandle, TaskNotification};
 use moor_kernel::{
     SchedulerClient, config::Config, tasks::sched_counters, vm::builtins::bf_perf_counters,
 };
+use std::sync::{OnceLock, Weak};
 
 use crate::runtime::RuntimeApi;
 use moor_runtime_api::{
@@ -135,8 +136,9 @@ pub trait MessageHandler: RuntimeApi + Send + Sync {
         client_id: Uuid,
         message: HostClientToDaemonMessageRef<'_>,
         sink: DaemonReplySink,
+        run_on_worker: RunOnWorker,
     ) -> Option<Result<DaemonToClientReply, RpcMessageError>> {
-        let _ = sink;
+        let _ = (sink, run_on_worker);
         Some(self.handle_client_message(scheduler_client, client_id, message))
     }
 
@@ -192,6 +194,8 @@ pub struct RpcMessageHandler {
     pub(crate) connections: Arc<dyn ConnectionRegistry>,
     pub(crate) task_monitor: Arc<TaskMonitor>,
     pub(crate) deferred_calls: Arc<DeferredCalls>,
+    /// A handle to this handler, for work that outlives the request that started it.
+    self_handle: OnceLock<Weak<RpcMessageHandler>>,
 
     pub(crate) hosts: Arc<RwLock<Hosts>>,
 
@@ -209,6 +213,15 @@ pub struct RpcMessageHandler {
 }
 
 impl RpcMessageHandler {
+    /// Record this handler's own `Arc`. Without it, logins wait on the thread that started them.
+    pub(crate) fn set_self_handle(self: &Arc<Self>) {
+        let _ = self.self_handle.set(Arc::downgrade(self));
+    }
+
+    pub(crate) fn self_handle(&self) -> Option<Arc<Self>> {
+        self.self_handle.get().and_then(Weak::upgrade)
+    }
+
     pub(crate) fn new_rpc_session(
         &self,
         client_id: Uuid,
@@ -250,6 +263,7 @@ impl RpcMessageHandler {
             connections,
             task_monitor,
             deferred_calls,
+            self_handle: OnceLock::new(),
             hosts,
             auth_token_cache: Default::default(),
             client_token_cache: Default::default(),
@@ -291,6 +305,7 @@ impl MessageHandler for RpcMessageHandler {
         client_id: Uuid,
         message: HostClientToDaemonMessageRef<'_>,
         sink: DaemonReplySink,
+        run_on_worker: RunOnWorker,
     ) -> Option<Result<DaemonToClientReply, RpcMessageError>> {
         let request = match super::api_codec::decode_client_request(message) {
             Ok(request) => request,
@@ -309,9 +324,15 @@ impl MessageHandler for RpcMessageHandler {
             PreparedRequest::Capture(call) => {
                 self.run_capture_deferred(&scheduler_client, call, sink)
             }
-            PreparedRequest::Other(request) => {
-                self.run_request_deferred(scheduler_client, client_id, request, sink)
-            }
+            PreparedRequest::Other(request) => self.run_request_deferred(
+                DeferredContext {
+                    scheduler_client,
+                    sink,
+                    run_on_worker,
+                },
+                client_id,
+                request,
+            ),
         }?;
         Some(reply.and_then(super::api_codec::encode_client_reply))
     }

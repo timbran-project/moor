@@ -14,6 +14,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.0 series (`main`) branch
 
+- Logins no longer hold an RPC worker while their verbs run, so a slow or suspended login verb no
+  longer delays other players. A login verb now has to finish within
+  `--max-capture-deadline-seconds`, 60 seconds by default; it used to have no limit. Logins and
+  welcome messages share their own limit of 16 running at once, set with `--max-pending-logins`,
+  because anyone can start one without credentials. Past that, telnet shows a busy message and the
+  web host returns HTTP 503.
 - Web API calls, batch requests and webhooks that wait on a task no longer hold an RPC worker while
   it runs, so slow calls, such as a bot waiting on an outside service, no longer delay typed
   commands. Up to 256 may wait at once, set with `--max-captured-calls`. Past that, the daemon

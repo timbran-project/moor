@@ -300,10 +300,10 @@ instead.
 > function for more details), then `user_client_disconnected` is called for the old connection and
 > `user_connected` for the new one.
 
-> Note: If any code suspends in do_login_command() or a verb called by do_login_command() (read(),
-> suspend(), or any threaded function), you can no longer connect an object by returning it. This is
-> a weird ancient MOO holdover. The best way to log a player in after suspending is to use the
-> `switch_player()` function to switch their unlogged in negative object to their player object.
+> Note: `do_login_command()` runs in a task of its own, and may suspend, for example by calling
+> `suspend()` or a threaded function. Whatever it finally returns still decides the login, up to a
+> deadline of `--max-capture-deadline-seconds`, 60 seconds by default. A login verb can't use
+> `read()`, because a connection can't send input until it has logged in.
 
 ### Switching an Existing Connection
 

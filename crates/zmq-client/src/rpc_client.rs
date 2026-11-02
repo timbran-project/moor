@@ -528,7 +528,8 @@ fn is_player_request(rpc_msg: &moor_rpc::HostClientToDaemonMessage) -> bool {
         moor_rpc::HostClientToDaemonMessageUnion::Command(command) => {
             capture_deadline_ms(&command.mode).is_none()
         }
-        moor_rpc::HostClientToDaemonMessageUnion::LoginCommand(_) => true,
+        moor_rpc::HostClientToDaemonMessageUnion::LoginCommand(_)
+        | moor_rpc::HostClientToDaemonMessageUnion::VerifiedOAuthLogin(_) => true,
         _ => false,
     }
 }
