@@ -121,6 +121,7 @@ fn is_server_busy_error(error: &moor_runtime_api::RpcError) -> bool {
             | RpcError::ConnectionLost(_)
             | RpcError::Timeout(_)
             | RpcError::Recoverable(_)
+            | RpcError::Daemon(moor_runtime_api::RpcMessageError::ServerBusy)
     )
 }
 
@@ -497,6 +498,10 @@ impl TelnetConnection {
         fallback_message: &str,
     ) -> Result<(), eyre::Error> {
         match error {
+            error if is_server_busy_error(&error) => {
+                warn!(client_id = %self.client_id, %error, "RPC failed; keeping the session");
+                self.send_line(SERVER_BUSY_MESSAGE).await
+            }
             moor_runtime_api::RpcError::Daemon(moor_runtime_api::RpcMessageError::TaskError(
                 error,
             )) => self.handle_task_error(error).await,
@@ -512,10 +517,6 @@ impl TelnetConnection {
             moor_runtime_api::RpcError::Daemon(error) => {
                 error!("Unhandled daemon RPC error: {error:?}");
                 self.send_line(fallback_message).await
-            }
-            error if is_server_busy_error(&error) => {
-                warn!(client_id = %self.client_id, %error, "RPC failed; keeping the session");
-                self.send_line(SERVER_BUSY_MESSAGE).await
             }
             error => Err(error.into()),
         }
@@ -939,7 +940,8 @@ impl TelnetConnection {
 
         // Provoke welcome message, which is a login command with no arguments, and we
         // don't care about the reply at this point.
-        self.daemon_client
+        let welcome = self
+            .daemon_client
             .client_call(
                 self.client_id,
                 ClientRequest::LoginCommand {
@@ -950,8 +952,18 @@ impl TelnetConnection {
                     registration_data: None,
                 },
             )
-            .await
-            .with_context(|| "Unable to send login request to RPC server")?;
+            .await;
+        match welcome {
+            Ok(_) => {}
+            // The player can still log in once the daemon has caught up.
+            Err(error) if is_server_busy_error(&error) => {
+                warn!(client_id = %self.client_id, %error, "Welcome request failed; keeping the session");
+                self.send_line(SERVER_BUSY_MESSAGE).await?;
+            }
+            Err(error) => {
+                return Err(error).with_context(|| "Unable to send login request to RPC server");
+            }
+        }
 
         let (auth_token, player, connect_type) = self
             .authorization_phase()
@@ -2073,6 +2085,9 @@ mod server_busy_tests {
         assert!(is_server_busy_error(&RpcError::CouldNotReceive(text())));
         assert!(is_server_busy_error(&RpcError::CouldNotSend(text())));
         assert!(is_server_busy_error(&RpcError::Recoverable(text())));
+        assert!(is_server_busy_error(&RpcError::Daemon(
+            RpcMessageError::ServerBusy
+        )));
     }
 
     #[test]

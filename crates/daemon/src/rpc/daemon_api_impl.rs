@@ -38,8 +38,9 @@ use uuid::Uuid;
 
 use crate::connections::NewConnectionParams;
 use crate::rpc::deferred_calls::{
-    CallSlot, ClientReplySink, NewDeferredCall, OnFinish, capture_on_finish,
-    capture_result_response, capture_timeout_response, deadline_instants, task_on_finish,
+    CallSlot, ClientReplySink, DeferredContext, Finish, NewDeferredCall, OnFinish,
+    capture_on_finish, capture_result_response, capture_timeout_response, deadline_instants,
+    task_on_finish,
 };
 use crate::rpc::message_handler::{
     BF_SYM, DB_SYM, DO_LOGIN_COMMAND, RpcMessageHandler, SCHED_SYM, bf_counter_entries,
@@ -886,6 +887,37 @@ fn invocation_reply(response: InvocationResponse) -> ClientReply {
     ClientReply::InvocationResponse { response }
 }
 
+enum LoginVerbOutcome {
+    Player(Obj),
+    Refused(ClientReply),
+}
+
+fn login_connect_type(command: &TypedLoginCommand) -> ConnectType {
+    if command.args.first().is_some_and(|arg| arg == "create") {
+        ConnectType::Created
+    } else {
+        ConnectType::Connected
+    }
+}
+
+/// What a login verb's return value means. A string is the core's reason for refusing, and anything
+/// else that isn't an object gives none.
+fn login_verb_outcome(result: Var) -> LoginVerbOutcome {
+    let reason = match result.variant() {
+        Variant::Obj(player) => return LoginVerbOutcome::Player(player),
+        Variant::Str(text) => Some(login_reason(text.as_str())),
+        _ => None,
+    };
+    LoginVerbOutcome::Refused(ClientReply::LoginResult {
+        success: false,
+        auth_token: None,
+        connect_type: ConnectType::Connected,
+        player: None,
+        player_flags: 0,
+        reason,
+    })
+}
+
 fn batch_reply(
     correlation_ids: Vec<String>,
     result_sink: &moor_kernel::tasks::BatchResultSink,
@@ -939,6 +971,8 @@ pub(crate) struct CaptureCall {
     operation: &'static str,
     submit: CaptureSubmit,
     to_reply: fn(InvocationResponse) -> ClientReply,
+    /// Anyone can trigger this without credentials, so it draws on the login capacity.
+    unauthenticated: bool,
 }
 
 pub(crate) enum PreparedRequest {
@@ -984,6 +1018,7 @@ fn captured_verb_call(
             )
         }),
         to_reply: invocation_reply,
+        unauthenticated: false,
     }
 }
 
@@ -1020,53 +1055,20 @@ impl RpcMessageHandler {
     ) -> Result<ClientReply, RpcMessageError> {
         use moor_kernel::tasks::TaskNotification;
 
-        let connect_type = if command.args.first().is_some_and(|arg| arg == "create") {
-            ConnectType::Created
-        } else {
-            ConnectType::Connected
-        };
-
-        info!(
-            "Performing {:?} login for client: {}",
-            connect_type, client_id
-        );
-        let session = Arc::new(self.new_rpc_session(client_id, *connection, *connection));
-        let task_handle = match scheduler_client.submit_verb_task(
+        let connect_type = login_connect_type(&command);
+        let attach = command.attach;
+        let task_handle = self.submit_login_task(
+            handler_object,
+            &scheduler_client,
+            client_id,
             connection,
-            &ObjectRef::Id(*handler_object),
-            command.hook,
-            command.args.iter().map(|s| v_str(s)).collect(),
-            v_string(command.args.join(" ")),
-            &SYSTEM_OBJECT,
-            session,
-        ) {
-            Ok(t) => t,
-            Err(e) => {
-                error!(error = ?e, "Error submitting login task");
-                return Err(RpcMessageError::InternalError(e.to_string()));
-            }
-        };
+            command,
+            connect_type,
+        )?;
         let receiver = task_handle.into_receiver();
-        let player = loop {
+        let result = loop {
             match receiver.recv() {
-                Ok((_, Ok(TaskNotification::Result(v)))) => match v.variant() {
-                    Variant::Obj(o) => break o,
-                    // A string is the core's reason for refusing; anything else gives none.
-                    other => {
-                        let reason = match other {
-                            Variant::Str(text) => Some(login_reason(text.as_str())),
-                            _ => None,
-                        };
-                        return Ok(ClientReply::LoginResult {
-                            success: false,
-                            auth_token: None,
-                            connect_type: ConnectType::Connected,
-                            player: None,
-                            player_flags: 0,
-                            reason,
-                        });
-                    }
-                },
+                Ok((_, Ok(TaskNotification::Result(v)))) => break v,
                 Ok((_, Ok(TaskNotification::Suspended))) => continue,
                 Ok((_, Err(e))) => {
                     error!(error = ?e, "Error waiting for login results");
@@ -1078,6 +1080,70 @@ impl RpcMessageHandler {
                 }
             }
         };
+        match login_verb_outcome(result) {
+            LoginVerbOutcome::Refused(reply) => Ok(reply),
+            LoginVerbOutcome::Player(player) => self.complete_login(
+                handler_object,
+                &scheduler_client,
+                client_id,
+                connection,
+                attach,
+                connect_type,
+                player,
+            ),
+        }
+    }
+
+    fn submit_login_task(
+        &self,
+        handler_object: &Obj,
+        scheduler_client: &SchedulerClient,
+        client_id: Uuid,
+        connection: &Obj,
+        command: TypedLoginCommand,
+        connect_type: ConnectType,
+    ) -> Result<TaskHandle, RpcMessageError> {
+        info!(
+            "Performing {:?} login for client: {}",
+            connect_type, client_id
+        );
+        let session = Arc::new(self.new_rpc_session(client_id, *connection, *connection));
+        scheduler_client
+            .submit_verb_task(
+                connection,
+                &ObjectRef::Id(*handler_object),
+                command.hook,
+                command.args.iter().map(|s| v_str(s)).collect(),
+                v_string(command.args.join(" ")),
+                &SYSTEM_OBJECT,
+                session,
+            )
+            .map_err(|e| {
+                error!(error = ?e, "Error submitting login task");
+                RpcMessageError::InternalError(e.to_string())
+            })
+    }
+
+    /// Finish a login whose verb returned a player. This can block on the scheduler.
+    #[allow(clippy::too_many_arguments)]
+    fn complete_login(
+        &self,
+        handler_object: &Obj,
+        scheduler_client: &SchedulerClient,
+        client_id: Uuid,
+        connection: &Obj,
+        attach: bool,
+        connect_type: ConnectType,
+        player: Obj,
+    ) -> Result<ClientReply, RpcMessageError> {
+        // A client can disconnect while its login verb runs.
+        if self
+            .connections
+            .connection_object_for_client(client_id)
+            .is_none()
+        {
+            return Err(RpcMessageError::NoConnection);
+        }
 
         // Reject invalid login results before mutating connection state or submitting hooks.
         let player_flags = scheduler_client
@@ -1103,7 +1169,7 @@ impl RpcMessageHandler {
             ));
         };
 
-        if command.attach {
+        if attach {
             let fb_connect_type = match connect_type {
                 ConnectType::Connected => moor_rpc::ConnectType::Connected,
                 ConnectType::Reconnected => moor_rpc::ConnectType::Reconnected,
@@ -1132,6 +1198,90 @@ impl RpcMessageHandler {
             player_flags,
             reason: None,
         })
+    }
+
+    /// Start a login without holding this thread. When the verb returns, a worker runs the rest of
+    /// the login, because that can block on the scheduler and the finish thread must not.
+    fn run_login_deferred(
+        &self,
+        handler_object: Obj,
+        context: DeferredContext,
+        client_id: Uuid,
+        connection: Obj,
+        command: TypedLoginCommand,
+    ) -> Option<Result<ClientReply, RpcMessageError>> {
+        let DeferredContext {
+            scheduler_client,
+            sink,
+            run_on_worker,
+        } = context;
+        let Some(handler) = self.self_handle() else {
+            return Some(self.perform_login_typed(
+                &handler_object,
+                scheduler_client,
+                client_id,
+                &connection,
+                command,
+            ));
+        };
+        let Some(slot) = self.deferred_calls.try_reserve_login() else {
+            return Some(Err(RpcMessageError::ServerBusy));
+        };
+        let connect_type = login_connect_type(&command);
+        let attach = command.attach;
+        let task_handle = match self.submit_login_task(
+            &handler_object,
+            &scheduler_client,
+            client_id,
+            &connection,
+            command,
+            connect_type,
+        ) {
+            Ok(task_handle) => task_handle,
+            Err(error) => return Some(Err(error)),
+        };
+        let deadline = self.config.runtime.max_capture_deadline();
+        let worker_slot = slot.clone();
+        let on_finish: OnFinish = Box::new(move |finish| {
+            let result = match finish {
+                Finish::Result(Ok(TaskNotification::Result(result))) => result,
+                Finish::Result(Ok(TaskNotification::Suspended)) | Finish::ResultLost => {
+                    sink(Err(RpcMessageError::InternalError(
+                        "Login task ended without a result".to_string(),
+                    )));
+                    return;
+                }
+                Finish::Result(Err(error)) | Finish::Failed(error) => {
+                    error!(?error, "Error waiting for login results");
+                    sink(Err(RpcMessageError::LoginTaskFailed(error.to_string())));
+                    return;
+                }
+                Finish::TimedOut => {
+                    warn!(?deadline, "Login verb ran past its deadline");
+                    sink(Err(RpcMessageError::LoginTaskFailed(
+                        "Login timed out".to_string(),
+                    )));
+                    return;
+                }
+            };
+            match login_verb_outcome(result) {
+                LoginVerbOutcome::Refused(reply) => sink(Ok(reply)),
+                LoginVerbOutcome::Player(player) => run_on_worker(Box::new(move || {
+                    let _slot = worker_slot;
+                    sink(handler.complete_login(
+                        &handler_object,
+                        &scheduler_client,
+                        client_id,
+                        &connection,
+                        attach,
+                        connect_type,
+                        player,
+                    ));
+                })),
+            }
+        });
+        self.defer_task(task_handle, deadline_instants(deadline), on_finish, slot);
+        None
     }
 
     fn submit_command_task_typed(
@@ -1243,6 +1393,7 @@ impl RpcMessageHandler {
                         )
                     }),
                     to_reply: invocation_reply,
+                    unauthenticated: false,
                 }
             }
             ClientRequest::Eval {
@@ -1264,6 +1415,7 @@ impl RpcMessageHandler {
                         )
                     }),
                     to_reply: invocation_reply,
+                    unauthenticated: false,
                 }
             }
             ClientRequest::InvokeVerb {
@@ -1313,6 +1465,8 @@ impl RpcMessageHandler {
                         )
                     }),
                     to_reply: system_handler_reply,
+                    // A webhook with no auth token runs as the system object, and anyone can send it.
+                    unauthenticated: false,
                 }
             }
             ClientRequest::InvokeWelcomeMessage => {
@@ -1326,14 +1480,17 @@ impl RpcMessageHandler {
                     deadline = ?deadline,
                     "Invoking welcome message"
                 );
-                captured_verb_call(
-                    client_id,
-                    SYSTEM_OBJECT,
-                    ObjectRef::Id(SYSTEM_OBJECT),
-                    Symbol::mk("do_login_command"),
-                    vec![],
-                    deadline,
-                )
+                CaptureCall {
+                    unauthenticated: true,
+                    ..captured_verb_call(
+                        client_id,
+                        SYSTEM_OBJECT,
+                        ObjectRef::Id(SYSTEM_OBJECT),
+                        Symbol::mk("do_login_command"),
+                        vec![],
+                        deadline,
+                    )
+                }
             }
             other => return Ok(PreparedRequest::Other(other)),
         };
@@ -1361,6 +1518,7 @@ impl RpcMessageHandler {
             operation,
             submit,
             to_reply,
+            unauthenticated: _,
         } = call;
         let expires_at = Instant::now() + deadline;
 
@@ -1425,7 +1583,12 @@ impl RpcMessageHandler {
         sink: ClientReplySink,
     ) -> Option<Result<ClientReply, RpcMessageError>> {
         // Blocked workers used to be the only cap on these. Check before anything starts.
-        let Some(slot) = self.deferred_calls.try_reserve() else {
+        let slot = if call.unauthenticated {
+            self.deferred_calls.try_reserve_login()
+        } else {
+            self.deferred_calls.try_reserve()
+        };
+        let Some(slot) = slot else {
             return Some(Err(RpcMessageError::ServerBusy));
         };
         match self.start_capture(scheduler_client, call) {
@@ -1456,7 +1619,7 @@ impl RpcMessageHandler {
         task_handle: TaskHandle,
         (execution_expires_at, expires_at): (Instant, Instant),
         on_finish: OnFinish,
-        slot: CallSlot,
+        slot: Arc<CallSlot>,
     ) {
         let task_id = task_handle.task_id();
         self.deferred_calls.add(NewDeferredCall {
@@ -1479,17 +1642,73 @@ impl RpcMessageHandler {
     /// later through `sink`, freeing this thread, and anything else replies now.
     pub(crate) fn run_request_deferred(
         &self,
-        scheduler_client: SchedulerClient,
+        context: DeferredContext,
         client_id: Uuid,
         request: ClientRequest,
-        sink: ClientReplySink,
     ) -> Option<Result<ClientReply, RpcMessageError>> {
         match request {
+            ClientRequest::VerifiedOAuthLogin {
+                client_token,
+                connect_args,
+                do_attach,
+            } => {
+                if !matches!(
+                    connect_args.first().map(String::as_str),
+                    Some("oauth2_check" | "oauth2_create" | "oauth2_connect")
+                ) {
+                    return Some(Err(RpcMessageError::InvalidRequest(
+                        "invalid OAuth operation".to_string(),
+                    )));
+                }
+                let connection = match self.client_auth(client_token, client_id) {
+                    Ok(connection) => connection,
+                    Err(error) => return Some(Err(error)),
+                };
+                self.run_login_deferred(
+                    SYSTEM_OBJECT,
+                    context,
+                    client_id,
+                    connection,
+                    TypedLoginCommand {
+                        args: connect_args,
+                        attach: do_attach,
+                        hook: Symbol::mk("do_oauth_login"),
+                    },
+                )
+            }
+            ClientRequest::LoginCommand {
+                client_token,
+                handler_object,
+                connect_args,
+                do_attach,
+                registration_data: _,
+            } => {
+                let connection = match self.client_auth(client_token, client_id) {
+                    Ok(connection) => connection,
+                    Err(error) => return Some(Err(error)),
+                };
+                self.run_login_deferred(
+                    handler_object,
+                    context,
+                    client_id,
+                    connection,
+                    TypedLoginCommand {
+                        args: connect_args,
+                        attach: do_attach,
+                        hook: *DO_LOGIN_COMMAND,
+                    },
+                )
+            }
             ClientRequest::BatchWorldState {
                 auth_token,
                 actions,
                 rollback,
             } => {
+                let DeferredContext {
+                    scheduler_client,
+                    sink,
+                    ..
+                } = context;
                 let player = match self.validate_auth_token(auth_token, None) {
                     Ok(player) => player,
                     Err(error) => return Some(Err(error)),
@@ -1521,6 +1740,11 @@ impl RpcMessageHandler {
                 expression,
                 mode: InvocationMode::Connected { client_token },
             } => {
+                let DeferredContext {
+                    scheduler_client,
+                    sink,
+                    ..
+                } = context;
                 let (connection, player) =
                     match self.verify_tokens(client_token, auth_token, client_id) {
                         Ok(identity) => identity,
@@ -1550,7 +1774,7 @@ impl RpcMessageHandler {
             }
             other => Some(RuntimeApi::handle_client_request(
                 self,
-                scheduler_client,
+                context.scheduler_client,
                 client_id,
                 other,
             )),

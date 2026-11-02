@@ -32,6 +32,9 @@ pub struct Config {
 
 /// How many captured calls may wait at once, unless configured otherwise.
 const DEFAULT_MAX_CAPTURED_CALLS: usize = 256;
+/// How many logins may run at once, unless configured otherwise. Anyone can start a login without
+/// credentials, so this is kept small.
+const DEFAULT_MAX_PENDING_LOGINS: usize = 16;
 
 /// Configuration for runtime/scheduler behavior
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -60,12 +63,21 @@ pub struct RuntimeConfig {
     pub max_capture_deadline: Option<Duration>,
     /// How many captured calls may wait for their tasks at once. Past this, a new call is refused.
     pub max_captured_calls: Option<usize>,
+    /// How many logins and welcome messages may run at once. Past this, a new one is refused.
+    pub max_pending_logins: Option<usize>,
 }
 
 /// Deadline used for captured verb calls when the configuration does not set one.
 pub const DEFAULT_MAX_CAPTURE_DEADLINE: Duration = Duration::from_secs(60);
 
 impl RuntimeConfig {
+    /// How many logins and welcome messages may run at once.
+    #[must_use]
+    pub fn max_pending_logins(&self) -> usize {
+        self.max_pending_logins
+            .unwrap_or(DEFAULT_MAX_PENDING_LOGINS)
+    }
+
     /// How many captured calls may wait for their tasks at once.
     #[must_use]
     pub fn max_captured_calls(&self) -> usize {

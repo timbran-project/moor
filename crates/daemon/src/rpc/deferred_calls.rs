@@ -56,6 +56,18 @@ type FinishJob = Box<dyn FnOnce() + Send>;
 /// not call the scheduler.
 pub(crate) type OnFinish = Box<dyn FnOnce(Finish) + Send>;
 
+/// Work that may block on the scheduler, which an RPC worker runs.
+pub type WorkerJob = Box<dyn FnOnce() + Send>;
+/// Queues a job for an RPC worker.
+pub type RunOnWorker = Arc<dyn Fn(WorkerJob) + Send + Sync>;
+
+/// What a request needs to reply later.
+pub(crate) struct DeferredContext {
+    pub(crate) scheduler_client: SchedulerClient,
+    pub(crate) sink: ClientReplySink,
+    pub(crate) run_on_worker: RunOnWorker,
+}
+
 /// Delivers a call's one reply. It may run on any thread.
 pub(crate) type ClientReplySink = Box<dyn FnOnce(Result<ClientReply, RpcMessageError>) + Send>;
 
@@ -87,7 +99,7 @@ struct DeferredCall {
     phase: Phase,
     /// The monitor reported the result channel closing while an abort was in progress.
     channel_closed: bool,
-    _slot: CallSlot,
+    _slot: Arc<CallSlot>,
 }
 
 /// The parts of a call that the sweep works on without holding the lock.
@@ -101,10 +113,11 @@ pub(crate) struct NewDeferredCall {
     pub(crate) execution_expires_at: Instant,
     pub(crate) expires_at: Instant,
     pub(crate) on_finish: OnFinish,
-    pub(crate) slot: CallSlot,
+    pub(crate) slot: Arc<CallSlot>,
 }
 
-/// Capacity for one call. It is released when dropped, which is after the reply has been sent.
+/// Capacity for one call. It is released when the last reference drops, after the reply has been
+/// sent. A login's remaining steps hold a reference too.
 pub(crate) struct CallSlot(Arc<AtomicUsize>);
 
 impl Drop for CallSlot {
@@ -117,41 +130,54 @@ pub struct DeferredCalls {
     /// When a refusal was last logged, in seconds, so a flood of refusals logs a line a second.
     last_refusal_logged: AtomicU64,
     calls: Mutex<HashMap<TaskId, DeferredCall>>,
-    slots_in_use: Arc<AtomicUsize>,
+    /// Capacity for calls made with credentials.
+    calls_in_use: Arc<AtomicUsize>,
     max_calls: usize,
+    /// Capacity for logins and the welcome message, which anyone can trigger without credentials.
+    /// This is separate so they cannot crowd out other calls.
+    logins_in_use: Arc<AtomicUsize>,
+    max_logins: usize,
     finish_jobs: Sender<FinishJob>,
     finish_receiver: Receiver<FinishJob>,
 }
 
 impl DeferredCalls {
-    pub fn new(max_calls: usize) -> Arc<Self> {
+    pub fn new(max_calls: usize, max_logins: usize) -> Arc<Self> {
         let (finish_jobs, finish_receiver) = flume::unbounded();
         Arc::new(Self {
             last_refusal_logged: AtomicU64::new(0),
             calls: Mutex::new(HashMap::new()),
-            slots_in_use: Arc::new(AtomicUsize::new(0)),
+            calls_in_use: Arc::new(AtomicUsize::new(0)),
             max_calls,
+            logins_in_use: Arc::new(AtomicUsize::new(0)),
+            max_logins,
             finish_jobs,
             finish_receiver,
         })
     }
 
     /// Take capacity for a call about to start, or return `None` if there is none left.
-    pub(crate) fn try_reserve(&self) -> Option<CallSlot> {
-        let slot = CallSlot(self.slots_in_use.clone());
-        let in_use = self.slots_in_use.fetch_add(1, Ordering::AcqRel);
+    pub(crate) fn try_reserve(&self) -> Option<Arc<CallSlot>> {
+        self.reserve_from(&self.calls_in_use, self.max_calls)
+    }
+
+    /// Take capacity for a login or welcome message about to start.
+    pub(crate) fn try_reserve_login(&self) -> Option<Arc<CallSlot>> {
+        self.reserve_from(&self.logins_in_use, self.max_logins)
+    }
+
+    fn reserve_from(&self, in_use: &Arc<AtomicUsize>, limit: usize) -> Option<Arc<CallSlot>> {
+        let slot = CallSlot(in_use.clone());
+        let used = in_use.fetch_add(1, Ordering::AcqRel);
         // Over the limit, dropping the slot takes back the count just added.
-        if in_use < self.max_calls {
-            return Some(slot);
+        if used < limit {
+            return Some(Arc::new(slot));
         }
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_or(0, |elapsed| elapsed.as_secs());
         if self.last_refusal_logged.swap(now, Ordering::Relaxed) != now {
-            warn!(
-                max_calls = self.max_calls,
-                "Refusing captured calls: too many are waiting"
-            );
+            warn!(limit, "Refusing deferred calls: too many are waiting");
         }
         None
     }
@@ -425,7 +451,7 @@ mod tests {
     }
 
     fn harness() -> Harness {
-        let calls = DeferredCalls::new(10);
+        let calls = DeferredCalls::new(10, 2);
         let (reply_send, replies) = flume::unbounded();
         let now = Instant::now();
         calls.add(NewDeferredCall {
@@ -645,6 +671,22 @@ mod tests {
     }
 
     #[test]
+    fn logins_have_their_own_capacity() {
+        let calls = DeferredCalls::new(1, 2);
+        let call = calls.try_reserve().unwrap();
+        assert!(calls.try_reserve().is_none());
+
+        let first = calls.try_reserve_login().unwrap();
+        let second = calls.try_reserve_login().unwrap();
+        assert!(calls.try_reserve_login().is_none());
+        assert!(calls.try_reserve().is_none());
+
+        drop(first);
+        assert!(calls.try_reserve_login().is_some());
+        drop((call, second));
+    }
+
+    #[test]
     fn a_task_call_reports_each_ending() {
         let finish = |finish| {
             let (send, receive) = flume::unbounded();
@@ -680,7 +722,7 @@ mod tests {
 
     #[test]
     fn calls_before_their_deadline_are_not_due() {
-        let calls = DeferredCalls::new(10);
+        let calls = DeferredCalls::new(10, 2);
         let now = Instant::now();
         calls.add(NewDeferredCall {
             task_id: TASK,

@@ -87,7 +87,10 @@ impl RpcServer {
 
         // Create the task monitor with mailbox sender
         let task_monitor = TaskMonitor::new(mailbox_sender.clone());
-        let deferred_calls = DeferredCalls::new(config.runtime.max_captured_calls());
+        let deferred_calls = DeferredCalls::new(
+            config.runtime.max_captured_calls(),
+            config.runtime.max_pending_logins(),
+        );
 
         // Create hosts as Arc<RwLock> so it can be shared
         let hosts = Arc::new(RwLock::new(Default::default()));
@@ -105,6 +108,7 @@ impl RpcServer {
             deferred_calls.clone(),
             transport.clone(),
         ));
+        message_handler.set_self_handle();
 
         // Create the system control handle for the scheduler
         let system_control = SystemControlHandle::new(

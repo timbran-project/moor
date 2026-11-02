@@ -232,7 +232,7 @@ mod tests {
             sender.clone(),
             Arc::new(MockEventLog::new()),
             TaskMonitor::new(sender),
-            crate::rpc::DeferredCalls::new(1),
+            crate::rpc::DeferredCalls::new(1, 1),
             Arc::new(MockTransport::new()),
         )
     }

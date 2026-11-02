@@ -544,6 +544,7 @@ async fn main() -> Result<(), eyre::Error> {
         service_perf_cores: None,
         max_capture_deadline: None,
         max_captured_calls: None,
+        max_pending_logins: None,
         perf_timing_enabled: None,
         perf_timing_hot_path_shift: None,
     };
