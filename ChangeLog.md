@@ -14,6 +14,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.0 series (`main`) branch
 
+- The daemon logs a warning when RPC requests wait over a second for a worker, then at most once
+  every 30 seconds while that continues, and a line when it clears. Dropped requests are counted in
+  those lines instead of being logged one by one.
 - `--rpc-workers` now sets the daemon's RPC worker count, 7 by default. `--num-io-threads` only sets
   ZeroMQ IO threads. It used to set both, so if you raised it to get more workers, set
   `--rpc-workers` instead.

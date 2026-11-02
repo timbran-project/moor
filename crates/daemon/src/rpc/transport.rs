@@ -19,9 +19,9 @@ use r0z::Socket;
 use std::{
     sync::{
         Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
 use tracing::{error, info, warn};
 use uuid::Uuid;
@@ -72,6 +72,7 @@ impl ReplyRoute {
 
 /// One request waiting for a thread, with what the router needs to deliver its reply.
 struct RpcRequest {
+    queued_at: Instant,
     /// Index of the client socket the request arrived on.
     transport: u8,
     /// The routing frames, through the empty delimiter, returned unchanged with the reply.
@@ -85,6 +86,153 @@ enum RpcJob {
     Request(RpcRequest),
     /// The later part of a request that replies later, which can block on the scheduler.
     Run(WorkerJob),
+}
+
+/// How long a request can wait for a thread before that counts as a backlog.
+const BACKLOG_WAIT: Duration = Duration::from_secs(1);
+/// How often to report a backlog that is still going.
+const BACKLOG_REPORT_INTERVAL: Duration = Duration::from_secs(30);
+/// How long things must stay clear before a backlog counts as over, so that one which comes and
+/// goes does not log a line each time.
+const BACKLOG_CLEAR_AFTER: Duration = Duration::from_secs(5);
+
+/// What threads and the router report about the request queues. A backlog is exactly when there are
+/// too many requests to log each one, so these are only counted, and logged as a summary.
+#[derive(Default)]
+struct QueueStats {
+    longest_wait_ms: AtomicU64,
+    picked_up: AtomicU64,
+    dropped: AtomicU64,
+}
+
+impl QueueStats {
+    fn picked_up(&self, waited: Duration) {
+        self.picked_up.fetch_add(1, Ordering::Relaxed);
+        self.longest_wait_ms
+            .fetch_max(waited.as_millis() as u64, Ordering::Relaxed);
+    }
+}
+
+/// One second's worth of queue measurements.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct QueueSample {
+    longest_wait: Duration,
+    queued: usize,
+    dropped: u64,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum BacklogReport {
+    Started,
+    Continuing,
+    Cleared { lasted: Duration },
+}
+
+#[derive(Debug)]
+struct Backlog {
+    since: Instant,
+    last_report: Instant,
+    last_trouble: Instant,
+    longest_wait: Duration,
+    dropped: u64,
+}
+
+/// Decides when a backlog is worth a log line, at most about two lines a minute however bad it is.
+struct BacklogMonitor {
+    last_check: Instant,
+    last_picked_up: u64,
+    /// How long the queue has held requests that no thread has taken. Waits are only measured when
+    /// a request is taken, which never happens if every thread is stuck.
+    stuck_for: Duration,
+    backlog: Option<Backlog>,
+}
+
+impl BacklogMonitor {
+    fn new(now: Instant) -> Self {
+        Self {
+            last_check: now,
+            last_picked_up: 0,
+            stuck_for: Duration::ZERO,
+            backlog: None,
+        }
+    }
+
+    /// Take a measurement and log if needed. This does nothing if the last one was under a second
+    /// ago, so it is cheap to call on every pass of the router's loop.
+    fn check(&mut self, now: Instant, stats: &QueueStats, queued: usize, workers: usize) {
+        let elapsed = now.duration_since(self.last_check);
+        if elapsed < Duration::from_secs(1) {
+            return;
+        }
+        self.last_check = now;
+
+        let picked_up = stats.picked_up.load(Ordering::Relaxed);
+        self.stuck_for = if queued > 0 && picked_up == self.last_picked_up {
+            self.stuck_for + elapsed
+        } else {
+            Duration::ZERO
+        };
+        self.last_picked_up = picked_up;
+        let measured = Duration::from_millis(stats.longest_wait_ms.swap(0, Ordering::Relaxed));
+        let sample = QueueSample {
+            longest_wait: measured.max(self.stuck_for),
+            queued,
+            dropped: stats.dropped.swap(0, Ordering::Relaxed),
+        };
+
+        let Some(report) = self.observe(now, sample) else {
+            return;
+        };
+        let Some(backlog) = &self.backlog else {
+            if let BacklogReport::Cleared { lasted } = report {
+                info!(lasted_s = lasted.as_secs(), "RPC worker backlog cleared");
+            }
+            return;
+        };
+        let longest_wait_ms = backlog.longest_wait.as_millis() as u64;
+        warn!(
+            longest_wait_ms,
+            queued,
+            workers,
+            dropped = backlog.dropped,
+            "RPC requests are waiting for workers (--rpc-workers sets how many; more will not help if they are all waiting on a stalled scheduler)"
+        );
+    }
+
+    /// Update the backlog state, and return what is worth reporting.
+    fn observe(&mut self, now: Instant, sample: QueueSample) -> Option<BacklogReport> {
+        let trouble = sample.longest_wait >= BACKLOG_WAIT || sample.dropped > 0;
+        match &mut self.backlog {
+            None if trouble => {
+                self.backlog = Some(Backlog {
+                    since: now,
+                    last_report: now,
+                    last_trouble: now,
+                    longest_wait: sample.longest_wait,
+                    dropped: sample.dropped,
+                });
+                Some(BacklogReport::Started)
+            }
+            None => None,
+            Some(backlog) => {
+                backlog.longest_wait = backlog.longest_wait.max(sample.longest_wait);
+                backlog.dropped += sample.dropped;
+                if trouble {
+                    backlog.last_trouble = now;
+                }
+                if !trouble && now.duration_since(backlog.last_trouble) >= BACKLOG_CLEAR_AFTER {
+                    let lasted = now.duration_since(backlog.since);
+                    self.backlog = None;
+                    return Some(BacklogReport::Cleared { lasted });
+                }
+                if now.duration_since(backlog.last_report) >= BACKLOG_REPORT_INTERVAL {
+                    backlog.last_report = now;
+                    return Some(BacklogReport::Continuing);
+                }
+                None
+            }
+        }
+    }
 }
 
 /// Split a `ROUTER` message into its routing envelope, through the empty delimiter, and its body.
@@ -265,6 +413,7 @@ impl RpcTransport {
         message_handler: Arc<dyn MessageHandler>,
         jobs: flume::Receiver<RpcJob>,
         run_on_worker: RunOnWorker,
+        stats: Arc<QueueStats>,
     ) -> eyre::Result<()> {
         while !kill_switch.load(Ordering::Relaxed) {
             let job = match jobs.recv_timeout(Duration::from_secs(1)) {
@@ -276,6 +425,7 @@ impl RpcTransport {
                 Err(flume::RecvTimeoutError::Timeout) => continue,
                 Err(flume::RecvTimeoutError::Disconnected) => return Ok(()),
             };
+            stats.picked_up(job.queued_at.elapsed());
             let route = ReplyRoute {
                 transport: job.transport,
                 envelope: job.envelope,
@@ -304,8 +454,11 @@ impl RpcTransport {
         replies: Socket,
         control_jobs: flume::Sender<RpcJob>,
         worker_jobs: flume::Sender<RpcJob>,
+        stats: Arc<QueueStats>,
     ) -> eyre::Result<()> {
+        let mut backlog = BacklogMonitor::new(Instant::now());
         while !self.kill_switch.load(Ordering::Relaxed) {
+            backlog.check(Instant::now(), &stats, worker_jobs.len(), self.rpc_workers);
             let mut items: Vec<_> = clients
                 .iter()
                 .map(|client| client.as_poll_item(r0z::POLLIN))
@@ -318,7 +471,13 @@ impl RpcTransport {
             for (transport, client) in clients.iter().enumerate() {
                 if readable[transport] {
                     while let Ok(frames) = client.recv_multipart(r0z::DONTWAIT) {
-                        Self::queue_request(transport as u8, frames, &control_jobs, &worker_jobs);
+                        Self::queue_request(
+                            transport as u8,
+                            frames,
+                            &control_jobs,
+                            &worker_jobs,
+                            &stats,
+                        );
                     }
                 }
             }
@@ -340,6 +499,7 @@ impl RpcTransport {
         frames: Vec<Vec<u8>>,
         control_jobs: &flume::Sender<RpcJob>,
         worker_jobs: &flume::Sender<RpcJob>,
+        stats: &QueueStats,
     ) {
         let Some((envelope, request)) = split_envelope(frames) else {
             warn!("Dropping an RPC request with no routing envelope");
@@ -348,13 +508,14 @@ impl RpcTransport {
         let is_pong = request_is_pong(&request);
         let queue = if is_pong { control_jobs } else { worker_jobs };
         let job = RpcJob::Request(RpcRequest {
+            queued_at: Instant::now(),
             transport,
             envelope,
             request,
         });
         // A host that gets no reply times out, as it does when any request is lost.
         if queue.try_send(job).is_err() {
-            warn!(is_pong, "RPC queue is full; dropping a request");
+            stats.dropped.fetch_add(1, Ordering::Relaxed);
         }
     }
 
@@ -812,6 +973,8 @@ impl Transport for RpcTransport {
         let (control_jobs, control_receive) = flume::bounded(MAX_QUEUED_CONTROL_REQUESTS);
         let (worker_jobs, worker_receive) = flume::bounded(MAX_QUEUED_REQUESTS);
 
+        let stats = Arc::new(QueueStats::default());
+
         // A job that finds the queue full runs here instead: it finishes a request already started,
         // so it cannot be dropped, and this keeps its caller from waiting on the queue.
         let run_on_worker: RunOnWorker = {
@@ -831,6 +994,7 @@ impl Transport for RpcTransport {
             let kill_switch = self.kill_switch.clone();
             let replies = reply_sender.clone();
             let run_on_worker = run_on_worker.clone();
+            let stats = stats.clone();
             spawn_efficient(name, move || {
                 if let Err(e) = Self::rpc_worker_loop(
                     replies,
@@ -839,6 +1003,7 @@ impl Transport for RpcTransport {
                     handler,
                     jobs,
                     run_on_worker,
+                    stats,
                 ) {
                     error!(error = ?e, "RPC worker loop failed");
                 }
@@ -851,7 +1016,7 @@ impl Transport for RpcTransport {
 
         signal_ready(&self.ready_signal);
 
-        self.run_router(clients, replies, control_jobs, worker_jobs)
+        self.run_router(clients, replies, control_jobs, worker_jobs, stats)
     }
     /// Broadcast events to hosts
     fn broadcast_host_event(&self, event: HostBroadcastEvent) -> Result<(), eyre::Error> {
@@ -938,6 +1103,113 @@ impl Transport for RpcTransport {
 #[cfg(test)]
 mod router_tests {
     use super::*;
+
+    fn slow() -> QueueSample {
+        QueueSample {
+            longest_wait: BACKLOG_WAIT,
+            queued: 5,
+            dropped: 0,
+        }
+    }
+
+    #[test]
+    fn a_long_backlog_logs_only_at_the_start_every_interval_and_the_end() {
+        let start = Instant::now();
+        let mut monitor = BacklogMonitor::new(start);
+        let mut reports = Vec::new();
+        for second in 0..=120u64 {
+            let now = start + Duration::from_secs(second);
+            if let Some(report) = monitor.observe(now, slow()) {
+                reports.push((second, report));
+            }
+        }
+        for second in 121..=130u64 {
+            let now = start + Duration::from_secs(second);
+            if let Some(report) = monitor.observe(now, QueueSample::default()) {
+                reports.push((second, report));
+            }
+        }
+        assert_eq!(
+            reports,
+            vec![
+                (0, BacklogReport::Started),
+                (30, BacklogReport::Continuing),
+                (60, BacklogReport::Continuing),
+                (90, BacklogReport::Continuing),
+                (120, BacklogReport::Continuing),
+                (
+                    125,
+                    BacklogReport::Cleared {
+                        lasted: Duration::from_secs(125)
+                    }
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn short_waits_log_nothing() {
+        let start = Instant::now();
+        let mut monitor = BacklogMonitor::new(start);
+        let sample = QueueSample {
+            longest_wait: BACKLOG_WAIT - Duration::from_millis(1),
+            queued: 50,
+            dropped: 0,
+        };
+        assert_eq!(monitor.observe(start, sample), None);
+        assert!(monitor.backlog.is_none());
+    }
+
+    #[test]
+    fn drops_start_a_backlog_and_are_totalled() {
+        let start = Instant::now();
+        let mut monitor = BacklogMonitor::new(start);
+        let drops = QueueSample {
+            dropped: 1000,
+            ..QueueSample::default()
+        };
+        assert_eq!(monitor.observe(start, drops), Some(BacklogReport::Started));
+        monitor.observe(start + Duration::from_secs(1), drops);
+        assert_eq!(monitor.backlog.as_ref().unwrap().dropped, 2000);
+    }
+
+    #[test]
+    fn a_backlog_that_comes_and_goes_stays_one_backlog() {
+        let start = Instant::now();
+        let mut monitor = BacklogMonitor::new(start);
+        assert_eq!(monitor.observe(start, slow()), Some(BacklogReport::Started));
+        for second in 1..=4 {
+            let now = start + Duration::from_secs(second);
+            assert_eq!(monitor.observe(now, QueueSample::default()), None);
+        }
+        let again = start + Duration::from_secs(5);
+        assert_eq!(monitor.observe(again, slow()), None);
+        assert!(monitor.backlog.is_some());
+    }
+
+    #[test]
+    fn requests_nobody_takes_count_as_waiting() {
+        let start = Instant::now();
+        let mut monitor = BacklogMonitor::new(start);
+        let stats = QueueStats::default();
+        monitor.check(start + Duration::from_secs(1), &stats, 3, 7);
+        assert_eq!(monitor.stuck_for, Duration::from_secs(1));
+        assert!(monitor.backlog.is_some());
+
+        stats.picked_up(Duration::ZERO);
+        monitor.check(start + Duration::from_secs(2), &stats, 3, 7);
+        assert_eq!(monitor.stuck_for, Duration::ZERO);
+    }
+
+    #[test]
+    fn an_idle_queue_is_not_stuck() {
+        let start = Instant::now();
+        let mut monitor = BacklogMonitor::new(start);
+        let stats = QueueStats::default();
+        monitor.check(start + Duration::from_secs(60), &stats, 0, 7);
+        assert_eq!(monitor.stuck_for, Duration::ZERO);
+        assert!(monitor.backlog.is_none());
+    }
 
     #[test]
     fn the_envelope_runs_through_the_empty_delimiter() {
