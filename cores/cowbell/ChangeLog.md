@@ -359,6 +359,9 @@ Cowbell entries.
 
 ### Fixed
 
+- Trying to log in with a password to an account that never had one, such as one made through an
+  external identity, is now refused like any other wrong password. It used to abort the login task
+  with `E_VARNF`. `$player.password` now defaults to 0, so this needs a new import.
 - A room refreshes its panels once it has been still for `panel_refresh_delay` seconds, 0.5 by
   default, instead of rendering one for every player on every arrival and departure. A crowd
   arriving costs one round of renders, and a panel can update up to that much later. A room that

@@ -493,6 +493,15 @@ object LOGIN [
     return found;
   endmethod
 
+  method test_account_with_no_password_is_external_only owner: ARCH_WIZARD
+    "An account made through an external identity never had a password set, so it can only log in that way.";
+    const who = create($player);
+    const status = this:_password_state(who, "anything")[1];
+    recycle(who);
+    $test_utils:assert_true(status == 'external_only, "an account that never had a password is external only");
+    return true;
+  endmethod
+
   method test_invalid_player_name_allocates_nothing owner: ARCH_WIZARD
     "Check the shared creation boundary before player flags, setup capabilities, or tasks change.";
     const before = players();
