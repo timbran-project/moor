@@ -4577,6 +4577,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "moor-loadsim"
+version = "2.0.0-dev"
+dependencies = [
+ "clap",
+ "clap_derive",
+ "color-eyre",
+ "eyre",
+ "signal-hook 0.4.5",
+]
+
+[[package]]
 name = "moor-model-checker"
 version = "2.0.0-dev"
 dependencies = [

@@ -26,6 +26,7 @@ members = [
     "crates/web-host",
     "crates/zmq-client",
     "tools/moor-emh",
+    "tools/moor-loadsim",
     "tools/moorc",
 ]
 default-members = [
