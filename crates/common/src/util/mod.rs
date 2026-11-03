@@ -16,6 +16,7 @@ mod cache_padded;
 mod fatal;
 mod instant;
 mod metric_entries;
+mod metrics_snapshot;
 mod prometheus_text;
 mod time;
 mod timing_policy;
@@ -27,7 +28,11 @@ pub use cache_padded::CachePadded;
 pub use fatal::{is_fatal_db_error_reported, signal_fatal_db_error};
 pub use instant::Instant;
 pub use metric_entries::{MetricEntriesVisitor, MetricEntry};
-pub use prometheus_text::PrometheusTextWriter;
+pub use metrics_snapshot::{
+    HistogramValue, MetricFamily, MetricFamilyKind, MetricSample, MetricValue, MetricsSnapshot,
+    MetricsSnapshotBuilder,
+};
+pub use prometheus_text::render_prometheus_text;
 pub use time::{Deadline, Timestamp};
 pub use timing_policy::{
     PerfTimingPolicy, estimated_total_nanos, hot_stride, perf_timing_policy, rare_stride,

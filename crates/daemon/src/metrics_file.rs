@@ -27,10 +27,12 @@ use std::{
 
 use eyre::{Report, bail};
 use fast_telemetry::{MetricKind, MetricLabels, MetricMeta, MetricVisitor};
-use moor_common::{threading::spawn_efficient, util::PrometheusTextWriter};
-use moor_kernel::perf_counters::visit_all_metrics;
+use moor_common::{
+    threading::spawn_efficient,
+    util::{MetricsSnapshot, render_prometheus_text},
+};
 
-use crate::rpc::transport::rpc_metrics;
+use crate::metrics::visit_daemon_metrics;
 use tracing::{info, warn};
 
 /// Prefix for every metric name in the file.
@@ -131,15 +133,15 @@ fn run(config: &MetricsFileConfig, stop: &AtomicBool) {
 }
 
 fn render(now: SystemTime) -> String {
-    let mut writer = PrometheusTextWriter::new(NAMESPACE);
-    visit_all_metrics(&mut writer);
-    rpc_metrics().visit_metrics(&mut writer);
     let written_at = now
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs_f64();
-    writer.gauge_f64(WRITTEN_AT, MetricLabels::none(), written_at);
-    writer.finish()
+    let snapshot = MetricsSnapshot::collect(|builder| {
+        visit_daemon_metrics(builder);
+        builder.gauge_f64(WRITTEN_AT, MetricLabels::none(), written_at);
+    });
+    render_prometheus_text(&snapshot, NAMESPACE)
 }
 
 /// Write beside the target and rename over it, so readers never see a partial file.

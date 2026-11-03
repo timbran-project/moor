@@ -24,6 +24,7 @@ use std::{net::SocketAddr, sync::Arc, time::Duration};
 use async_trait::async_trait;
 use moor_common::model::{ObjectRef, PropDef, PropPerms, VerbDef, VerbDefs};
 use moor_common::tasks::{NarrativeEvent, SchedulerError};
+use moor_common::util::MetricsSnapshot;
 use moor_var::{Obj, Symbol, Var};
 use uuid::Uuid;
 
@@ -147,21 +148,6 @@ pub struct PresentationSnapshot {
 pub struct ConnectionAttribute {
     pub key: Symbol,
     pub value: Var,
-}
-
-/// Performance counter sample.
-#[derive(Debug, Clone)]
-pub struct CounterSample {
-    pub name: Symbol,
-    pub count: i64,
-    pub total_cumulative_ns: i64,
-}
-
-/// A category of performance counters.
-#[derive(Debug, Clone)]
-pub struct CounterCategory {
-    pub category: Symbol,
-    pub counters: Vec<CounterSample>,
 }
 
 /// Server feature flags reported to hosts.
@@ -468,7 +454,7 @@ pub enum HostRequest {
         listeners: Vec<ListenerInfo>,
     },
     DetachHost,
-    RequestPerformanceCounters,
+    RequestMetrics,
     GetServerFeatures,
     GetServerStatus,
 }
@@ -480,9 +466,10 @@ pub enum HostReply {
     Reject {
         reason: String,
     },
-    PerformanceCounters {
+    Metrics {
+        /// When the snapshot was taken, in nanoseconds since the Unix epoch.
         timestamp: u64,
-        counters: Vec<CounterCategory>,
+        metrics: MetricsSnapshot,
     },
     ServerFeatures(ServerFeatures),
     ServerStatus {

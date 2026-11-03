@@ -11,8 +11,8 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! The runtime's perf metrics: a full walk for export, and the flattened views shared by the
-//! counter builtins and the daemon's `RequestPerformanceCounters` RPC.
+//! The runtime's perf metrics: a full walk for export, and the flattened views the counter builtins
+//! return.
 
 use fast_telemetry::MetricVisitor;
 use moor_common::util::{MetricEntriesVisitor, MetricEntry};

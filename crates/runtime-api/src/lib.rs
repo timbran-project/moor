@@ -84,7 +84,7 @@ pub use client_messages::{
 };
 pub use host_messages::{
     listener_fb, mk_detach_host_msg, mk_get_server_features_msg, mk_get_server_status_msg,
-    mk_host_pong_msg, mk_register_host_msg, mk_request_performance_counters_msg,
+    mk_host_pong_msg, mk_register_host_msg, mk_request_metrics_msg,
 };
 
 // Re-export worker message builders

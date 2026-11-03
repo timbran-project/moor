@@ -19,15 +19,15 @@
 use flume::{Receiver, RecvTimeoutError};
 use moor_common::model::{ObjFlag, ObjectRef};
 use moor_common::tasks::{NarrativeEvent, SchedulerError, Session, TaskId};
+use moor_common::util::MetricsSnapshot;
 use moor_kernel::{
     SchedulerClient,
-    perf_counters::{bf_counter_entries, db_counter_entries, sched_counter_entries},
     tasks::{AbortTaskOutcome, TaskHandle, TaskNotification},
 };
 use moor_runtime_api::api::{
-    ClientReply, ClientRequest, ConnectType, CounterCategory, EntityType, HostReply, HostRequest,
-    InvocationMode, InvocationOutcome, InvocationResponse, ObjectInfo, ServerFeatures,
-    SystemHandlerResponse, VerbProgramResponse, WorldStateResult, WorldStateResultEntry,
+    ClientReply, ClientRequest, ConnectType, EntityType, HostReply, HostRequest, InvocationMode,
+    InvocationOutcome, InvocationResponse, ObjectInfo, ServerFeatures, SystemHandlerResponse,
+    VerbProgramResponse, WorldStateResult, WorldStateResultEntry,
 };
 use moor_runtime_api::{AuthToken, ClientToken, ListenerKind, RpcMessageError};
 use moor_schema::rpc as moor_rpc;
@@ -38,11 +38,12 @@ use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use crate::connections::NewConnectionParams;
+use crate::metrics::visit_daemon_metrics;
 use crate::rpc::deferred_calls::{
     CallPool, CallSlot, DeferredContext, Finish, NewDeferredCall, OnFinish, capture_on_finish,
     capture_result_response, capture_timeout_response, deadline_instants, task_on_finish,
 };
-use crate::rpc::message_handler::{BF_SYM, DB_SYM, DO_LOGIN_COMMAND, RpcMessageHandler, SCHED_SYM};
+use crate::rpc::message_handler::{DO_LOGIN_COMMAND, RpcMessageHandler};
 use crate::rpc::output_capture_session::CaptureAccumulator;
 use crate::runtime::{ClientReplySink, RunOnWorker, RuntimeApi};
 
@@ -140,35 +141,14 @@ impl RuntimeApi for RpcMessageHandler {
                 hosts.unregister_host(&host_id);
                 Ok(HostReply::Ack)
             }
-            HostRequest::RequestPerformanceCounters => {
-                let all_counters = [
-                    (*SCHED_SYM, sched_counter_entries()),
-                    (*DB_SYM, db_counter_entries()),
-                    (*BF_SYM, bf_counter_entries()),
-                ];
+            HostRequest::RequestMetrics => {
                 let timestamp = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
+                    .unwrap_or_default()
                     .as_nanos() as u64;
-                let counters = all_counters
-                    .into_iter()
-                    .map(|(category_sym, counters_list)| CounterCategory {
-                        category: category_sym,
-                        counters: counters_list
-                            .into_iter()
-                            .map(|(name_sym, count, cumulative_ns)| {
-                                moor_runtime_api::api::CounterSample {
-                                    name: name_sym,
-                                    count: count as i64,
-                                    total_cumulative_ns: cumulative_ns as i64,
-                                }
-                            })
-                            .collect(),
-                    })
-                    .collect();
-                Ok(HostReply::PerformanceCounters {
+                Ok(HostReply::Metrics {
                     timestamp,
-                    counters,
+                    metrics: MetricsSnapshot::collect(visit_daemon_metrics),
                 })
             }
             HostRequest::GetServerStatus => Ok(HostReply::ServerStatus {

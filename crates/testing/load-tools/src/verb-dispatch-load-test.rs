@@ -27,10 +27,11 @@ use futures::{StreamExt, stream::FuturesUnordered};
 use moor_common::{
     model::ObjectRef,
     threading::{ThreadClass, pin_current_thread_to_class},
+    util::MetricEntriesVisitor,
 };
 use moor_runtime_api::{
-    AuthToken, ClientToken, client_args::RpcClientArgs, mk_invoke_verb_msg,
-    mk_request_performance_counters_msg, read_reply_result,
+    AuthToken, ClientToken, api_codec::decode_metrics_reply, client_args::RpcClientArgs,
+    mk_invoke_verb_msg, mk_request_metrics_msg, read_reply_result,
 };
 use moor_schema::rpc as moor_rpc;
 use moor_var::{Obj, Symbol, Var, v_int};
@@ -323,7 +324,7 @@ async fn request_counters(
         None, // No CURVE encryption for load testing
     );
 
-    let request_msg = mk_request_performance_counters_msg();
+    let request_msg = mk_request_metrics_msg();
     let reply_bytes = rpc_client
         .make_host_rpc_call(host_id, request_msg)
         .await
@@ -331,12 +332,12 @@ async fn request_counters(
 
     let reply = read_reply_result(&reply_bytes)?;
 
-    let counters = match reply.result()? {
+    let metrics = match reply.result()? {
         moor_rpc::ReplyResultUnionRef::HostSuccess(host_success) => {
             let daemon_reply = host_success.reply()?;
             match daemon_reply.reply()? {
-                moor_rpc::DaemonToHostReplyUnionRef::DaemonToHostPerfCounters(perf_counters) => {
-                    perf_counters.counters()?
+                moor_rpc::DaemonToHostReplyUnionRef::DaemonToHostMetrics(reply) => {
+                    decode_metrics_reply(reply)?.1
                 }
                 other => panic!("Unexpected daemon reply: {other:?}"),
             }
@@ -344,25 +345,25 @@ async fn request_counters(
         other => panic!("Unexpected response from daemon: {other:?}"),
     };
 
-    // Build a map of maps for the counters.
-    let mut counters_map = HashMap::new();
-    for category in counters {
-        let category = category?;
-        let category_symbol = Symbol::mk(category.category()?.value()?);
-        let mut category_map = HashMap::new();
-
-        for counter in category.counters()? {
-            let counter = counter?;
-            let counter_name = Symbol::mk(counter.name()?.value()?);
-            let count = counter.count()? as isize;
-            let total = counter.total_cumulative_ns()? as isize;
-            category_map.insert(counter_name, (count, total));
-        }
-
-        counters_map.insert(category_symbol, category_map);
+    // Group families by the first part of their name (db, sched, bf, rpc, ...), and flatten each
+    // group to (count, estimated total nanoseconds) per operation.
+    let mut categories: HashMap<Symbol, MetricEntriesVisitor> = HashMap::new();
+    for family in &metrics.families {
+        let category = family.name.split('_').next().unwrap_or(&family.name);
+        family.visit_metrics(categories.entry(Symbol::mk(category)).or_default());
     }
 
-    Ok(counters_map)
+    Ok(categories
+        .into_iter()
+        .map(|(category, visitor)| {
+            let entries = visitor
+                .into_entries()
+                .into_iter()
+                .map(|(name, count, nanos)| (name, (count, nanos)))
+                .collect();
+            (category, entries)
+        })
+        .collect())
 }
 
 fn process_counters(

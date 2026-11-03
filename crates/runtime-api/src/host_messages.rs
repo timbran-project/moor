@@ -21,13 +21,11 @@ use crate::{
 use moor_schema::rpc;
 use uuid::Uuid;
 
-/// Build a RequestPerformanceCounters message
+/// Build a RequestMetrics message
 #[inline]
-pub fn mk_request_performance_counters_msg() -> rpc::HostToDaemonMessage {
+pub fn mk_request_metrics_msg() -> rpc::HostToDaemonMessage {
     rpc::HostToDaemonMessage {
-        message: rpc::HostToDaemonMessageUnion::RequestPerformanceCounters(Box::new(
-            rpc::RequestPerformanceCounters {},
-        )),
+        message: rpc::HostToDaemonMessageUnion::RequestMetrics(Box::new(rpc::RequestMetrics {})),
     }
 }
 

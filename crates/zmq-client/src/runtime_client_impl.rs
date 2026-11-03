@@ -34,11 +34,11 @@ use moor_runtime_api::{
     mk_host_pong_msg, mk_invoke_system_handler_msg, mk_invoke_verb_capture_msg, mk_invoke_verb_msg,
     mk_invoke_welcome_message_msg, mk_list_objects_msg, mk_login_command_msg, mk_out_of_band_msg,
     mk_program_msg, mk_properties_msg, mk_reattach_msg, mk_register_host_msg,
-    mk_request_current_presentations_msg, mk_request_history_msg,
-    mk_request_performance_counters_msg, mk_request_sys_prop_msg, mk_requested_input_msg,
-    mk_resolve_msg, mk_retrieve_msg, mk_set_client_attribute_msg, mk_set_event_log_pubkey_msg,
-    mk_update_property_msg, mk_verbs_msg, read_reply_result, rpc_message_error_from_ref,
-    scheduler_error_from_ref, uuid_fb, verb_program_error_from_ref,
+    mk_request_current_presentations_msg, mk_request_history_msg, mk_request_metrics_msg,
+    mk_request_sys_prop_msg, mk_requested_input_msg, mk_resolve_msg, mk_retrieve_msg,
+    mk_set_client_attribute_msg, mk_set_event_log_pubkey_msg, mk_update_property_msg, mk_verbs_msg,
+    read_reply_result, rpc_message_error_from_ref, scheduler_error_from_ref, uuid_fb,
+    verb_program_error_from_ref,
 };
 use moor_schema::{convert, rpc as moor_rpc};
 use moor_var::Var;
@@ -467,7 +467,7 @@ fn encode_host_request(host_id: Uuid, request: HostRequest) -> moor_rpc::HostToD
             mk_host_pong_msg(host_id, timestamp, &listener_kinds, listeners_fb)
         }
         HostRequest::DetachHost => mk_detach_host_msg(host_id),
-        HostRequest::RequestPerformanceCounters => mk_request_performance_counters_msg(),
+        HostRequest::RequestMetrics => mk_request_metrics_msg(),
         HostRequest::GetServerFeatures => mk_get_server_features_msg(),
         HostRequest::GetServerStatus => mk_get_server_status_msg(),
     }
@@ -1380,44 +1380,10 @@ fn decode_host_reply_ref(reply: moor_rpc::DaemonToHostReplyRef<'_>) -> Result<Ho
             let reason = reject.reason().unwrap_or("").to_string();
             HostReply::Reject { reason }
         }
-        U::DaemonToHostPerfCounters(pc) => {
-            let timestamp = pc.timestamp().unwrap_or(0);
-            let counters = pc
-                .counters()
-                .map_err(|e| RpcError::CouldNotDecode(format!("Missing counters: {e}")))?
-                .iter()
-                .filter_map(|c| c.ok())
-                .map(|c| {
-                    let category = c
-                        .category()
-                        .ok()
-                        .and_then(|s| s.value().ok().map(moor_var::Symbol::mk))
-                        .unwrap_or(moor_var::Symbol::mk(""));
-                    let counters = c
-                        .counters()
-                        .ok()
-                        .map(|cs| {
-                            cs.iter()
-                                .filter_map(|cn| cn.ok())
-                                .map(|cn| api::CounterSample {
-                                    name: cn
-                                        .name()
-                                        .ok()
-                                        .and_then(|s| s.value().ok().map(moor_var::Symbol::mk))
-                                        .unwrap_or(moor_var::Symbol::mk("")),
-                                    count: cn.count().unwrap_or(0),
-                                    total_cumulative_ns: cn.total_cumulative_ns().unwrap_or(0),
-                                })
-                                .collect()
-                        })
-                        .unwrap_or_default();
-                    api::CounterCategory { category, counters }
-                })
-                .collect();
-            HostReply::PerformanceCounters {
-                timestamp,
-                counters,
-            }
+        U::DaemonToHostMetrics(reply) => {
+            let (timestamp, metrics) = moor_runtime_api::api_codec::decode_metrics_reply(reply)
+                .map_err(|e| RpcError::CouldNotDecode(format!("Invalid metrics: {e}")))?;
+            HostReply::Metrics { timestamp, metrics }
         }
         U::ServerStatus(status) => HostReply::ServerStatus {
             connected_players: status.connected_players().map_err(|e| {

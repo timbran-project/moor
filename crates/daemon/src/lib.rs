@@ -59,6 +59,7 @@ pub mod connections;
 mod curve_keys;
 mod enrollment;
 mod event_log;
+mod metrics;
 mod metrics_file;
 mod rpc;
 mod runtime;

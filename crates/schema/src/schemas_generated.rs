@@ -48955,10 +48955,8 @@ mod root {
             /// The variant of type `DetachHost` in the union `HostToDaemonMessageUnion`
             DetachHost(::planus::alloc::boxed::Box<self::DetachHost>),
 
-            /// The variant of type `RequestPerformanceCounters` in the union `HostToDaemonMessageUnion`
-            RequestPerformanceCounters(
-                ::planus::alloc::boxed::Box<self::RequestPerformanceCounters>,
-            ),
+            /// The variant of type `RequestMetrics` in the union `HostToDaemonMessageUnion`
+            RequestMetrics(::planus::alloc::boxed::Box<self::RequestMetrics>),
 
             /// The variant of type `HostPong` in the union `HostToDaemonMessageUnion`
             HostPong(::planus::alloc::boxed::Box<self::HostPong>),
@@ -48994,9 +48992,9 @@ mod root {
             }
 
             #[inline]
-            pub fn create_request_performance_counters(
+            pub fn create_request_metrics(
                 builder: &mut ::planus::Builder,
-                value: impl ::planus::WriteAsOffset<self::RequestPerformanceCounters>,
+                value: impl ::planus::WriteAsOffset<self::RequestMetrics>,
             ) -> ::planus::UnionOffset<Self> {
                 ::planus::UnionOffset::new(3, value.prepare(builder).downcast())
             }
@@ -49032,9 +49030,7 @@ mod root {
                 match self {
                     Self::RegisterHost(value) => Self::create_register_host(builder, value),
                     Self::DetachHost(value) => Self::create_detach_host(builder, value),
-                    Self::RequestPerformanceCounters(value) => {
-                        Self::create_request_performance_counters(builder, value)
-                    }
+                    Self::RequestMetrics(value) => Self::create_request_metrics(builder, value),
                     Self::HostPong(value) => Self::create_host_pong(builder, value),
                     Self::GetServerFeatures(value) => {
                         Self::create_get_server_features(builder, value)
@@ -49086,14 +49082,14 @@ mod root {
                 HostToDaemonMessageUnionBuilder(::planus::Initialized(value))
             }
 
-            /// Creates an instance of the [`RequestPerformanceCounters` variant](HostToDaemonMessageUnion#variant.RequestPerformanceCounters).
+            /// Creates an instance of the [`RequestMetrics` variant](HostToDaemonMessageUnion#variant.RequestMetrics).
             #[inline]
-            pub fn request_performance_counters<T>(
+            pub fn request_metrics<T>(
                 self,
                 value: T,
             ) -> HostToDaemonMessageUnionBuilder<::planus::Initialized<3, T>>
             where
-                T: ::planus::WriteAsOffset<self::RequestPerformanceCounters>,
+                T: ::planus::WriteAsOffset<self::RequestMetrics>,
             {
                 HostToDaemonMessageUnionBuilder(::planus::Initialized(value))
             }
@@ -49208,7 +49204,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<HostToDaemonMessageUnion>
             for HostToDaemonMessageUnionBuilder<::planus::Initialized<3, T>>
         where
-            T: ::planus::WriteAsOffset<self::RequestPerformanceCounters>,
+            T: ::planus::WriteAsOffset<self::RequestMetrics>,
         {
             #[inline]
             fn prepare(
@@ -49222,7 +49218,7 @@ mod root {
         impl<T> ::planus::WriteAsOptionalUnion<HostToDaemonMessageUnion>
             for HostToDaemonMessageUnionBuilder<::planus::Initialized<3, T>>
         where
-            T: ::planus::WriteAsOffset<self::RequestPerformanceCounters>,
+            T: ::planus::WriteAsOffset<self::RequestMetrics>,
         {
             #[inline]
             fn prepare(
@@ -49323,7 +49319,7 @@ mod root {
         pub enum HostToDaemonMessageUnionRef<'a> {
             RegisterHost(self::RegisterHostRef<'a>),
             DetachHost(self::DetachHostRef<'a>),
-            RequestPerformanceCounters(self::RequestPerformanceCountersRef<'a>),
+            RequestMetrics(self::RequestMetricsRef<'a>),
             HostPong(self::HostPongRef<'a>),
             GetServerFeatures(self::GetServerFeaturesRef<'a>),
             GetServerStatus(self::GetServerStatusRef<'a>),
@@ -49346,8 +49342,8 @@ mod root {
                         ))
                     }
 
-                    HostToDaemonMessageUnionRef::RequestPerformanceCounters(value) => {
-                        Self::RequestPerformanceCounters(::planus::alloc::boxed::Box::new(
+                    HostToDaemonMessageUnionRef::RequestMetrics(value) => {
+                        Self::RequestMetrics(::planus::alloc::boxed::Box::new(
                             ::core::convert::TryFrom::try_from(value)?,
                         ))
                     }
@@ -49386,7 +49382,7 @@ mod root {
                     2 => ::core::result::Result::Ok(Self::DetachHost(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    3 => ::core::result::Result::Ok(Self::RequestPerformanceCounters(
+                    3 => ::core::result::Result::Ok(Self::RequestMetrics(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
                     4 => ::core::result::Result::Ok(Self::HostPong(
@@ -50047,10 +50043,10 @@ mod root {
             }
         }
 
-        /// The table `RequestPerformanceCounters` in the namespace `MoorRpc`
+        /// The table `RequestMetrics` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RequestPerformanceCounters` in the file `moor_rpc.fbs:394`
+        /// * Table `RequestMetrics` in the file `moor_rpc.fbs:395`
         #[derive(
             Clone,
             Debug,
@@ -50062,20 +50058,20 @@ mod root {
             ::serde::Serialize,
             ::serde::Deserialize,
         )]
-        pub struct RequestPerformanceCounters {}
+        pub struct RequestMetrics {}
 
         #[allow(clippy::derivable_impls)]
-        impl ::core::default::Default for RequestPerformanceCounters {
+        impl ::core::default::Default for RequestMetrics {
             fn default() -> Self {
                 Self {}
             }
         }
 
-        impl RequestPerformanceCounters {
-            /// Creates a [RequestPerformanceCountersBuilder] for serializing an instance of this table.
+        impl RequestMetrics {
+            /// Creates a [RequestMetricsBuilder] for serializing an instance of this table.
             #[inline]
-            pub fn builder() -> RequestPerformanceCountersBuilder<()> {
-                RequestPerformanceCountersBuilder(())
+            pub fn builder() -> RequestMetricsBuilder<()> {
+                RequestMetricsBuilder(())
             }
 
             #[allow(clippy::too_many_arguments)]
@@ -50089,130 +50085,103 @@ mod root {
             }
         }
 
-        impl ::planus::WriteAs<::planus::Offset<RequestPerformanceCounters>>
-            for RequestPerformanceCounters
-        {
+        impl ::planus::WriteAs<::planus::Offset<RequestMetrics>> for RequestMetrics {
             type Prepared = ::planus::Offset<Self>;
 
             #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<RequestPerformanceCounters> {
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<RequestMetrics> {
                 ::planus::WriteAsOffset::prepare(self, builder)
             }
         }
 
-        impl ::planus::WriteAsOptional<::planus::Offset<RequestPerformanceCounters>>
-            for RequestPerformanceCounters
-        {
+        impl ::planus::WriteAsOptional<::planus::Offset<RequestMetrics>> for RequestMetrics {
             type Prepared = ::planus::Offset<Self>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<RequestPerformanceCounters>> {
+            ) -> ::core::option::Option<::planus::Offset<RequestMetrics>> {
                 ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
             }
         }
 
-        impl ::planus::WriteAsOffset<RequestPerformanceCounters> for RequestPerformanceCounters {
+        impl ::planus::WriteAsOffset<RequestMetrics> for RequestMetrics {
             #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<RequestPerformanceCounters> {
-                RequestPerformanceCounters::create(builder)
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<RequestMetrics> {
+                RequestMetrics::create(builder)
             }
         }
 
-        /// Builder for serializing an instance of the [RequestPerformanceCounters] type.
+        /// Builder for serializing an instance of the [RequestMetrics] type.
         ///
-        /// Can be created using the [RequestPerformanceCounters::builder] method.
+        /// Can be created using the [RequestMetrics::builder] method.
         #[derive(Debug)]
         #[must_use]
-        pub struct RequestPerformanceCountersBuilder<State>(State);
+        pub struct RequestMetricsBuilder<State>(State);
 
-        impl RequestPerformanceCountersBuilder<()> {
-            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [RequestPerformanceCounters].
+        impl RequestMetricsBuilder<()> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [RequestMetrics].
             #[inline]
-            pub fn finish(
-                self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<RequestPerformanceCounters>
+            pub fn finish(self, builder: &mut ::planus::Builder) -> ::planus::Offset<RequestMetrics>
             where
-                Self: ::planus::WriteAsOffset<RequestPerformanceCounters>,
+                Self: ::planus::WriteAsOffset<RequestMetrics>,
             {
                 ::planus::WriteAsOffset::prepare(&self, builder)
             }
         }
 
-        impl ::planus::WriteAs<::planus::Offset<RequestPerformanceCounters>>
-            for RequestPerformanceCountersBuilder<()>
-        {
-            type Prepared = ::planus::Offset<RequestPerformanceCounters>;
+        impl ::planus::WriteAs<::planus::Offset<RequestMetrics>> for RequestMetricsBuilder<()> {
+            type Prepared = ::planus::Offset<RequestMetrics>;
 
             #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<RequestPerformanceCounters> {
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<RequestMetrics> {
                 ::planus::WriteAsOffset::prepare(self, builder)
             }
         }
 
-        impl ::planus::WriteAsOptional<::planus::Offset<RequestPerformanceCounters>>
-            for RequestPerformanceCountersBuilder<()>
-        {
-            type Prepared = ::planus::Offset<RequestPerformanceCounters>;
+        impl ::planus::WriteAsOptional<::planus::Offset<RequestMetrics>> for RequestMetricsBuilder<()> {
+            type Prepared = ::planus::Offset<RequestMetrics>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<RequestPerformanceCounters>> {
+            ) -> ::core::option::Option<::planus::Offset<RequestMetrics>> {
                 ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
             }
         }
 
-        impl ::planus::WriteAsOffset<RequestPerformanceCounters> for RequestPerformanceCountersBuilder<()> {
+        impl ::planus::WriteAsOffset<RequestMetrics> for RequestMetricsBuilder<()> {
             #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<RequestPerformanceCounters> {
-                RequestPerformanceCounters::create(builder)
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<RequestMetrics> {
+                RequestMetrics::create(builder)
             }
         }
 
-        /// Reference to a deserialized [RequestPerformanceCounters].
+        /// Reference to a deserialized [RequestMetrics].
         #[derive(Copy, Clone)]
-        pub struct RequestPerformanceCountersRef<'a>(
-            #[allow(dead_code)] ::planus::table_reader::Table<'a>,
-        );
+        pub struct RequestMetricsRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
 
-        impl<'a> RequestPerformanceCountersRef<'a> {}
+        impl<'a> RequestMetricsRef<'a> {}
 
-        impl<'a> ::core::fmt::Debug for RequestPerformanceCountersRef<'a> {
+        impl<'a> ::core::fmt::Debug for RequestMetricsRef<'a> {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                let mut f = f.debug_struct("RequestPerformanceCountersRef");
+                let mut f = f.debug_struct("RequestMetricsRef");
 
                 f.finish()
             }
         }
 
-        impl<'a> ::core::convert::TryFrom<RequestPerformanceCountersRef<'a>>
-            for RequestPerformanceCounters
-        {
+        impl<'a> ::core::convert::TryFrom<RequestMetricsRef<'a>> for RequestMetrics {
             type Error = ::planus::Error;
 
-            fn try_from(_value: RequestPerformanceCountersRef<'a>) -> ::planus::Result<Self> {
+            fn try_from(_value: RequestMetricsRef<'a>) -> ::planus::Result<Self> {
                 ::core::result::Result::Ok(Self {})
             }
         }
 
-        impl<'a> ::planus::TableRead<'a> for RequestPerformanceCountersRef<'a> {
+        impl<'a> ::planus::TableRead<'a> for RequestMetricsRef<'a> {
             #[inline]
             fn from_buffer(
                 buffer: ::planus::SliceWithStartOffset<'a>,
@@ -50224,7 +50193,7 @@ mod root {
             }
         }
 
-        impl<'a> ::planus::VectorReadInner<'a> for RequestPerformanceCountersRef<'a> {
+        impl<'a> ::planus::VectorReadInner<'a> for RequestMetricsRef<'a> {
             type Error = ::planus::Error;
             const STRIDE: usize = 4;
 
@@ -50234,7 +50203,7 @@ mod root {
             ) -> ::planus::Result<Self> {
                 ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
                     error_kind.with_error_location(
-                        "[RequestPerformanceCountersRef]",
+                        "[RequestMetricsRef]",
                         "get",
                         buffer.offset_from_start,
                     )
@@ -50245,10 +50214,8 @@ mod root {
         /// # Safety
         /// The planus compiler generates implementations that initialize
         /// the bytes in `write_values`.
-        unsafe impl ::planus::VectorWrite<::planus::Offset<RequestPerformanceCounters>>
-            for RequestPerformanceCounters
-        {
-            type Value = ::planus::Offset<RequestPerformanceCounters>;
+        unsafe impl ::planus::VectorWrite<::planus::Offset<RequestMetrics>> for RequestMetrics {
+            type Value = ::planus::Offset<RequestMetrics>;
             const STRIDE: usize = 4;
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
@@ -50257,7 +50224,7 @@ mod root {
 
             #[inline]
             unsafe fn write_values(
-                values: &[::planus::Offset<RequestPerformanceCounters>],
+                values: &[::planus::Offset<RequestMetrics>],
                 bytes: *mut ::core::mem::MaybeUninit<u8>,
                 buffer_position: u32,
             ) {
@@ -50272,7 +50239,7 @@ mod root {
             }
         }
 
-        impl<'a> ::planus::ReadAsRoot<'a> for RequestPerformanceCountersRef<'a> {
+        impl<'a> ::planus::ReadAsRoot<'a> for RequestMetricsRef<'a> {
             fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
                 ::planus::TableRead::from_buffer(
                     ::planus::SliceWithStartOffset {
@@ -50282,11 +50249,7 @@ mod root {
                     0,
                 )
                 .map_err(|error_kind| {
-                    error_kind.with_error_location(
-                        "[RequestPerformanceCountersRef]",
-                        "read_as_root",
-                        0,
-                    )
+                    error_kind.with_error_location("[RequestMetricsRef]", "read_as_root", 0)
                 })
             }
         }
@@ -50294,7 +50257,7 @@ mod root {
         /// The table `GetServerFeatures` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `GetServerFeatures` in the file `moor_rpc.fbs:397`
+        /// * Table `GetServerFeatures` in the file `moor_rpc.fbs:398`
         #[derive(
             Clone,
             Debug,
@@ -50522,7 +50485,7 @@ mod root {
         /// The table `HostPong` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostPong` in the file `moor_rpc.fbs:400`
+        /// * Table `HostPong` in the file `moor_rpc.fbs:401`
         #[derive(
             Clone,
             Debug,
@@ -50896,7 +50859,7 @@ mod root {
         /// The table `Listener` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Listener` in the file `moor_rpc.fbs:407`
+        /// * Table `Listener` in the file `moor_rpc.fbs:408`
         #[derive(
             Clone,
             Debug,
@@ -51201,7 +51164,7 @@ mod root {
         /// The table `HostToDaemonMessage` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostToDaemonMessage` in the file `moor_rpc.fbs:413`
+        /// * Table `HostToDaemonMessage` in the file `moor_rpc.fbs:414`
         #[derive(
             Clone,
             Debug,
@@ -51467,18 +51430,8 @@ mod root {
         /// The union `DaemonToHostReplyUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `DaemonToHostReplyUnion` in the file `moor_rpc.fbs:421`
-        #[derive(
-            Clone,
-            Debug,
-            PartialEq,
-            PartialOrd,
-            Eq,
-            Ord,
-            Hash,
-            ::serde::Serialize,
-            ::serde::Deserialize,
-        )]
+        /// * Union `DaemonToHostReplyUnion` in the file `moor_rpc.fbs:422`
+        #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum DaemonToHostReplyUnion {
             /// The variant of type `DaemonToHostAck` in the union `DaemonToHostReplyUnion`
             DaemonToHostAck(::planus::alloc::boxed::Box<self::DaemonToHostAck>),
@@ -51486,8 +51439,8 @@ mod root {
             /// The variant of type `DaemonToHostReject` in the union `DaemonToHostReplyUnion`
             DaemonToHostReject(::planus::alloc::boxed::Box<self::DaemonToHostReject>),
 
-            /// The variant of type `DaemonToHostPerfCounters` in the union `DaemonToHostReplyUnion`
-            DaemonToHostPerfCounters(::planus::alloc::boxed::Box<self::DaemonToHostPerfCounters>),
+            /// The variant of type `DaemonToHostMetrics` in the union `DaemonToHostReplyUnion`
+            DaemonToHostMetrics(::planus::alloc::boxed::Box<self::DaemonToHostMetrics>),
 
             /// The variant of type `ServerFeatures` in the union `DaemonToHostReplyUnion`
             ServerFeatures(::planus::alloc::boxed::Box<self::ServerFeatures>),
@@ -51520,9 +51473,9 @@ mod root {
             }
 
             #[inline]
-            pub fn create_daemon_to_host_perf_counters(
+            pub fn create_daemon_to_host_metrics(
                 builder: &mut ::planus::Builder,
-                value: impl ::planus::WriteAsOffset<self::DaemonToHostPerfCounters>,
+                value: impl ::planus::WriteAsOffset<self::DaemonToHostMetrics>,
             ) -> ::planus::UnionOffset<Self> {
                 ::planus::UnionOffset::new(3, value.prepare(builder).downcast())
             }
@@ -51552,8 +51505,8 @@ mod root {
                     Self::DaemonToHostReject(value) => {
                         Self::create_daemon_to_host_reject(builder, value)
                     }
-                    Self::DaemonToHostPerfCounters(value) => {
-                        Self::create_daemon_to_host_perf_counters(builder, value)
+                    Self::DaemonToHostMetrics(value) => {
+                        Self::create_daemon_to_host_metrics(builder, value)
                     }
                     Self::ServerFeatures(value) => Self::create_server_features(builder, value),
                     Self::ServerStatus(value) => Self::create_server_status(builder, value),
@@ -51603,14 +51556,14 @@ mod root {
                 DaemonToHostReplyUnionBuilder(::planus::Initialized(value))
             }
 
-            /// Creates an instance of the [`DaemonToHostPerfCounters` variant](DaemonToHostReplyUnion#variant.DaemonToHostPerfCounters).
+            /// Creates an instance of the [`DaemonToHostMetrics` variant](DaemonToHostReplyUnion#variant.DaemonToHostMetrics).
             #[inline]
-            pub fn daemon_to_host_perf_counters<T>(
+            pub fn daemon_to_host_metrics<T>(
                 self,
                 value: T,
             ) -> DaemonToHostReplyUnionBuilder<::planus::Initialized<3, T>>
             where
-                T: ::planus::WriteAsOffset<self::DaemonToHostPerfCounters>,
+                T: ::planus::WriteAsOffset<self::DaemonToHostMetrics>,
             {
                 DaemonToHostReplyUnionBuilder(::planus::Initialized(value))
             }
@@ -51711,7 +51664,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<DaemonToHostReplyUnion>
             for DaemonToHostReplyUnionBuilder<::planus::Initialized<3, T>>
         where
-            T: ::planus::WriteAsOffset<self::DaemonToHostPerfCounters>,
+            T: ::planus::WriteAsOffset<self::DaemonToHostMetrics>,
         {
             #[inline]
             fn prepare(
@@ -51725,7 +51678,7 @@ mod root {
         impl<T> ::planus::WriteAsOptionalUnion<DaemonToHostReplyUnion>
             for DaemonToHostReplyUnionBuilder<::planus::Initialized<3, T>>
         where
-            T: ::planus::WriteAsOffset<self::DaemonToHostPerfCounters>,
+            T: ::planus::WriteAsOffset<self::DaemonToHostMetrics>,
         {
             #[inline]
             fn prepare(
@@ -51795,7 +51748,7 @@ mod root {
         pub enum DaemonToHostReplyUnionRef<'a> {
             DaemonToHostAck(self::DaemonToHostAckRef<'a>),
             DaemonToHostReject(self::DaemonToHostRejectRef<'a>),
-            DaemonToHostPerfCounters(self::DaemonToHostPerfCountersRef<'a>),
+            DaemonToHostMetrics(self::DaemonToHostMetricsRef<'a>),
             ServerFeatures(self::ServerFeaturesRef<'a>),
             ServerStatus(self::ServerStatusRef<'a>),
         }
@@ -51817,8 +51770,8 @@ mod root {
                         ))
                     }
 
-                    DaemonToHostReplyUnionRef::DaemonToHostPerfCounters(value) => {
-                        Self::DaemonToHostPerfCounters(::planus::alloc::boxed::Box::new(
+                    DaemonToHostReplyUnionRef::DaemonToHostMetrics(value) => {
+                        Self::DaemonToHostMetrics(::planus::alloc::boxed::Box::new(
                             ::core::convert::TryFrom::try_from(value)?,
                         ))
                     }
@@ -51851,7 +51804,7 @@ mod root {
                     2 => ::core::result::Result::Ok(Self::DaemonToHostReject(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    3 => ::core::result::Result::Ok(Self::DaemonToHostPerfCounters(
+                    3 => ::core::result::Result::Ok(Self::DaemonToHostMetrics(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
                     4 => ::core::result::Result::Ok(Self::ServerFeatures(
@@ -51876,7 +51829,7 @@ mod root {
         /// The table `DaemonToHostAck` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DaemonToHostAck` in the file `moor_rpc.fbs:429`
+        /// * Table `DaemonToHostAck` in the file `moor_rpc.fbs:430`
         #[derive(
             Clone,
             Debug,
@@ -52102,7 +52055,7 @@ mod root {
         /// The table `DaemonToHostReject` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DaemonToHostReject` in the file `moor_rpc.fbs:432`
+        /// * Table `DaemonToHostReject` in the file `moor_rpc.fbs:433`
         #[derive(
             Clone,
             Debug,
@@ -52369,307 +52322,145 @@ mod root {
             }
         }
 
-        /// The table `Counter` in the namespace `MoorRpc`
+        /// The enum `MetricKind` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Counter` in the file `moor_rpc.fbs:436`
+        /// * Enum `MetricKind` in the file `moor_rpc.fbs:439`
         #[derive(
+            Copy,
             Clone,
             Debug,
             PartialEq,
-            PartialOrd,
             Eq,
+            PartialOrd,
             Ord,
             Hash,
             ::serde::Serialize,
             ::serde::Deserialize,
         )]
-        pub struct Counter {
-            /// The field `name` in the table `Counter`
-            pub name: ::planus::alloc::boxed::Box<super::moor_common::Symbol>,
-            /// The field `count` in the table `Counter`
-            pub count: i64,
-            /// The field `total_cumulative_ns` in the table `Counter`
-            pub total_cumulative_ns: i64,
+        #[repr(u8)]
+        pub enum MetricKind {
+            /// The variant `Counter` in the enum `MetricKind`
+            Counter = 0,
+
+            /// The variant `Gauge` in the enum `MetricKind`
+            Gauge = 1,
+
+            /// The variant `Histogram` in the enum `MetricKind`
+            Histogram = 2,
         }
 
-        #[allow(clippy::derivable_impls)]
-        impl ::core::default::Default for Counter {
-            fn default() -> Self {
-                Self {
-                    name: ::core::default::Default::default(),
-                    count: 0,
-                    total_cumulative_ns: 0,
-                }
-            }
+        impl MetricKind {
+            /// Array containing all valid variants of MetricKind
+            pub const ENUM_VALUES: [Self; 3] = [Self::Counter, Self::Gauge, Self::Histogram];
         }
 
-        impl Counter {
-            /// Creates a [CounterBuilder] for serializing an instance of this table.
+        impl ::core::convert::TryFrom<u8> for MetricKind {
+            type Error = ::planus::errors::UnknownEnumTagKind;
             #[inline]
-            pub fn builder() -> CounterBuilder<()> {
-                CounterBuilder(())
-            }
+            fn try_from(
+                value: u8,
+            ) -> ::core::result::Result<Self, ::planus::errors::UnknownEnumTagKind> {
+                #[allow(clippy::match_single_binding)]
+                match value {
+                    0 => ::core::result::Result::Ok(MetricKind::Counter),
+                    1 => ::core::result::Result::Ok(MetricKind::Gauge),
+                    2 => ::core::result::Result::Ok(MetricKind::Histogram),
 
-            #[allow(clippy::too_many_arguments)]
-            pub fn create(
-                builder: &mut ::planus::Builder,
-                field_name: impl ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                field_count: impl ::planus::WriteAsDefault<i64, i64>,
-                field_total_cumulative_ns: impl ::planus::WriteAsDefault<i64, i64>,
-            ) -> ::planus::Offset<Self> {
-                let prepared_name = field_name.prepare(builder);
-                let prepared_count = field_count.prepare(builder, &0);
-                let prepared_total_cumulative_ns = field_total_cumulative_ns.prepare(builder, &0);
-
-                let mut table_writer: ::planus::table_writer::TableWriter<10> =
-                    ::core::default::Default::default();
-                if prepared_count.is_some() {
-                    table_writer.write_entry::<i64>(1);
+                    _ => ::core::result::Result::Err(::planus::errors::UnknownEnumTagKind {
+                        tag: value as i128,
+                    }),
                 }
-                if prepared_total_cumulative_ns.is_some() {
-                    table_writer.write_entry::<i64>(2);
-                }
-                table_writer.write_entry::<::planus::Offset<super::moor_common::Symbol>>(0);
-
-                unsafe {
-                    table_writer.finish(builder, |object_writer| {
-                        if let ::core::option::Option::Some(prepared_count) = prepared_count {
-                            object_writer.write::<_, _, 8>(&prepared_count);
-                        }
-                        if let ::core::option::Option::Some(prepared_total_cumulative_ns) =
-                            prepared_total_cumulative_ns
-                        {
-                            object_writer.write::<_, _, 8>(&prepared_total_cumulative_ns);
-                        }
-                        object_writer.write::<_, _, 4>(&prepared_name);
-                    });
-                }
-                builder.current_offset()
             }
         }
 
-        impl ::planus::WriteAs<::planus::Offset<Counter>> for Counter {
-            type Prepared = ::planus::Offset<Self>;
+        impl ::core::convert::From<MetricKind> for u8 {
+            #[inline]
+            fn from(value: MetricKind) -> Self {
+                value as u8
+            }
+        }
+
+        /// # Safety
+        /// The Planus compiler correctly calculates `ALIGNMENT` and `SIZE`.
+        unsafe impl ::planus::Primitive for MetricKind {
+            const ALIGNMENT: usize = 1;
+            const SIZE: usize = 1;
+        }
+
+        impl ::planus::WriteAsPrimitive<MetricKind> for MetricKind {
+            #[inline]
+            fn write<const N: usize>(&self, cursor: ::planus::Cursor<'_, N>, buffer_position: u32) {
+                (*self as u8).write(cursor, buffer_position);
+            }
+        }
+
+        impl ::planus::WriteAs<MetricKind> for MetricKind {
+            type Prepared = Self;
 
             #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<Counter> {
-                ::planus::WriteAsOffset::prepare(self, builder)
+            fn prepare(&self, _builder: &mut ::planus::Builder) -> MetricKind {
+                *self
             }
         }
 
-        impl ::planus::WriteAsOptional<::planus::Offset<Counter>> for Counter {
-            type Prepared = ::planus::Offset<Self>;
+        impl ::planus::WriteAsDefault<MetricKind, MetricKind> for MetricKind {
+            type Prepared = Self;
 
             #[inline]
             fn prepare(
                 &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<Counter>> {
-                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+                _builder: &mut ::planus::Builder,
+                default: &MetricKind,
+            ) -> ::core::option::Option<MetricKind> {
+                if self == default {
+                    ::core::option::Option::None
+                } else {
+                    ::core::option::Option::Some(*self)
+                }
             }
         }
 
-        impl ::planus::WriteAsOffset<Counter> for Counter {
-            #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<Counter> {
-                Counter::create(builder, &self.name, self.count, self.total_cumulative_ns)
-            }
-        }
-
-        /// Builder for serializing an instance of the [Counter] type.
-        ///
-        /// Can be created using the [Counter::builder] method.
-        #[derive(Debug)]
-        #[must_use]
-        pub struct CounterBuilder<State>(State);
-
-        impl CounterBuilder<()> {
-            /// Setter for the [`name` field](Counter#structfield.name).
-            #[inline]
-            #[allow(clippy::type_complexity)]
-            pub fn name<T0>(self, value: T0) -> CounterBuilder<(T0,)>
-            where
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            {
-                CounterBuilder((value,))
-            }
-        }
-
-        impl<T0> CounterBuilder<(T0,)> {
-            /// Setter for the [`count` field](Counter#structfield.count).
-            #[inline]
-            #[allow(clippy::type_complexity)]
-            pub fn count<T1>(self, value: T1) -> CounterBuilder<(T0, T1)>
-            where
-                T1: ::planus::WriteAsDefault<i64, i64>,
-            {
-                let (v0,) = self.0;
-                CounterBuilder((v0, value))
-            }
-
-            /// Sets the [`count` field](Counter#structfield.count) to the default value.
-            #[inline]
-            #[allow(clippy::type_complexity)]
-            pub fn count_as_default(self) -> CounterBuilder<(T0, ::planus::DefaultValue)> {
-                self.count(::planus::DefaultValue)
-            }
-        }
-
-        impl<T0, T1> CounterBuilder<(T0, T1)> {
-            /// Setter for the [`total_cumulative_ns` field](Counter#structfield.total_cumulative_ns).
-            #[inline]
-            #[allow(clippy::type_complexity)]
-            pub fn total_cumulative_ns<T2>(self, value: T2) -> CounterBuilder<(T0, T1, T2)>
-            where
-                T2: ::planus::WriteAsDefault<i64, i64>,
-            {
-                let (v0, v1) = self.0;
-                CounterBuilder((v0, v1, value))
-            }
-
-            /// Sets the [`total_cumulative_ns` field](Counter#structfield.total_cumulative_ns) to the default value.
-            #[inline]
-            #[allow(clippy::type_complexity)]
-            pub fn total_cumulative_ns_as_default(
-                self,
-            ) -> CounterBuilder<(T0, T1, ::planus::DefaultValue)> {
-                self.total_cumulative_ns(::planus::DefaultValue)
-            }
-        }
-
-        impl<T0, T1, T2> CounterBuilder<(T0, T1, T2)> {
-            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [Counter].
-            #[inline]
-            pub fn finish(self, builder: &mut ::planus::Builder) -> ::planus::Offset<Counter>
-            where
-                Self: ::planus::WriteAsOffset<Counter>,
-            {
-                ::planus::WriteAsOffset::prepare(&self, builder)
-            }
-        }
-
-        impl<
-            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            T1: ::planus::WriteAsDefault<i64, i64>,
-            T2: ::planus::WriteAsDefault<i64, i64>,
-        > ::planus::WriteAs<::planus::Offset<Counter>> for CounterBuilder<(T0, T1, T2)>
-        {
-            type Prepared = ::planus::Offset<Counter>;
-
-            #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<Counter> {
-                ::planus::WriteAsOffset::prepare(self, builder)
-            }
-        }
-
-        impl<
-            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            T1: ::planus::WriteAsDefault<i64, i64>,
-            T2: ::planus::WriteAsDefault<i64, i64>,
-        > ::planus::WriteAsOptional<::planus::Offset<Counter>> for CounterBuilder<(T0, T1, T2)>
-        {
-            type Prepared = ::planus::Offset<Counter>;
+        impl ::planus::WriteAsOptional<MetricKind> for MetricKind {
+            type Prepared = Self;
 
             #[inline]
             fn prepare(
                 &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<Counter>> {
-                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+                _builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<MetricKind> {
+                ::core::option::Option::Some(*self)
             }
         }
 
-        impl<
-            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            T1: ::planus::WriteAsDefault<i64, i64>,
-            T2: ::planus::WriteAsDefault<i64, i64>,
-        > ::planus::WriteAsOffset<Counter> for CounterBuilder<(T0, T1, T2)>
-        {
-            #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<Counter> {
-                let (v0, v1, v2) = &self.0;
-                Counter::create(builder, v0, v1, v2)
-            }
-        }
-
-        /// Reference to a deserialized [Counter].
-        #[derive(Copy, Clone)]
-        pub struct CounterRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
-
-        impl<'a> CounterRef<'a> {
-            /// Getter for the [`name` field](Counter#structfield.name).
-            #[inline]
-            pub fn name(&self) -> ::planus::Result<super::moor_common::SymbolRef<'a>> {
-                self.0.access_required(0, "Counter", "name")
-            }
-
-            /// Getter for the [`count` field](Counter#structfield.count).
-            #[inline]
-            pub fn count(&self) -> ::planus::Result<i64> {
-                ::core::result::Result::Ok(self.0.access(1, "Counter", "count")?.unwrap_or(0))
-            }
-
-            /// Getter for the [`total_cumulative_ns` field](Counter#structfield.total_cumulative_ns).
-            #[inline]
-            pub fn total_cumulative_ns(&self) -> ::planus::Result<i64> {
-                ::core::result::Result::Ok(
-                    self.0
-                        .access(2, "Counter", "total_cumulative_ns")?
-                        .unwrap_or(0),
-                )
-            }
-        }
-
-        impl<'a> ::core::fmt::Debug for CounterRef<'a> {
-            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                let mut f = f.debug_struct("CounterRef");
-                f.field("name", &self.name());
-                f.field("count", &self.count());
-                f.field("total_cumulative_ns", &self.total_cumulative_ns());
-                f.finish()
-            }
-        }
-
-        impl<'a> ::core::convert::TryFrom<CounterRef<'a>> for Counter {
-            type Error = ::planus::Error;
-
-            #[allow(unreachable_code)]
-            fn try_from(value: CounterRef<'a>) -> ::planus::Result<Self> {
-                ::core::result::Result::Ok(Self {
-                    name: ::planus::alloc::boxed::Box::new(::core::convert::TryInto::try_into(
-                        value.name()?,
-                    )?),
-                    count: ::core::convert::TryInto::try_into(value.count()?)?,
-                    total_cumulative_ns: ::core::convert::TryInto::try_into(
-                        value.total_cumulative_ns()?,
-                    )?,
-                })
-            }
-        }
-
-        impl<'a> ::planus::TableRead<'a> for CounterRef<'a> {
+        impl<'buf> ::planus::TableRead<'buf> for MetricKind {
             #[inline]
             fn from_buffer(
-                buffer: ::planus::SliceWithStartOffset<'a>,
+                buffer: ::planus::SliceWithStartOffset<'buf>,
                 offset: usize,
             ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
-                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
-                    buffer, offset,
-                )?))
+                let n: u8 = ::planus::TableRead::from_buffer(buffer, offset)?;
+                ::core::result::Result::Ok(::core::convert::TryInto::try_into(n)?)
             }
         }
 
-        impl<'a> ::planus::VectorReadInner<'a> for CounterRef<'a> {
-            type Error = ::planus::Error;
-            const STRIDE: usize = 4;
-
+        impl<'buf> ::planus::VectorReadInner<'buf> for MetricKind {
+            type Error = ::planus::errors::UnknownEnumTag;
+            const STRIDE: usize = 1;
+            #[inline]
             unsafe fn from_buffer(
-                buffer: ::planus::SliceWithStartOffset<'a>,
+                buffer: ::planus::SliceWithStartOffset<'buf>,
                 offset: usize,
-            ) -> ::planus::Result<Self> {
-                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
-                    error_kind.with_error_location("[CounterRef]", "get", buffer.offset_from_start)
+            ) -> ::core::result::Result<Self, ::planus::errors::UnknownEnumTag> {
+                let value = unsafe { *buffer.buffer.get_unchecked(offset) };
+                let value: ::core::result::Result<Self, _> =
+                    ::core::convert::TryInto::try_into(value);
+                value.map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "MetricKind",
+                        "VectorRead::from_buffer",
+                        buffer.offset_from_start,
+                    )
                 })
             }
         }
@@ -52677,50 +52468,37 @@ mod root {
         /// # Safety
         /// The planus compiler generates implementations that initialize
         /// the bytes in `write_values`.
-        unsafe impl ::planus::VectorWrite<::planus::Offset<Counter>> for Counter {
-            type Value = ::planus::Offset<Counter>;
-            const STRIDE: usize = 4;
+        unsafe impl ::planus::VectorWrite<MetricKind> for MetricKind {
+            const STRIDE: usize = 1;
+
+            type Value = Self;
+
             #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
-                ::planus::WriteAs::prepare(self, builder)
+            fn prepare(&self, _builder: &mut ::planus::Builder) -> Self {
+                *self
             }
 
             #[inline]
             unsafe fn write_values(
-                values: &[::planus::Offset<Counter>],
+                values: &[Self],
                 bytes: *mut ::core::mem::MaybeUninit<u8>,
                 buffer_position: u32,
             ) {
-                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 1];
                 for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
                     ::planus::WriteAsPrimitive::write(
                         v,
                         ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
-                        buffer_position - (Self::STRIDE * i) as u32,
+                        buffer_position - i as u32,
                     );
                 }
             }
         }
 
-        impl<'a> ::planus::ReadAsRoot<'a> for CounterRef<'a> {
-            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
-                ::planus::TableRead::from_buffer(
-                    ::planus::SliceWithStartOffset {
-                        buffer: slice,
-                        offset_from_start: 0,
-                    },
-                    0,
-                )
-                .map_err(|error_kind| {
-                    error_kind.with_error_location("[CounterRef]", "read_as_root", 0)
-                })
-            }
-        }
-
-        /// The table `CounterCategory` in the namespace `MoorRpc`
+        /// The table `MetricLabel` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `CounterCategory` in the file `moor_rpc.fbs:442`
+        /// * Table `MetricLabel` in the file `moor_rpc.fbs:445`
         #[derive(
             Clone,
             Debug,
@@ -52732,230 +52510,207 @@ mod root {
             ::serde::Serialize,
             ::serde::Deserialize,
         )]
-        pub struct CounterCategory {
-            /// The field `category` in the table `CounterCategory`
-            pub category: ::planus::alloc::boxed::Box<super::moor_common::Symbol>,
-            /// The field `counters` in the table `CounterCategory`
-            pub counters: ::planus::alloc::vec::Vec<self::Counter>,
+        pub struct MetricLabel {
+            /// The field `name` in the table `MetricLabel`
+            pub name: ::planus::alloc::string::String,
+            /// The field `value` in the table `MetricLabel`
+            pub value: ::planus::alloc::string::String,
         }
 
         #[allow(clippy::derivable_impls)]
-        impl ::core::default::Default for CounterCategory {
+        impl ::core::default::Default for MetricLabel {
             fn default() -> Self {
                 Self {
-                    category: ::core::default::Default::default(),
-                    counters: ::core::default::Default::default(),
+                    name: ::core::default::Default::default(),
+                    value: ::core::default::Default::default(),
                 }
             }
         }
 
-        impl CounterCategory {
-            /// Creates a [CounterCategoryBuilder] for serializing an instance of this table.
+        impl MetricLabel {
+            /// Creates a [MetricLabelBuilder] for serializing an instance of this table.
             #[inline]
-            pub fn builder() -> CounterCategoryBuilder<()> {
-                CounterCategoryBuilder(())
+            pub fn builder() -> MetricLabelBuilder<()> {
+                MetricLabelBuilder(())
             }
 
             #[allow(clippy::too_many_arguments)]
             pub fn create(
                 builder: &mut ::planus::Builder,
-                field_category: impl ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-                field_counters: impl ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::Counter>]>,
-                >,
+                field_name: impl ::planus::WriteAs<::planus::Offset<str>>,
+                field_value: impl ::planus::WriteAs<::planus::Offset<str>>,
             ) -> ::planus::Offset<Self> {
-                let prepared_category = field_category.prepare(builder);
-                let prepared_counters = field_counters.prepare(builder);
+                let prepared_name = field_name.prepare(builder);
+                let prepared_value = field_value.prepare(builder);
 
                 let mut table_writer: ::planus::table_writer::TableWriter<8> =
                     ::core::default::Default::default();
-                table_writer.write_entry::<::planus::Offset<super::moor_common::Symbol>>(0);
-                table_writer.write_entry::<::planus::Offset<[::planus::Offset<self::Counter>]>>(1);
+                table_writer.write_entry::<::planus::Offset<str>>(0);
+                table_writer.write_entry::<::planus::Offset<str>>(1);
 
                 unsafe {
                     table_writer.finish(builder, |object_writer| {
-                        object_writer.write::<_, _, 4>(&prepared_category);
-                        object_writer.write::<_, _, 4>(&prepared_counters);
+                        object_writer.write::<_, _, 4>(&prepared_name);
+                        object_writer.write::<_, _, 4>(&prepared_value);
                     });
                 }
                 builder.current_offset()
             }
         }
 
-        impl ::planus::WriteAs<::planus::Offset<CounterCategory>> for CounterCategory {
+        impl ::planus::WriteAs<::planus::Offset<MetricLabel>> for MetricLabel {
             type Prepared = ::planus::Offset<Self>;
 
             #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<CounterCategory> {
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<MetricLabel> {
                 ::planus::WriteAsOffset::prepare(self, builder)
             }
         }
 
-        impl ::planus::WriteAsOptional<::planus::Offset<CounterCategory>> for CounterCategory {
+        impl ::planus::WriteAsOptional<::planus::Offset<MetricLabel>> for MetricLabel {
             type Prepared = ::planus::Offset<Self>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<CounterCategory>> {
+            ) -> ::core::option::Option<::planus::Offset<MetricLabel>> {
                 ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
             }
         }
 
-        impl ::planus::WriteAsOffset<CounterCategory> for CounterCategory {
+        impl ::planus::WriteAsOffset<MetricLabel> for MetricLabel {
             #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<CounterCategory> {
-                CounterCategory::create(builder, &self.category, &self.counters)
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<MetricLabel> {
+                MetricLabel::create(builder, &self.name, &self.value)
             }
         }
 
-        /// Builder for serializing an instance of the [CounterCategory] type.
+        /// Builder for serializing an instance of the [MetricLabel] type.
         ///
-        /// Can be created using the [CounterCategory::builder] method.
+        /// Can be created using the [MetricLabel::builder] method.
         #[derive(Debug)]
         #[must_use]
-        pub struct CounterCategoryBuilder<State>(State);
+        pub struct MetricLabelBuilder<State>(State);
 
-        impl CounterCategoryBuilder<()> {
-            /// Setter for the [`category` field](CounterCategory#structfield.category).
+        impl MetricLabelBuilder<()> {
+            /// Setter for the [`name` field](MetricLabel#structfield.name).
             #[inline]
             #[allow(clippy::type_complexity)]
-            pub fn category<T0>(self, value: T0) -> CounterCategoryBuilder<(T0,)>
+            pub fn name<T0>(self, value: T0) -> MetricLabelBuilder<(T0,)>
             where
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
+                T0: ::planus::WriteAs<::planus::Offset<str>>,
             {
-                CounterCategoryBuilder((value,))
+                MetricLabelBuilder((value,))
             }
         }
 
-        impl<T0> CounterCategoryBuilder<(T0,)> {
-            /// Setter for the [`counters` field](CounterCategory#structfield.counters).
+        impl<T0> MetricLabelBuilder<(T0,)> {
+            /// Setter for the [`value` field](MetricLabel#structfield.value).
             #[inline]
             #[allow(clippy::type_complexity)]
-            pub fn counters<T1>(self, value: T1) -> CounterCategoryBuilder<(T0, T1)>
+            pub fn value<T1>(self, value: T1) -> MetricLabelBuilder<(T0, T1)>
             where
-                T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Counter>]>>,
+                T1: ::planus::WriteAs<::planus::Offset<str>>,
             {
                 let (v0,) = self.0;
-                CounterCategoryBuilder((v0, value))
+                MetricLabelBuilder((v0, value))
             }
         }
 
-        impl<T0, T1> CounterCategoryBuilder<(T0, T1)> {
-            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [CounterCategory].
+        impl<T0, T1> MetricLabelBuilder<(T0, T1)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [MetricLabel].
             #[inline]
-            pub fn finish(
-                self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<CounterCategory>
+            pub fn finish(self, builder: &mut ::planus::Builder) -> ::planus::Offset<MetricLabel>
             where
-                Self: ::planus::WriteAsOffset<CounterCategory>,
+                Self: ::planus::WriteAsOffset<MetricLabel>,
             {
                 ::planus::WriteAsOffset::prepare(&self, builder)
             }
         }
 
         impl<
-            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Counter>]>>,
-        > ::planus::WriteAs<::planus::Offset<CounterCategory>>
-            for CounterCategoryBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAs<::planus::Offset<MetricLabel>> for MetricLabelBuilder<(T0, T1)>
         {
-            type Prepared = ::planus::Offset<CounterCategory>;
+            type Prepared = ::planus::Offset<MetricLabel>;
 
             #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<CounterCategory> {
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<MetricLabel> {
                 ::planus::WriteAsOffset::prepare(self, builder)
             }
         }
 
         impl<
-            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Counter>]>>,
-        > ::planus::WriteAsOptional<::planus::Offset<CounterCategory>>
-            for CounterCategoryBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOptional<::planus::Offset<MetricLabel>>
+            for MetricLabelBuilder<(T0, T1)>
         {
-            type Prepared = ::planus::Offset<CounterCategory>;
+            type Prepared = ::planus::Offset<MetricLabel>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<CounterCategory>> {
+            ) -> ::core::option::Option<::planus::Offset<MetricLabel>> {
                 ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
             }
         }
 
         impl<
-            T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::Counter>]>>,
-        > ::planus::WriteAsOffset<CounterCategory> for CounterCategoryBuilder<(T0, T1)>
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+        > ::planus::WriteAsOffset<MetricLabel> for MetricLabelBuilder<(T0, T1)>
         {
             #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<CounterCategory> {
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<MetricLabel> {
                 let (v0, v1) = &self.0;
-                CounterCategory::create(builder, v0, v1)
+                MetricLabel::create(builder, v0, v1)
             }
         }
 
-        /// Reference to a deserialized [CounterCategory].
+        /// Reference to a deserialized [MetricLabel].
         #[derive(Copy, Clone)]
-        pub struct CounterCategoryRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+        pub struct MetricLabelRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
 
-        impl<'a> CounterCategoryRef<'a> {
-            /// Getter for the [`category` field](CounterCategory#structfield.category).
+        impl<'a> MetricLabelRef<'a> {
+            /// Getter for the [`name` field](MetricLabel#structfield.name).
             #[inline]
-            pub fn category(&self) -> ::planus::Result<super::moor_common::SymbolRef<'a>> {
-                self.0.access_required(0, "CounterCategory", "category")
+            pub fn name(&self) -> ::planus::Result<&'a ::core::primitive::str> {
+                self.0.access_required(0, "MetricLabel", "name")
             }
 
-            /// Getter for the [`counters` field](CounterCategory#structfield.counters).
+            /// Getter for the [`value` field](MetricLabel#structfield.value).
             #[inline]
-            pub fn counters(
-                &self,
-            ) -> ::planus::Result<::planus::Vector<'a, ::planus::Result<self::CounterRef<'a>>>>
-            {
-                self.0.access_required(1, "CounterCategory", "counters")
+            pub fn value(&self) -> ::planus::Result<&'a ::core::primitive::str> {
+                self.0.access_required(1, "MetricLabel", "value")
             }
         }
 
-        impl<'a> ::core::fmt::Debug for CounterCategoryRef<'a> {
+        impl<'a> ::core::fmt::Debug for MetricLabelRef<'a> {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                let mut f = f.debug_struct("CounterCategoryRef");
-                f.field("category", &self.category());
-                f.field("counters", &self.counters());
+                let mut f = f.debug_struct("MetricLabelRef");
+                f.field("name", &self.name());
+                f.field("value", &self.value());
                 f.finish()
             }
         }
 
-        impl<'a> ::core::convert::TryFrom<CounterCategoryRef<'a>> for CounterCategory {
+        impl<'a> ::core::convert::TryFrom<MetricLabelRef<'a>> for MetricLabel {
             type Error = ::planus::Error;
 
             #[allow(unreachable_code)]
-            fn try_from(value: CounterCategoryRef<'a>) -> ::planus::Result<Self> {
+            fn try_from(value: MetricLabelRef<'a>) -> ::planus::Result<Self> {
                 ::core::result::Result::Ok(Self {
-                    category: ::planus::alloc::boxed::Box::new(::core::convert::TryInto::try_into(
-                        value.category()?,
-                    )?),
-                    counters: value.counters()?.to_vec_result()?,
+                    name: ::core::convert::Into::into(value.name()?),
+                    value: ::core::convert::Into::into(value.value()?),
                 })
             }
         }
 
-        impl<'a> ::planus::TableRead<'a> for CounterCategoryRef<'a> {
+        impl<'a> ::planus::TableRead<'a> for MetricLabelRef<'a> {
             #[inline]
             fn from_buffer(
                 buffer: ::planus::SliceWithStartOffset<'a>,
@@ -52967,7 +52722,7 @@ mod root {
             }
         }
 
-        impl<'a> ::planus::VectorReadInner<'a> for CounterCategoryRef<'a> {
+        impl<'a> ::planus::VectorReadInner<'a> for MetricLabelRef<'a> {
             type Error = ::planus::Error;
             const STRIDE: usize = 4;
 
@@ -52977,7 +52732,7 @@ mod root {
             ) -> ::planus::Result<Self> {
                 ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
                     error_kind.with_error_location(
-                        "[CounterCategoryRef]",
+                        "[MetricLabelRef]",
                         "get",
                         buffer.offset_from_start,
                     )
@@ -52988,8 +52743,8 @@ mod root {
         /// # Safety
         /// The planus compiler generates implementations that initialize
         /// the bytes in `write_values`.
-        unsafe impl ::planus::VectorWrite<::planus::Offset<CounterCategory>> for CounterCategory {
-            type Value = ::planus::Offset<CounterCategory>;
+        unsafe impl ::planus::VectorWrite<::planus::Offset<MetricLabel>> for MetricLabel {
+            type Value = ::planus::Offset<MetricLabel>;
             const STRIDE: usize = 4;
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
@@ -52998,7 +52753,7 @@ mod root {
 
             #[inline]
             unsafe fn write_values(
-                values: &[::planus::Offset<CounterCategory>],
+                values: &[::planus::Offset<MetricLabel>],
                 bytes: *mut ::core::mem::MaybeUninit<u8>,
                 buffer_position: u32,
             ) {
@@ -53013,7 +52768,7 @@ mod root {
             }
         }
 
-        impl<'a> ::planus::ReadAsRoot<'a> for CounterCategoryRef<'a> {
+        impl<'a> ::planus::ReadAsRoot<'a> for MetricLabelRef<'a> {
             fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
                 ::planus::TableRead::from_buffer(
                     ::planus::SliceWithStartOffset {
@@ -53023,15 +52778,228 @@ mod root {
                     0,
                 )
                 .map_err(|error_kind| {
-                    error_kind.with_error_location("[CounterCategoryRef]", "read_as_root", 0)
+                    error_kind.with_error_location("[MetricLabelRef]", "read_as_root", 0)
                 })
             }
         }
 
-        /// The table `DaemonToHostPerfCounters` in the namespace `MoorRpc`
+        /// The struct `HistogramBucket` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DaemonToHostPerfCounters` in the file `moor_rpc.fbs:447`
+        /// * Struct `HistogramBucket` in the file `moor_rpc.fbs:450`
+        #[derive(
+            Copy,
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            Default,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        pub struct HistogramBucket {
+            /// The field `upper_bound` in the struct `HistogramBucket`
+            pub upper_bound: u64,
+
+            /// The field `cumulative_count` in the struct `HistogramBucket`
+            pub cumulative_count: u64,
+        }
+
+        /// # Safety
+        /// The Planus compiler correctly calculates `ALIGNMENT` and `SIZE`.
+        unsafe impl ::planus::Primitive for HistogramBucket {
+            const ALIGNMENT: usize = 8;
+            const SIZE: usize = 16;
+        }
+
+        #[allow(clippy::identity_op)]
+        impl ::planus::WriteAsPrimitive<HistogramBucket> for HistogramBucket {
+            #[inline]
+            fn write<const N: usize>(&self, cursor: ::planus::Cursor<'_, N>, buffer_position: u32) {
+                let (cur, cursor) = cursor.split::<8, 8>();
+                self.upper_bound.write(cur, buffer_position - 0);
+                let (cur, cursor) = cursor.split::<8, 0>();
+                self.cumulative_count.write(cur, buffer_position - 8);
+                cursor.finish([]);
+            }
+        }
+
+        impl ::planus::WriteAsOffset<HistogramBucket> for HistogramBucket {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<HistogramBucket> {
+                unsafe {
+                    builder.write_with(16, 7, |buffer_position, bytes| {
+                        let bytes = bytes.as_mut_ptr();
+
+                        ::planus::WriteAsPrimitive::write(
+                            self,
+                            ::planus::Cursor::new(
+                                &mut *(bytes as *mut [::core::mem::MaybeUninit<u8>; 16]),
+                            ),
+                            buffer_position,
+                        );
+                    });
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<HistogramBucket> for HistogramBucket {
+            type Prepared = Self;
+            #[inline]
+            fn prepare(&self, _builder: &mut ::planus::Builder) -> Self {
+                *self
+            }
+        }
+
+        impl ::planus::WriteAsOptional<HistogramBucket> for HistogramBucket {
+            type Prepared = Self;
+            #[inline]
+            fn prepare(&self, _builder: &mut ::planus::Builder) -> ::core::option::Option<Self> {
+                ::core::option::Option::Some(*self)
+            }
+        }
+
+        /// Reference to a deserialized [HistogramBucket].
+        #[derive(Copy, Clone)]
+        pub struct HistogramBucketRef<'a>(::planus::ArrayWithStartOffset<'a, 16>);
+
+        impl<'a> HistogramBucketRef<'a> {
+            /// Getter for the [`upper_bound` field](HistogramBucket#structfield.upper_bound).
+            pub fn upper_bound(&self) -> u64 {
+                let buffer = self.0.advance_as_array::<8>(0).unwrap();
+
+                u64::from_le_bytes(*buffer.as_array())
+            }
+
+            /// Getter for the [`cumulative_count` field](HistogramBucket#structfield.cumulative_count).
+            pub fn cumulative_count(&self) -> u64 {
+                let buffer = self.0.advance_as_array::<8>(8).unwrap();
+
+                u64::from_le_bytes(*buffer.as_array())
+            }
+        }
+
+        impl<'a> ::core::fmt::Debug for HistogramBucketRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("HistogramBucketRef");
+                f.field("upper_bound", &self.upper_bound());
+                f.field("cumulative_count", &self.cumulative_count());
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::From<::planus::ArrayWithStartOffset<'a, 16>> for HistogramBucketRef<'a> {
+            fn from(array: ::planus::ArrayWithStartOffset<'a, 16>) -> Self {
+                Self(array)
+            }
+        }
+
+        impl<'a> ::core::convert::From<HistogramBucketRef<'a>> for HistogramBucket {
+            #[allow(unreachable_code)]
+            fn from(value: HistogramBucketRef<'a>) -> Self {
+                Self {
+                    upper_bound: value.upper_bound(),
+                    cumulative_count: value.cumulative_count(),
+                }
+            }
+        }
+
+        impl<'a, 'b> ::core::cmp::PartialEq<HistogramBucketRef<'a>> for HistogramBucketRef<'b> {
+            fn eq(&self, other: &HistogramBucketRef<'_>) -> bool {
+                self.upper_bound() == other.upper_bound()
+                    && self.cumulative_count() == other.cumulative_count()
+            }
+        }
+
+        impl<'a> ::core::cmp::Eq for HistogramBucketRef<'a> {}
+        impl<'a, 'b> ::core::cmp::PartialOrd<HistogramBucketRef<'a>> for HistogramBucketRef<'b> {
+            fn partial_cmp(
+                &self,
+                other: &HistogramBucketRef<'_>,
+            ) -> ::core::option::Option<::core::cmp::Ordering> {
+                ::core::option::Option::Some(::core::cmp::Ord::cmp(self, other))
+            }
+        }
+
+        impl<'a> ::core::cmp::Ord for HistogramBucketRef<'a> {
+            fn cmp(&self, other: &HistogramBucketRef<'_>) -> ::core::cmp::Ordering {
+                self.upper_bound()
+                    .cmp(&other.upper_bound())
+                    .then_with(|| self.cumulative_count().cmp(&other.cumulative_count()))
+            }
+        }
+
+        impl<'a> ::core::hash::Hash for HistogramBucketRef<'a> {
+            fn hash<H: ::core::hash::Hasher>(&self, state: &mut H) {
+                self.upper_bound().hash(state);
+                self.cumulative_count().hash(state);
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for HistogramBucketRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                let buffer = buffer.advance_as_array::<16>(offset)?;
+                ::core::result::Result::Ok(Self(buffer))
+            }
+        }
+
+        impl<'a> ::planus::VectorRead<'a> for HistogramBucketRef<'a> {
+            const STRIDE: usize = 16;
+
+            #[inline]
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> Self {
+                Self(unsafe { buffer.unchecked_advance_as_array(offset) })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<HistogramBucket> for HistogramBucket {
+            const STRIDE: usize = 16;
+
+            type Value = HistogramBucket;
+
+            #[inline]
+            fn prepare(&self, _builder: &mut ::planus::Builder) -> Self::Value {
+                *self
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[HistogramBucket],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 16];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (16 * i) as u32,
+                    );
+                }
+            }
+        }
+
+        /// The table `MetricIntValue` in the namespace `MoorRpc`
+        ///
+        /// Generated from these locations:
+        /// * Table `MetricIntValue` in the file `moor_rpc.fbs:455`
         #[derive(
             Clone,
             Debug,
@@ -53043,40 +53011,1909 @@ mod root {
             ::serde::Serialize,
             ::serde::Deserialize,
         )]
-        pub struct DaemonToHostPerfCounters {
-            /// The field `timestamp` in the table `DaemonToHostPerfCounters`
-            pub timestamp: u64,
-            /// The field `counters` in the table `DaemonToHostPerfCounters`
-            pub counters: ::planus::alloc::vec::Vec<self::CounterCategory>,
+        pub struct MetricIntValue {
+            /// The field `value` in the table `MetricIntValue`
+            pub value: i64,
         }
 
         #[allow(clippy::derivable_impls)]
-        impl ::core::default::Default for DaemonToHostPerfCounters {
+        impl ::core::default::Default for MetricIntValue {
             fn default() -> Self {
-                Self {
-                    timestamp: 0,
-                    counters: ::core::default::Default::default(),
+                Self { value: 0 }
+            }
+        }
+
+        impl MetricIntValue {
+            /// Creates a [MetricIntValueBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> MetricIntValueBuilder<()> {
+                MetricIntValueBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(
+                builder: &mut ::planus::Builder,
+                field_value: impl ::planus::WriteAsDefault<i64, i64>,
+            ) -> ::planus::Offset<Self> {
+                let prepared_value = field_value.prepare(builder, &0);
+
+                let mut table_writer: ::planus::table_writer::TableWriter<6> =
+                    ::core::default::Default::default();
+                if prepared_value.is_some() {
+                    table_writer.write_entry::<i64>(0);
+                }
+
+                unsafe {
+                    table_writer.finish(builder, |object_writer| {
+                        if let ::core::option::Option::Some(prepared_value) = prepared_value {
+                            object_writer.write::<_, _, 8>(&prepared_value);
+                        }
+                    });
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<MetricIntValue>> for MetricIntValue {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<MetricIntValue> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<MetricIntValue>> for MetricIntValue {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<MetricIntValue>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<MetricIntValue> for MetricIntValue {
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<MetricIntValue> {
+                MetricIntValue::create(builder, self.value)
+            }
+        }
+
+        /// Builder for serializing an instance of the [MetricIntValue] type.
+        ///
+        /// Can be created using the [MetricIntValue::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct MetricIntValueBuilder<State>(State);
+
+        impl MetricIntValueBuilder<()> {
+            /// Setter for the [`value` field](MetricIntValue#structfield.value).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn value<T0>(self, value: T0) -> MetricIntValueBuilder<(T0,)>
+            where
+                T0: ::planus::WriteAsDefault<i64, i64>,
+            {
+                MetricIntValueBuilder((value,))
+            }
+
+            /// Sets the [`value` field](MetricIntValue#structfield.value) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn value_as_default(self) -> MetricIntValueBuilder<(::planus::DefaultValue,)> {
+                self.value(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0> MetricIntValueBuilder<(T0,)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [MetricIntValue].
+            #[inline]
+            pub fn finish(self, builder: &mut ::planus::Builder) -> ::planus::Offset<MetricIntValue>
+            where
+                Self: ::planus::WriteAsOffset<MetricIntValue>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl<T0: ::planus::WriteAsDefault<i64, i64>>
+            ::planus::WriteAs<::planus::Offset<MetricIntValue>> for MetricIntValueBuilder<(T0,)>
+        {
+            type Prepared = ::planus::Offset<MetricIntValue>;
+
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<MetricIntValue> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl<T0: ::planus::WriteAsDefault<i64, i64>>
+            ::planus::WriteAsOptional<::planus::Offset<MetricIntValue>>
+            for MetricIntValueBuilder<(T0,)>
+        {
+            type Prepared = ::planus::Offset<MetricIntValue>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<MetricIntValue>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl<T0: ::planus::WriteAsDefault<i64, i64>> ::planus::WriteAsOffset<MetricIntValue>
+            for MetricIntValueBuilder<(T0,)>
+        {
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<MetricIntValue> {
+                let (v0,) = &self.0;
+                MetricIntValue::create(builder, v0)
+            }
+        }
+
+        /// Reference to a deserialized [MetricIntValue].
+        #[derive(Copy, Clone)]
+        pub struct MetricIntValueRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+
+        impl<'a> MetricIntValueRef<'a> {
+            /// Getter for the [`value` field](MetricIntValue#structfield.value).
+            #[inline]
+            pub fn value(&self) -> ::planus::Result<i64> {
+                ::core::result::Result::Ok(
+                    self.0.access(0, "MetricIntValue", "value")?.unwrap_or(0),
+                )
+            }
+        }
+
+        impl<'a> ::core::fmt::Debug for MetricIntValueRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("MetricIntValueRef");
+                f.field("value", &self.value());
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<MetricIntValueRef<'a>> for MetricIntValue {
+            type Error = ::planus::Error;
+
+            #[allow(unreachable_code)]
+            fn try_from(value: MetricIntValueRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {
+                    value: ::core::convert::TryInto::try_into(value.value()?)?,
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for MetricIntValueRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for MetricIntValueRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[MetricIntValueRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<MetricIntValue>> for MetricIntValue {
+            type Value = ::planus::Offset<MetricIntValue>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<MetricIntValue>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
                 }
             }
         }
 
-        impl DaemonToHostPerfCounters {
-            /// Creates a [DaemonToHostPerfCountersBuilder] for serializing an instance of this table.
+        impl<'a> ::planus::ReadAsRoot<'a> for MetricIntValueRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[MetricIntValueRef]", "read_as_root", 0)
+                })
+            }
+        }
+
+        /// The table `MetricFloatValue` in the namespace `MoorRpc`
+        ///
+        /// Generated from these locations:
+        /// * Table `MetricFloatValue` in the file `moor_rpc.fbs:459`
+        #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
+        pub struct MetricFloatValue {
+            /// The field `value` in the table `MetricFloatValue`
+            pub value: f64,
+        }
+
+        #[allow(clippy::derivable_impls)]
+        impl ::core::default::Default for MetricFloatValue {
+            fn default() -> Self {
+                Self { value: 0.0 }
+            }
+        }
+
+        impl MetricFloatValue {
+            /// Creates a [MetricFloatValueBuilder] for serializing an instance of this table.
             #[inline]
-            pub fn builder() -> DaemonToHostPerfCountersBuilder<()> {
-                DaemonToHostPerfCountersBuilder(())
+            pub fn builder() -> MetricFloatValueBuilder<()> {
+                MetricFloatValueBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(
+                builder: &mut ::planus::Builder,
+                field_value: impl ::planus::WriteAsDefault<f64, f64>,
+            ) -> ::planus::Offset<Self> {
+                let prepared_value = field_value.prepare(builder, &0.0);
+
+                let mut table_writer: ::planus::table_writer::TableWriter<6> =
+                    ::core::default::Default::default();
+                if prepared_value.is_some() {
+                    table_writer.write_entry::<f64>(0);
+                }
+
+                unsafe {
+                    table_writer.finish(builder, |object_writer| {
+                        if let ::core::option::Option::Some(prepared_value) = prepared_value {
+                            object_writer.write::<_, _, 8>(&prepared_value);
+                        }
+                    });
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<MetricFloatValue>> for MetricFloatValue {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<MetricFloatValue> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<MetricFloatValue>> for MetricFloatValue {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<MetricFloatValue>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<MetricFloatValue> for MetricFloatValue {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<MetricFloatValue> {
+                MetricFloatValue::create(builder, self.value)
+            }
+        }
+
+        /// Builder for serializing an instance of the [MetricFloatValue] type.
+        ///
+        /// Can be created using the [MetricFloatValue::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct MetricFloatValueBuilder<State>(State);
+
+        impl MetricFloatValueBuilder<()> {
+            /// Setter for the [`value` field](MetricFloatValue#structfield.value).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn value<T0>(self, value: T0) -> MetricFloatValueBuilder<(T0,)>
+            where
+                T0: ::planus::WriteAsDefault<f64, f64>,
+            {
+                MetricFloatValueBuilder((value,))
+            }
+
+            /// Sets the [`value` field](MetricFloatValue#structfield.value) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn value_as_default(self) -> MetricFloatValueBuilder<(::planus::DefaultValue,)> {
+                self.value(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0> MetricFloatValueBuilder<(T0,)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [MetricFloatValue].
+            #[inline]
+            pub fn finish(
+                self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<MetricFloatValue>
+            where
+                Self: ::planus::WriteAsOffset<MetricFloatValue>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl<T0: ::planus::WriteAsDefault<f64, f64>>
+            ::planus::WriteAs<::planus::Offset<MetricFloatValue>>
+            for MetricFloatValueBuilder<(T0,)>
+        {
+            type Prepared = ::planus::Offset<MetricFloatValue>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<MetricFloatValue> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl<T0: ::planus::WriteAsDefault<f64, f64>>
+            ::planus::WriteAsOptional<::planus::Offset<MetricFloatValue>>
+            for MetricFloatValueBuilder<(T0,)>
+        {
+            type Prepared = ::planus::Offset<MetricFloatValue>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<MetricFloatValue>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl<T0: ::planus::WriteAsDefault<f64, f64>> ::planus::WriteAsOffset<MetricFloatValue>
+            for MetricFloatValueBuilder<(T0,)>
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<MetricFloatValue> {
+                let (v0,) = &self.0;
+                MetricFloatValue::create(builder, v0)
+            }
+        }
+
+        /// Reference to a deserialized [MetricFloatValue].
+        #[derive(Copy, Clone)]
+        pub struct MetricFloatValueRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+
+        impl<'a> MetricFloatValueRef<'a> {
+            /// Getter for the [`value` field](MetricFloatValue#structfield.value).
+            #[inline]
+            pub fn value(&self) -> ::planus::Result<f64> {
+                ::core::result::Result::Ok(
+                    self.0
+                        .access(0, "MetricFloatValue", "value")?
+                        .unwrap_or(0.0),
+                )
+            }
+        }
+
+        impl<'a> ::core::fmt::Debug for MetricFloatValueRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("MetricFloatValueRef");
+                f.field("value", &self.value());
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<MetricFloatValueRef<'a>> for MetricFloatValue {
+            type Error = ::planus::Error;
+
+            #[allow(unreachable_code)]
+            fn try_from(value: MetricFloatValueRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {
+                    value: ::core::convert::TryInto::try_into(value.value()?)?,
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for MetricFloatValueRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for MetricFloatValueRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[MetricFloatValueRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<MetricFloatValue>> for MetricFloatValue {
+            type Value = ::planus::Offset<MetricFloatValue>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<MetricFloatValue>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for MetricFloatValueRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[MetricFloatValueRef]", "read_as_root", 0)
+                })
+            }
+        }
+
+        /// The table `MetricHistogramValue` in the namespace `MoorRpc`
+        ///
+        /// Generated from these locations:
+        /// * Table `MetricHistogramValue` in the file `moor_rpc.fbs:463`
+        #[derive(
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        pub struct MetricHistogramValue {
+            /// The field `count` in the table `MetricHistogramValue`
+            pub count: u64,
+            /// The field `sum` in the table `MetricHistogramValue`
+            pub sum: u64,
+            /// The field `buckets` in the table `MetricHistogramValue`
+            pub buckets: ::planus::alloc::vec::Vec<self::HistogramBucket>,
+        }
+
+        #[allow(clippy::derivable_impls)]
+        impl ::core::default::Default for MetricHistogramValue {
+            fn default() -> Self {
+                Self {
+                    count: 0,
+                    sum: 0,
+                    buckets: ::core::default::Default::default(),
+                }
+            }
+        }
+
+        impl MetricHistogramValue {
+            /// Creates a [MetricHistogramValueBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> MetricHistogramValueBuilder<()> {
+                MetricHistogramValueBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(
+                builder: &mut ::planus::Builder,
+                field_count: impl ::planus::WriteAsDefault<u64, u64>,
+                field_sum: impl ::planus::WriteAsDefault<u64, u64>,
+                field_buckets: impl ::planus::WriteAs<::planus::Offset<[self::HistogramBucket]>>,
+            ) -> ::planus::Offset<Self> {
+                let prepared_count = field_count.prepare(builder, &0);
+                let prepared_sum = field_sum.prepare(builder, &0);
+                let prepared_buckets = field_buckets.prepare(builder);
+
+                let mut table_writer: ::planus::table_writer::TableWriter<10> =
+                    ::core::default::Default::default();
+                if prepared_count.is_some() {
+                    table_writer.write_entry::<u64>(0);
+                }
+                if prepared_sum.is_some() {
+                    table_writer.write_entry::<u64>(1);
+                }
+                table_writer.write_entry::<::planus::Offset<[self::HistogramBucket]>>(2);
+
+                unsafe {
+                    table_writer.finish(builder, |object_writer| {
+                        if let ::core::option::Option::Some(prepared_count) = prepared_count {
+                            object_writer.write::<_, _, 8>(&prepared_count);
+                        }
+                        if let ::core::option::Option::Some(prepared_sum) = prepared_sum {
+                            object_writer.write::<_, _, 8>(&prepared_sum);
+                        }
+                        object_writer.write::<_, _, 4>(&prepared_buckets);
+                    });
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<MetricHistogramValue>> for MetricHistogramValue {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<MetricHistogramValue> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<MetricHistogramValue>> for MetricHistogramValue {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<MetricHistogramValue>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<MetricHistogramValue> for MetricHistogramValue {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<MetricHistogramValue> {
+                MetricHistogramValue::create(builder, self.count, self.sum, &self.buckets)
+            }
+        }
+
+        /// Builder for serializing an instance of the [MetricHistogramValue] type.
+        ///
+        /// Can be created using the [MetricHistogramValue::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct MetricHistogramValueBuilder<State>(State);
+
+        impl MetricHistogramValueBuilder<()> {
+            /// Setter for the [`count` field](MetricHistogramValue#structfield.count).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn count<T0>(self, value: T0) -> MetricHistogramValueBuilder<(T0,)>
+            where
+                T0: ::planus::WriteAsDefault<u64, u64>,
+            {
+                MetricHistogramValueBuilder((value,))
+            }
+
+            /// Sets the [`count` field](MetricHistogramValue#structfield.count) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn count_as_default(
+                self,
+            ) -> MetricHistogramValueBuilder<(::planus::DefaultValue,)> {
+                self.count(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0> MetricHistogramValueBuilder<(T0,)> {
+            /// Setter for the [`sum` field](MetricHistogramValue#structfield.sum).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn sum<T1>(self, value: T1) -> MetricHistogramValueBuilder<(T0, T1)>
+            where
+                T1: ::planus::WriteAsDefault<u64, u64>,
+            {
+                let (v0,) = self.0;
+                MetricHistogramValueBuilder((v0, value))
+            }
+
+            /// Sets the [`sum` field](MetricHistogramValue#structfield.sum) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn sum_as_default(
+                self,
+            ) -> MetricHistogramValueBuilder<(T0, ::planus::DefaultValue)> {
+                self.sum(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0, T1> MetricHistogramValueBuilder<(T0, T1)> {
+            /// Setter for the [`buckets` field](MetricHistogramValue#structfield.buckets).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn buckets<T2>(self, value: T2) -> MetricHistogramValueBuilder<(T0, T1, T2)>
+            where
+                T2: ::planus::WriteAs<::planus::Offset<[self::HistogramBucket]>>,
+            {
+                let (v0, v1) = self.0;
+                MetricHistogramValueBuilder((v0, v1, value))
+            }
+        }
+
+        impl<T0, T1, T2> MetricHistogramValueBuilder<(T0, T1, T2)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [MetricHistogramValue].
+            #[inline]
+            pub fn finish(
+                self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<MetricHistogramValue>
+            where
+                Self: ::planus::WriteAsOffset<MetricHistogramValue>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAsDefault<u64, u64>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAs<::planus::Offset<[self::HistogramBucket]>>,
+        > ::planus::WriteAs<::planus::Offset<MetricHistogramValue>>
+            for MetricHistogramValueBuilder<(T0, T1, T2)>
+        {
+            type Prepared = ::planus::Offset<MetricHistogramValue>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<MetricHistogramValue> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAsDefault<u64, u64>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAs<::planus::Offset<[self::HistogramBucket]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<MetricHistogramValue>>
+            for MetricHistogramValueBuilder<(T0, T1, T2)>
+        {
+            type Prepared = ::planus::Offset<MetricHistogramValue>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<MetricHistogramValue>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAsDefault<u64, u64>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAs<::planus::Offset<[self::HistogramBucket]>>,
+        > ::planus::WriteAsOffset<MetricHistogramValue>
+            for MetricHistogramValueBuilder<(T0, T1, T2)>
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<MetricHistogramValue> {
+                let (v0, v1, v2) = &self.0;
+                MetricHistogramValue::create(builder, v0, v1, v2)
+            }
+        }
+
+        /// Reference to a deserialized [MetricHistogramValue].
+        #[derive(Copy, Clone)]
+        pub struct MetricHistogramValueRef<'a>(
+            #[allow(dead_code)] ::planus::table_reader::Table<'a>,
+        );
+
+        impl<'a> MetricHistogramValueRef<'a> {
+            /// Getter for the [`count` field](MetricHistogramValue#structfield.count).
+            #[inline]
+            pub fn count(&self) -> ::planus::Result<u64> {
+                ::core::result::Result::Ok(
+                    self.0
+                        .access(0, "MetricHistogramValue", "count")?
+                        .unwrap_or(0),
+                )
+            }
+
+            /// Getter for the [`sum` field](MetricHistogramValue#structfield.sum).
+            #[inline]
+            pub fn sum(&self) -> ::planus::Result<u64> {
+                ::core::result::Result::Ok(
+                    self.0
+                        .access(1, "MetricHistogramValue", "sum")?
+                        .unwrap_or(0),
+                )
+            }
+
+            /// Getter for the [`buckets` field](MetricHistogramValue#structfield.buckets).
+            #[inline]
+            pub fn buckets(
+                &self,
+            ) -> ::planus::Result<::planus::Vector<'a, self::HistogramBucketRef<'a>>> {
+                self.0.access_required(2, "MetricHistogramValue", "buckets")
+            }
+        }
+
+        impl<'a> ::core::fmt::Debug for MetricHistogramValueRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("MetricHistogramValueRef");
+                f.field("count", &self.count());
+                f.field("sum", &self.sum());
+                f.field("buckets", &self.buckets());
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<MetricHistogramValueRef<'a>> for MetricHistogramValue {
+            type Error = ::planus::Error;
+
+            #[allow(unreachable_code)]
+            fn try_from(value: MetricHistogramValueRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {
+                    count: ::core::convert::TryInto::try_into(value.count()?)?,
+                    sum: ::core::convert::TryInto::try_into(value.sum()?)?,
+                    buckets: value.buckets()?.to_vec()?,
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for MetricHistogramValueRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for MetricHistogramValueRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[MetricHistogramValueRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<MetricHistogramValue>> for MetricHistogramValue {
+            type Value = ::planus::Offset<MetricHistogramValue>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<MetricHistogramValue>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for MetricHistogramValueRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[MetricHistogramValueRef]", "read_as_root", 0)
+                })
+            }
+        }
+
+        /// The union `MetricValue` in the namespace `MoorRpc`
+        ///
+        /// Generated from these locations:
+        /// * Union `MetricValue` in the file `moor_rpc.fbs:469`
+        #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
+        pub enum MetricValue {
+            /// The variant of type `MetricIntValue` in the union `MetricValue`
+            MetricIntValue(::planus::alloc::boxed::Box<self::MetricIntValue>),
+
+            /// The variant of type `MetricFloatValue` in the union `MetricValue`
+            MetricFloatValue(::planus::alloc::boxed::Box<self::MetricFloatValue>),
+
+            /// The variant of type `MetricHistogramValue` in the union `MetricValue`
+            MetricHistogramValue(::planus::alloc::boxed::Box<self::MetricHistogramValue>),
+        }
+
+        impl MetricValue {
+            /// Creates a [MetricValueBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> MetricValueBuilder<::planus::Uninitialized> {
+                MetricValueBuilder(::planus::Uninitialized)
+            }
+
+            #[inline]
+            pub fn create_metric_int_value(
+                builder: &mut ::planus::Builder,
+                value: impl ::planus::WriteAsOffset<self::MetricIntValue>,
+            ) -> ::planus::UnionOffset<Self> {
+                ::planus::UnionOffset::new(1, value.prepare(builder).downcast())
+            }
+
+            #[inline]
+            pub fn create_metric_float_value(
+                builder: &mut ::planus::Builder,
+                value: impl ::planus::WriteAsOffset<self::MetricFloatValue>,
+            ) -> ::planus::UnionOffset<Self> {
+                ::planus::UnionOffset::new(2, value.prepare(builder).downcast())
+            }
+
+            #[inline]
+            pub fn create_metric_histogram_value(
+                builder: &mut ::planus::Builder,
+                value: impl ::planus::WriteAsOffset<self::MetricHistogramValue>,
+            ) -> ::planus::UnionOffset<Self> {
+                ::planus::UnionOffset::new(3, value.prepare(builder).downcast())
+            }
+        }
+
+        impl ::planus::WriteAsUnion<MetricValue> for MetricValue {
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::UnionOffset<Self> {
+                match self {
+                    Self::MetricIntValue(value) => Self::create_metric_int_value(builder, value),
+                    Self::MetricFloatValue(value) => {
+                        Self::create_metric_float_value(builder, value)
+                    }
+                    Self::MetricHistogramValue(value) => {
+                        Self::create_metric_histogram_value(builder, value)
+                    }
+                }
+            }
+        }
+
+        impl ::planus::WriteAsOptionalUnion<MetricValue> for MetricValue {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::UnionOffset<Self>> {
+                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
+            }
+        }
+
+        /// Builder for serializing an instance of the [MetricValue] type.
+        ///
+        /// Can be created using the [MetricValue::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct MetricValueBuilder<T>(T);
+
+        impl MetricValueBuilder<::planus::Uninitialized> {
+            /// Creates an instance of the [`MetricIntValue` variant](MetricValue#variant.MetricIntValue).
+            #[inline]
+            pub fn metric_int_value<T>(
+                self,
+                value: T,
+            ) -> MetricValueBuilder<::planus::Initialized<1, T>>
+            where
+                T: ::planus::WriteAsOffset<self::MetricIntValue>,
+            {
+                MetricValueBuilder(::planus::Initialized(value))
+            }
+
+            /// Creates an instance of the [`MetricFloatValue` variant](MetricValue#variant.MetricFloatValue).
+            #[inline]
+            pub fn metric_float_value<T>(
+                self,
+                value: T,
+            ) -> MetricValueBuilder<::planus::Initialized<2, T>>
+            where
+                T: ::planus::WriteAsOffset<self::MetricFloatValue>,
+            {
+                MetricValueBuilder(::planus::Initialized(value))
+            }
+
+            /// Creates an instance of the [`MetricHistogramValue` variant](MetricValue#variant.MetricHistogramValue).
+            #[inline]
+            pub fn metric_histogram_value<T>(
+                self,
+                value: T,
+            ) -> MetricValueBuilder<::planus::Initialized<3, T>>
+            where
+                T: ::planus::WriteAsOffset<self::MetricHistogramValue>,
+            {
+                MetricValueBuilder(::planus::Initialized(value))
+            }
+        }
+
+        impl<const N: u8, T> MetricValueBuilder<::planus::Initialized<N, T>> {
+            /// Finish writing the builder to get an [UnionOffset](::planus::UnionOffset) to a serialized [MetricValue].
+            #[inline]
+            pub fn finish(
+                self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::UnionOffset<MetricValue>
+            where
+                Self: ::planus::WriteAsUnion<MetricValue>,
+            {
+                ::planus::WriteAsUnion::prepare(&self, builder)
+            }
+        }
+
+        impl<T> ::planus::WriteAsUnion<MetricValue> for MetricValueBuilder<::planus::Initialized<1, T>>
+        where
+            T: ::planus::WriteAsOffset<self::MetricIntValue>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::UnionOffset<MetricValue> {
+                ::planus::UnionOffset::new(1, (self.0).0.prepare(builder).downcast())
+            }
+        }
+
+        impl<T> ::planus::WriteAsOptionalUnion<MetricValue>
+            for MetricValueBuilder<::planus::Initialized<1, T>>
+        where
+            T: ::planus::WriteAsOffset<self::MetricIntValue>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::UnionOffset<MetricValue>> {
+                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
+            }
+        }
+        impl<T> ::planus::WriteAsUnion<MetricValue> for MetricValueBuilder<::planus::Initialized<2, T>>
+        where
+            T: ::planus::WriteAsOffset<self::MetricFloatValue>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::UnionOffset<MetricValue> {
+                ::planus::UnionOffset::new(2, (self.0).0.prepare(builder).downcast())
+            }
+        }
+
+        impl<T> ::planus::WriteAsOptionalUnion<MetricValue>
+            for MetricValueBuilder<::planus::Initialized<2, T>>
+        where
+            T: ::planus::WriteAsOffset<self::MetricFloatValue>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::UnionOffset<MetricValue>> {
+                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
+            }
+        }
+        impl<T> ::planus::WriteAsUnion<MetricValue> for MetricValueBuilder<::planus::Initialized<3, T>>
+        where
+            T: ::planus::WriteAsOffset<self::MetricHistogramValue>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::UnionOffset<MetricValue> {
+                ::planus::UnionOffset::new(3, (self.0).0.prepare(builder).downcast())
+            }
+        }
+
+        impl<T> ::planus::WriteAsOptionalUnion<MetricValue>
+            for MetricValueBuilder<::planus::Initialized<3, T>>
+        where
+            T: ::planus::WriteAsOffset<self::MetricHistogramValue>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::UnionOffset<MetricValue>> {
+                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
+            }
+        }
+
+        /// Reference to a deserialized [MetricValue].
+        #[derive(Copy, Clone, Debug)]
+        pub enum MetricValueRef<'a> {
+            MetricIntValue(self::MetricIntValueRef<'a>),
+            MetricFloatValue(self::MetricFloatValueRef<'a>),
+            MetricHistogramValue(self::MetricHistogramValueRef<'a>),
+        }
+
+        impl<'a> ::core::convert::TryFrom<MetricValueRef<'a>> for MetricValue {
+            type Error = ::planus::Error;
+
+            fn try_from(value: MetricValueRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(match value {
+                    MetricValueRef::MetricIntValue(value) => {
+                        Self::MetricIntValue(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryFrom::try_from(value)?,
+                        ))
+                    }
+
+                    MetricValueRef::MetricFloatValue(value) => {
+                        Self::MetricFloatValue(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryFrom::try_from(value)?,
+                        ))
+                    }
+
+                    MetricValueRef::MetricHistogramValue(value) => {
+                        Self::MetricHistogramValue(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryFrom::try_from(value)?,
+                        ))
+                    }
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableReadUnion<'a> for MetricValueRef<'a> {
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                tag: u8,
+                field_offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                match tag {
+                    1 => ::core::result::Result::Ok(Self::MetricIntValue(
+                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
+                    )),
+                    2 => ::core::result::Result::Ok(Self::MetricFloatValue(
+                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
+                    )),
+                    3 => ::core::result::Result::Ok(Self::MetricHistogramValue(
+                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
+                    )),
+                    _ => {
+                        ::core::result::Result::Err(::planus::errors::ErrorKind::UnknownUnionTag {
+                            tag,
+                        })
+                    }
+                }
+            }
+        }
+
+        impl<'a> ::planus::VectorReadUnion<'a> for MetricValueRef<'a> {
+            const VECTOR_NAME: &'static str = "[MetricValueRef]";
+        }
+
+        /// The table `MetricSample` in the namespace `MoorRpc`
+        ///
+        /// Generated from these locations:
+        /// * Table `MetricSample` in the file `moor_rpc.fbs:475`
+        #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
+        pub struct MetricSample {
+            /// The field `labels` in the table `MetricSample`
+            pub labels: ::planus::alloc::vec::Vec<self::MetricLabel>,
+            /// The field `value` in the table `MetricSample`
+            pub value: self::MetricValue,
+        }
+
+        impl MetricSample {
+            /// Creates a [MetricSampleBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> MetricSampleBuilder<()> {
+                MetricSampleBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(
+                builder: &mut ::planus::Builder,
+                field_labels: impl ::planus::WriteAs<
+                    ::planus::Offset<[::planus::Offset<self::MetricLabel>]>,
+                >,
+                field_value: impl ::planus::WriteAsUnion<self::MetricValue>,
+            ) -> ::planus::Offset<Self> {
+                let prepared_labels = field_labels.prepare(builder);
+                let prepared_value = field_value.prepare(builder);
+
+                let mut table_writer: ::planus::table_writer::TableWriter<10> =
+                    ::core::default::Default::default();
+                table_writer
+                    .write_entry::<::planus::Offset<[::planus::Offset<self::MetricLabel>]>>(0);
+                table_writer.write_entry::<::planus::Offset<self::MetricValue>>(2);
+                table_writer.write_entry::<u8>(1);
+
+                unsafe {
+                    table_writer.finish(builder, |object_writer| {
+                        object_writer.write::<_, _, 4>(&prepared_labels);
+                        object_writer.write::<_, _, 4>(&prepared_value.offset());
+                        object_writer.write::<_, _, 1>(&prepared_value.tag());
+                    });
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<MetricSample>> for MetricSample {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<MetricSample> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<MetricSample>> for MetricSample {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<MetricSample>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<MetricSample> for MetricSample {
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<MetricSample> {
+                MetricSample::create(builder, &self.labels, &self.value)
+            }
+        }
+
+        /// Builder for serializing an instance of the [MetricSample] type.
+        ///
+        /// Can be created using the [MetricSample::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct MetricSampleBuilder<State>(State);
+
+        impl MetricSampleBuilder<()> {
+            /// Setter for the [`labels` field](MetricSample#structfield.labels).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn labels<T0>(self, value: T0) -> MetricSampleBuilder<(T0,)>
+            where
+                T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::MetricLabel>]>>,
+            {
+                MetricSampleBuilder((value,))
+            }
+        }
+
+        impl<T0> MetricSampleBuilder<(T0,)> {
+            /// Setter for the [`value` field](MetricSample#structfield.value).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn value<T1>(self, value: T1) -> MetricSampleBuilder<(T0, T1)>
+            where
+                T1: ::planus::WriteAsUnion<self::MetricValue>,
+            {
+                let (v0,) = self.0;
+                MetricSampleBuilder((v0, value))
+            }
+        }
+
+        impl<T0, T1> MetricSampleBuilder<(T0, T1)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [MetricSample].
+            #[inline]
+            pub fn finish(self, builder: &mut ::planus::Builder) -> ::planus::Offset<MetricSample>
+            where
+                Self: ::planus::WriteAsOffset<MetricSample>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::MetricLabel>]>>,
+            T1: ::planus::WriteAsUnion<self::MetricValue>,
+        > ::planus::WriteAs<::planus::Offset<MetricSample>> for MetricSampleBuilder<(T0, T1)>
+        {
+            type Prepared = ::planus::Offset<MetricSample>;
+
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<MetricSample> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::MetricLabel>]>>,
+            T1: ::planus::WriteAsUnion<self::MetricValue>,
+        > ::planus::WriteAsOptional<::planus::Offset<MetricSample>>
+            for MetricSampleBuilder<(T0, T1)>
+        {
+            type Prepared = ::planus::Offset<MetricSample>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<MetricSample>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::MetricLabel>]>>,
+            T1: ::planus::WriteAsUnion<self::MetricValue>,
+        > ::planus::WriteAsOffset<MetricSample> for MetricSampleBuilder<(T0, T1)>
+        {
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<MetricSample> {
+                let (v0, v1) = &self.0;
+                MetricSample::create(builder, v0, v1)
+            }
+        }
+
+        /// Reference to a deserialized [MetricSample].
+        #[derive(Copy, Clone)]
+        pub struct MetricSampleRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+
+        impl<'a> MetricSampleRef<'a> {
+            /// Getter for the [`labels` field](MetricSample#structfield.labels).
+            #[inline]
+            pub fn labels(
+                &self,
+            ) -> ::planus::Result<::planus::Vector<'a, ::planus::Result<self::MetricLabelRef<'a>>>>
+            {
+                self.0.access_required(0, "MetricSample", "labels")
+            }
+
+            /// Getter for the [`value` field](MetricSample#structfield.value).
+            #[inline]
+            pub fn value(&self) -> ::planus::Result<self::MetricValueRef<'a>> {
+                self.0.access_union_required(1, "MetricSample", "value")
+            }
+        }
+
+        impl<'a> ::core::fmt::Debug for MetricSampleRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("MetricSampleRef");
+                f.field("labels", &self.labels());
+                f.field("value", &self.value());
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<MetricSampleRef<'a>> for MetricSample {
+            type Error = ::planus::Error;
+
+            #[allow(unreachable_code)]
+            fn try_from(value: MetricSampleRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {
+                    labels: value.labels()?.to_vec_result()?,
+                    value: ::core::convert::TryInto::try_into(value.value()?)?,
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for MetricSampleRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for MetricSampleRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[MetricSampleRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<MetricSample>> for MetricSample {
+            type Value = ::planus::Offset<MetricSample>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<MetricSample>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for MetricSampleRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[MetricSampleRef]", "read_as_root", 0)
+                })
+            }
+        }
+
+        /// The table `MetricFamily` in the namespace `MoorRpc`
+        ///
+        /// Generated from these locations:
+        /// * Table `MetricFamily` in the file `moor_rpc.fbs:480`
+        #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
+        pub struct MetricFamily {
+            /// The field `name` in the table `MetricFamily`
+            pub name: ::planus::alloc::string::String,
+            /// The field `help` in the table `MetricFamily`
+            pub help: ::planus::alloc::string::String,
+            /// The field `unit` in the table `MetricFamily`
+            pub unit: ::core::option::Option<::planus::alloc::string::String>,
+            /// The field `kind` in the table `MetricFamily`
+            pub kind: self::MetricKind,
+            /// The field `samples` in the table `MetricFamily`
+            pub samples: ::planus::alloc::vec::Vec<self::MetricSample>,
+        }
+
+        #[allow(clippy::derivable_impls)]
+        impl ::core::default::Default for MetricFamily {
+            fn default() -> Self {
+                Self {
+                    name: ::core::default::Default::default(),
+                    help: ::core::default::Default::default(),
+                    unit: ::core::default::Default::default(),
+                    kind: self::MetricKind::Counter,
+                    samples: ::core::default::Default::default(),
+                }
+            }
+        }
+
+        impl MetricFamily {
+            /// Creates a [MetricFamilyBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> MetricFamilyBuilder<()> {
+                MetricFamilyBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(
+                builder: &mut ::planus::Builder,
+                field_name: impl ::planus::WriteAs<::planus::Offset<str>>,
+                field_help: impl ::planus::WriteAs<::planus::Offset<str>>,
+                field_unit: impl ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
+                field_kind: impl ::planus::WriteAsDefault<self::MetricKind, self::MetricKind>,
+                field_samples: impl ::planus::WriteAs<
+                    ::planus::Offset<[::planus::Offset<self::MetricSample>]>,
+                >,
+            ) -> ::planus::Offset<Self> {
+                let prepared_name = field_name.prepare(builder);
+                let prepared_help = field_help.prepare(builder);
+                let prepared_unit = field_unit.prepare(builder);
+                let prepared_kind = field_kind.prepare(builder, &self::MetricKind::Counter);
+                let prepared_samples = field_samples.prepare(builder);
+
+                let mut table_writer: ::planus::table_writer::TableWriter<14> =
+                    ::core::default::Default::default();
+                table_writer.write_entry::<::planus::Offset<str>>(0);
+                table_writer.write_entry::<::planus::Offset<str>>(1);
+                if prepared_unit.is_some() {
+                    table_writer.write_entry::<::planus::Offset<str>>(2);
+                }
+                table_writer
+                    .write_entry::<::planus::Offset<[::planus::Offset<self::MetricSample>]>>(4);
+                if prepared_kind.is_some() {
+                    table_writer.write_entry::<self::MetricKind>(3);
+                }
+
+                unsafe {
+                    table_writer.finish(builder, |object_writer| {
+                        object_writer.write::<_, _, 4>(&prepared_name);
+                        object_writer.write::<_, _, 4>(&prepared_help);
+                        if let ::core::option::Option::Some(prepared_unit) = prepared_unit {
+                            object_writer.write::<_, _, 4>(&prepared_unit);
+                        }
+                        object_writer.write::<_, _, 4>(&prepared_samples);
+                        if let ::core::option::Option::Some(prepared_kind) = prepared_kind {
+                            object_writer.write::<_, _, 1>(&prepared_kind);
+                        }
+                    });
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<MetricFamily>> for MetricFamily {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<MetricFamily> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<MetricFamily>> for MetricFamily {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<MetricFamily>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<MetricFamily> for MetricFamily {
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<MetricFamily> {
+                MetricFamily::create(
+                    builder,
+                    &self.name,
+                    &self.help,
+                    &self.unit,
+                    self.kind,
+                    &self.samples,
+                )
+            }
+        }
+
+        /// Builder for serializing an instance of the [MetricFamily] type.
+        ///
+        /// Can be created using the [MetricFamily::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct MetricFamilyBuilder<State>(State);
+
+        impl MetricFamilyBuilder<()> {
+            /// Setter for the [`name` field](MetricFamily#structfield.name).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn name<T0>(self, value: T0) -> MetricFamilyBuilder<(T0,)>
+            where
+                T0: ::planus::WriteAs<::planus::Offset<str>>,
+            {
+                MetricFamilyBuilder((value,))
+            }
+        }
+
+        impl<T0> MetricFamilyBuilder<(T0,)> {
+            /// Setter for the [`help` field](MetricFamily#structfield.help).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn help<T1>(self, value: T1) -> MetricFamilyBuilder<(T0, T1)>
+            where
+                T1: ::planus::WriteAs<::planus::Offset<str>>,
+            {
+                let (v0,) = self.0;
+                MetricFamilyBuilder((v0, value))
+            }
+        }
+
+        impl<T0, T1> MetricFamilyBuilder<(T0, T1)> {
+            /// Setter for the [`unit` field](MetricFamily#structfield.unit).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn unit<T2>(self, value: T2) -> MetricFamilyBuilder<(T0, T1, T2)>
+            where
+                T2: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
+            {
+                let (v0, v1) = self.0;
+                MetricFamilyBuilder((v0, v1, value))
+            }
+
+            /// Sets the [`unit` field](MetricFamily#structfield.unit) to null.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn unit_as_null(self) -> MetricFamilyBuilder<(T0, T1, ())> {
+                self.unit(())
+            }
+        }
+
+        impl<T0, T1, T2> MetricFamilyBuilder<(T0, T1, T2)> {
+            /// Setter for the [`kind` field](MetricFamily#structfield.kind).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn kind<T3>(self, value: T3) -> MetricFamilyBuilder<(T0, T1, T2, T3)>
+            where
+                T3: ::planus::WriteAsDefault<self::MetricKind, self::MetricKind>,
+            {
+                let (v0, v1, v2) = self.0;
+                MetricFamilyBuilder((v0, v1, v2, value))
+            }
+
+            /// Sets the [`kind` field](MetricFamily#structfield.kind) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn kind_as_default(
+                self,
+            ) -> MetricFamilyBuilder<(T0, T1, T2, ::planus::DefaultValue)> {
+                self.kind(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0, T1, T2, T3> MetricFamilyBuilder<(T0, T1, T2, T3)> {
+            /// Setter for the [`samples` field](MetricFamily#structfield.samples).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn samples<T4>(self, value: T4) -> MetricFamilyBuilder<(T0, T1, T2, T3, T4)>
+            where
+                T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::MetricSample>]>>,
+            {
+                let (v0, v1, v2, v3) = self.0;
+                MetricFamilyBuilder((v0, v1, v2, v3, value))
+            }
+        }
+
+        impl<T0, T1, T2, T3, T4> MetricFamilyBuilder<(T0, T1, T2, T3, T4)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [MetricFamily].
+            #[inline]
+            pub fn finish(self, builder: &mut ::planus::Builder) -> ::planus::Offset<MetricFamily>
+            where
+                Self: ::planus::WriteAsOffset<MetricFamily>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
+            T3: ::planus::WriteAsDefault<self::MetricKind, self::MetricKind>,
+            T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::MetricSample>]>>,
+        > ::planus::WriteAs<::planus::Offset<MetricFamily>>
+            for MetricFamilyBuilder<(T0, T1, T2, T3, T4)>
+        {
+            type Prepared = ::planus::Offset<MetricFamily>;
+
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<MetricFamily> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
+            T3: ::planus::WriteAsDefault<self::MetricKind, self::MetricKind>,
+            T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::MetricSample>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<MetricFamily>>
+            for MetricFamilyBuilder<(T0, T1, T2, T3, T4)>
+        {
+            type Prepared = ::planus::Offset<MetricFamily>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<MetricFamily>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<str>>,
+            T2: ::planus::WriteAsOptional<::planus::Offset<::core::primitive::str>>,
+            T3: ::planus::WriteAsDefault<self::MetricKind, self::MetricKind>,
+            T4: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::MetricSample>]>>,
+        > ::planus::WriteAsOffset<MetricFamily> for MetricFamilyBuilder<(T0, T1, T2, T3, T4)>
+        {
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<MetricFamily> {
+                let (v0, v1, v2, v3, v4) = &self.0;
+                MetricFamily::create(builder, v0, v1, v2, v3, v4)
+            }
+        }
+
+        /// Reference to a deserialized [MetricFamily].
+        #[derive(Copy, Clone)]
+        pub struct MetricFamilyRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+
+        impl<'a> MetricFamilyRef<'a> {
+            /// Getter for the [`name` field](MetricFamily#structfield.name).
+            #[inline]
+            pub fn name(&self) -> ::planus::Result<&'a ::core::primitive::str> {
+                self.0.access_required(0, "MetricFamily", "name")
+            }
+
+            /// Getter for the [`help` field](MetricFamily#structfield.help).
+            #[inline]
+            pub fn help(&self) -> ::planus::Result<&'a ::core::primitive::str> {
+                self.0.access_required(1, "MetricFamily", "help")
+            }
+
+            /// Getter for the [`unit` field](MetricFamily#structfield.unit).
+            #[inline]
+            pub fn unit(
+                &self,
+            ) -> ::planus::Result<::core::option::Option<&'a ::core::primitive::str>> {
+                self.0.access(2, "MetricFamily", "unit")
+            }
+
+            /// Getter for the [`kind` field](MetricFamily#structfield.kind).
+            #[inline]
+            pub fn kind(&self) -> ::planus::Result<self::MetricKind> {
+                ::core::result::Result::Ok(
+                    self.0
+                        .access(3, "MetricFamily", "kind")?
+                        .unwrap_or(self::MetricKind::Counter),
+                )
+            }
+
+            /// Getter for the [`samples` field](MetricFamily#structfield.samples).
+            #[inline]
+            pub fn samples(
+                &self,
+            ) -> ::planus::Result<::planus::Vector<'a, ::planus::Result<self::MetricSampleRef<'a>>>>
+            {
+                self.0.access_required(4, "MetricFamily", "samples")
+            }
+        }
+
+        impl<'a> ::core::fmt::Debug for MetricFamilyRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("MetricFamilyRef");
+                f.field("name", &self.name());
+                f.field("help", &self.help());
+                if let ::core::option::Option::Some(field_unit) = self.unit().transpose() {
+                    f.field("unit", &field_unit);
+                }
+                f.field("kind", &self.kind());
+                f.field("samples", &self.samples());
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<MetricFamilyRef<'a>> for MetricFamily {
+            type Error = ::planus::Error;
+
+            #[allow(unreachable_code)]
+            fn try_from(value: MetricFamilyRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {
+                    name: ::core::convert::Into::into(value.name()?),
+                    help: ::core::convert::Into::into(value.help()?),
+                    unit: value.unit()?.map(::core::convert::Into::into),
+                    kind: ::core::convert::TryInto::try_into(value.kind()?)?,
+                    samples: value.samples()?.to_vec_result()?,
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for MetricFamilyRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for MetricFamilyRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[MetricFamilyRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<MetricFamily>> for MetricFamily {
+            type Value = ::planus::Offset<MetricFamily>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<MetricFamily>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for MetricFamilyRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[MetricFamilyRef]", "read_as_root", 0)
+                })
+            }
+        }
+
+        /// The table `DaemonToHostMetrics` in the namespace `MoorRpc`
+        ///
+        /// Generated from these locations:
+        /// * Table `DaemonToHostMetrics` in the file `moor_rpc.fbs:488`
+        #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
+        pub struct DaemonToHostMetrics {
+            /// The field `timestamp` in the table `DaemonToHostMetrics`
+            pub timestamp: u64,
+            /// The field `families` in the table `DaemonToHostMetrics`
+            pub families: ::planus::alloc::vec::Vec<self::MetricFamily>,
+        }
+
+        #[allow(clippy::derivable_impls)]
+        impl ::core::default::Default for DaemonToHostMetrics {
+            fn default() -> Self {
+                Self {
+                    timestamp: 0,
+                    families: ::core::default::Default::default(),
+                }
+            }
+        }
+
+        impl DaemonToHostMetrics {
+            /// Creates a [DaemonToHostMetricsBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> DaemonToHostMetricsBuilder<()> {
+                DaemonToHostMetricsBuilder(())
             }
 
             #[allow(clippy::too_many_arguments)]
             pub fn create(
                 builder: &mut ::planus::Builder,
                 field_timestamp: impl ::planus::WriteAsDefault<u64, u64>,
-                field_counters: impl ::planus::WriteAs<
-                    ::planus::Offset<[::planus::Offset<self::CounterCategory>]>,
+                field_families: impl ::planus::WriteAs<
+                    ::planus::Offset<[::planus::Offset<self::MetricFamily>]>,
                 >,
             ) -> ::planus::Offset<Self> {
                 let prepared_timestamp = field_timestamp.prepare(builder, &0);
-                let prepared_counters = field_counters.prepare(builder);
+                let prepared_families = field_families.prepare(builder);
 
                 let mut table_writer: ::planus::table_writer::TableWriter<8> =
                     ::core::default::Default::default();
@@ -53084,7 +54921,7 @@ mod root {
                     table_writer.write_entry::<u64>(0);
                 }
                 table_writer
-                    .write_entry::<::planus::Offset<[::planus::Offset<self::CounterCategory>]>>(1);
+                    .write_entry::<::planus::Offset<[::planus::Offset<self::MetricFamily>]>>(1);
 
                 unsafe {
                     table_writer.finish(builder, |object_writer| {
@@ -53092,99 +54929,97 @@ mod root {
                         {
                             object_writer.write::<_, _, 8>(&prepared_timestamp);
                         }
-                        object_writer.write::<_, _, 4>(&prepared_counters);
+                        object_writer.write::<_, _, 4>(&prepared_families);
                     });
                 }
                 builder.current_offset()
             }
         }
 
-        impl ::planus::WriteAs<::planus::Offset<DaemonToHostPerfCounters>> for DaemonToHostPerfCounters {
+        impl ::planus::WriteAs<::planus::Offset<DaemonToHostMetrics>> for DaemonToHostMetrics {
             type Prepared = ::planus::Offset<Self>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<DaemonToHostPerfCounters> {
+            ) -> ::planus::Offset<DaemonToHostMetrics> {
                 ::planus::WriteAsOffset::prepare(self, builder)
             }
         }
 
-        impl ::planus::WriteAsOptional<::planus::Offset<DaemonToHostPerfCounters>>
-            for DaemonToHostPerfCounters
-        {
+        impl ::planus::WriteAsOptional<::planus::Offset<DaemonToHostMetrics>> for DaemonToHostMetrics {
             type Prepared = ::planus::Offset<Self>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<DaemonToHostPerfCounters>> {
+            ) -> ::core::option::Option<::planus::Offset<DaemonToHostMetrics>> {
                 ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
             }
         }
 
-        impl ::planus::WriteAsOffset<DaemonToHostPerfCounters> for DaemonToHostPerfCounters {
+        impl ::planus::WriteAsOffset<DaemonToHostMetrics> for DaemonToHostMetrics {
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<DaemonToHostPerfCounters> {
-                DaemonToHostPerfCounters::create(builder, self.timestamp, &self.counters)
+            ) -> ::planus::Offset<DaemonToHostMetrics> {
+                DaemonToHostMetrics::create(builder, self.timestamp, &self.families)
             }
         }
 
-        /// Builder for serializing an instance of the [DaemonToHostPerfCounters] type.
+        /// Builder for serializing an instance of the [DaemonToHostMetrics] type.
         ///
-        /// Can be created using the [DaemonToHostPerfCounters::builder] method.
+        /// Can be created using the [DaemonToHostMetrics::builder] method.
         #[derive(Debug)]
         #[must_use]
-        pub struct DaemonToHostPerfCountersBuilder<State>(State);
+        pub struct DaemonToHostMetricsBuilder<State>(State);
 
-        impl DaemonToHostPerfCountersBuilder<()> {
-            /// Setter for the [`timestamp` field](DaemonToHostPerfCounters#structfield.timestamp).
+        impl DaemonToHostMetricsBuilder<()> {
+            /// Setter for the [`timestamp` field](DaemonToHostMetrics#structfield.timestamp).
             #[inline]
             #[allow(clippy::type_complexity)]
-            pub fn timestamp<T0>(self, value: T0) -> DaemonToHostPerfCountersBuilder<(T0,)>
+            pub fn timestamp<T0>(self, value: T0) -> DaemonToHostMetricsBuilder<(T0,)>
             where
                 T0: ::planus::WriteAsDefault<u64, u64>,
             {
-                DaemonToHostPerfCountersBuilder((value,))
+                DaemonToHostMetricsBuilder((value,))
             }
 
-            /// Sets the [`timestamp` field](DaemonToHostPerfCounters#structfield.timestamp) to the default value.
+            /// Sets the [`timestamp` field](DaemonToHostMetrics#structfield.timestamp) to the default value.
             #[inline]
             #[allow(clippy::type_complexity)]
             pub fn timestamp_as_default(
                 self,
-            ) -> DaemonToHostPerfCountersBuilder<(::planus::DefaultValue,)> {
+            ) -> DaemonToHostMetricsBuilder<(::planus::DefaultValue,)> {
                 self.timestamp(::planus::DefaultValue)
             }
         }
 
-        impl<T0> DaemonToHostPerfCountersBuilder<(T0,)> {
-            /// Setter for the [`counters` field](DaemonToHostPerfCounters#structfield.counters).
+        impl<T0> DaemonToHostMetricsBuilder<(T0,)> {
+            /// Setter for the [`families` field](DaemonToHostMetrics#structfield.families).
             #[inline]
             #[allow(clippy::type_complexity)]
-            pub fn counters<T1>(self, value: T1) -> DaemonToHostPerfCountersBuilder<(T0, T1)>
+            pub fn families<T1>(self, value: T1) -> DaemonToHostMetricsBuilder<(T0, T1)>
             where
-                T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::CounterCategory>]>>,
+                T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::MetricFamily>]>>,
             {
                 let (v0,) = self.0;
-                DaemonToHostPerfCountersBuilder((v0, value))
+                DaemonToHostMetricsBuilder((v0, value))
             }
         }
 
-        impl<T0, T1> DaemonToHostPerfCountersBuilder<(T0, T1)> {
-            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [DaemonToHostPerfCounters].
+        impl<T0, T1> DaemonToHostMetricsBuilder<(T0, T1)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [DaemonToHostMetrics].
             #[inline]
             pub fn finish(
                 self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<DaemonToHostPerfCounters>
+            ) -> ::planus::Offset<DaemonToHostMetrics>
             where
-                Self: ::planus::WriteAsOffset<DaemonToHostPerfCounters>,
+                Self: ::planus::WriteAsOffset<DaemonToHostMetrics>,
             {
                 ::planus::WriteAsOffset::prepare(&self, builder)
             }
@@ -53192,105 +55027,102 @@ mod root {
 
         impl<
             T0: ::planus::WriteAsDefault<u64, u64>,
-            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::CounterCategory>]>>,
-        > ::planus::WriteAs<::planus::Offset<DaemonToHostPerfCounters>>
-            for DaemonToHostPerfCountersBuilder<(T0, T1)>
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::MetricFamily>]>>,
+        > ::planus::WriteAs<::planus::Offset<DaemonToHostMetrics>>
+            for DaemonToHostMetricsBuilder<(T0, T1)>
         {
-            type Prepared = ::planus::Offset<DaemonToHostPerfCounters>;
+            type Prepared = ::planus::Offset<DaemonToHostMetrics>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<DaemonToHostPerfCounters> {
+            ) -> ::planus::Offset<DaemonToHostMetrics> {
                 ::planus::WriteAsOffset::prepare(self, builder)
             }
         }
 
         impl<
             T0: ::planus::WriteAsDefault<u64, u64>,
-            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::CounterCategory>]>>,
-        > ::planus::WriteAsOptional<::planus::Offset<DaemonToHostPerfCounters>>
-            for DaemonToHostPerfCountersBuilder<(T0, T1)>
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::MetricFamily>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<DaemonToHostMetrics>>
+            for DaemonToHostMetricsBuilder<(T0, T1)>
         {
-            type Prepared = ::planus::Offset<DaemonToHostPerfCounters>;
+            type Prepared = ::planus::Offset<DaemonToHostMetrics>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<DaemonToHostPerfCounters>> {
+            ) -> ::core::option::Option<::planus::Offset<DaemonToHostMetrics>> {
                 ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
             }
         }
 
         impl<
             T0: ::planus::WriteAsDefault<u64, u64>,
-            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::CounterCategory>]>>,
-        > ::planus::WriteAsOffset<DaemonToHostPerfCounters>
-            for DaemonToHostPerfCountersBuilder<(T0, T1)>
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::MetricFamily>]>>,
+        > ::planus::WriteAsOffset<DaemonToHostMetrics> for DaemonToHostMetricsBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<DaemonToHostPerfCounters> {
+            ) -> ::planus::Offset<DaemonToHostMetrics> {
                 let (v0, v1) = &self.0;
-                DaemonToHostPerfCounters::create(builder, v0, v1)
+                DaemonToHostMetrics::create(builder, v0, v1)
             }
         }
 
-        /// Reference to a deserialized [DaemonToHostPerfCounters].
+        /// Reference to a deserialized [DaemonToHostMetrics].
         #[derive(Copy, Clone)]
-        pub struct DaemonToHostPerfCountersRef<'a>(
+        pub struct DaemonToHostMetricsRef<'a>(
             #[allow(dead_code)] ::planus::table_reader::Table<'a>,
         );
 
-        impl<'a> DaemonToHostPerfCountersRef<'a> {
-            /// Getter for the [`timestamp` field](DaemonToHostPerfCounters#structfield.timestamp).
+        impl<'a> DaemonToHostMetricsRef<'a> {
+            /// Getter for the [`timestamp` field](DaemonToHostMetrics#structfield.timestamp).
             #[inline]
             pub fn timestamp(&self) -> ::planus::Result<u64> {
                 ::core::result::Result::Ok(
                     self.0
-                        .access(0, "DaemonToHostPerfCounters", "timestamp")?
+                        .access(0, "DaemonToHostMetrics", "timestamp")?
                         .unwrap_or(0),
                 )
             }
 
-            /// Getter for the [`counters` field](DaemonToHostPerfCounters#structfield.counters).
+            /// Getter for the [`families` field](DaemonToHostMetrics#structfield.families).
             #[inline]
-            pub fn counters(
+            pub fn families(
                 &self,
-            ) -> ::planus::Result<
-                ::planus::Vector<'a, ::planus::Result<self::CounterCategoryRef<'a>>>,
-            > {
-                self.0
-                    .access_required(1, "DaemonToHostPerfCounters", "counters")
+            ) -> ::planus::Result<::planus::Vector<'a, ::planus::Result<self::MetricFamilyRef<'a>>>>
+            {
+                self.0.access_required(1, "DaemonToHostMetrics", "families")
             }
         }
 
-        impl<'a> ::core::fmt::Debug for DaemonToHostPerfCountersRef<'a> {
+        impl<'a> ::core::fmt::Debug for DaemonToHostMetricsRef<'a> {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                let mut f = f.debug_struct("DaemonToHostPerfCountersRef");
+                let mut f = f.debug_struct("DaemonToHostMetricsRef");
                 f.field("timestamp", &self.timestamp());
-                f.field("counters", &self.counters());
+                f.field("families", &self.families());
                 f.finish()
             }
         }
 
-        impl<'a> ::core::convert::TryFrom<DaemonToHostPerfCountersRef<'a>> for DaemonToHostPerfCounters {
+        impl<'a> ::core::convert::TryFrom<DaemonToHostMetricsRef<'a>> for DaemonToHostMetrics {
             type Error = ::planus::Error;
 
             #[allow(unreachable_code)]
-            fn try_from(value: DaemonToHostPerfCountersRef<'a>) -> ::planus::Result<Self> {
+            fn try_from(value: DaemonToHostMetricsRef<'a>) -> ::planus::Result<Self> {
                 ::core::result::Result::Ok(Self {
                     timestamp: ::core::convert::TryInto::try_into(value.timestamp()?)?,
-                    counters: value.counters()?.to_vec_result()?,
+                    families: value.families()?.to_vec_result()?,
                 })
             }
         }
 
-        impl<'a> ::planus::TableRead<'a> for DaemonToHostPerfCountersRef<'a> {
+        impl<'a> ::planus::TableRead<'a> for DaemonToHostMetricsRef<'a> {
             #[inline]
             fn from_buffer(
                 buffer: ::planus::SliceWithStartOffset<'a>,
@@ -53302,7 +55134,7 @@ mod root {
             }
         }
 
-        impl<'a> ::planus::VectorReadInner<'a> for DaemonToHostPerfCountersRef<'a> {
+        impl<'a> ::planus::VectorReadInner<'a> for DaemonToHostMetricsRef<'a> {
             type Error = ::planus::Error;
             const STRIDE: usize = 4;
 
@@ -53312,7 +55144,7 @@ mod root {
             ) -> ::planus::Result<Self> {
                 ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
                     error_kind.with_error_location(
-                        "[DaemonToHostPerfCountersRef]",
+                        "[DaemonToHostMetricsRef]",
                         "get",
                         buffer.offset_from_start,
                     )
@@ -53323,10 +55155,8 @@ mod root {
         /// # Safety
         /// The planus compiler generates implementations that initialize
         /// the bytes in `write_values`.
-        unsafe impl ::planus::VectorWrite<::planus::Offset<DaemonToHostPerfCounters>>
-            for DaemonToHostPerfCounters
-        {
-            type Value = ::planus::Offset<DaemonToHostPerfCounters>;
+        unsafe impl ::planus::VectorWrite<::planus::Offset<DaemonToHostMetrics>> for DaemonToHostMetrics {
+            type Value = ::planus::Offset<DaemonToHostMetrics>;
             const STRIDE: usize = 4;
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
@@ -53335,7 +55165,7 @@ mod root {
 
             #[inline]
             unsafe fn write_values(
-                values: &[::planus::Offset<DaemonToHostPerfCounters>],
+                values: &[::planus::Offset<DaemonToHostMetrics>],
                 bytes: *mut ::core::mem::MaybeUninit<u8>,
                 buffer_position: u32,
             ) {
@@ -53350,7 +55180,7 @@ mod root {
             }
         }
 
-        impl<'a> ::planus::ReadAsRoot<'a> for DaemonToHostPerfCountersRef<'a> {
+        impl<'a> ::planus::ReadAsRoot<'a> for DaemonToHostMetricsRef<'a> {
             fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
                 ::planus::TableRead::from_buffer(
                     ::planus::SliceWithStartOffset {
@@ -53360,11 +55190,7 @@ mod root {
                     0,
                 )
                 .map_err(|error_kind| {
-                    error_kind.with_error_location(
-                        "[DaemonToHostPerfCountersRef]",
-                        "read_as_root",
-                        0,
-                    )
+                    error_kind.with_error_location("[DaemonToHostMetricsRef]", "read_as_root", 0)
                 })
             }
         }
@@ -53372,7 +55198,7 @@ mod root {
         /// The table `ServerFeatures` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ServerFeatures` in the file `moor_rpc.fbs:452`
+        /// * Table `ServerFeatures` in the file `moor_rpc.fbs:493`
         #[derive(
             Clone,
             Debug,
@@ -54432,18 +56258,8 @@ mod root {
         /// The table `DaemonToHostReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DaemonToHostReply` in the file `moor_rpc.fbs:469`
-        #[derive(
-            Clone,
-            Debug,
-            PartialEq,
-            PartialOrd,
-            Eq,
-            Ord,
-            Hash,
-            ::serde::Serialize,
-            ::serde::Deserialize,
-        )]
+        /// * Table `DaemonToHostReply` in the file `moor_rpc.fbs:510`
+        #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct DaemonToHostReply {
             /// The field `reply` in the table `DaemonToHostReply`
             pub reply: self::DaemonToHostReplyUnion,
@@ -54696,7 +56512,7 @@ mod root {
         /// The union `HostBroadcastEventUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `HostBroadcastEventUnion` in the file `moor_rpc.fbs:477`
+        /// * Union `HostBroadcastEventUnion` in the file `moor_rpc.fbs:518`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum HostBroadcastEventUnion {
             /// The variant of type `HostBroadcastListen` in the union `HostBroadcastEventUnion`
@@ -54978,7 +56794,7 @@ mod root {
         /// The table `HostBroadcastListen` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostBroadcastListen` in the file `moor_rpc.fbs:483`
+        /// * Table `HostBroadcastListen` in the file `moor_rpc.fbs:524`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct HostBroadcastListen {
             /// The field `handler_object` in the table `HostBroadcastListen`
@@ -55385,7 +57201,7 @@ mod root {
         /// The table `HostBroadcastUnlisten` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostBroadcastUnlisten` in the file `moor_rpc.fbs:490`
+        /// * Table `HostBroadcastUnlisten` in the file `moor_rpc.fbs:531`
         #[derive(
             Clone,
             Debug,
@@ -55705,7 +57521,7 @@ mod root {
         /// The table `HostBroadcastPingPong` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostBroadcastPingPong` in the file `moor_rpc.fbs:495`
+        /// * Table `HostBroadcastPingPong` in the file `moor_rpc.fbs:536`
         #[derive(
             Clone,
             Debug,
@@ -55995,7 +57811,7 @@ mod root {
         /// The table `HostBroadcastEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostBroadcastEvent` in the file `moor_rpc.fbs:499`
+        /// * Table `HostBroadcastEvent` in the file `moor_rpc.fbs:540`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct HostBroadcastEvent {
             /// The field `event` in the table `HostBroadcastEvent`
@@ -56249,7 +58065,7 @@ mod root {
         /// The table `WsRequestProperty` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsRequestProperty` in the file `moor_rpc.fbs:510`
+        /// * Table `WsRequestProperty` in the file `moor_rpc.fbs:551`
         #[derive(
             Clone,
             Debug,
@@ -56547,7 +58363,7 @@ mod root {
         /// The table `WsRequestProperties` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsRequestProperties` in the file `moor_rpc.fbs:515`
+        /// * Table `WsRequestProperties` in the file `moor_rpc.fbs:556`
         #[derive(
             Clone,
             Debug,
@@ -56863,7 +58679,7 @@ mod root {
         /// The table `WsRequestSystemProperty` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsRequestSystemProperty` in the file `moor_rpc.fbs:520`
+        /// * Table `WsRequestSystemProperty` in the file `moor_rpc.fbs:561`
         #[derive(
             Clone,
             Debug,
@@ -57174,7 +58990,7 @@ mod root {
         /// The table `WsRequestVerbs` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsRequestVerbs` in the file `moor_rpc.fbs:525`
+        /// * Table `WsRequestVerbs` in the file `moor_rpc.fbs:566`
         #[derive(
             Clone,
             Debug,
@@ -57472,7 +59288,7 @@ mod root {
         /// The table `WsRequestVerbCode` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsRequestVerbCode` in the file `moor_rpc.fbs:530`
+        /// * Table `WsRequestVerbCode` in the file `moor_rpc.fbs:571`
         #[derive(
             Clone,
             Debug,
@@ -57770,7 +59586,7 @@ mod root {
         /// The table `WsResolveObject` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsResolveObject` in the file `moor_rpc.fbs:535`
+        /// * Table `WsResolveObject` in the file `moor_rpc.fbs:576`
         #[derive(
             Clone,
             Debug,
@@ -58032,7 +59848,7 @@ mod root {
         /// The table `WsListObjects` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsListObjects` in the file `moor_rpc.fbs:539`
+        /// * Table `WsListObjects` in the file `moor_rpc.fbs:580`
         #[derive(
             Clone,
             Debug,
@@ -58243,7 +60059,7 @@ mod root {
         /// The table `WsRequestAllObjects` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsRequestAllObjects` in the file `moor_rpc.fbs:542`
+        /// * Table `WsRequestAllObjects` in the file `moor_rpc.fbs:583`
         #[derive(
             Clone,
             Debug,
@@ -58473,7 +60289,7 @@ mod root {
         /// The table `WsUpdateProperty` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsUpdateProperty` in the file `moor_rpc.fbs:545`
+        /// * Table `WsUpdateProperty` in the file `moor_rpc.fbs:586`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct WsUpdateProperty {
             /// The field `object` in the table `WsUpdateProperty`
@@ -58793,7 +60609,7 @@ mod root {
         /// The table `WsProgramVerb` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsProgramVerb` in the file `moor_rpc.fbs:551`
+        /// * Table `WsProgramVerb` in the file `moor_rpc.fbs:592`
         #[derive(
             Clone,
             Debug,
@@ -59109,7 +60925,7 @@ mod root {
         /// The table `WsGetObjectFlags` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsGetObjectFlags` in the file `moor_rpc.fbs:557`
+        /// * Table `WsGetObjectFlags` in the file `moor_rpc.fbs:598`
         #[derive(
             Clone,
             Debug,
@@ -59372,7 +61188,7 @@ mod root {
         /// The table `WsQueryObjects` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsQueryObjects` in the file `moor_rpc.fbs:561`
+        /// * Table `WsQueryObjects` in the file `moor_rpc.fbs:602`
         #[derive(
             Clone,
             Debug,
@@ -59867,7 +61683,7 @@ mod root {
         /// The union `WorldStateActionUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `WorldStateActionUnion` in the file `moor_rpc.fbs:569`
+        /// * Union `WorldStateActionUnion` in the file `moor_rpc.fbs:610`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum WorldStateActionUnion {
             /// The variant of type `WsRequestProperty` in the union `WorldStateActionUnion`
@@ -60703,7 +62519,7 @@ mod root {
         /// The table `WorldStateActionEntry` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorldStateActionEntry` in the file `moor_rpc.fbs:584`
+        /// * Table `WorldStateActionEntry` in the file `moor_rpc.fbs:625`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct WorldStateActionEntry {
             /// The field `id` in the table `WorldStateActionEntry`
@@ -60995,7 +62811,7 @@ mod root {
         /// The table `BatchWorldState` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `BatchWorldState` in the file `moor_rpc.fbs:589`
+        /// * Table `BatchWorldState` in the file `moor_rpc.fbs:630`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct BatchWorldState {
             /// The field `auth_token` in the table `BatchWorldState`
@@ -61347,7 +63163,7 @@ mod root {
         /// The table `WsPropertyResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsPropertyResult` in the file `moor_rpc.fbs:597`
+        /// * Table `WsPropertyResult` in the file `moor_rpc.fbs:638`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct WsPropertyResult {
             /// The field `prop_info` in the table `WsPropertyResult`
@@ -61635,7 +63451,7 @@ mod root {
         /// The table `WsPropertiesResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsPropertiesResult` in the file `moor_rpc.fbs:602`
+        /// * Table `WsPropertiesResult` in the file `moor_rpc.fbs:643`
         #[derive(
             Clone,
             Debug,
@@ -61917,7 +63733,7 @@ mod root {
         /// The table `WsSystemPropertyResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsSystemPropertyResult` in the file `moor_rpc.fbs:606`
+        /// * Table `WsSystemPropertyResult` in the file `moor_rpc.fbs:647`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct WsSystemPropertyResult {
             /// The field `value` in the table `WsSystemPropertyResult`
@@ -62177,7 +63993,7 @@ mod root {
         /// The table `WsVerbsResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsVerbsResult` in the file `moor_rpc.fbs:610`
+        /// * Table `WsVerbsResult` in the file `moor_rpc.fbs:651`
         #[derive(
             Clone,
             Debug,
@@ -62442,7 +64258,7 @@ mod root {
         /// The table `WsVerbCodeResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsVerbCodeResult` in the file `moor_rpc.fbs:614`
+        /// * Table `WsVerbCodeResult` in the file `moor_rpc.fbs:655`
         #[derive(
             Clone,
             Debug,
@@ -62741,7 +64557,7 @@ mod root {
         /// The table `WsResolveResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsResolveResult` in the file `moor_rpc.fbs:619`
+        /// * Table `WsResolveResult` in the file `moor_rpc.fbs:660`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct WsResolveResult {
             /// The field `result` in the table `WsResolveResult`
@@ -62993,7 +64809,7 @@ mod root {
         /// The table `WsObjectsListResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsObjectsListResult` in the file `moor_rpc.fbs:623`
+        /// * Table `WsObjectsListResult` in the file `moor_rpc.fbs:664`
         #[derive(
             Clone,
             Debug,
@@ -63271,7 +65087,7 @@ mod root {
         /// The table `WsAllObjectsResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsAllObjectsResult` in the file `moor_rpc.fbs:627`
+        /// * Table `WsAllObjectsResult` in the file `moor_rpc.fbs:668`
         #[derive(
             Clone,
             Debug,
@@ -63550,7 +65366,7 @@ mod root {
         /// The table `WsPropertyUpdatedResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsPropertyUpdatedResult` in the file `moor_rpc.fbs:631`
+        /// * Table `WsPropertyUpdatedResult` in the file `moor_rpc.fbs:672`
         #[derive(
             Clone,
             Debug,
@@ -63790,7 +65606,7 @@ mod root {
         /// The table `WsVerbProgrammedResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsVerbProgrammedResult` in the file `moor_rpc.fbs:634`
+        /// * Table `WsVerbProgrammedResult` in the file `moor_rpc.fbs:675`
         #[derive(
             Clone,
             Debug,
@@ -64096,7 +65912,7 @@ mod root {
         /// The table `WsObjectFlagsResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsObjectFlagsResult` in the file `moor_rpc.fbs:639`
+        /// * Table `WsObjectFlagsResult` in the file `moor_rpc.fbs:680`
         #[derive(
             Clone,
             Debug,
@@ -64381,7 +66197,7 @@ mod root {
         /// The table `WsQueryObjectsResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsQueryObjectsResult` in the file `moor_rpc.fbs:643`
+        /// * Table `WsQueryObjectsResult` in the file `moor_rpc.fbs:684`
         #[derive(
             Clone,
             Debug,
@@ -64662,7 +66478,7 @@ mod root {
         /// The table `WsActionError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsActionError` in the file `moor_rpc.fbs:647`
+        /// * Table `WsActionError` in the file `moor_rpc.fbs:688`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct WsActionError {
             /// The field `error` in the table `WsActionError`
@@ -64908,7 +66724,7 @@ mod root {
         /// The union `WorldStateResultUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `WorldStateResultUnion` in the file `moor_rpc.fbs:651`
+        /// * Union `WorldStateResultUnion` in the file `moor_rpc.fbs:692`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum WorldStateResultUnion {
             /// The variant of type `WsPropertyResult` in the union `WorldStateResultUnion`
@@ -65811,7 +67627,7 @@ mod root {
         /// The table `WorldStateResultEntry` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorldStateResultEntry` in the file `moor_rpc.fbs:667`
+        /// * Table `WorldStateResultEntry` in the file `moor_rpc.fbs:708`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct WorldStateResultEntry {
             /// The field `id` in the table `WorldStateResultEntry`
@@ -66103,7 +67919,7 @@ mod root {
         /// The table `BatchWorldStateReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `BatchWorldStateReply` in the file `moor_rpc.fbs:672`
+        /// * Table `BatchWorldStateReply` in the file `moor_rpc.fbs:713`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct BatchWorldStateReply {
             /// The field `results` in the table `BatchWorldStateReply`
@@ -66376,7 +68192,7 @@ mod root {
         /// The union `HostClientToDaemonMessageUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `HostClientToDaemonMessageUnion` in the file `moor_rpc.fbs:680`
+        /// * Union `HostClientToDaemonMessageUnion` in the file `moor_rpc.fbs:721`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum HostClientToDaemonMessageUnion {
             /// The variant of type `ConnectionEstablish` in the union `HostClientToDaemonMessageUnion`
@@ -68544,7 +70360,7 @@ mod root {
         /// The table `ConnectionEstablish` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ConnectionEstablish` in the file `moor_rpc.fbs:716`
+        /// * Table `ConnectionEstablish` in the file `moor_rpc.fbs:757`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ConnectionEstablish {
             /// The field `peer_addr` in the table `ConnectionEstablish`
@@ -69075,7 +70891,7 @@ mod root {
         /// The table `Reattach` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Reattach` in the file `moor_rpc.fbs:724`
+        /// * Table `Reattach` in the file `moor_rpc.fbs:765`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct Reattach {
             /// The field `client_token` in the table `Reattach`
@@ -69662,7 +71478,7 @@ mod root {
         /// The table `RequestSysProp` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RequestSysProp` in the file `moor_rpc.fbs:734`
+        /// * Table `RequestSysProp` in the file `moor_rpc.fbs:775`
         #[derive(
             Clone,
             Debug,
@@ -70002,7 +71818,7 @@ mod root {
         /// The table `VerifiedOAuthLogin` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerifiedOAuthLogin` in the file `moor_rpc.fbs:742`
+        /// * Table `VerifiedOAuthLogin` in the file `moor_rpc.fbs:783`
         #[derive(
             Clone,
             Debug,
@@ -70367,7 +72183,7 @@ mod root {
         /// The table `LoginCommand` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `LoginCommand` in the file `moor_rpc.fbs:748`
+        /// * Table `LoginCommand` in the file `moor_rpc.fbs:789`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct LoginCommand {
             /// The field `client_token` in the table `LoginCommand`
@@ -70792,7 +72608,7 @@ mod root {
         /// The table `Attach` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Attach` in the file `moor_rpc.fbs:759`
+        /// * Table `Attach` in the file `moor_rpc.fbs:800`
         #[derive(
             Clone,
             Debug,
@@ -71325,7 +73141,7 @@ mod root {
         /// The table `Verbs` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Verbs` in the file `moor_rpc.fbs:769`
+        /// * Table `Verbs` in the file `moor_rpc.fbs:810`
         #[derive(
             Clone,
             Debug,
@@ -71644,7 +73460,7 @@ mod root {
         /// The table `ConnectedInvocation` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ConnectedInvocation` in the file `moor_rpc.fbs:777`
+        /// * Table `ConnectedInvocation` in the file `moor_rpc.fbs:818`
         #[derive(
             Clone,
             Debug,
@@ -71919,7 +73735,7 @@ mod root {
         /// The table `CaptureOutputInvocation` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `CaptureOutputInvocation` in the file `moor_rpc.fbs:788`
+        /// * Table `CaptureOutputInvocation` in the file `moor_rpc.fbs:829`
         #[derive(
             Clone,
             Debug,
@@ -72217,7 +74033,7 @@ mod root {
         /// The union `InvocationMode` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `InvocationMode` in the file `moor_rpc.fbs:792`
+        /// * Union `InvocationMode` in the file `moor_rpc.fbs:833`
         #[derive(
             Clone,
             Debug,
@@ -72443,7 +74259,7 @@ mod root {
         /// The table `Command` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Command` in the file `moor_rpc.fbs:797`
+        /// * Table `Command` in the file `moor_rpc.fbs:838`
         #[derive(
             Clone,
             Debug,
@@ -72789,7 +74605,7 @@ mod root {
         /// The table `InvokeVerb` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `InvokeVerb` in the file `moor_rpc.fbs:804`
+        /// * Table `InvokeVerb` in the file `moor_rpc.fbs:845`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct InvokeVerb {
             /// The field `auth_token` in the table `InvokeVerb`
@@ -73169,7 +74985,7 @@ mod root {
         /// The table `Properties` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Properties` in the file `moor_rpc.fbs:812`
+        /// * Table `Properties` in the file `moor_rpc.fbs:853`
         #[derive(
             Clone,
             Debug,
@@ -73499,7 +75315,7 @@ mod root {
         /// The table `Retrieve` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Retrieve` in the file `moor_rpc.fbs:818`
+        /// * Table `Retrieve` in the file `moor_rpc.fbs:859`
         #[derive(
             Clone,
             Debug,
@@ -73865,7 +75681,7 @@ mod root {
         /// The table `Program` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Program` in the file `moor_rpc.fbs:825`
+        /// * Table `Program` in the file `moor_rpc.fbs:866`
         #[derive(
             Clone,
             Debug,
@@ -74214,7 +76030,7 @@ mod root {
         /// The table `RequestedInput` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RequestedInput` in the file `moor_rpc.fbs:832`
+        /// * Table `RequestedInput` in the file `moor_rpc.fbs:873`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct RequestedInput {
             /// The field `client_token` in the table `RequestedInput`
@@ -74557,7 +76373,7 @@ mod root {
         /// The table `OutOfBand` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `OutOfBand` in the file `moor_rpc.fbs:839`
+        /// * Table `OutOfBand` in the file `moor_rpc.fbs:880`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct OutOfBand {
             /// The field `client_token` in the table `OutOfBand`
@@ -74933,7 +76749,7 @@ mod root {
         /// The table `ClientData` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ClientData` in the file `moor_rpc.fbs:848`
+        /// * Table `ClientData` in the file `moor_rpc.fbs:889`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ClientData {
             /// The field `client_token` in the table `ClientData`
@@ -75367,7 +77183,7 @@ mod root {
         /// The table `Eval` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Eval` in the file `moor_rpc.fbs:857`
+        /// * Table `Eval` in the file `moor_rpc.fbs:898`
         #[derive(
             Clone,
             Debug,
@@ -75674,7 +77490,7 @@ mod root {
         /// The table `Resolve` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Resolve` in the file `moor_rpc.fbs:863`
+        /// * Table `Resolve` in the file `moor_rpc.fbs:904`
         #[derive(
             Clone,
             Debug,
@@ -75951,7 +77767,7 @@ mod root {
         /// The table `ClientPong` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ClientPong` in the file `moor_rpc.fbs:868`
+        /// * Table `ClientPong` in the file `moor_rpc.fbs:909`
         #[derive(
             Clone,
             Debug,
@@ -76318,7 +78134,7 @@ mod root {
         /// The table `ReplayClientEvents` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ReplayClientEvents` in the file `moor_rpc.fbs:875`
+        /// * Table `ReplayClientEvents` in the file `moor_rpc.fbs:916`
         #[derive(
             Clone,
             Debug,
@@ -76697,7 +78513,7 @@ mod root {
         /// The table `RequestHistory` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RequestHistory` in the file `moor_rpc.fbs:881`
+        /// * Table `RequestHistory` in the file `moor_rpc.fbs:922`
         #[derive(
             Clone,
             Debug,
@@ -76980,7 +78796,7 @@ mod root {
         /// The table `RequestCurrentPresentations` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RequestCurrentPresentations` in the file `moor_rpc.fbs:886`
+        /// * Table `RequestCurrentPresentations` in the file `moor_rpc.fbs:927`
         #[derive(
             Clone,
             Debug,
@@ -77268,7 +79084,7 @@ mod root {
         /// The table `DismissPresentation` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DismissPresentation` in the file `moor_rpc.fbs:890`
+        /// * Table `DismissPresentation` in the file `moor_rpc.fbs:931`
         #[derive(
             Clone,
             Debug,
@@ -77578,7 +79394,7 @@ mod root {
         /// The table `SetClientAttribute` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SetClientAttribute` in the file `moor_rpc.fbs:895`
+        /// * Table `SetClientAttribute` in the file `moor_rpc.fbs:936`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct SetClientAttribute {
             /// The field `client_token` in the table `SetClientAttribute`
@@ -77994,7 +79810,7 @@ mod root {
         /// The table `Detach` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Detach` in the file `moor_rpc.fbs:902`
+        /// * Table `Detach` in the file `moor_rpc.fbs:943`
         #[derive(
             Clone,
             Debug,
@@ -78294,7 +80110,7 @@ mod root {
         /// The table `GetEventLogPublicKey` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `GetEventLogPublicKey` in the file `moor_rpc.fbs:907`
+        /// * Table `GetEventLogPublicKey` in the file `moor_rpc.fbs:948`
         #[derive(
             Clone,
             Debug,
@@ -78569,7 +80385,7 @@ mod root {
         /// The table `SetEventLogPublicKey` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SetEventLogPublicKey` in the file `moor_rpc.fbs:911`
+        /// * Table `SetEventLogPublicKey` in the file `moor_rpc.fbs:952`
         #[derive(
             Clone,
             Debug,
@@ -78879,7 +80695,7 @@ mod root {
         /// The table `DeleteEventLogHistory` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DeleteEventLogHistory` in the file `moor_rpc.fbs:916`
+        /// * Table `DeleteEventLogHistory` in the file `moor_rpc.fbs:957`
         #[derive(
             Clone,
             Debug,
@@ -79156,7 +80972,7 @@ mod root {
         /// The table `ListObjects` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ListObjects` in the file `moor_rpc.fbs:920`
+        /// * Table `ListObjects` in the file `moor_rpc.fbs:961`
         #[derive(
             Clone,
             Debug,
@@ -79411,7 +81227,7 @@ mod root {
         /// The table `UpdateProperty` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `UpdateProperty` in the file `moor_rpc.fbs:924`
+        /// * Table `UpdateProperty` in the file `moor_rpc.fbs:965`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct UpdateProperty {
             /// The field `auth_token` in the table `UpdateProperty`
@@ -79754,7 +81570,7 @@ mod root {
         /// The table `InvokeSystemHandler` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `InvokeSystemHandler` in the file `moor_rpc.fbs:931`
+        /// * Table `InvokeSystemHandler` in the file `moor_rpc.fbs:972`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct InvokeSystemHandler {
             /// The field `host_id` in the table `InvokeSystemHandler`
@@ -80209,7 +82025,7 @@ mod root {
         /// The table `InvokeWelcomeMessage` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `InvokeWelcomeMessage` in the file `moor_rpc.fbs:943`
+        /// * Table `InvokeWelcomeMessage` in the file `moor_rpc.fbs:984`
         #[derive(
             Clone,
             Debug,
@@ -80439,7 +82255,7 @@ mod root {
         /// The table `HostClientToDaemonMessage` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostClientToDaemonMessage` in the file `moor_rpc.fbs:946`
+        /// * Table `HostClientToDaemonMessage` in the file `moor_rpc.fbs:987`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct HostClientToDaemonMessage {
             /// The field `message` in the table `HostClientToDaemonMessage`
@@ -80705,7 +82521,7 @@ mod root {
         /// The union `DaemonToClientReplyUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `DaemonToClientReplyUnion` in the file `moor_rpc.fbs:954`
+        /// * Union `DaemonToClientReplyUnion` in the file `moor_rpc.fbs:995`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum DaemonToClientReplyUnion {
             /// The variant of type `NewConnection` in the union `DaemonToClientReplyUnion`
@@ -82557,7 +84373,7 @@ mod root {
         /// The table `NewConnection` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `NewConnection` in the file `moor_rpc.fbs:985`
+        /// * Table `NewConnection` in the file `moor_rpc.fbs:1026`
         #[derive(
             Clone,
             Debug,
@@ -82839,7 +84655,7 @@ mod root {
         /// The table `LoginResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `LoginResult` in the file `moor_rpc.fbs:990`
+        /// * Table `LoginResult` in the file `moor_rpc.fbs:1031`
         #[derive(
             Clone,
             Debug,
@@ -83377,7 +85193,7 @@ mod root {
         /// The table `AttachResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `AttachResult` in the file `moor_rpc.fbs:1000`
+        /// * Table `AttachResult` in the file `moor_rpc.fbs:1041`
         #[derive(
             Clone,
             Debug,
@@ -83819,7 +85635,7 @@ mod root {
         /// The table `SysPropValue` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SysPropValue` in the file `moor_rpc.fbs:1007`
+        /// * Table `SysPropValue` in the file `moor_rpc.fbs:1048`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct SysPropValue {
             /// The field `value` in the table `SysPropValue`
@@ -84084,7 +85900,7 @@ mod root {
         /// The table `TaskSubmitted` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `TaskSubmitted` in the file `moor_rpc.fbs:1011`
+        /// * Table `TaskSubmitted` in the file `moor_rpc.fbs:1052`
         #[derive(
             Clone,
             Debug,
@@ -84349,7 +86165,7 @@ mod root {
         /// The table `InputThanks` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `InputThanks` in the file `moor_rpc.fbs:1015`
+        /// * Table `InputThanks` in the file `moor_rpc.fbs:1056`
         #[derive(
             Clone,
             Debug,
@@ -84560,7 +86376,7 @@ mod root {
         /// The table `EvalResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `EvalResult` in the file `moor_rpc.fbs:1018`
+        /// * Table `EvalResult` in the file `moor_rpc.fbs:1059`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct EvalResult {
             /// The field `result` in the table `EvalResult`
@@ -84796,7 +86612,7 @@ mod root {
         /// The table `ThanksPong` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ThanksPong` in the file `moor_rpc.fbs:1022`
+        /// * Table `ThanksPong` in the file `moor_rpc.fbs:1063`
         #[derive(
             Clone,
             Debug,
@@ -85061,7 +86877,7 @@ mod root {
         /// The table `ClientEvents` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ClientEvents` in the file `moor_rpc.fbs:1026`
+        /// * Table `ClientEvents` in the file `moor_rpc.fbs:1067`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ClientEvents {
             /// The field `events` in the table `ClientEvents`
@@ -85364,7 +87180,7 @@ mod root {
         /// The table `VerbsReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbsReply` in the file `moor_rpc.fbs:1031`
+        /// * Table `VerbsReply` in the file `moor_rpc.fbs:1072`
         #[derive(
             Clone,
             Debug,
@@ -85628,7 +87444,7 @@ mod root {
         /// The table `PropertiesReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PropertiesReply` in the file `moor_rpc.fbs:1035`
+        /// * Table `PropertiesReply` in the file `moor_rpc.fbs:1076`
         #[derive(
             Clone,
             Debug,
@@ -85908,7 +87724,7 @@ mod root {
         /// The table `VerbProgramResponseReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbProgramResponseReply` in the file `moor_rpc.fbs:1039`
+        /// * Table `VerbProgramResponseReply` in the file `moor_rpc.fbs:1080`
         #[derive(
             Clone,
             Debug,
@@ -86183,7 +87999,7 @@ mod root {
         /// The table `PropertyValue` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PropertyValue` in the file `moor_rpc.fbs:1043`
+        /// * Table `PropertyValue` in the file `moor_rpc.fbs:1084`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct PropertyValue {
             /// The field `prop_info` in the table `PropertyValue`
@@ -86455,7 +88271,7 @@ mod root {
         /// The table `VerbValue` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbValue` in the file `moor_rpc.fbs:1048`
+        /// * Table `VerbValue` in the file `moor_rpc.fbs:1089`
         #[derive(
             Clone,
             Debug,
@@ -86737,7 +88553,7 @@ mod root {
         /// The table `ResolveResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ResolveResult` in the file `moor_rpc.fbs:1053`
+        /// * Table `ResolveResult` in the file `moor_rpc.fbs:1094`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ResolveResult {
             /// The field `result` in the table `ResolveResult`
@@ -86974,7 +88790,7 @@ mod root {
         /// The table `HistoryResponseReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HistoryResponseReply` in the file `moor_rpc.fbs:1057`
+        /// * Table `HistoryResponseReply` in the file `moor_rpc.fbs:1098`
         #[derive(
             Clone,
             Debug,
@@ -87249,7 +89065,7 @@ mod root {
         /// The table `PresentationSnapshot` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PresentationSnapshot` in the file `moor_rpc.fbs:1061`
+        /// * Table `PresentationSnapshot` in the file `moor_rpc.fbs:1102`
         #[derive(
             Clone,
             Debug,
@@ -87556,7 +89372,7 @@ mod root {
         /// The table `CurrentPresentations` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `CurrentPresentations` in the file `moor_rpc.fbs:1066`
+        /// * Table `CurrentPresentations` in the file `moor_rpc.fbs:1107`
         #[derive(
             Clone,
             Debug,
@@ -87840,7 +89656,7 @@ mod root {
         /// The table `PresentationDismissed` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PresentationDismissed` in the file `moor_rpc.fbs:1070`
+        /// * Table `PresentationDismissed` in the file `moor_rpc.fbs:1111`
         #[derive(
             Clone,
             Debug,
@@ -88074,7 +89890,7 @@ mod root {
         /// The table `ClientAttributeSet` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ClientAttributeSet` in the file `moor_rpc.fbs:1073`
+        /// * Table `ClientAttributeSet` in the file `moor_rpc.fbs:1114`
         #[derive(
             Clone,
             Debug,
@@ -88302,7 +90118,7 @@ mod root {
         /// The table `Disconnected` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Disconnected` in the file `moor_rpc.fbs:1076`
+        /// * Table `Disconnected` in the file `moor_rpc.fbs:1117`
         #[derive(
             Clone,
             Debug,
@@ -88513,7 +90329,7 @@ mod root {
         /// The table `EventLogPublicKey` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `EventLogPublicKey` in the file `moor_rpc.fbs:1079`
+        /// * Table `EventLogPublicKey` in the file `moor_rpc.fbs:1120`
         #[derive(
             Clone,
             Debug,
@@ -88804,7 +90620,7 @@ mod root {
         /// The table `EventLogHistoryDeleted` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `EventLogHistoryDeleted` in the file `moor_rpc.fbs:1083`
+        /// * Table `EventLogHistoryDeleted` in the file `moor_rpc.fbs:1124`
         #[derive(
             Clone,
             Debug,
@@ -89096,7 +90912,7 @@ mod root {
         /// The table `ObjectInfo` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ObjectInfo` in the file `moor_rpc.fbs:1087`
+        /// * Table `ObjectInfo` in the file `moor_rpc.fbs:1128`
         #[derive(
             Clone,
             Debug,
@@ -89753,7 +91569,7 @@ mod root {
         /// The table `ListObjectsReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ListObjectsReply` in the file `moor_rpc.fbs:1099`
+        /// * Table `ListObjectsReply` in the file `moor_rpc.fbs:1140`
         #[derive(
             Clone,
             Debug,
@@ -90029,7 +91845,7 @@ mod root {
         /// The table `PropertyUpdated` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PropertyUpdated` in the file `moor_rpc.fbs:1103`
+        /// * Table `PropertyUpdated` in the file `moor_rpc.fbs:1144`
         #[derive(
             Clone,
             Debug,
@@ -90255,7 +92071,7 @@ mod root {
         /// The union `SystemHandlerResponseUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `SystemHandlerResponseUnion` in the file `moor_rpc.fbs:1106`
+        /// * Union `SystemHandlerResponseUnion` in the file `moor_rpc.fbs:1147`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum SystemHandlerResponseUnion {
             /// The variant of type `SystemHandlerSuccess` in the union `SystemHandlerResponseUnion`
@@ -90475,7 +92291,7 @@ mod root {
         /// The table `SystemHandlerSuccess` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SystemHandlerSuccess` in the file `moor_rpc.fbs:1111`
+        /// * Table `SystemHandlerSuccess` in the file `moor_rpc.fbs:1152`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct SystemHandlerSuccess {
             /// The field `result` in the table `SystemHandlerSuccess`
@@ -90730,7 +92546,7 @@ mod root {
         /// The table `SystemHandlerError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SystemHandlerError` in the file `moor_rpc.fbs:1115`
+        /// * Table `SystemHandlerError` in the file `moor_rpc.fbs:1156`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct SystemHandlerError {
             /// The field `error` in the table `SystemHandlerError`
@@ -90983,7 +92799,7 @@ mod root {
         /// The table `SystemHandlerResponseReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SystemHandlerResponseReply` in the file `moor_rpc.fbs:1119`
+        /// * Table `SystemHandlerResponseReply` in the file `moor_rpc.fbs:1160`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct SystemHandlerResponseReply {
             /// The field `response` in the table `SystemHandlerResponseReply`
@@ -91325,7 +93141,7 @@ mod root {
         /// The union `InvocationOutcome` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `InvocationOutcome` in the file `moor_rpc.fbs:1126`
+        /// * Union `InvocationOutcome` in the file `moor_rpc.fbs:1167`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum InvocationOutcome {
             /// The variant of type `InvocationSuccess` in the union `InvocationOutcome`
@@ -91539,7 +93355,7 @@ mod root {
         /// The table `InvocationSuccess` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `InvocationSuccess` in the file `moor_rpc.fbs:1131`
+        /// * Table `InvocationSuccess` in the file `moor_rpc.fbs:1172`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct InvocationSuccess {
             /// The field `result` in the table `InvocationSuccess`
@@ -91792,7 +93608,7 @@ mod root {
         /// The table `InvocationError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `InvocationError` in the file `moor_rpc.fbs:1135`
+        /// * Table `InvocationError` in the file `moor_rpc.fbs:1176`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct InvocationError {
             /// The field `error` in the table `InvocationError`
@@ -92044,7 +93860,7 @@ mod root {
         /// The table `InvocationResponse` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `InvocationResponse` in the file `moor_rpc.fbs:1139`
+        /// * Table `InvocationResponse` in the file `moor_rpc.fbs:1180`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct InvocationResponse {
             /// The field `outcome` in the table `InvocationResponse`
@@ -92347,7 +94163,7 @@ mod root {
         /// The table `DaemonToClientReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DaemonToClientReply` in the file `moor_rpc.fbs:1144`
+        /// * Table `DaemonToClientReply` in the file `moor_rpc.fbs:1185`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct DaemonToClientReply {
             /// The field `reply` in the table `DaemonToClientReply`
@@ -92603,7 +94419,7 @@ mod root {
         /// The union `ClientEventUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `ClientEventUnion` in the file `moor_rpc.fbs:1152`
+        /// * Union `ClientEventUnion` in the file `moor_rpc.fbs:1193`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum ClientEventUnion {
             /// The variant of type `NarrativeEventMessage` in the union `ClientEventUnion`
@@ -93382,7 +95198,7 @@ mod root {
         /// The table `NarrativeEventMessage` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `NarrativeEventMessage` in the file `moor_rpc.fbs:1166`
+        /// * Table `NarrativeEventMessage` in the file `moor_rpc.fbs:1207`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct NarrativeEventMessage {
             /// The field `player` in the table `NarrativeEventMessage`
@@ -93677,7 +95493,7 @@ mod root {
         /// The table `MetadataPair` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `MetadataPair` in the file `moor_rpc.fbs:1171`
+        /// * Table `MetadataPair` in the file `moor_rpc.fbs:1212`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct MetadataPair {
             /// The field `key` in the table `MetadataPair`
@@ -93949,7 +95765,7 @@ mod root {
         /// The table `RequestInputEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RequestInputEvent` in the file `moor_rpc.fbs:1176`
+        /// * Table `RequestInputEvent` in the file `moor_rpc.fbs:1217`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct RequestInputEvent {
             /// The field `request_id` in the table `RequestInputEvent`
@@ -94273,7 +96089,7 @@ mod root {
         /// The table `SystemMessageEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SystemMessageEvent` in the file `moor_rpc.fbs:1181`
+        /// * Table `SystemMessageEvent` in the file `moor_rpc.fbs:1222`
         #[derive(
             Clone,
             Debug,
@@ -94569,7 +96385,7 @@ mod root {
         /// The table `DisconnectEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DisconnectEvent` in the file `moor_rpc.fbs:1186`
+        /// * Table `DisconnectEvent` in the file `moor_rpc.fbs:1227`
         #[derive(
             Clone,
             Debug,
@@ -94795,7 +96611,7 @@ mod root {
         /// The table `TaskErrorEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `TaskErrorEvent` in the file `moor_rpc.fbs:1189`
+        /// * Table `TaskErrorEvent` in the file `moor_rpc.fbs:1230`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct TaskErrorEvent {
             /// The field `task_id` in the table `TaskErrorEvent`
@@ -95078,7 +96894,7 @@ mod root {
         /// The table `TaskSuccessEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `TaskSuccessEvent` in the file `moor_rpc.fbs:1194`
+        /// * Table `TaskSuccessEvent` in the file `moor_rpc.fbs:1235`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct TaskSuccessEvent {
             /// The field `task_id` in the table `TaskSuccessEvent`
@@ -95379,7 +97195,7 @@ mod root {
         /// The table `TaskSuspendedEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `TaskSuspendedEvent` in the file `moor_rpc.fbs:1199`
+        /// * Table `TaskSuspendedEvent` in the file `moor_rpc.fbs:1240`
         #[derive(
             Clone,
             Debug,
@@ -95664,7 +97480,7 @@ mod root {
         /// The table `PlayerSwitchedEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PlayerSwitchedEvent` in the file `moor_rpc.fbs:1203`
+        /// * Table `PlayerSwitchedEvent` in the file `moor_rpc.fbs:1244`
         #[derive(
             Clone,
             Debug,
@@ -96074,7 +97890,7 @@ mod root {
         /// The table `SetConnectionOptionEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SetConnectionOptionEvent` in the file `moor_rpc.fbs:1210`
+        /// * Table `SetConnectionOptionEvent` in the file `moor_rpc.fbs:1251`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct SetConnectionOptionEvent {
             /// The field `connection_obj` in the table `SetConnectionOptionEvent`
@@ -96413,7 +98229,7 @@ mod root {
         /// The table `CredentialsUpdatedEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `CredentialsUpdatedEvent` in the file `moor_rpc.fbs:1218`
+        /// * Table `CredentialsUpdatedEvent` in the file `moor_rpc.fbs:1259`
         #[derive(
             Clone,
             Debug,
@@ -96734,7 +98550,7 @@ mod root {
         /// The table `ClientEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ClientEvent` in the file `moor_rpc.fbs:1223`
+        /// * Table `ClientEvent` in the file `moor_rpc.fbs:1264`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ClientEvent {
             /// The field `event` in the table `ClientEvent`
@@ -97017,7 +98833,7 @@ mod root {
         /// The union `ClientsBroadcastEventUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `ClientsBroadcastEventUnion` in the file `moor_rpc.fbs:1232`
+        /// * Union `ClientsBroadcastEventUnion` in the file `moor_rpc.fbs:1273`
         #[derive(
             Clone,
             Debug,
@@ -97183,7 +98999,7 @@ mod root {
         /// The table `ClientsBroadcastPingPong` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ClientsBroadcastPingPong` in the file `moor_rpc.fbs:1236`
+        /// * Table `ClientsBroadcastPingPong` in the file `moor_rpc.fbs:1277`
         #[derive(
             Clone,
             Debug,
@@ -97480,7 +99296,7 @@ mod root {
         /// The table `ClientsBroadcastEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ClientsBroadcastEvent` in the file `moor_rpc.fbs:1240`
+        /// * Table `ClientsBroadcastEvent` in the file `moor_rpc.fbs:1281`
         #[derive(
             Clone,
             Debug,
@@ -97748,7 +99564,7 @@ mod root {
         /// The union `DaemonToWorkerMessageUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `DaemonToWorkerMessageUnion` in the file `moor_rpc.fbs:1248`
+        /// * Union `DaemonToWorkerMessageUnion` in the file `moor_rpc.fbs:1289`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum DaemonToWorkerMessageUnion {
             /// The variant of type `PingWorkers` in the union `DaemonToWorkerMessageUnion`
@@ -98026,7 +99842,7 @@ mod root {
         /// The table `PingWorkers` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PingWorkers` in the file `moor_rpc.fbs:1254`
+        /// * Table `PingWorkers` in the file `moor_rpc.fbs:1295`
         #[derive(
             Clone,
             Debug,
@@ -98237,7 +100053,7 @@ mod root {
         /// The table `WorkerRequest` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerRequest` in the file `moor_rpc.fbs:1257`
+        /// * Table `WorkerRequest` in the file `moor_rpc.fbs:1298`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct WorkerRequest {
             /// The field `worker_id` in the table `WorkerRequest`
@@ -98634,7 +100450,7 @@ mod root {
         /// The table `PleaseDie` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PleaseDie` in the file `moor_rpc.fbs:1265`
+        /// * Table `PleaseDie` in the file `moor_rpc.fbs:1306`
         #[derive(
             Clone,
             Debug,
@@ -98889,7 +100705,7 @@ mod root {
         /// The table `DaemonToWorkerMessage` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DaemonToWorkerMessage` in the file `moor_rpc.fbs:1269`
+        /// * Table `DaemonToWorkerMessage` in the file `moor_rpc.fbs:1310`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct DaemonToWorkerMessage {
             /// The field `message` in the table `DaemonToWorkerMessage`
@@ -99147,7 +100963,7 @@ mod root {
         /// The union `WorkerToDaemonMessageUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `WorkerToDaemonMessageUnion` in the file `moor_rpc.fbs:1273`
+        /// * Union `WorkerToDaemonMessageUnion` in the file `moor_rpc.fbs:1314`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum WorkerToDaemonMessageUnion {
             /// The variant of type `AttachWorker` in the union `WorkerToDaemonMessageUnion`
@@ -99549,7 +101365,7 @@ mod root {
         /// The table `AttachWorker` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `AttachWorker` in the file `moor_rpc.fbs:1281`
+        /// * Table `AttachWorker` in the file `moor_rpc.fbs:1322`
         #[derive(
             Clone,
             Debug,
@@ -99841,7 +101657,7 @@ mod root {
         /// The table `WorkerPong` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerPong` in the file `moor_rpc.fbs:1286`
+        /// * Table `WorkerPong` in the file `moor_rpc.fbs:1327`
         #[derive(
             Clone,
             Debug,
@@ -100132,7 +101948,7 @@ mod root {
         /// The table `DetachWorker` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DetachWorker` in the file `moor_rpc.fbs:1291`
+        /// * Table `DetachWorker` in the file `moor_rpc.fbs:1332`
         #[derive(
             Clone,
             Debug,
@@ -100388,7 +102204,7 @@ mod root {
         /// The table `RequestResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RequestResult` in the file `moor_rpc.fbs:1295`
+        /// * Table `RequestResult` in the file `moor_rpc.fbs:1336`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct RequestResult {
             /// The field `worker_id` in the table `RequestResult`
@@ -100693,7 +102509,7 @@ mod root {
         /// The table `RequestError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RequestError` in the file `moor_rpc.fbs:1301`
+        /// * Table `RequestError` in the file `moor_rpc.fbs:1342`
         #[derive(
             Clone,
             Debug,
@@ -101007,7 +102823,7 @@ mod root {
         /// The table `WorkerToDaemonMessage` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerToDaemonMessage` in the file `moor_rpc.fbs:1307`
+        /// * Table `WorkerToDaemonMessage` in the file `moor_rpc.fbs:1348`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct WorkerToDaemonMessage {
             /// The field `message` in the table `WorkerToDaemonMessage`
@@ -101265,7 +103081,7 @@ mod root {
         /// The union `DaemonToWorkerReplyUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `DaemonToWorkerReplyUnion` in the file `moor_rpc.fbs:1311`
+        /// * Union `DaemonToWorkerReplyUnion` in the file `moor_rpc.fbs:1352`
         #[derive(
             Clone,
             Debug,
@@ -101807,7 +103623,7 @@ mod root {
         /// The table `WorkerAck` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerAck` in the file `moor_rpc.fbs:1321`
+        /// * Table `WorkerAck` in the file `moor_rpc.fbs:1362`
         #[derive(
             Clone,
             Debug,
@@ -102018,7 +103834,7 @@ mod root {
         /// The table `WorkerRejected` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerRejected` in the file `moor_rpc.fbs:1324`
+        /// * Table `WorkerRejected` in the file `moor_rpc.fbs:1365`
         #[derive(
             Clone,
             Debug,
@@ -102287,7 +104103,7 @@ mod root {
         /// The table `WorkerAttached` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerAttached` in the file `moor_rpc.fbs:1328`
+        /// * Table `WorkerAttached` in the file `moor_rpc.fbs:1369`
         #[derive(
             Clone,
             Debug,
@@ -102543,7 +104359,7 @@ mod root {
         /// The table `WorkerAuthFailed` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerAuthFailed` in the file `moor_rpc.fbs:1332`
+        /// * Table `WorkerAuthFailed` in the file `moor_rpc.fbs:1373`
         #[derive(
             Clone,
             Debug,
@@ -102813,7 +104629,7 @@ mod root {
         /// The table `WorkerInvalidPayload` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerInvalidPayload` in the file `moor_rpc.fbs:1336`
+        /// * Table `WorkerInvalidPayload` in the file `moor_rpc.fbs:1377`
         #[derive(
             Clone,
             Debug,
@@ -103085,7 +104901,7 @@ mod root {
         /// The table `WorkerUnknownRequest` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerUnknownRequest` in the file `moor_rpc.fbs:1340`
+        /// * Table `WorkerUnknownRequest` in the file `moor_rpc.fbs:1381`
         #[derive(
             Clone,
             Debug,
@@ -103360,7 +105176,7 @@ mod root {
         /// The table `WorkerNotRegistered` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerNotRegistered` in the file `moor_rpc.fbs:1344`
+        /// * Table `WorkerNotRegistered` in the file `moor_rpc.fbs:1385`
         #[derive(
             Clone,
             Debug,
@@ -103635,7 +105451,7 @@ mod root {
         /// The table `DaemonToWorkerReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DaemonToWorkerReply` in the file `moor_rpc.fbs:1348`
+        /// * Table `DaemonToWorkerReply` in the file `moor_rpc.fbs:1389`
         #[derive(
             Clone,
             Debug,
@@ -103901,7 +105717,7 @@ mod root {
         /// The enum `RpcMessageErrorCode` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Enum `RpcMessageErrorCode` in the file `moor_rpc.fbs:1356`
+        /// * Enum `RpcMessageErrorCode` in the file `moor_rpc.fbs:1397`
         #[derive(
             Copy,
             Clone,
@@ -104125,7 +105941,7 @@ mod root {
         /// The table `RpcMessageError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RpcMessageError` in the file `moor_rpc.fbs:1371`
+        /// * Table `RpcMessageError` in the file `moor_rpc.fbs:1412`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct RpcMessageError {
             /// The field `error_code` in the table `RpcMessageError`
@@ -104523,7 +106339,7 @@ mod root {
         /// The union `MessageTypeUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `MessageTypeUnion` in the file `moor_rpc.fbs:1377`
+        /// * Union `MessageTypeUnion` in the file `moor_rpc.fbs:1418`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum MessageTypeUnion {
             /// The variant of type `HostToDaemonMsg` in the union `MessageTypeUnion`
@@ -104737,7 +106553,7 @@ mod root {
         /// The table `HostToDaemonMsg` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostToDaemonMsg` in the file `moor_rpc.fbs:1382`
+        /// * Table `HostToDaemonMsg` in the file `moor_rpc.fbs:1423`
         #[derive(
             Clone,
             Debug,
@@ -105035,7 +106851,7 @@ mod root {
         /// The table `HostClientToDaemonMsg` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostClientToDaemonMsg` in the file `moor_rpc.fbs:1387`
+        /// * Table `HostClientToDaemonMsg` in the file `moor_rpc.fbs:1428`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct HostClientToDaemonMsg {
             /// The field `client_data` in the table `HostClientToDaemonMsg`
@@ -105328,7 +107144,7 @@ mod root {
         /// The table `MessageType` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `MessageType` in the file `moor_rpc.fbs:1392`
+        /// * Table `MessageType` in the file `moor_rpc.fbs:1433`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct MessageType {
             /// The field `message` in the table `MessageType`
@@ -105564,7 +107380,7 @@ mod root {
         /// The union `ReplyResultUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `ReplyResultUnion` in the file `moor_rpc.fbs:1396`
+        /// * Union `ReplyResultUnion` in the file `moor_rpc.fbs:1437`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum ReplyResultUnion {
             /// The variant of type `HostSuccess` in the union `ReplyResultUnion`
@@ -105837,18 +107653,8 @@ mod root {
         /// The table `HostSuccess` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostSuccess` in the file `moor_rpc.fbs:1402`
-        #[derive(
-            Clone,
-            Debug,
-            PartialEq,
-            PartialOrd,
-            Eq,
-            Ord,
-            Hash,
-            ::serde::Serialize,
-            ::serde::Deserialize,
-        )]
+        /// * Table `HostSuccess` in the file `moor_rpc.fbs:1443`
+        #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct HostSuccess {
             /// The field `reply` in the table `HostSuccess`
             pub reply: ::planus::alloc::boxed::Box<self::DaemonToHostReply>,
@@ -106083,7 +107889,7 @@ mod root {
         /// The table `ClientSuccess` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ClientSuccess` in the file `moor_rpc.fbs:1406`
+        /// * Table `ClientSuccess` in the file `moor_rpc.fbs:1447`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ClientSuccess {
             /// The field `reply` in the table `ClientSuccess`
@@ -106320,7 +108126,7 @@ mod root {
         /// The table `Failure` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Failure` in the file `moor_rpc.fbs:1410`
+        /// * Table `Failure` in the file `moor_rpc.fbs:1451`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct Failure {
             /// The field `error` in the table `Failure`
@@ -106561,7 +108367,7 @@ mod root {
         /// The table `ReplyResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ReplyResult` in the file `moor_rpc.fbs:1414`
+        /// * Table `ReplyResult` in the file `moor_rpc.fbs:1455`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ReplyResult {
             /// The field `result` in the table `ReplyResult`
@@ -106797,7 +108603,7 @@ mod root {
         /// The union `HistoryRecallUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `HistoryRecallUnion` in the file `moor_rpc.fbs:1422`
+        /// * Union `HistoryRecallUnion` in the file `moor_rpc.fbs:1463`
         #[derive(
             Clone,
             Debug,
@@ -107149,7 +108955,7 @@ mod root {
         /// The table `HistoryRecallSinceEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HistoryRecallSinceEvent` in the file `moor_rpc.fbs:1429`
+        /// * Table `HistoryRecallSinceEvent` in the file `moor_rpc.fbs:1470`
         #[derive(
             Clone,
             Debug,
@@ -107484,7 +109290,7 @@ mod root {
         /// The table `HistoryRecallUntilEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HistoryRecallUntilEvent` in the file `moor_rpc.fbs:1434`
+        /// * Table `HistoryRecallUntilEvent` in the file `moor_rpc.fbs:1475`
         #[derive(
             Clone,
             Debug,
@@ -107819,7 +109625,7 @@ mod root {
         /// The table `HistoryRecallSinceSeconds` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HistoryRecallSinceSeconds` in the file `moor_rpc.fbs:1439`
+        /// * Table `HistoryRecallSinceSeconds` in the file `moor_rpc.fbs:1480`
         #[derive(
             Clone,
             Debug,
@@ -108164,7 +109970,7 @@ mod root {
         /// The table `HistoryRecallNone` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HistoryRecallNone` in the file `moor_rpc.fbs:1444`
+        /// * Table `HistoryRecallNone` in the file `moor_rpc.fbs:1485`
         #[derive(
             Clone,
             Debug,
@@ -108392,7 +110198,7 @@ mod root {
         /// The table `HistoryRecall` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HistoryRecall` in the file `moor_rpc.fbs:1447`
+        /// * Table `HistoryRecall` in the file `moor_rpc.fbs:1488`
         #[derive(
             Clone,
             Debug,
@@ -108639,7 +110445,7 @@ mod root {
         /// The table `HistoricalNarrativeEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HistoricalNarrativeEvent` in the file `moor_rpc.fbs:1451`
+        /// * Table `HistoricalNarrativeEvent` in the file `moor_rpc.fbs:1492`
         #[derive(
             Clone,
             Debug,
@@ -109091,7 +110897,7 @@ mod root {
         /// The table `HistoryResponse` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HistoryResponse` in the file `moor_rpc.fbs:1459`
+        /// * Table `HistoryResponse` in the file `moor_rpc.fbs:1500`
         #[derive(
             Clone,
             Debug,
@@ -109721,7 +111527,7 @@ mod root {
         /// The enum `EventStreamOperation` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Enum `EventStreamOperation` in the file `moor_rpc.fbs:1477`
+        /// * Enum `EventStreamOperation` in the file `moor_rpc.fbs:1518`
         #[derive(
             Copy,
             Clone,
@@ -109899,7 +111705,7 @@ mod root {
         /// The table `EventStreamRequest` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `EventStreamRequest` in the file `moor_rpc.fbs:1479`
+        /// * Table `EventStreamRequest` in the file `moor_rpc.fbs:1520`
         #[derive(
             Clone,
             Debug,
@@ -110390,7 +112196,7 @@ mod root {
         /// The table `EventStreamPayload` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `EventStreamPayload` in the file `moor_rpc.fbs:1487`
+        /// * Table `EventStreamPayload` in the file `moor_rpc.fbs:1528`
         #[derive(
             Clone,
             Debug,
@@ -110660,7 +112466,7 @@ mod root {
         /// The table `EventStreamState` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `EventStreamState` in the file `moor_rpc.fbs:1489`
+        /// * Table `EventStreamState` in the file `moor_rpc.fbs:1530`
         #[derive(
             Clone,
             Debug,
@@ -111138,7 +112944,7 @@ mod root {
         /// The table `EventsAvailableEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `EventsAvailableEvent` in the file `moor_rpc.fbs:1497`
+        /// * Table `EventsAvailableEvent` in the file `moor_rpc.fbs:1538`
         #[derive(
             Clone,
             Debug,
@@ -111368,7 +113174,7 @@ mod root {
         /// The table `GetServerStatus` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `GetServerStatus` in the file `moor_rpc.fbs:1500`
+        /// * Table `GetServerStatus` in the file `moor_rpc.fbs:1541`
         #[derive(
             Clone,
             Debug,
@@ -111594,7 +113400,7 @@ mod root {
         /// The table `ServerStatus` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ServerStatus` in the file `moor_rpc.fbs:1502`
+        /// * Table `ServerStatus` in the file `moor_rpc.fbs:1543`
         #[derive(
             Clone,
             Debug,

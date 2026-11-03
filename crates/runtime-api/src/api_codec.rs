@@ -33,7 +33,12 @@ use crate::{
     scheduler_error_from_ref, scheduler_error_to_flatbuffer_struct, symbol_fb, uuid_fb,
     var_to_flatbuffer_rpc, verb_program_error_to_flatbuffer_struct,
 };
-use moor_common::model::{Named, ValSet};
+use moor_common::{
+    model::{Named, ValSet},
+    util::{
+        HistogramValue, MetricFamily, MetricFamilyKind, MetricSample, MetricValue, MetricsSnapshot,
+    },
+};
 use moor_schema::{common, convert, rpc as moor_rpc};
 use moor_var::{Symbol, Var};
 use planus::ReadAsRoot;
@@ -69,9 +74,7 @@ pub fn decode_host_request(
             })
         }
         moor_rpc::HostToDaemonMessageUnionRef::DetachHost(_) => Ok(HostRequest::DetachHost),
-        moor_rpc::HostToDaemonMessageUnionRef::RequestPerformanceCounters(_) => {
-            Ok(HostRequest::RequestPerformanceCounters)
-        }
+        moor_rpc::HostToDaemonMessageUnionRef::RequestMetrics(_) => Ok(HostRequest::RequestMetrics),
         moor_rpc::HostToDaemonMessageUnionRef::GetServerFeatures(_) => {
             Ok(HostRequest::GetServerFeatures)
         }
@@ -132,41 +135,14 @@ pub fn encode_host_reply(reply: HostReply) -> moor_rpc::DaemonToHostReply {
                 moor_rpc::DaemonToHostReject { reason },
             )),
         },
-        HostReply::PerformanceCounters {
-            timestamp,
-            counters,
-        } => {
-            let counters_fb: Vec<moor_rpc::CounterCategory> = counters
-                .into_iter()
-                .map(|cat| {
-                    let counters: Vec<moor_rpc::Counter> = cat
-                        .counters
-                        .into_iter()
-                        .map(|c| moor_rpc::Counter {
-                            name: Box::new(moor_rpc::Symbol {
-                                value: c.name.as_string(),
-                            }),
-                            count: c.count,
-                            total_cumulative_ns: c.total_cumulative_ns,
-                        })
-                        .collect();
-                    moor_rpc::CounterCategory {
-                        category: Box::new(moor_rpc::Symbol {
-                            value: cat.category.as_string(),
-                        }),
-                        counters,
-                    }
-                })
-                .collect();
-            moor_rpc::DaemonToHostReply {
-                reply: moor_rpc::DaemonToHostReplyUnion::DaemonToHostPerfCounters(Box::new(
-                    moor_rpc::DaemonToHostPerfCounters {
-                        timestamp,
-                        counters: counters_fb,
-                    },
-                )),
-            }
-        }
+        HostReply::Metrics { timestamp, metrics } => moor_rpc::DaemonToHostReply {
+            reply: moor_rpc::DaemonToHostReplyUnion::DaemonToHostMetrics(Box::new(
+                moor_rpc::DaemonToHostMetrics {
+                    timestamp,
+                    families: encode_metrics_snapshot(metrics),
+                },
+            )),
+        },
         HostReply::ServerStatus { connected_players } => moor_rpc::DaemonToHostReply {
             reply: moor_rpc::DaemonToHostReplyUnion::ServerStatus(Box::new(
                 moor_rpc::ServerStatus { connected_players },
@@ -2098,6 +2074,116 @@ fn symbol_from_ref(sym_ref: moor_rpc::SymbolRef<'_>) -> Result<Symbol, RpcMessag
     Ok(Symbol::mk(value))
 }
 
+// ===========================================================================
+// Metrics
+// ===========================================================================
+
+pub fn encode_metrics_snapshot(snapshot: MetricsSnapshot) -> Vec<moor_rpc::MetricFamily> {
+    snapshot
+        .families
+        .into_iter()
+        .map(|family| moor_rpc::MetricFamily {
+            name: family.name,
+            help: family.help,
+            unit: family.unit,
+            kind: match family.kind {
+                MetricFamilyKind::Counter => moor_rpc::MetricKind::Counter,
+                MetricFamilyKind::Gauge => moor_rpc::MetricKind::Gauge,
+                MetricFamilyKind::Histogram => moor_rpc::MetricKind::Histogram,
+            },
+            samples: family
+                .samples
+                .into_iter()
+                .map(|sample| moor_rpc::MetricSample {
+                    labels: sample
+                        .labels
+                        .into_iter()
+                        .map(|(name, value)| moor_rpc::MetricLabel { name, value })
+                        .collect(),
+                    value: match sample.value {
+                        MetricValue::Int(value) => moor_rpc::MetricValue::MetricIntValue(Box::new(
+                            moor_rpc::MetricIntValue { value },
+                        )),
+                        MetricValue::Float(value) => moor_rpc::MetricValue::MetricFloatValue(
+                            Box::new(moor_rpc::MetricFloatValue { value }),
+                        ),
+                        MetricValue::Histogram(histogram) => {
+                            moor_rpc::MetricValue::MetricHistogramValue(Box::new(
+                                moor_rpc::MetricHistogramValue {
+                                    count: histogram.count,
+                                    sum: histogram.sum,
+                                    buckets: histogram
+                                        .buckets
+                                        .into_iter()
+                                        .map(|(upper_bound, cumulative_count)| {
+                                            moor_rpc::HistogramBucket {
+                                                upper_bound,
+                                                cumulative_count,
+                                            }
+                                        })
+                                        .collect(),
+                                },
+                            ))
+                        }
+                    },
+                })
+                .collect(),
+        })
+        .collect()
+}
+
+/// Decode a `DaemonToHostMetrics` reply into its timestamp and snapshot.
+pub fn decode_metrics_reply(
+    reply: moor_rpc::DaemonToHostMetricsRef<'_>,
+) -> Result<(u64, MetricsSnapshot), planus::Error> {
+    let reply = moor_rpc::DaemonToHostMetrics::try_from(reply)?;
+    let families = reply
+        .families
+        .into_iter()
+        .map(|family| MetricFamily {
+            name: family.name,
+            help: family.help,
+            unit: family.unit,
+            kind: match family.kind {
+                moor_rpc::MetricKind::Counter => MetricFamilyKind::Counter,
+                moor_rpc::MetricKind::Gauge => MetricFamilyKind::Gauge,
+                moor_rpc::MetricKind::Histogram => MetricFamilyKind::Histogram,
+            },
+            samples: family
+                .samples
+                .into_iter()
+                .map(|sample| MetricSample {
+                    labels: sample
+                        .labels
+                        .into_iter()
+                        .map(|label| (label.name, label.value))
+                        .collect(),
+                    value: match sample.value {
+                        moor_rpc::MetricValue::MetricIntValue(value) => {
+                            MetricValue::Int(value.value)
+                        }
+                        moor_rpc::MetricValue::MetricFloatValue(value) => {
+                            MetricValue::Float(value.value)
+                        }
+                        moor_rpc::MetricValue::MetricHistogramValue(histogram) => {
+                            MetricValue::Histogram(HistogramValue {
+                                count: histogram.count,
+                                sum: histogram.sum,
+                                buckets: histogram
+                                    .buckets
+                                    .into_iter()
+                                    .map(|bucket| (bucket.upper_bound, bucket.cumulative_count))
+                                    .collect(),
+                            })
+                        }
+                    },
+                })
+                .collect(),
+        })
+        .collect();
+    Ok((reply.timestamp, MetricsSnapshot { families }))
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
@@ -2484,5 +2570,70 @@ mod tests {
 
         assert_eq!(decoded.sequence, original.sequence);
         assert!(matches!(decoded.event, ClientEvent::Disconnect));
+    }
+
+    #[test]
+    fn metrics_round_trip() {
+        use super::{decode_metrics_reply, encode_host_reply};
+        use crate::api::HostReply;
+        use moor_common::util::{
+            HistogramValue, MetricFamily, MetricFamilyKind, MetricSample, MetricValue,
+            MetricsSnapshot,
+        };
+        use moor_schema::rpc as moor_rpc;
+        use planus::ReadAsRoot;
+
+        let snapshot = MetricsSnapshot {
+            families: vec![
+                MetricFamily {
+                    name: "ops".to_string(),
+                    help: "Operations".to_string(),
+                    unit: None,
+                    kind: MetricFamilyKind::Counter,
+                    samples: vec![MetricSample {
+                        labels: vec![("op".to_string(), "read".to_string())],
+                        value: MetricValue::Int(7),
+                    }],
+                },
+                MetricFamily {
+                    name: "load".to_string(),
+                    help: "Load".to_string(),
+                    unit: Some("ratio".to_string()),
+                    kind: MetricFamilyKind::Gauge,
+                    samples: vec![MetricSample {
+                        labels: vec![],
+                        value: MetricValue::Float(0.5),
+                    }],
+                },
+                MetricFamily {
+                    name: "wait".to_string(),
+                    help: "Wait".to_string(),
+                    unit: Some("ns".to_string()),
+                    kind: MetricFamilyKind::Histogram,
+                    samples: vec![MetricSample {
+                        labels: vec![("queue".to_string(), "worker".to_string())],
+                        value: MetricValue::Histogram(HistogramValue {
+                            count: 3,
+                            sum: 120,
+                            buckets: vec![(100, 2), (u64::MAX, 3)],
+                        }),
+                    }],
+                },
+            ],
+        };
+
+        let reply = encode_host_reply(HostReply::Metrics {
+            timestamp: 42,
+            metrics: snapshot.clone(),
+        });
+        let mut builder = planus::Builder::new();
+        let bytes = builder.finish(&reply, None).to_vec();
+        let reply = moor_rpc::DaemonToHostReplyRef::read_as_root(&bytes).unwrap();
+        let moor_rpc::DaemonToHostReplyUnionRef::DaemonToHostMetrics(metrics) =
+            reply.reply().unwrap()
+        else {
+            panic!("expected a metrics reply");
+        };
+        assert_eq!(decode_metrics_reply(metrics).unwrap(), (42, snapshot));
     }
 }

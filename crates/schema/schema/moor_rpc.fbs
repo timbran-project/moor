@@ -374,7 +374,7 @@ table ConnectionAttribute {
 union HostToDaemonMessageUnion {
     RegisterHost,
     DetachHost,
-    RequestPerformanceCounters,
+    RequestMetrics,
     HostPong,
     GetServerFeatures,
     GetServerStatus
@@ -391,7 +391,8 @@ table DetachHost {
     host_id: MoorCommon.Uuid (required);
 }
 
-table RequestPerformanceCounters {
+// Ask for a snapshot of the daemon's metrics.
+table RequestMetrics {
 }
 
 table GetServerFeatures {
@@ -421,7 +422,7 @@ table HostToDaemonMessage {
 union DaemonToHostReplyUnion {
     DaemonToHostAck,
     DaemonToHostReject,
-    DaemonToHostPerfCounters,
+    DaemonToHostMetrics,
     ServerFeatures,
     ServerStatus
 }
@@ -433,20 +434,60 @@ table DaemonToHostReject {
     reason: string (required);
 }
 
-table Counter {
-    name: MoorCommon.Symbol (required);
-    count: int64;
-    total_cumulative_ns: int64;
+// Metrics follow the Prometheus data model: a family is one metric name with one kind, and each
+// sample in it is one labelled series.
+enum MetricKind : ubyte {
+    Counter,
+    Gauge,
+    Histogram
 }
 
-table CounterCategory {
-    category: MoorCommon.Symbol (required);
-    counters: [Counter] (required);
+table MetricLabel {
+    name: string (required);
+    value: string (required);
 }
 
-table DaemonToHostPerfCounters {
+struct HistogramBucket {
+    upper_bound: uint64;  // u64::MAX is the +Inf bucket
+    cumulative_count: uint64;  // Observations at or below upper_bound
+}
+
+table MetricIntValue {
+    value: int64;
+}
+
+table MetricFloatValue {
+    value: double;
+}
+
+table MetricHistogramValue {
+    count: uint64;
+    sum: uint64;
+    buckets: [HistogramBucket] (required);
+}
+
+union MetricValue {
+    MetricIntValue,
+    MetricFloatValue,
+    MetricHistogramValue
+}
+
+table MetricSample {
+    labels: [MetricLabel] (required);
+    value: MetricValue (required);
+}
+
+table MetricFamily {
+    name: string (required);
+    help: string (required);
+    unit: string;
+    kind: MetricKind;
+    samples: [MetricSample] (required);
+}
+
+table DaemonToHostMetrics {
     timestamp: uint64;  // SystemTime as nanos since epoch
-    counters: [CounterCategory] (required);
+    families: [MetricFamily] (required);
 }
 
 table ServerFeatures {

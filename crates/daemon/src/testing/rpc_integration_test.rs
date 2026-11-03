@@ -30,7 +30,7 @@ mod tests {
         mk_detach_host_msg, mk_detach_msg, mk_eval_capture_msg, mk_eval_msg, mk_host_pong_msg,
         mk_invoke_system_handler_msg, mk_invoke_verb_capture_msg, mk_invoke_verb_msg,
         mk_invoke_welcome_message_msg, mk_login_command_msg, mk_program_msg, mk_properties_msg,
-        mk_register_host_msg, mk_request_performance_counters_msg, mk_request_sys_prop_msg,
+        mk_register_host_msg, mk_request_metrics_msg, mk_request_sys_prop_msg,
         mk_requested_input_msg, mk_set_client_attribute_msg, mk_verbs_msg, obj_fb,
     };
     use moor_schema::{convert::obj_from_flatbuffer_struct, rpc as moor_rpc};
@@ -622,25 +622,31 @@ mod tests {
     }
 
     #[test]
-    fn test_performance_counters_request() {
+    fn test_metrics_request() {
         let env = setup_test_environment();
 
         let host_id = Uuid::new_v4();
-        let message = mk_request_performance_counters_msg();
+        let message = mk_request_metrics_msg();
 
         let result =
             env.transport
                 .process_host_message(env.message_handler.as_ref(), host_id, message);
 
-        assert!(
-            result.is_ok(),
-            "Performance counters request should succeed"
-        );
+        assert!(result.is_ok(), "Metrics request should succeed");
         match result.unwrap().reply {
-            moor_rpc::DaemonToHostReplyUnion::DaemonToHostPerfCounters(perf) => {
+            moor_rpc::DaemonToHostReplyUnion::DaemonToHostMetrics(perf) => {
                 assert!(
-                    !perf.counters.is_empty(),
-                    "Should have performance counters"
+                    perf.families
+                        .iter()
+                        .any(|family| family.name == "db_timers_hot_samples"
+                            && family.kind == moor_rpc::MetricKind::Histogram),
+                    "Should have database timing histograms"
+                );
+                assert!(
+                    perf.families
+                        .iter()
+                        .any(|family| family.name == "rpc_queued"),
+                    "Should have the daemon's own RPC metrics"
                 );
                 use std::time::Duration;
                 let now = SystemTime::now();
@@ -649,7 +655,7 @@ mod tests {
                 let diff = now.duration_since(timestamp).unwrap_or(Duration::ZERO);
                 assert!(diff < Duration::from_secs(1), "Timestamp should be recent");
             }
-            other => panic!("Expected PerfCounters, got {other:?}"),
+            other => panic!("Expected Metrics, got {other:?}"),
         }
     }
 
@@ -833,25 +839,19 @@ mod tests {
             matches!(reply, Ok(reply) if matches!(reply.reply, moor_rpc::DaemonToHostReplyUnion::DaemonToHostAck(_)))
         );
 
-        // Test 2: Performance counters request should reply with PerfCounters
-        let perf_message = mk_request_performance_counters_msg();
+        // Test 2: A metrics request should reply with Metrics
+        let perf_message = mk_request_metrics_msg();
 
         let perf_result =
             env.transport
                 .process_host_message(env.message_handler.as_ref(), host_id, perf_message);
 
-        assert!(
-            perf_result.is_ok(),
-            "Performance counters request should succeed"
-        );
+        assert!(perf_result.is_ok(), "Metrics request should succeed");
         match perf_result.unwrap().reply {
-            moor_rpc::DaemonToHostReplyUnion::DaemonToHostPerfCounters(perf) => {
-                assert!(
-                    !perf.counters.is_empty(),
-                    "Should have performance counters"
-                );
+            moor_rpc::DaemonToHostReplyUnion::DaemonToHostMetrics(perf) => {
+                assert!(!perf.families.is_empty(), "Should have metrics");
             }
-            other => panic!("Expected PerfCounters reply, got {other:?}"),
+            other => panic!("Expected Metrics reply, got {other:?}"),
         }
 
         // Test 3: Client connection establishment should reply with NewConnection

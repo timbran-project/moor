@@ -11,151 +11,69 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Renders metrics in the Prometheus text exposition format (version 0.0.4) from a
-//! [`MetricVisitor`] walk, so every metric source can be written the same way.
+//! Renders a [`MetricsSnapshot`] in the Prometheus text exposition format (version 0.0.4).
 
-use fast_telemetry::{
-    DistributionSnapshot, HistogramSnapshot, MetricKind, MetricLabels, MetricMeta, MetricVisitor,
-};
-use std::{collections::HashMap, fmt::Write};
+use crate::util::metrics_snapshot::{MetricFamilyKind, MetricSample, MetricValue, MetricsSnapshot};
+use std::fmt::Write;
 
-struct Family {
-    name: String,
-    help: String,
-    kind: &'static str,
-    samples: String,
-}
-
-/// Collects observations into metric families and renders them as Prometheus text.
-///
-/// Prometheus requires all samples of a family to be contiguous, but sources may visit families
-/// interleaved (a sampled timer visits its call counter and histogram for each label in turn), so
-/// samples are grouped by family and written in the order each family was first seen. Every
-/// metric name gets `namespace` and an underscore as a prefix.
-pub struct PrometheusTextWriter {
-    namespace: String,
-    families: Vec<Family>,
-    index: HashMap<String, usize>,
-}
-
-impl PrometheusTextWriter {
-    pub fn new(namespace: &str) -> Self {
-        Self {
-            namespace: namespace.to_string(),
-            families: Vec::new(),
-            index: HashMap::new(),
+/// Render `snapshot`, prefixing every metric name with `namespace` and an underscore.
+pub fn render_prometheus_text(snapshot: &MetricsSnapshot, namespace: &str) -> String {
+    let mut output = String::new();
+    for family in &snapshot.families {
+        let name = format!("{namespace}_{}", family.name);
+        let kind = match family.kind {
+            MetricFamilyKind::Counter => "counter",
+            MetricFamilyKind::Gauge => "gauge",
+            MetricFamilyKind::Histogram => "histogram",
+        };
+        let _ = writeln!(output, "# HELP {name} {}", escape_help(&family.help));
+        let _ = writeln!(output, "# TYPE {name} {kind}");
+        for sample in &family.samples {
+            write_sample(&mut output, &name, sample);
         }
     }
+    output
+}
 
-    /// Render the collected families.
-    pub fn finish(self) -> String {
-        let mut output = String::new();
-        for family in self.families {
-            let _ = writeln!(
-                output,
-                "# HELP {} {}",
-                family.name,
-                escape_help(&family.help)
-            );
-            let _ = writeln!(output, "# TYPE {} {}", family.name, family.kind);
-            output.push_str(&family.samples);
+fn write_sample(output: &mut String, name: &str, sample: &MetricSample) {
+    match &sample.value {
+        MetricValue::Int(value) => write_series(output, name, "", sample, None, &value.to_string()),
+        MetricValue::Float(value) => {
+            write_series(output, name, "", sample, None, &format_f64(*value))
         }
-        output
-    }
-
-    fn family(&mut self, meta: MetricMeta<'_>, kind: &'static str) -> &mut Family {
-        let name = format!("{}_{}", self.namespace, meta.name);
-        let index = match self.index.get(&name) {
-            Some(index) => *index,
-            None => {
-                self.families.push(Family {
-                    name: name.clone(),
-                    help: meta.help.to_string(),
-                    kind,
-                    samples: String::new(),
-                });
-                self.index.insert(name, self.families.len() - 1);
-                self.families.len() - 1
+        MetricValue::Histogram(histogram) => {
+            for (upper_bound, cumulative_count) in &histogram.buckets {
+                let le = if *upper_bound == u64::MAX {
+                    "+Inf".to_string()
+                } else {
+                    upper_bound.to_string()
+                };
+                write_series(
+                    output,
+                    name,
+                    "_bucket",
+                    sample,
+                    Some(&le),
+                    &cumulative_count.to_string(),
+                );
             }
-        };
-        &mut self.families[index]
-    }
-
-    fn write_sample(&mut self, meta: MetricMeta<'_>, labels: MetricLabels<'_>, value: &str) {
-        let kind = match meta.kind {
-            MetricKind::Counter => "counter",
-            MetricKind::Gauge => "gauge",
-            _ => "untyped",
-        };
-        let family = self.family(meta, kind);
-        let name = family.name.clone();
-        write_series(&mut family.samples, &name, "", labels, None, value);
-    }
-}
-
-impl MetricVisitor for PrometheusTextWriter {
-    fn counter(&mut self, meta: MetricMeta<'_>, labels: MetricLabels<'_>, value: i64) {
-        self.write_sample(meta, labels, &value.to_string());
-    }
-
-    fn gauge_i64(&mut self, meta: MetricMeta<'_>, labels: MetricLabels<'_>, value: i64) {
-        self.write_sample(meta, labels, &value.to_string());
-    }
-
-    fn gauge_f64(&mut self, meta: MetricMeta<'_>, labels: MetricLabels<'_>, value: f64) {
-        self.write_sample(meta, labels, &format_f64(value));
-    }
-
-    fn histogram(
-        &mut self,
-        meta: MetricMeta<'_>,
-        labels: MetricLabels<'_>,
-        histogram: &dyn HistogramSnapshot,
-    ) {
-        let family = self.family(meta, "histogram");
-        let name = family.name.clone();
-        let samples = &mut family.samples;
-        histogram.visit_buckets(&mut |upper_bound, cumulative_count| {
-            let le = if upper_bound == u64::MAX {
-                "+Inf".to_string()
-            } else {
-                upper_bound.to_string()
-            };
             write_series(
-                samples,
-                &name,
-                "_bucket",
-                labels,
-                Some(&le),
-                &cumulative_count.to_string(),
+                output,
+                name,
+                "_sum",
+                sample,
+                None,
+                &histogram.sum.to_string(),
             );
-        });
-        write_series(
-            samples,
-            &name,
-            "_sum",
-            labels,
-            None,
-            &histogram.sum().to_string(),
-        );
-        write_series(
-            samples,
-            &name,
-            "_count",
-            labels,
-            None,
-            &histogram.count().to_string(),
-        );
-    }
-
-    /// No mooR metric is a distribution, and the text format has no equivalent, so these are
-    /// skipped.
-    fn distribution(
-        &mut self,
-        _meta: MetricMeta<'_>,
-        _labels: MetricLabels<'_>,
-        _distribution: &dyn DistributionSnapshot,
-    ) {
+            write_series(
+                output,
+                name,
+                "_count",
+                sample,
+                None,
+                &histogram.count.to_string(),
+            );
+        }
     }
 }
 
@@ -163,26 +81,25 @@ fn write_series(
     output: &mut String,
     name: &str,
     suffix: &str,
-    labels: MetricLabels<'_>,
+    sample: &MetricSample,
     le: Option<&str>,
     value: &str,
 ) {
     output.push_str(name);
     output.push_str(suffix);
+    let labels = sample
+        .labels
+        .iter()
+        .map(|(name, value)| (name.as_str(), value.as_str()))
+        .chain(le.map(|le| ("le", le)));
     let mut first = true;
-    let mut push_label = |output: &mut String, label_name: &str, label_value: &str| {
+    for (label_name, label_value) in labels {
         output.push(if first { '{' } else { ',' });
         first = false;
         output.push_str(label_name);
         output.push_str("=\"");
         escape_label_value(output, label_value);
         output.push('"');
-    };
-    for label in labels.iter() {
-        push_label(output, label.name, label.value);
-    }
-    if let Some(le) = le {
-        push_label(output, "le", le);
     }
     if !first {
         output.push('}');
@@ -224,7 +141,7 @@ mod tests {
     use super::*;
     use fast_telemetry::{
         DeriveLabel, ExportMetrics, Gauge, Histogram, LabeledCounter, LabeledSampledTimer,
-        MetricLabel,
+        MetricKind, MetricLabel, MetricLabels, MetricMeta, MetricVisitor,
     };
 
     #[derive(Copy, Clone, Debug, DeriveLabel)]
@@ -246,7 +163,7 @@ mod tests {
     }
 
     #[test]
-    fn groups_interleaved_families() {
+    fn renders_families_contiguously() {
         let metrics = TestMetrics {
             timers: LabeledSampledTimer::new(&[100, 1000], 1, 1),
             ops: LabeledCounter::new(1),
@@ -261,10 +178,7 @@ mod tests {
         metrics.ops.add(TestOp::Write, 3);
         metrics.depth.set(-2);
 
-        let mut writer = PrometheusTextWriter::new("moor");
-        metrics.visit_metrics(&mut writer);
-        let text = writer.finish();
-
+        let snapshot = MetricsSnapshot::collect(|builder| metrics.visit_metrics(builder));
         let expected = "\
 # HELP moor_test_timers_calls Operation latency total calls
 # TYPE moor_test_timers_calls counter
@@ -290,34 +204,34 @@ moor_test_ops{op=\"write\"} 3
 # TYPE moor_test_depth gauge
 moor_test_depth -2
 ";
-        assert_eq!(text, expected);
+        assert_eq!(render_prometheus_text(&snapshot, "moor"), expected);
     }
 
     #[test]
     fn escapes_label_values_and_help() {
-        let mut writer = PrometheusTextWriter::new("moor");
-        let meta = MetricMeta {
-            name: "odd",
-            help: "line one\nback\\slash",
-            kind: MetricKind::Gauge,
-            unit: None,
-        };
-        let label = MetricLabel {
-            name: "name",
-            value: "a\"b\\c\nd",
-        };
-        writer.gauge_f64(meta, MetricLabels::one(label), f64::NAN);
-        let histogram = Histogram::new(&[10], 1);
-        let meta = MetricMeta {
-            name: "empty",
-            help: "Empty",
-            kind: MetricKind::Histogram,
-            unit: None,
-        };
-        writer.histogram(meta, MetricLabels::none(), &histogram);
+        let snapshot = MetricsSnapshot::collect(|builder| {
+            let meta = MetricMeta {
+                name: "odd",
+                help: "line one\nback\\slash",
+                kind: MetricKind::Gauge,
+                unit: None,
+            };
+            let label = MetricLabel {
+                name: "name",
+                value: "a\"b\\c\nd",
+            };
+            builder.gauge_f64(meta, MetricLabels::one(label), f64::NAN);
+            let meta = MetricMeta {
+                name: "empty",
+                help: "Empty",
+                kind: MetricKind::Histogram,
+                unit: None,
+            };
+            builder.histogram(meta, MetricLabels::none(), &Histogram::new(&[10], 1));
+        });
 
         assert_eq!(
-            writer.finish(),
+            render_prometheus_text(&snapshot, "moor"),
             "# HELP moor_odd line one\\nback\\\\slash\n\
              # TYPE moor_odd gauge\n\
              moor_odd{name=\"a\\\"b\\\\c\\nd\"} NaN\n\

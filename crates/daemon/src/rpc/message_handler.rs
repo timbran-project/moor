@@ -65,9 +65,6 @@ pub(crate) static USER_RECONNECTED_SYM: LazyLock<Symbol> =
 pub(crate) static USER_CREATED_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("user_created"));
 pub(crate) static DO_LOGIN_COMMAND: LazyLock<Symbol> =
     LazyLock::new(|| Symbol::mk("do_login_command"));
-pub(crate) static SCHED_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("sched"));
-pub(crate) static DB_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("db"));
-pub(crate) static BF_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("bf"));
 
 /// Delivers a client request's reply when it comes later. It may run on any thread.
 pub type DaemonReplySink = Box<dyn FnOnce(Result<DaemonToClientReply, RpcMessageError>) + Send>;
