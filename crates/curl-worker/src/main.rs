@@ -75,6 +75,13 @@ async fn main() -> Result<(), eyre::Error> {
             std::process::exit(1);
         }
     };
+    let mut terminate_signal = match signal(SignalKind::terminate()) {
+        Ok(signal) => signal,
+        Err(e) => {
+            error!("Unable to register TERM signal handler: {}", e);
+            std::process::exit(1);
+        }
+    };
 
     // Stops writing and deletes the file when main returns.
     let _metrics_file = args
@@ -101,6 +108,10 @@ async fn main() -> Result<(), eyre::Error> {
         },
         _ = stop_signal.recv() => {
             info!("Received STOP signal, shutting down...");
+            kill_switch.store(true, Ordering::Relaxed);
+        },
+        _ = terminate_signal.recv() => {
+            info!("Received TERM signal, shutting down...");
             kill_switch.store(true, Ordering::Relaxed);
         },
         result = worker_loop_thread => {
