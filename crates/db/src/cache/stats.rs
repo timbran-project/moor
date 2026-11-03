@@ -11,7 +11,10 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use fast_telemetry::{DeriveLabel, Gauge, LabeledCounter};
+use fast_telemetry::{
+    DeriveLabel, Gauge, LabelEnum, LabeledCounter, MetricKind, MetricLabel, MetricLabels,
+    MetricMeta, MetricVisitor,
+};
 use std::sync::OnceLock;
 
 pub(crate) const LOCAL_STATS_BATCH_SIZE: u32 = 128;
@@ -124,6 +127,38 @@ impl CacheStats {
 
     pub fn num_entries(&self) -> isize {
         self.entries.get() as isize
+    }
+
+    /// Report the operation counts as counters and the published size as a gauge, labelled with
+    /// `cache`.
+    pub fn visit_metrics<V: MetricVisitor + ?Sized>(&self, cache: &str, visitor: &mut V) {
+        const OPS: MetricMeta<'static> = MetricMeta {
+            name: "db_cache_ops",
+            help: "Resolution cache operations",
+            kind: MetricKind::Counter,
+            unit: None,
+        };
+        const ENTRIES: MetricMeta<'static> = MetricMeta {
+            name: "db_cache_entries",
+            help: "Entries in the published resolution cache",
+            kind: MetricKind::Gauge,
+            unit: None,
+        };
+        let cache_label = MetricLabel {
+            name: "cache",
+            value: cache,
+        };
+        for (op, value) in self.counters.iter() {
+            let labels = [
+                cache_label,
+                MetricLabel {
+                    name: CacheOp::LABEL_NAME,
+                    value: op.variant_name(),
+                },
+            ];
+            visitor.counter(OPS, MetricLabels::slice(&labels), value as i64);
+        }
+        visitor.gauge_i64(ENTRIES, MetricLabels::one(cache_label), self.entries.get());
     }
 
     pub fn hit_rate(&self) -> f64 {

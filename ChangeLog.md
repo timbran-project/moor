@@ -14,6 +14,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.0 series (`main`) branch
 
+- `--metrics-file` makes the server write its metrics to a file in the Prometheus text format every
+  10 seconds, or as often as `--metrics-interval-seconds` sets. Serve the file with node_exporter or
+  a web server for Prometheus or vmagent to scrape. It includes timing histograms and cache sizes
+  that the counter builtins do not show. See "Metrics File" in the server configuration chapter.
 - The entry counts from `property_cache_stats()`, `verb_cache_stats()`, `ancestry_cache_stats()` and
   `log_cache_stats()`, and the global `live_slots` from `program_cache_stats()`, are now the caches'
   current sizes. They used to grow without limit, because entries added by transactions and tasks

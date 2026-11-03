@@ -16,6 +16,7 @@ mod cache_padded;
 mod fatal;
 mod instant;
 mod metric_entries;
+mod prometheus_text;
 mod time;
 mod timing_policy;
 mod token_bucket;
@@ -26,6 +27,7 @@ pub use cache_padded::CachePadded;
 pub use fatal::{is_fatal_db_error_reported, signal_fatal_db_error};
 pub use instant::Instant;
 pub use metric_entries::{MetricEntriesVisitor, MetricEntry};
+pub use prometheus_text::PrometheusTextWriter;
 pub use time::{Deadline, Timestamp};
 pub use timing_policy::{
     PerfTimingPolicy, estimated_total_nanos, hot_stride, perf_timing_policy, rare_stride,

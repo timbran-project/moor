@@ -15,7 +15,10 @@ use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
 
 use ahash::AHasher;
-use fast_telemetry::{Counter, DeriveLabel, LabeledCounter};
+use fast_telemetry::{
+    Counter, DeriveLabel, LabelEnum, LabeledCounter, MetricKind, MetricLabel, MetricLabels,
+    MetricMeta, MetricVisitor,
+};
 use moor_common::model::{
     TaskPermissions, VerbProgramCacheToken, VerbProgramKey, WorldState, WorldStateError,
 };
@@ -84,6 +87,34 @@ impl ProgramCacheGlobalStats {
 
     fn add_live_slots(&self, delta: isize) {
         self.live_slots.add(delta);
+    }
+
+    /// Report the operation counts as counters and the live slots as a gauge.
+    pub fn visit_metrics<V: MetricVisitor + ?Sized>(&self, visitor: &mut V) {
+        const OPS: MetricMeta<'static> = MetricMeta {
+            name: "program_cache_ops",
+            help: "Task program cache operations",
+            kind: MetricKind::Counter,
+            unit: None,
+        };
+        const LIVE_SLOTS: MetricMeta<'static> = MetricMeta {
+            name: "program_cache_live_slots",
+            help: "Live slots across all task program caches",
+            kind: MetricKind::Gauge,
+            unit: None,
+        };
+        for (op, value) in self.counters.iter() {
+            let label = MetricLabel {
+                name: ProgramCacheOp::LABEL_NAME,
+                value: op.variant_name(),
+            };
+            visitor.counter(OPS, MetricLabels::one(label), value as i64);
+        }
+        visitor.gauge_i64(
+            LIVE_SLOTS,
+            MetricLabels::none(),
+            self.live_slots.sum() as i64,
+        );
     }
 
     fn snapshot(&self) -> ProgramCacheGlobalSnapshot {

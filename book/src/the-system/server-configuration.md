@@ -370,6 +370,48 @@ Guidance:
 - Set `perf_timing_enabled: false` if you only care about invocation counts and do not want duration
   timing at all.
 
+## Metrics File
+
+The server can write its internal metrics to a file in the
+[Prometheus text format](https://prometheus.io/docs/instrumenting/exposition_formats/). It replaces
+the file on each interval, so readers never see a partial file, and deletes it on a clean shutdown.
+The server itself does not serve metrics over the network; serve the file with another program.
+
+| Setting        | Command Line                       | Default | Description                |
+| -------------- | ---------------------------------- | ------- | -------------------------- |
+| Metrics file   | `--metrics-file <PATH>`            | none    | Write metrics to this file |
+| Write interval | `--metrics-interval-seconds <NUM>` | `10`    | Seconds between writes     |
+
+These options are command line only. The file's directory must exist. The file is several hundred
+kilobytes, so put it on a memory file system such as `/run` rather than disk.
+
+The file holds database, scheduler and builtin function timings and counts, and the sizes and
+operation counts of the server's caches. All metric names start with `moor_`. Timings come in pairs:
+a `_calls` counter of every call, and a `_samples` histogram of the sampled durations in nanoseconds
+(see Runtime Timing Configuration above). Estimate total time as
+`_samples_sum * _calls / _samples_count`.
+
+To serve the file with node_exporter, give it a `.prom` name in node_exporter's textfile directory:
+
+```bash
+moor-daemon ... --metrics-file /var/lib/node_exporter/textfile/moor.prom
+```
+
+To serve it with nginx, add a location that only your scraper can reach:
+
+```nginx
+location = /metrics {
+    alias /run/moor/moor.prom;
+    default_type "text/plain; version=0.0.4";
+    allow 10.0.0.5;
+    deny all;
+}
+```
+
+A file server keeps serving the last file if the server crashes. Each file records when it was
+written in `moor_metrics_written_timestamp_seconds`, so alert when it falls behind, for example
+`time() - moor_metrics_written_timestamp_seconds > 60`.
+
 ## Task Pool Affinity Configuration
 
 Task worker affinity is configured under `runtime:` and can also be overridden on the command line.

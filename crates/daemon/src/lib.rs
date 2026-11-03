@@ -59,6 +59,7 @@ pub mod connections;
 mod curve_keys;
 mod enrollment;
 mod event_log;
+mod metrics_file;
 mod rpc;
 mod runtime;
 mod system_control;
@@ -72,6 +73,7 @@ use crate::tasks::tasks_db_fjall::FjallTasksDB;
 use moor_common::model::{CommitResult, CompileError, loader::LoaderInterface};
 
 pub use curve_keys::CurveKeyPair;
+pub use metrics_file::MetricsFileConfig;
 pub use rpc::{MessageHandler, RpcServer, Transport};
 pub use runtime::{ClientReplySink, RunOnWorker, RuntimeApi, WorkerJob};
 pub use workers::WorkersMessageHandlerImpl;
@@ -131,6 +133,8 @@ pub struct DaemonRuntimeConfig {
     pub rpc_workers: usize,
     pub workers_enabled: bool,
     pub startup_config: Option<Var>,
+    /// Where and how often to write metrics in the Prometheus text format, if at all.
+    pub metrics_file: Option<MetricsFileConfig>,
 }
 
 #[derive(Clone)]
@@ -569,6 +573,7 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
         rpc_workers,
         workers_enabled,
         startup_config,
+        metrics_file,
     } = runtime_config;
     config.validate().map_err(|e| eyre!(e))?;
     let DaemonKeys {
@@ -625,6 +630,9 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
     );
     // Before the database opens: it builds its timers on first use.
     config.runtime.apply_perf_timing_policy();
+    let metrics_file_writer = metrics_file
+        .map(metrics_file::MetricsFileWriter::spawn)
+        .transpose()?;
     let (database, freshly_made) = TxDB::try_open(
         Some(&paths.db_path),
         config.database.clone().unwrap_or_default(),
@@ -1049,6 +1057,9 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
     if let Err(e) = scheduler_loop_jh.join() {
         error!("Scheduler thread panicked: {:?}", e);
     }
+
+    // Stops the writer and deletes the file.
+    drop(metrics_file_writer);
 
     info!("Done.");
     Ok(())

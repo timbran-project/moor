@@ -102,6 +102,23 @@ struct Args {
 
     #[arg(
         long,
+        value_name = "FILE",
+        help = "Write metrics in the Prometheus text format to this file, replaced on each interval and deleted on shutdown. Serve it with a static file server or node_exporter's textfile collector (name it *.prom). Off unless set.",
+        value_hint = ValueHint::FilePath
+    )]
+    metrics_file: Option<PathBuf>,
+
+    #[arg(
+        long,
+        value_name = "SECONDS",
+        help = "Seconds between writes of --metrics-file",
+        default_value = "10",
+        value_parser = clap::value_parser!(u32).range(1..)
+    )]
+    metrics_interval_seconds: u32,
+
+    #[arg(
+        long,
         value_name = "db",
         help = "Main database filename (relative to data-dir if not absolute)",
         value_hint = ValueHint::FilePath,
@@ -485,6 +502,13 @@ async fn run() -> Result<(), Report> {
         rpc_workers: 1,
         workers_enabled: services_config.curl_worker.enabled || services_config.git_worker.enabled,
         startup_config,
+        metrics_file: args
+            .metrics_file
+            .clone()
+            .map(|path| moor_daemon::MetricsFileConfig {
+                path,
+                interval: std::time::Duration::from_secs(u64::from(args.metrics_interval_seconds)),
+            }),
     };
     let daemon_runtime = DaemonRuntime {
         zmq_context: zmq_context.clone(),

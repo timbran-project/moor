@@ -11,13 +11,29 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Flattened views of the runtime's perf counters, shared by the counter builtins and the daemon's
-//! `RequestPerformanceCounters` RPC.
+//! The runtime's perf metrics: a full walk for export, and the flattened views shared by the
+//! counter builtins and the daemon's `RequestPerformanceCounters` RPC.
 
+use fast_telemetry::MetricVisitor;
 use moor_common::util::{MetricEntriesVisitor, MetricEntry};
-use moor_db::db_counters;
+use moor_db::{ANCESTRY_CACHE_STATS, PROP_CACHE_STATS, VERB_CACHE_STATS, db_counters};
 
-use crate::{tasks::sched_counters, vm::builtins::bf_perf_counters};
+use crate::{
+    tasks::{sched_counters, task_program_cache::PROGRAM_CACHE_GLOBAL_STATS},
+    vm::builtins::bf_perf_counters,
+};
+
+/// Visit every runtime metric: database, scheduler and builtin timings and counts, and the
+/// resolution and program caches.
+pub fn visit_all_metrics<V: MetricVisitor + ?Sized>(visitor: &mut V) {
+    db_counters().visit_metrics(visitor);
+    sched_counters().visit_metrics(visitor);
+    bf_perf_counters().visit_metrics(visitor);
+    PROP_CACHE_STATS.visit_metrics("property", visitor);
+    VERB_CACHE_STATS.visit_metrics("verb", visitor);
+    ANCESTRY_CACHE_STATS.visit_metrics("ancestry", visitor);
+    PROGRAM_CACHE_GLOBAL_STATS.visit_metrics(visitor);
+}
 
 /// World-state (database) operation counters and timings.
 pub fn db_counter_entries() -> Vec<MetricEntry> {

@@ -126,6 +126,13 @@ fn main() -> Result<(), Report> {
         rpc_workers: usize::from(args.rpc_workers),
         workers_enabled: true,
         startup_config,
+        metrics_file: args
+            .metrics_file
+            .clone()
+            .map(|path| moor_daemon::MetricsFileConfig {
+                path,
+                interval: std::time::Duration::from_secs(u64::from(args.metrics_interval_seconds)),
+            }),
     };
     let runtime = DaemonRuntime {
         zmq_context: r0z::Context::new(),

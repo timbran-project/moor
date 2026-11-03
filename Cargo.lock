@@ -4380,6 +4380,7 @@ dependencies = [
  "color-eyre",
  "ed25519-dalek",
  "eyre",
+ "fast-telemetry",
  "fjall",
  "flume",
  "mimalloc",

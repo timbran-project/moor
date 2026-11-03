@@ -197,6 +197,23 @@ pub struct Args {
     )]
     pub rpc_workers: u16,
 
+    #[arg(
+        long,
+        value_name = "FILE",
+        help = "Write metrics in the Prometheus text format to this file, replaced on each interval and deleted on shutdown. Serve it with a static file server or node_exporter's textfile collector (name it *.prom). Off unless set.",
+        value_hint = ValueHint::FilePath
+    )]
+    pub metrics_file: Option<PathBuf>,
+
+    #[arg(
+        long,
+        value_name = "SECONDS",
+        help = "Seconds between writes of --metrics-file",
+        default_value = "10",
+        value_parser = clap::value_parser!(u32).range(1..)
+    )]
+    pub metrics_interval_seconds: u32,
+
     #[arg(long, help = "Enable debug logging", default_value = "false")]
     pub debug: bool,
 
