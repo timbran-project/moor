@@ -14,6 +14,10 @@
 //! Process isolation for blocking Git operations and bounded IPC.
 
 use crate::protocol::{self, Error, Limits, Operation, Request};
+use fast_telemetry::{
+    Counter, DeriveLabel, ExportMetrics, LabeledCounter, LabeledSampledTimer, MetricKind,
+    MetricLabels, MetricMeta, MetricVisitor,
+};
 use moor_common::tasks::WorkerError;
 use moor_var::{Var, decode_var_cbor, encode_var_cbor};
 use std::{
@@ -21,7 +25,7 @@ use std::{
     path::{Path, PathBuf},
     process::Stdio,
     sync::{
-        Arc,
+        Arc, LazyLock,
         atomic::{AtomicBool, Ordering},
     },
     time::Duration,
@@ -30,6 +34,41 @@ use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     process::Command,
     sync::{Notify, Semaphore},
+};
+
+/// Why a Git job that ran ended without a result.
+#[derive(Clone, Copy, Debug, DeriveLabel)]
+#[label_name = "reason"]
+enum JobFailure {
+    /// It exceeded its temporary file limit.
+    LimitExceeded,
+    /// It failed or hit another operating-system resource limit.
+    JobFailed,
+}
+
+#[derive(ExportMetrics)]
+#[metric_prefix = "git"]
+struct GitMetrics {
+    /// Every job is timed, so the call count is every job run.
+    #[help = "Git jobs run, from taking a slot to finishing, by operation"]
+    jobs: LabeledSampledTimer<Operation>,
+    #[help = "Git requests refused because every slot was in use"]
+    busy: Counter,
+    #[help = "Git jobs that ended without a result"]
+    job_failures: LabeledCounter<JobFailure>,
+}
+
+static GIT_METRICS: LazyLock<GitMetrics> = LazyLock::new(|| GitMetrics {
+    jobs: LabeledSampledTimer::with_latency_buckets(4, 1),
+    busy: Counter::new(4),
+    job_failures: LabeledCounter::new(4),
+});
+
+const SLOTS_IN_USE: MetricMeta<'static> = MetricMeta {
+    name: "git_slots_in_use",
+    help: "Git job slots in use",
+    kind: MetricKind::Gauge,
+    unit: None,
 };
 
 /// A worker-local executor. Jobs share no repository state and do not queue without bounds.
@@ -65,6 +104,13 @@ impl Executor {
         })
     }
 
+    /// Visit the Git job metrics, including this executor's slots in use.
+    pub fn visit_metrics<V: MetricVisitor + ?Sized>(&self, visitor: &mut V) {
+        GIT_METRICS.visit_metrics(visitor);
+        let in_use = self.concurrency as usize - self.permits.available_permits();
+        visitor.gauge_i64(SLOTS_IN_USE, MetricLabels::none(), in_use as i64);
+    }
+
     /// Stop admission, terminate active children, and wait for their cleanup.
     pub async fn shutdown(&self) {
         self.stopping.store(true, Ordering::Release);
@@ -95,8 +141,11 @@ impl Executor {
             return Ok(protocol::capabilities(&self.limits, self.concurrency));
         }
         let Ok(_permit) = self.permits.try_acquire() else {
+            GIT_METRICS.busy.inc();
             return Ok(Error::new("busy", "All Git worker slots are occupied").value());
         };
+        // Records the job's time however it ends.
+        let _timer = GIT_METRICS.jobs.start(request.operation);
         let duration = timeout
             .unwrap_or(Duration::from_secs(self.limits.max_seconds))
             .min(Duration::from_secs(self.limits.max_seconds));
@@ -166,6 +215,7 @@ impl Executor {
                 if !status.success() {
                     use std::os::unix::process::ExitStatusExt;
                     if status.signal() == Some(libc::SIGXFSZ) {
+                        GIT_METRICS.job_failures.inc(JobFailure::LimitExceeded);
                         return Ok(Error::new(
                             "limit_exceeded",
                             "Git job exceeded its temporary file limit",
@@ -173,6 +223,7 @@ impl Executor {
                         .value());
                     }
                     // Resource-limit signals and allocation failures terminate only this job.
+                    GIT_METRICS.job_failures.inc(JobFailure::JobFailed);
                     return Ok(Error::new(
                         "job_failed",
                         "Git job failed or exceeded an operating-system resource limit",

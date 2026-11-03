@@ -16,6 +16,7 @@ clap.workspace = true
 clap_derive.workspace = true
 color-eyre.workspace = true
 eyre.workspace = true
+fast-telemetry.workspace = true
 gix = { version = "0.87.1", default-features = false, features = ["blocking-http-transport-reqwest", "sha1"] }
 libc.workspace = true
 moor-common = { path = "../common" }

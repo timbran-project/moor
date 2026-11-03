@@ -13,6 +13,7 @@
 
 //! Versioned MOO request and response values. No backend types cross this boundary.
 
+use fast_telemetry::DeriveLabel;
 use moor_var::{Var, v_bool, v_int, v_list, v_map, v_str};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -72,7 +73,8 @@ impl Limits {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, DeriveLabel)]
+#[label_name = "operation"]
 pub enum Operation {
     Capabilities,
     Refs,

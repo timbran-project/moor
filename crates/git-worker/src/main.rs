@@ -15,12 +15,14 @@
 
 use clap::Parser;
 use clap_derive::Parser;
+use moor_common::util::MetricsFileWriter;
 use moor_git_worker::{
     job::{Executor, child_main},
     protocol::Limits,
 };
 use moor_runtime_api::client_args::RpcClientArgs;
 use moor_var::Symbol;
+use moor_zmq_client::metrics::{MetricsFileArgs, visit_rpc_client_metrics, visit_worker_metrics};
 use std::{
     path::PathBuf,
     sync::{
@@ -42,6 +44,8 @@ static VERSION: LazyLock<String> = LazyLock::new(|| {
 struct Args {
     #[command(flatten)]
     connection: RpcClientArgs,
+    #[command(flatten)]
+    metrics: MetricsFileArgs,
     /// Parent directory for disposable job repositories.
     #[arg(long, default_value = ".moor-git-worker")]
     work_dir: PathBuf,
@@ -95,6 +99,19 @@ async fn run(args: Args) -> eyre::Result<()> {
         limits,
         args.max_concurrent_requests,
     )?);
+    // Stops writing and deletes the file when this returns.
+    let metrics_executor = executor.clone();
+    let _metrics_file = args
+        .metrics
+        .config()
+        .map(|config| {
+            MetricsFileWriter::spawn(config, "git-worker", move |visitor| {
+                metrics_executor.visit_metrics(visitor);
+                visit_worker_metrics(visitor);
+                visit_rpc_client_metrics(visitor);
+            })
+        })
+        .transpose()?;
     let keys = moor_zmq_client::enrollment_client::setup_curve_auth(
         &args.connection.rpc_address,
         &args.connection.enrollment_address,
