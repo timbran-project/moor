@@ -44,4 +44,5 @@ pub(crate) fn visit_daemon_metrics<V: MetricVisitor + ?Sized>(visitor: &mut V) {
     rpc_metrics().visit_metrics(visitor);
     crate::rpc::visit_call_pool_metrics(visitor);
     SESSION_METRICS.visit_metrics(visitor);
+    crate::workers::visit_worker_dispatch_metrics(visitor);
 }

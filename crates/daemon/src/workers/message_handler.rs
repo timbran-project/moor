@@ -14,6 +14,7 @@
 //! Message handler for workers business logic, separated from transport concerns
 
 use eyre::Context;
+use fast_telemetry::{DynamicCounter, DynamicGaugeI64, ExportMetrics, MetricVisitor};
 use moor_common::tasks::WorkerError;
 use moor_schema::{
     convert::{symbol_from_ref, uuid_from_ref, var_from_ref, var_to_flatbuffer},
@@ -31,8 +32,8 @@ use moor_var::{Obj, Symbol, Var};
 use planus::Builder;
 use r0z::{Socket, SocketType};
 use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex, RwLock},
+    collections::{HashMap, HashSet},
+    sync::{Arc, LazyLock, Mutex, RwLock},
     time::{Duration, Instant},
 };
 use tracing::{error, info, warn};
@@ -78,10 +79,42 @@ pub trait WorkersMessageHandler: Send + Sync {
 }
 
 /// Implementation of message handler that contains the actual business logic
+#[derive(ExportMetrics)]
+#[metric_prefix = "worker_dispatch"]
+struct WorkerDispatchMetrics {
+    #[help = "Worker requests from tasks, by worker type and how they ended"]
+    requests: DynamicCounter,
+    #[help = "Workers attached, by type"]
+    workers: DynamicGaugeI64,
+    #[help = "Requests sent to a worker and not yet answered, by worker type"]
+    pending: DynamicGaugeI64,
+}
+
+/// Worker types are few, so these limits only guard against a mistake.
+static WORKER_DISPATCH: LazyLock<WorkerDispatchMetrics> = LazyLock::new(|| WorkerDispatchMetrics {
+    requests: DynamicCounter::with_max_series(4, 256),
+    workers: DynamicGaugeI64::with_max_series(4, 64),
+    pending: DynamicGaugeI64::with_max_series(4, 64),
+});
+
+fn count_request(worker_type: Symbol, result: &str) {
+    WORKER_DISPATCH.requests.inc(&[
+        ("worker_type", worker_type.as_arc_str().as_str()),
+        ("result", result),
+    ]);
+}
+
+/// Visit the daemon's worker dispatch metrics.
+pub(crate) fn visit_worker_dispatch_metrics<V: MetricVisitor + ?Sized>(visitor: &mut V) {
+    WORKER_DISPATCH.visit_metrics(visitor);
+}
+
 pub struct WorkersMessageHandlerImpl {
     workers: Arc<RwLock<HashMap<Uuid, Worker>>>,
     scheduler_send: flume::Sender<WorkerResponse>,
     event_sink: WorkerEventSink,
+    /// Worker types seen, so a type whose workers have all gone reports zero.
+    seen_types: Mutex<HashSet<Symbol>>,
 }
 
 impl WorkersMessageHandlerImpl {
@@ -127,6 +160,7 @@ impl WorkersMessageHandlerImpl {
             workers: Arc::new(RwLock::new(HashMap::new())),
             scheduler_send,
             event_sink: WorkerEventSink::Zmq(workers_publish),
+            seen_types: Mutex::new(HashSet::new()),
         })
     }
 
@@ -135,6 +169,7 @@ impl WorkersMessageHandlerImpl {
             workers: Arc::new(RwLock::new(HashMap::new())),
             scheduler_send,
             event_sink: WorkerEventSink::Local,
+            seen_types: Mutex::new(HashSet::new()),
         }
     }
 
@@ -185,6 +220,25 @@ impl WorkersMessageHandlerImpl {
                 local_events: Some(send),
             },
         );
+    }
+
+    /// Count the attached workers and their pending requests by type, for export.
+    pub(crate) fn record_population(&self) {
+        let mut counts: HashMap<Symbol, (i64, i64)> = HashMap::new();
+        for worker in self.workers.read().unwrap().values() {
+            let entry = counts.entry(worker.worker_type).or_default();
+            entry.0 += 1;
+            entry.1 += worker.requests.len() as i64;
+        }
+        let mut seen_types = self.seen_types.lock().unwrap();
+        seen_types.extend(counts.keys().copied());
+        for worker_type in seen_types.iter() {
+            let (workers, pending) = counts.get(worker_type).copied().unwrap_or_default();
+            let name = worker_type.as_arc_str();
+            let labels = [("worker_type", name.as_str())];
+            WORKER_DISPATCH.workers.set(&labels, workers);
+            WORKER_DISPATCH.pending.set(&labels, pending);
+        }
     }
 
     pub fn local_request_result(
@@ -260,6 +314,7 @@ impl WorkersMessageHandler for WorkersMessageHandlerImpl {
                 );
                 // Abort all requests for this worker
                 for (id, _, _) in &worker.requests {
+                    count_request(worker.worker_type, "detached");
                     self.scheduler_send
                         .send(WorkerResponse::Error {
                             request_id: *id,
@@ -328,6 +383,7 @@ impl WorkersMessageHandler for WorkersMessageHandlerImpl {
 
                 let Some((_, worker)) = found_worker else {
                     error!("No workers available for request type {}", request_type);
+                    count_request(request_type, "no_worker");
                     self.scheduler_send
                         .send(WorkerResponse::Error {
                             request_id,
@@ -363,6 +419,7 @@ impl WorkersMessageHandler for WorkersMessageHandlerImpl {
                     }
                     WorkerEventSink::Local => {
                         let Some(local_events) = worker.local_events.as_ref() else {
+                            count_request(request_type, "detached");
                             self.scheduler_send
                                 .send(WorkerResponse::Error {
                                     request_id,
@@ -501,6 +558,10 @@ impl WorkersMessageHandlerImpl {
         };
 
         worker.requests.remove(idx);
+        count_request(
+            worker.worker_type,
+            if result.is_ok() { "ok" } else { "error" },
+        );
 
         match result {
             Ok(response) => {

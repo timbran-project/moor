@@ -120,6 +120,7 @@ impl WorkersServer {
                 if let Err(e) = message_handler.ping_workers() {
                     error!(error = ?e, "Unable to ping workers");
                 }
+                message_handler.record_population();
                 next_ping_due = Deadline::from_now(PING_FREQUENCY);
             }
 
