@@ -18,4 +18,5 @@ mod server;
 mod transport;
 
 pub use message_handler::WorkersMessageHandlerImpl;
+pub(crate) use message_handler::visit_worker_dispatch_metrics;
 pub use server::WorkersServer;
