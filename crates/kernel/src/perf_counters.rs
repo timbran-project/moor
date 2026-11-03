@@ -27,7 +27,7 @@ use crate::{
 };
 
 /// Visit every runtime metric: database, scheduler and builtin timings and counts, the resolution
-/// and program caches, and native schedules.
+/// and program caches, native schedules, and the task population.
 pub fn visit_all_metrics<V: MetricVisitor + ?Sized>(visitor: &mut V) {
     db_counters().visit_metrics(visitor);
     sched_counters().visit_metrics(visitor);
@@ -37,6 +37,7 @@ pub fn visit_all_metrics<V: MetricVisitor + ?Sized>(visitor: &mut V) {
     ANCESTRY_CACHE_STATS.visit_metrics("ancestry", visitor);
     PROGRAM_CACHE_GLOBAL_STATS.visit_metrics(visitor);
     visit_schedule_metrics(visitor);
+    crate::tasks::registry::visit_task_population(visitor);
 }
 
 /// World-state (database) operation counters and timings.

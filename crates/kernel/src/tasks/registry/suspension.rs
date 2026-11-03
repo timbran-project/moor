@@ -23,6 +23,7 @@ use crate::tasks::{
     task::{Task, TaskState},
 };
 use ahash::AHasher;
+use fast_telemetry::DeriveLabel;
 use flume::Sender;
 use hierarchical_hash_wheel_timer::wheels::{
     Skip, TimerEntryWithDelay,
@@ -135,6 +136,8 @@ pub enum WakeCondition {
 }
 
 #[repr(u8)]
+#[derive(Clone, Copy, Debug, DeriveLabel)]
+#[label_name = "waiting_for"]
 pub enum WakeConditionType {
     Never = 0,
     Time = 1,
@@ -142,6 +145,7 @@ pub enum WakeConditionType {
     Task = 3,
     Immediate = 4,
     Worker = 5,
+    #[label = "gc_complete"]
     GCComplete = 6,
     Retry = 7,
     TaskMessage = 8,
