@@ -18,6 +18,7 @@
 pub mod config;
 mod health;
 pub mod listeners;
+pub mod metrics;
 pub mod session;
 
 use std::{

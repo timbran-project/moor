@@ -13,6 +13,7 @@
 
 //! Dynamic telnet/TLS listener lifecycle and accepted-connection bootstrap.
 
+use crate::metrics::{OpenConnection, TELNET_METRICS, Transport};
 use crate::{
     config::TelnetProtocolConfig,
     session::{
@@ -348,126 +349,144 @@ impl Listener {
         accepted: AcceptedConnection,
     ) -> Result<(), eyre::Report> {
         tokio::spawn(async move {
-            let client_id = Uuid::new_v4();
-            info!(peer_addr = ?accepted.peer_addr, client_id = ?client_id, port = accepted.listener_port,
-                "Accepted connection for listener"
-            );
-
-            // GMCP must use the daemon's boolean mode from the first message onward.
-            let mut features = bootstrap.settings.boolean_returns.clone();
-            let boolean_returns = features
-                .wait_for(Option::is_some)
-                .await?
-                .expect("wait_for requires the feature value to be present");
-            let daemon_client = bootstrap.host_services.runtime_client();
-
-            let is_tls = accepted.tls_acceptor.is_some();
-            let mut connection_attributes = initial_connection_attributes();
-            connection_attributes.insert(Symbol::mk("tls"), moor_var::Var::mk_bool(is_tls));
-
-            let hostname = resolve_hostname(accepted.peer_addr.ip())
-                .await
-                .unwrap_or_else(|_| accepted.peer_addr.to_string());
-
-            let (client_token, connection_oid) = establish_connection(
-                &daemon_client,
-                client_id,
-                &hostname,
-                accepted.listener_port,
-                accepted.peer_addr.port(),
-                &connection_attributes,
-            )
-            .await?;
-            debug!(client_id = ?client_id, connection = ?connection_oid, "Connection established");
-
-            let (narrative_sub, broadcast_sub) = bootstrap
-                .host_services
-                .client_subscriptions(client_id, client_token.clone())
-                .map_err(|e| eyre::eyre!("Unable to subscribe for client events: {}", e))?;
-
-            let boxed_stream = match boxed_stream_from_accepted(
-                accepted.stream,
-                accepted.peer_addr,
-                accepted.tls_acceptor,
-            )
-            .await
-            {
-                Ok(stream) => stream,
-                Err(e) => {
-                    let _ = daemon_client
-                        .client_call(
-                            client_id,
-                            ClientRequest::Detach {
-                                client_token,
-                                disconnected: true,
-                            },
-                        )
-                        .await;
-                    return Err(e);
-                }
+            let transport = if accepted.tls_acceptor.is_some() {
+                Transport::Tls
+            } else {
+                Transport::Plain
             };
-
-            let settings = &bootstrap.settings;
-            let mut negotiator =
-                TelnetNegotiator::new(ProtocolPolicy::from(settings.protocols.as_ref()));
-            negotiator.set_boolean_returns(boolean_returns);
-            let mut codec = ConnectionCodec::new();
-            codec.set_max_subneg(negotiator.max_subneg());
-            // Later changes arrive as Action::SetPromptMark; this is the starting mark.
-            codec.set_prompt_mark(negotiator.prompt_mark());
-            let client_data_limiter =
-                TokenBucket::new(settings.protocols.client_data_rate, Instant::now());
-            let host_started_at = settings.started_at;
-
-            // Re-ify the connection.
-            let framed_stream = Framed::new(boxed_stream, codec);
-            let (write, read) = framed_stream.split();
-            let pong_task = PongTask::spawn(
-                broadcast_sub,
-                daemon_client.clone(),
-                PongIdentity {
-                    client_id,
-                    client_token: client_token.clone(),
-                    player: connection_oid,
-                    socket_addr: accepted.peer_addr.to_string(),
-                },
-            );
-            let mut tcp_connection = TelnetConnection {
-                handler_object: accepted.handler_object,
-                peer_addr: accepted.peer_addr,
-                connection_object: connection_oid,
-                player_object: None,
-                client_token,
-                client_id,
-                write,
-                read,
-                kill_switch: bootstrap.kill_switch,
-                pong_task,
-                narrative_sub,
-                auth_token: None,
-                daemon_client,
-                pending_task: None,
-                output_prefix: None,
-                output_suffix: None,
-                flush_command: crate::session::DEFAULT_FLUSH_COMMAND.to_string(),
-                connection_attributes,
-                is_binary_mode: false,
-                hold_input: None,
-                disable_oob: false,
-                pending_line_mode: None,
-                collecting_input: false,
-                socket_fd: accepted.socket_fd,
-                supports_utf8: false,
-                screen_reader_mode: false,
-                negotiator,
-                client_data_limiter,
-                host_started_at,
-                host_id: settings.host_id,
-            };
-
-            tcp_connection.run().await?;
-            Ok::<(), eyre::Error>(())
+            // Counted open until this task ends, however it ends.
+            let _open = OpenConnection::start(transport);
+            let result = Self::run_accepted_connection(bootstrap, accepted).await;
+            if result.is_err() {
+                TELNET_METRICS.connection_errors.inc();
+            }
+            result
         });
+        Ok(())
+    }
+
+    async fn run_accepted_connection(
+        bootstrap: ConnectionBootstrap,
+        accepted: AcceptedConnection,
+    ) -> Result<(), eyre::Report> {
+        let client_id = Uuid::new_v4();
+        info!(peer_addr = ?accepted.peer_addr, client_id = ?client_id, port = accepted.listener_port,
+            "Accepted connection for listener"
+        );
+
+        // GMCP must use the daemon's boolean mode from the first message onward.
+        let mut features = bootstrap.settings.boolean_returns.clone();
+        let boolean_returns = features
+            .wait_for(Option::is_some)
+            .await?
+            .expect("wait_for requires the feature value to be present");
+        let daemon_client = bootstrap.host_services.runtime_client();
+
+        let is_tls = accepted.tls_acceptor.is_some();
+        let mut connection_attributes = initial_connection_attributes();
+        connection_attributes.insert(Symbol::mk("tls"), moor_var::Var::mk_bool(is_tls));
+
+        let hostname = resolve_hostname(accepted.peer_addr.ip())
+            .await
+            .unwrap_or_else(|_| accepted.peer_addr.to_string());
+
+        let (client_token, connection_oid) = establish_connection(
+            &daemon_client,
+            client_id,
+            &hostname,
+            accepted.listener_port,
+            accepted.peer_addr.port(),
+            &connection_attributes,
+        )
+        .await?;
+        debug!(client_id = ?client_id, connection = ?connection_oid, "Connection established");
+
+        let (narrative_sub, broadcast_sub) = bootstrap
+            .host_services
+            .client_subscriptions(client_id, client_token.clone())
+            .map_err(|e| eyre::eyre!("Unable to subscribe for client events: {}", e))?;
+
+        let boxed_stream = match boxed_stream_from_accepted(
+            accepted.stream,
+            accepted.peer_addr,
+            accepted.tls_acceptor,
+        )
+        .await
+        {
+            Ok(stream) => stream,
+            Err(e) => {
+                let _ = daemon_client
+                    .client_call(
+                        client_id,
+                        ClientRequest::Detach {
+                            client_token,
+                            disconnected: true,
+                        },
+                    )
+                    .await;
+                return Err(e);
+            }
+        };
+
+        let settings = &bootstrap.settings;
+        let mut negotiator =
+            TelnetNegotiator::new(ProtocolPolicy::from(settings.protocols.as_ref()));
+        negotiator.set_boolean_returns(boolean_returns);
+        let mut codec = ConnectionCodec::new();
+        codec.set_max_subneg(negotiator.max_subneg());
+        // Later changes arrive as Action::SetPromptMark; this is the starting mark.
+        codec.set_prompt_mark(negotiator.prompt_mark());
+        let client_data_limiter =
+            TokenBucket::new(settings.protocols.client_data_rate, Instant::now());
+        let host_started_at = settings.started_at;
+
+        // Re-ify the connection.
+        let framed_stream = Framed::new(boxed_stream, codec);
+        let (write, read) = framed_stream.split();
+        let pong_task = PongTask::spawn(
+            broadcast_sub,
+            daemon_client.clone(),
+            PongIdentity {
+                client_id,
+                client_token: client_token.clone(),
+                player: connection_oid,
+                socket_addr: accepted.peer_addr.to_string(),
+            },
+        );
+        let mut tcp_connection = TelnetConnection {
+            handler_object: accepted.handler_object,
+            peer_addr: accepted.peer_addr,
+            connection_object: connection_oid,
+            player_object: None,
+            client_token,
+            client_id,
+            write,
+            read,
+            kill_switch: bootstrap.kill_switch,
+            pong_task,
+            narrative_sub,
+            auth_token: None,
+            daemon_client,
+            pending_task: None,
+            output_prefix: None,
+            output_suffix: None,
+            flush_command: crate::session::DEFAULT_FLUSH_COMMAND.to_string(),
+            connection_attributes,
+            is_binary_mode: false,
+            hold_input: None,
+            disable_oob: false,
+            pending_line_mode: None,
+            collecting_input: false,
+            socket_fd: accepted.socket_fd,
+            supports_utf8: false,
+            screen_reader_mode: false,
+            negotiator,
+            client_data_limiter,
+            host_started_at,
+            host_id: settings.host_id,
+        };
+
+        tcp_connection.run().await?;
         Ok(())
     }
 }

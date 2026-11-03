@@ -71,7 +71,7 @@ struct Args {
     #[arg(
         long,
         value_name = "health-check-port",
-        help = "Port for HTTP-style health check endpoint (responds with OK)",
+        help = "Port for the health check endpoint, which answers OK, or the host's metrics in the Prometheus text format for GET /metrics",
         default_value = "9888"
     )]
     health_check_port: u16,

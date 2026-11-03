@@ -19,6 +19,7 @@ mod moo_highlighter;
 mod protocol;
 pub(crate) mod telnet;
 
+use crate::metrics::TELNET_METRICS;
 use std::{
     collections::{HashMap, VecDeque},
     net::SocketAddr,
@@ -547,9 +548,15 @@ impl TelnetConnection {
     /// Write one frame, giving up on a client that has stopped reading. Pongs no longer stop when
     /// writes do, so the daemon's ping timeout will not catch a client like this.
     async fn write_frame(&mut self, frame: ConnectionFrame) -> Result<(), eyre::Error> {
+        if matches!(frame, ConnectionFrame::Line(_)) {
+            TELNET_METRICS.lines_sent.inc();
+        }
         tokio::time::timeout(WRITE_TIMEOUT, self.write.send(frame))
             .await
-            .map_err(|_| eyre::eyre!("Client did not accept output for {WRITE_TIMEOUT:?}"))??;
+            .map_err(|_| {
+                TELNET_METRICS.output_timeouts.inc();
+                eyre::eyre!("Client did not accept output for {WRITE_TIMEOUT:?}")
+            })??;
         Ok(())
     }
 
@@ -1066,7 +1073,10 @@ impl TelnetConnection {
                         }
                     };
                     let line = match item {
-                        ConnectionItem::Line(line) => line,
+                        ConnectionItem::Line(line) => {
+                            TELNET_METRICS.lines_received.inc();
+                            line
+                        }
                         ConnectionItem::Telnet(event) => {
                             self.handle_telnet_event(event).await?;
                             continue;
@@ -1142,6 +1152,7 @@ impl TelnetConnection {
 
                 match item {
                     ConnectionItem::Line(line) => {
+                        TELNET_METRICS.lines_received.inc();
                         if !expecting_input.is_empty() {
                             ReadEvent::InputReply(v_str(&line))
                         } else {
