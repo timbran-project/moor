@@ -21,6 +21,7 @@ use moor_common::model::{ObjFlag, ObjectRef};
 use moor_common::tasks::{NarrativeEvent, SchedulerError, Session, TaskId};
 use moor_kernel::{
     SchedulerClient,
+    perf_counters::{bf_counter_entries, db_counter_entries, sched_counter_entries},
     tasks::{AbortTaskOutcome, TaskHandle, TaskNotification},
 };
 use moor_runtime_api::api::{
@@ -41,10 +42,7 @@ use crate::rpc::deferred_calls::{
     CallPool, CallSlot, DeferredContext, Finish, NewDeferredCall, OnFinish, capture_on_finish,
     capture_result_response, capture_timeout_response, deadline_instants, task_on_finish,
 };
-use crate::rpc::message_handler::{
-    BF_SYM, DB_SYM, DO_LOGIN_COMMAND, RpcMessageHandler, SCHED_SYM, bf_counter_entries,
-    db_counter_entries, sched_counter_entries,
-};
+use crate::rpc::message_handler::{BF_SYM, DB_SYM, DO_LOGIN_COMMAND, RpcMessageHandler, SCHED_SYM};
 use crate::rpc::output_capture_session::CaptureAccumulator;
 use crate::runtime::{ClientReplySink, RunOnWorker, RuntimeApi};
 

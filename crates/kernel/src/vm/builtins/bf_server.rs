@@ -24,18 +24,18 @@ use iana_time_zone::get_timezone;
 use tracing::{error, info};
 
 use crate::{
+    perf_counters::{bf_counter_entries, db_counter_entries, sched_counter_entries},
     task_context::{
         current_task_scheduler_client, with_current_transaction, with_current_transaction_mut,
     },
-    tasks::{sched_counters, task_program_cache::program_cache_global_stats},
+    tasks::task_program_cache::program_cache_global_stats,
     vm::{
         builtins::{
             BfCallState, BfErr,
             BfErr::{Code, ErrValue},
             BfRet,
             BfRet::{Ret, RetNil, VmInstr},
-            BuiltinFunction, DiagnosticOutput, bf_perf_counters, parse_diagnostic_options,
-            world_state_bf_err,
+            BuiltinFunction, DiagnosticOutput, parse_diagnostic_options, world_state_bf_err,
         },
         vm_host::ExecutionResult,
     },
@@ -46,17 +46,13 @@ use moor_common::{
         CapabilityGrant, CapabilityGrants, DispatchFlagsSource, HasUuid, Named, ObjFlag,
         VerbDispatch, VerbLookup, WorldStateError,
     },
-    util::{
-        MetricEntriesVisitor, MetricEntry, scale_hot_sample_sum_nanos, scale_rare_sample_sum_nanos,
-    },
+    util::MetricEntry,
 };
 use moor_compiler::{
     ArgCount, ArgType, BUILTINS, Builtin, compile, compile_error_to_map, format_compile_error,
     offset_for_builtin,
 };
-use moor_db::{
-    ANCESTRY_CACHE_STATS, DatabaseRelation, PROP_CACHE_STATS, VERB_CACHE_STATS, db_counters,
-};
+use moor_db::{ANCESTRY_CACHE_STATS, DatabaseRelation, PROP_CACHE_STATS, VERB_CACHE_STATS};
 use moor_var::{
     Associative, E_ARGS, E_INVARG, E_INVIND, E_QUOTA, E_TYPE, Error, Obj, Symbol, Var,
     VarType::TYPE_NONE, v_arc_str, v_float, v_int, v_list, v_list_iter, v_map, v_obj, v_str,
@@ -1160,36 +1156,11 @@ fn counter_map_from_entries(entries: &[MetricEntry], use_symbols: bool) -> Var {
     v_map(&result)
 }
 
-fn db_counter_entries() -> Vec<MetricEntry> {
-    let mut visitor = MetricEntriesVisitor::new(|metric_name, sum| {
-        if metric_name == "db_timers_rare_samples" {
-            return scale_rare_sample_sum_nanos(sum);
-        }
-
-        scale_hot_sample_sum_nanos(sum)
-    });
-    db_counters().visit_metrics(&mut visitor);
-    visitor.into_entries()
-}
-
-fn sched_counter_entries() -> Vec<MetricEntry> {
-    let mut visitor = MetricEntriesVisitor::new(|_, sum| scale_hot_sample_sum_nanos(sum));
-    sched_counters().visit_metrics(&mut visitor);
-    visitor.into_entries()
-}
-
-fn bf_counter_entries() -> Vec<MetricEntry> {
-    let mut visitor = MetricEntriesVisitor::new(|_, sum| scale_hot_sample_sum_nanos(sum));
-    bf_perf_counters().visit_metrics(&mut visitor);
-    visitor.into_entries()
-}
-
 /// Usage: `map bf_counters()`
 /// Returns performance counters for builtin functions as `{name -> {count, nanos}}`. Wizard-only.
 fn bf_bf_counters(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     bf_args.require_wizard_or_builtin_call()?;
 
-    let _counters = bf_perf_counters();
     Ok(Ret(counter_map_from_entries(
         &bf_counter_entries(),
         bf_args.config.use_symbols_in_builtins && bf_args.config.symbol_type,
@@ -1212,7 +1183,6 @@ fn bf_db_counters(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 fn bf_sched_counters(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     bf_args.require_wizard_or_builtin_call()?;
 
-    let _counters = sched_counters();
     Ok(Ret(counter_map_from_entries(
         &sched_counter_entries(),
         bf_args.config.use_symbols_in_builtins && bf_args.config.symbol_type,
