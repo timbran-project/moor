@@ -26,7 +26,12 @@
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt;
+use std::sync::LazyLock;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+use fast_telemetry::{
+    Counter, DeriveLabel, ExportMetrics, Gauge, Histogram, LabeledCounter, MetricVisitor,
+};
 
 use hierarchical_hash_wheel_timer::wheels::{
     Skip, TimerEntryWithDelay,
@@ -37,6 +42,70 @@ use moor_var::{ByteSized, List, Obj, Symbol, Var, v_bool, v_float, v_int, v_map,
 use rand::RngExt;
 
 use crate::vm::extract_anonymous_refs_from_var;
+
+/// How a schedule's firing ended.
+#[derive(Clone, Copy, Debug, DeriveLabel)]
+#[label_name = "outcome"]
+enum FiringOutcome {
+    Success,
+    Fault,
+}
+
+/// Which policy dropped a deadline without firing it.
+#[derive(Clone, Copy, Debug, DeriveLabel)]
+#[label_name = "policy"]
+enum SkipPolicy {
+    /// The deadline passed while an earlier firing was still running.
+    Overlap,
+    /// The deadline passed while the scheduler was behind or the server was down.
+    Catchup,
+}
+
+/// Firing lateness bounds in nanoseconds, from 1ms to 10 minutes.
+const LATENESS_BOUNDS_NANOS: &[u64] = &[
+    1_000_000,
+    5_000_000,
+    10_000_000,
+    50_000_000,
+    100_000_000,
+    500_000_000,
+    1_000_000_000,
+    5_000_000_000,
+    10_000_000_000,
+    60_000_000_000,
+    600_000_000_000,
+];
+
+#[derive(ExportMetrics)]
+#[metric_prefix = "schedule"]
+struct ScheduleMetrics {
+    #[help = "Schedules that will fire again"]
+    active: Gauge,
+    #[help = "Schedule firings started"]
+    firings: Counter,
+    #[help = "How long after its deadline a firing started, in nanoseconds"]
+    lateness: Histogram,
+    #[help = "Schedule firings finished, by outcome"]
+    outcomes: LabeledCounter<FiringOutcome>,
+    #[help = "Deadlines dropped without firing, by the policy that dropped them"]
+    skipped: LabeledCounter<SkipPolicy>,
+    #[help = "Schedules retired, by reason"]
+    retired: LabeledCounter<RetireReason>,
+}
+
+static SCHEDULE_METRICS: LazyLock<ScheduleMetrics> = LazyLock::new(|| ScheduleMetrics {
+    active: Gauge::new(),
+    firings: Counter::new(4),
+    lateness: Histogram::new(LATENESS_BOUNDS_NANOS, 4),
+    outcomes: LabeledCounter::new(4),
+    skipped: LabeledCounter::new(4),
+    retired: LabeledCounter::new(4),
+});
+
+/// Visit the native schedule metrics.
+pub fn visit_schedule_metrics<V: MetricVisitor + ?Sized>(visitor: &mut V) {
+    SCHEDULE_METRICS.visit_metrics(visitor);
+}
 
 pub type ScheduleId = u64;
 
@@ -154,7 +223,8 @@ impl fmt::Display for ScheduleError {
 
 impl std::error::Error for ScheduleError {}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, DeriveLabel)]
+#[label_name = "reason"]
 pub enum RetireReason {
     /// A non-adaptive one-shot fired.
     OneShotDone,
@@ -880,6 +950,7 @@ impl ScheduleQ {
         if entry.retired.is_some() {
             return;
         }
+        SCHEDULE_METRICS.retired.inc(reason);
         self.retired_queue.push_back((now, id));
         entry.next_run = None;
         entry.retired = Some(reason);
@@ -933,6 +1004,8 @@ impl ScheduleQ {
     /// Also purges retired entries past their retention.
     pub fn expired(&mut self, now: Instant, now_sys: SystemTime) -> Vec<ScheduleId> {
         self.purge_retired(now_sys);
+        let active = self.entries.values().filter(|e| e.is_live()).count();
+        SCHEDULE_METRICS.active.set(active as i64);
         let mut ids: Vec<ScheduleId> = std::mem::take(&mut self.immediate)
             .into_iter()
             .filter(|expiry| self.is_current_expiry(*expiry))
@@ -988,6 +1061,11 @@ impl ScheduleQ {
             .last_run
             .map(|l| fired_at.duration_since(l).unwrap_or(Duration::ZERO));
         let deadline = entry.scheduled_deadline.unwrap_or(fired_at);
+        SCHEDULE_METRICS.firings.inc();
+        let lateness = fired_at.duration_since(deadline).unwrap_or(Duration::ZERO);
+        SCHEDULE_METRICS
+            .lateness
+            .record(lateness.as_nanos().min(u64::MAX as u128) as u64);
         entry.running.push(RunningFiring {
             task,
             deadline,
@@ -1031,11 +1109,13 @@ impl ScheduleQ {
         // Record the outcome.
         match &outcome {
             Outcome::Success(_) => {
+                SCHEDULE_METRICS.outcomes.inc(FiringOutcome::Success);
                 let entry = self.entries.get_mut(&id).unwrap();
                 entry.run_count += 1;
                 entry.consecutive_faults = 0;
             }
             Outcome::Fault(v) => {
+                SCHEDULE_METRICS.outcomes.inc(FiringOutcome::Fault);
                 let entry = self.entries.get_mut(&id).unwrap();
                 entry.fault_count += 1;
                 entry.consecutive_faults += 1;
@@ -1162,6 +1242,9 @@ impl ScheduleQ {
                         return;
                     };
                     entry.missed_count += missed;
+                    SCHEDULE_METRICS
+                        .skipped
+                        .add(SkipPolicy::Catchup, missed as isize);
                     entry.scheduled_deadline = Some(d);
                     self.jittered(d, entry.options.jitter, now)
                 }
@@ -1228,6 +1311,7 @@ impl ScheduleQ {
             return;
         };
         entry.overlap_count = entry.overlap_count.saturating_add(1);
+        SCHEDULE_METRICS.skipped.inc(SkipPolicy::Overlap);
         let ScheduleKind::Every { interval } = entry.kind else {
             return;
         };
@@ -1240,6 +1324,9 @@ impl ScheduleQ {
         };
         let entry = self.entries.get_mut(&id).unwrap();
         entry.overlap_count = entry.overlap_count.saturating_add(passed);
+        SCHEDULE_METRICS
+            .skipped
+            .add(SkipPolicy::Overlap, passed as isize);
         entry.scheduled_deadline = Some(next);
         let jitter = entry.options.jitter;
         let jittered = self.jittered(next, jitter, now);
@@ -1262,6 +1349,9 @@ impl ScheduleQ {
             && let Some(latest) = next.checked_sub(interval)
         {
             entry.overlap_count = entry.overlap_count.saturating_add(passed);
+            SCHEDULE_METRICS
+                .skipped
+                .add(SkipPolicy::Overlap, passed as isize);
             entry.scheduled_deadline = Some(latest);
         }
         self.arm(id, now, now);
@@ -1297,6 +1387,9 @@ impl ScheduleQ {
                 };
                 if catchup == CatchupPolicy::Skip {
                     entry.missed_count = entry.missed_count.saturating_add(passed);
+                    SCHEDULE_METRICS
+                        .skipped
+                        .add(SkipPolicy::Catchup, passed as isize);
                 }
                 next
             }
