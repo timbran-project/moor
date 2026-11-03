@@ -15,7 +15,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
 
 use ahash::AHasher;
-use fast_telemetry::{DeriveLabel, LabeledCounter};
+use fast_telemetry::{Counter, DeriveLabel, LabeledCounter};
 use moor_common::model::{
     TaskPermissions, VerbProgramCacheToken, VerbProgramKey, WorldState, WorldStateError,
 };
@@ -51,11 +51,13 @@ pub enum ProgramCacheOp {
     Misses,
     Inserts,
     Reclaimed,
-    LiveSlots,
 }
 
 pub struct ProgramCacheGlobalStats {
     counters: LabeledCounter<ProgramCacheOp>,
+    /// Live slots across all task program caches. Each cache adds its slots as it fills them and
+    /// removes them when it reclaims them or is dropped, so this is a size, not a running count.
+    live_slots: Counter,
 }
 
 impl Default for ProgramCacheGlobalStats {
@@ -68,6 +70,7 @@ impl ProgramCacheGlobalStats {
     pub fn new() -> Self {
         Self {
             counters: LabeledCounter::new(16),
+            live_slots: Counter::new(16),
         }
     }
 
@@ -79,13 +82,17 @@ impl ProgramCacheGlobalStats {
         self.counters.add(op, value);
     }
 
+    fn add_live_slots(&self, delta: isize) {
+        self.live_slots.add(delta);
+    }
+
     fn snapshot(&self) -> ProgramCacheGlobalSnapshot {
         ProgramCacheGlobalSnapshot {
             hits: self.counters.get(ProgramCacheOp::Hits) as i64,
             misses: self.counters.get(ProgramCacheOp::Misses) as i64,
             inserts: self.counters.get(ProgramCacheOp::Inserts) as i64,
             reclaimed: self.counters.get(ProgramCacheOp::Reclaimed) as i64,
-            live_slots: self.counters.get(ProgramCacheOp::LiveSlots) as i64,
+            live_slots: self.live_slots.sum() as i64,
         }
     }
 }
@@ -106,6 +113,15 @@ pub struct TaskProgramCache {
     local_misses: i64,
     local_inserts: i64,
     local_reclaimed: i64,
+}
+
+impl Drop for TaskProgramCache {
+    fn drop(&mut self) {
+        let live_slots = self.live_slot_count();
+        if live_slots > 0 {
+            PROGRAM_CACHE_GLOBAL_STATS.add_live_slots(-(live_slots as isize));
+        }
+    }
 }
 
 impl TaskProgramCache {
@@ -163,7 +179,7 @@ impl TaskProgramCache {
         self.cache.insert(key, slot);
         self.local_inserts += 1;
         PROGRAM_CACHE_GLOBAL_STATS.inc(ProgramCacheOp::Inserts);
-        PROGRAM_CACHE_GLOBAL_STATS.inc(ProgramCacheOp::LiveSlots);
+        PROGRAM_CACHE_GLOBAL_STATS.add_live_slots(1);
         Ok(ResolveVerbSlotResult {
             slot: self.slot_info(slot),
             cache_hit: false,
@@ -205,7 +221,7 @@ impl TaskProgramCache {
             let reclaimed_i = reclaimed as i64;
             self.local_reclaimed += reclaimed_i;
             PROGRAM_CACHE_GLOBAL_STATS.add(ProgramCacheOp::Reclaimed, reclaimed_i as isize);
-            PROGRAM_CACHE_GLOBAL_STATS.add(ProgramCacheOp::LiveSlots, -(reclaimed_i as isize));
+            PROGRAM_CACHE_GLOBAL_STATS.add_live_slots(-(reclaimed as isize));
         }
 
         reclaimed

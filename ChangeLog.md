@@ -14,6 +14,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.0 series (`main`) branch
 
+- The entry counts from `property_cache_stats()`, `verb_cache_stats()`, `ancestry_cache_stats()` and
+  `log_cache_stats()`, and the global `live_slots` from `program_cache_stats()`, are now the caches'
+  current sizes. They used to grow without limit, because entries added by transactions and tasks
+  that had finished were never subtracted.
 - `db_counters()` and the daemon's performance counters report database timings correctly when
   `--perf-timing-hot-path-shift` or `--perf-timing-enabled` is set. Before, the database sampled at
   the default rate but its timings were scaled for the configured one, so they could read 64 times

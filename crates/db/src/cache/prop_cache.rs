@@ -18,7 +18,7 @@ use moor_common::model::PropDef;
 use moor_var::{Obj, Symbol};
 use std::{
     cell::RefCell,
-    collections::{HashMap, HashSet, hash_map::Entry},
+    collections::{HashMap, HashSet},
     hash::BuildHasherDefault,
     sync::Arc,
 };
@@ -154,6 +154,11 @@ impl Inner {
 }
 
 impl PropResolutionCache {
+    /// Record this cache's size as the published size. Call only for a cache being published.
+    pub(crate) fn record_published_size(&self) {
+        self.stats.set_entries(self.inner.entries.len());
+    }
+
     pub fn fork(&self) -> Self {
         let mut forked_inner = self.inner.clone();
         forked_inner.orig_version = self.inner.version;
@@ -192,50 +197,24 @@ impl PropResolutionCache {
     }
 
     pub fn flush(&mut self) {
-        let entries_count = self.inner.entries.len() as isize;
         self.inner.flushed = true;
         self.inner.version += 1;
         self.inner.guard_version += 1;
         self.inner.entries_mut().clear();
         self.inner.first_parent_cache_mut().clear();
         self.stats.flush();
-        self.stats.remove_entries(entries_count);
     }
 
     pub fn fill_hit(&mut self, obj: &Obj, prop: &Symbol, propd: &PropDef) {
         let key = make_cache_key(obj, prop);
         self.inner.version += 1;
-        let is_new_entry = match self.inner.entries_mut().entry(key) {
-            Entry::Occupied(mut occupied) => {
-                occupied.insert(Some(propd.clone()));
-                false
-            }
-            Entry::Vacant(vacant) => {
-                vacant.insert(Some(propd.clone()));
-                true
-            }
-        };
-        if is_new_entry {
-            self.stats.add_entry();
-        }
+        self.inner.entries_mut().insert(key, Some(propd.clone()));
     }
 
     pub fn fill_miss(&mut self, obj: &Obj, prop: &Symbol) {
         let key = make_cache_key(obj, prop);
         self.inner.version += 1;
-        let is_new_entry = match self.inner.entries_mut().entry(key) {
-            Entry::Occupied(mut occupied) => {
-                occupied.insert(None);
-                false
-            }
-            Entry::Vacant(vacant) => {
-                vacant.insert(None);
-                true
-            }
-        };
-        if is_new_entry {
-            self.stats.add_entry();
-        }
+        self.inner.entries_mut().insert(key, None);
     }
 
     pub fn lookup_first_parent_with_props(&self, obj: &Obj) -> Option<Option<Obj>> {
@@ -269,9 +248,37 @@ impl PropResolutionCache {
             self.inner.version += 1;
             self.inner.guard_version += 1;
         }
+    }
+}
 
-        if removed > 0 {
-            self.stats.remove_entries(removed as isize);
-        }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn published_size_ignores_unpublished_forks() {
+        let stats: &'static CacheStats = Box::leak(Box::new(CacheStats::new()));
+        let mut published = PropResolutionCache {
+            stats,
+            ..PropResolutionCache::new()
+        };
+        let obj = Obj::mk_id(1);
+        published.fill_miss(&obj, &Symbol::mk("a"));
+        published.fill_miss(&obj, &Symbol::mk("b"));
+        published.record_published_size();
+        assert_eq!(stats.num_entries(), 2);
+
+        // A transaction's fork fills more entries, then is discarded without being published.
+        let mut fork = published.fork();
+        fork.fill_miss(&obj, &Symbol::mk("c"));
+        drop(fork);
+        assert_eq!(stats.num_entries(), 2);
+
+        // A fork that is published replaces the size, including its removals.
+        let mut fork = published.fork();
+        fork.fill_miss(&obj, &Symbol::mk("c"));
+        fork.invalidate_objects(&[obj]);
+        fork.record_published_size();
+        assert_eq!(stats.num_entries(), 0);
     }
 }

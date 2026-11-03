@@ -11,7 +11,7 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use fast_telemetry::{DeriveLabel, LabeledCounter};
+use fast_telemetry::{DeriveLabel, Gauge, LabeledCounter};
 use std::sync::OnceLock;
 
 pub(crate) const LOCAL_STATS_BATCH_SIZE: u32 = 128;
@@ -37,12 +37,14 @@ pub enum CacheOp {
     NegativeHits,
     Misses,
     Flushes,
-    NumEntries,
 }
 
 /// Unified cache statistics structure
 pub struct CacheStats {
     counters: LabeledCounter<CacheOp>,
+    /// Size of the most recently published cache. Transactions work on forks of it, so their
+    /// inserts and removals are not counted here.
+    entries: Gauge,
 }
 
 impl Default for CacheStats {
@@ -65,6 +67,7 @@ impl CacheStats {
     pub fn new() -> Self {
         Self {
             counters: LabeledCounter::new(Self::default_shard_count()),
+            entries: Gauge::new(),
         }
     }
 
@@ -79,10 +82,6 @@ impl CacheStats {
     }
     pub fn flush(&self) {
         self.counters.inc(CacheOp::Flushes);
-    }
-
-    pub fn add_entry(&self) {
-        self.counters.inc(CacheOp::NumEntries);
     }
 
     #[inline]
@@ -106,8 +105,8 @@ impl CacheStats {
         }
     }
 
-    pub fn remove_entries(&self, count: isize) {
-        self.counters.add(CacheOp::NumEntries, -count);
+    pub(crate) fn set_entries(&self, count: usize) {
+        self.entries.set(count.min(i64::MAX as usize) as i64);
     }
 
     pub fn hit_count(&self) -> isize {
@@ -124,7 +123,7 @@ impl CacheStats {
     }
 
     pub fn num_entries(&self) -> isize {
-        self.counters.get(CacheOp::NumEntries)
+        self.entries.get() as isize
     }
 
     pub fn hit_rate(&self) -> f64 {

@@ -23,7 +23,7 @@ use moor_common::{
 use moor_var::{Obj, SYSTEM_OBJECT, Symbol, program::opcode::BuiltinId};
 use std::{
     cell::RefCell,
-    collections::{HashMap, HashSet, hash_map::Entry},
+    collections::{HashMap, HashSet},
     hash::BuildHasherDefault,
     sync::Arc,
 };
@@ -184,6 +184,11 @@ impl Inner {
 }
 
 impl VerbResolutionCache {
+    /// Record this cache's size as the published size. Call only for a cache being published.
+    pub(crate) fn record_published_size(&self) {
+        self.stats.set_entries(self.inner.entries.len());
+    }
+
     pub fn fork(&self) -> Self {
         let mut forked_inner = self.inner.clone();
         forked_inner.orig_version = self.inner.version;
@@ -276,7 +281,6 @@ impl VerbResolutionCache {
     }
 
     pub fn flush(&mut self) {
-        let entries_count = self.inner.entries.len() as isize;
         self.clear_builtin_proxy_absences();
         self.inner.flushed = true;
         self.inner.version += 1;
@@ -284,7 +288,6 @@ impl VerbResolutionCache {
         self.inner.entries_mut().clear();
         self.inner.first_parent_cache_mut().clear();
         self.stats.flush();
-        self.stats.remove_entries(entries_count);
     }
 
     pub fn fill_hit(&mut self, obj: &Obj, verb: &Symbol, verbdef: ResolvedVerb) {
@@ -302,19 +305,7 @@ impl VerbResolutionCache {
     ) {
         let key = make_cache_key(obj, verb, args, flags);
         self.inner.version += 1;
-        let is_new_entry = match self.inner.entries_mut().entry(key) {
-            Entry::Occupied(mut occupied) => {
-                occupied.insert(Some(verbdef));
-                false
-            }
-            Entry::Vacant(vacant) => {
-                vacant.insert(Some(verbdef));
-                true
-            }
-        };
-        if is_new_entry {
-            self.stats.add_entry();
-        }
+        self.inner.entries_mut().insert(key, Some(verbdef));
     }
 
     pub fn fill_miss(&mut self, obj: &Obj, verb: &Symbol) {
@@ -331,19 +322,7 @@ impl VerbResolutionCache {
     ) {
         let key = make_cache_key(obj, verb, args, flags);
         self.inner.version += 1;
-        let is_new_entry = match self.inner.entries_mut().entry(key) {
-            Entry::Occupied(mut occupied) => {
-                occupied.insert(None);
-                false
-            }
-            Entry::Vacant(vacant) => {
-                vacant.insert(None);
-                true
-            }
-        };
-        if is_new_entry {
-            self.stats.add_entry();
-        }
+        self.inner.entries_mut().insert(key, None);
     }
 
     pub fn invalidate_objects(&mut self, objects: &[Obj]) {
@@ -371,10 +350,6 @@ impl VerbResolutionCache {
         if changed {
             self.inner.version += 1;
             self.inner.guard_version += 1;
-        }
-
-        if removed > 0 {
-            self.stats.remove_entries(removed as isize);
         }
     }
 }

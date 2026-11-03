@@ -17,7 +17,7 @@ use ahash::AHasher;
 use moor_var::Obj;
 use std::{
     cell::RefCell,
-    collections::{HashMap, HashSet, hash_map::Entry},
+    collections::{HashMap, HashSet},
     hash::BuildHasherDefault,
     sync::Arc,
 };
@@ -108,6 +108,11 @@ impl AncestryInner {
 }
 
 impl AncestryCache {
+    /// Record this cache's size as the published size. Call only for a cache being published.
+    pub(crate) fn record_published_size(&self) {
+        self.stats.set_entries(self.inner.entries.len());
+    }
+
     pub fn fork(&self) -> Self {
         let mut forked_inner = self.inner.clone();
         forked_inner.orig_version = self.inner.version;
@@ -148,30 +153,16 @@ impl AncestryCache {
     }
 
     pub fn flush(&mut self) {
-        let entries_count = self.inner.entries.len() as isize;
         self.inner.flushed = true;
         self.inner.version += 1;
         self.inner.entries_mut().clear();
         self.stats.flush();
-        self.stats.remove_entries(entries_count);
     }
 
     pub fn fill(&mut self, obj: &Obj, ancestors: &[Obj]) {
         let obj = *obj;
         self.inner.version += 1;
-        let is_new_entry = match self.inner.entries_mut().entry(obj) {
-            Entry::Occupied(mut occupied) => {
-                occupied.insert(ancestors.to_vec());
-                false
-            }
-            Entry::Vacant(vacant) => {
-                vacant.insert(ancestors.to_vec());
-                true
-            }
-        };
-        if is_new_entry {
-            self.stats.add_entry();
-        }
+        self.inner.entries_mut().insert(obj, ancestors.to_vec());
     }
 
     pub fn has_changed(&self) -> bool {
@@ -193,6 +184,5 @@ impl AncestryCache {
             return;
         }
         self.inner.version += 1;
-        self.stats.remove_entries(removed as isize);
     }
 }
