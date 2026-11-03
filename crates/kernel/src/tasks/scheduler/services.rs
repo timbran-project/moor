@@ -303,6 +303,7 @@ impl Scheduler {
     /// The timer loop replaces the old run() main loop.
     /// Handles: timer expirations, GC checks, compaction, immediate wakes.
     fn timer_loop(&self) {
+        let mut population_recorded_at = std::time::Instant::now();
         loop {
             {
                 let lc = self.lifecycle.lock();
@@ -344,6 +345,10 @@ impl Scheduler {
             {
                 let mut lc = self.lifecycle.lock();
                 lc.settle_schedule_firings();
+                if population_recorded_at.elapsed() >= Duration::from_secs(1) {
+                    lc.task_q.record_population();
+                    population_recorded_at = std::time::Instant::now();
+                }
                 lc.task_q
                     .suspended
                     .save_due_tasks(moor_common::util::Instant::now());

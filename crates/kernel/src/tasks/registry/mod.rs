@@ -21,6 +21,7 @@
 
 use crate::{tasks::task_pool::TaskThreadPool, vm::extract_anonymous_refs_from_vm_exec_state};
 use ahash::AHasher;
+use fast_telemetry::{ExportMetrics, Gauge, LabelEnum, LabeledGauge, MetricVisitor};
 use moor_common::{
     model::TaskPermissions,
     tasks::{SchedulerError, TaskId},
@@ -30,6 +31,7 @@ use moor_var::{E_INVARG, E_PERM, ErrorCode, Obj, Var};
 use std::{
     collections::{HashMap, VecDeque},
     hash::BuildHasherDefault,
+    sync::LazyLock,
 };
 use tracing::error;
 
@@ -44,7 +46,26 @@ pub(crate) use active::{
     LiveTaskRegistration, LiveTaskRegistry, RunningTask, RunningTaskPhase, TaskDispatch,
 };
 pub(crate) use suspension::RegisteredSuspendedTask;
-pub use suspension::{SuspendedTask, SuspensionQ, WakeCondition};
+pub use suspension::{SuspendedTask, SuspensionQ, WakeCondition, WakeConditionType};
+
+#[derive(ExportMetrics)]
+#[metric_prefix = "tasks"]
+struct TaskPopulation {
+    #[help = "Tasks occupying a task slot: running, or finishing a commit or suspension"]
+    active: Gauge,
+    #[help = "Suspended tasks, by what they are waiting for"]
+    suspended: LabeledGauge<WakeConditionType>,
+}
+
+static TASK_POPULATION: LazyLock<TaskPopulation> = LazyLock::new(|| TaskPopulation {
+    active: Gauge::new(),
+    suspended: LabeledGauge::new(),
+});
+
+/// Visit the counts of active and suspended tasks, as of the last `record_population`.
+pub fn visit_task_population<V: MetricVisitor + ?Sized>(visitor: &mut V) {
+    TASK_POPULATION.visit_metrics(visitor);
+}
 
 /// Task membership and shared mailboxes under the lifecycle mutex.
 pub struct TaskQ {
@@ -71,6 +92,21 @@ pub struct TaskQ {
 }
 
 impl TaskQ {
+    /// Count the active and suspended tasks for export. This walks the suspended tasks, so the
+    /// timer loop calls it about once a second rather than every tick.
+    pub(crate) fn record_population(&self) {
+        TASK_POPULATION.active.set(self.active.len() as i64);
+        let mut counts = [0i64; WakeConditionType::CARDINALITY];
+        for task in self.suspended.tasks.values() {
+            counts[task.wake_condition.condition_type().as_index()] += 1;
+        }
+        for (index, count) in counts.into_iter().enumerate() {
+            TASK_POPULATION
+                .suspended
+                .set(WakeConditionType::from_index(index), count);
+        }
+    }
+
     pub fn new(suspended: SuspensionQ) -> Self {
         let live_tasks = suspended.live_tasks.clone();
         let thread_pool = TaskThreadPool::configured().expect("Failed to create task thread pool");
