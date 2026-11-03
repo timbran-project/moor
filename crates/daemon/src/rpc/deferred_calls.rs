@@ -24,12 +24,16 @@
 use std::{
     collections::HashMap,
     sync::{
-        Arc, Mutex,
+        Arc, LazyLock, Mutex, OnceLock,
         atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
     },
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
+use fast_telemetry::{
+    DeriveLabel, LabelEnum, LabeledCounter, MetricKind, MetricLabel, MetricLabels, MetricMeta,
+    MetricVisitor,
+};
 use flume::{Receiver, Sender};
 use moor_common::tasks::{SchedulerError, TaskId};
 use moor_kernel::{
@@ -121,11 +125,54 @@ impl Drop for CallSlot {
 
 /// Which limit a call counts against. Anyone can start logins and webhooks without credentials, so
 /// they have limits of their own and cannot crowd out other calls, or each other.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, DeriveLabel)]
+#[label_name = "pool"]
 pub(crate) enum CallPool {
     Authenticated,
     Login,
     Webhook,
+}
+
+/// Calls refused because their pool was full. Hosts turn these into `ServerBusy`.
+static REFUSED: LazyLock<LabeledCounter<CallPool>> = LazyLock::new(|| LabeledCounter::new(8));
+
+/// The daemon's pools, registered by the first `DeferredCalls`, for the metrics visitor to read.
+static POOLS: OnceLock<[(CallPool, Arc<AtomicUsize>, usize); 3]> = OnceLock::new();
+
+const POOL_IN_USE: MetricMeta<'static> = MetricMeta {
+    name: "call_pool_in_use",
+    help: "Deferred calls holding a place in their pool",
+    kind: MetricKind::Gauge,
+    unit: None,
+};
+const POOL_LIMIT: MetricMeta<'static> = MetricMeta {
+    name: "call_pool_limit",
+    help: "Places in each deferred call pool",
+    kind: MetricKind::Gauge,
+    unit: None,
+};
+const POOL_REFUSED: MetricMeta<'static> = MetricMeta {
+    name: "call_pool_refused",
+    help: "Deferred calls refused because their pool was full",
+    kind: MetricKind::Counter,
+    unit: None,
+};
+
+/// Visit each call pool's places in use, its limit, and its refusals.
+pub(crate) fn visit_call_pool_metrics<V: MetricVisitor + ?Sized>(visitor: &mut V) {
+    let Some(pools) = POOLS.get() else {
+        return;
+    };
+    for (pool, in_use, limit) in pools {
+        let label = MetricLabel {
+            name: CallPool::LABEL_NAME,
+            value: pool.variant_name(),
+        };
+        let labels = MetricLabels::one(label);
+        visitor.gauge_i64(POOL_IN_USE, labels, in_use.load(Ordering::Relaxed) as i64);
+        visitor.gauge_i64(POOL_LIMIT, labels, *limit as i64);
+        visitor.counter(POOL_REFUSED, labels, REFUSED.get(*pool) as i64);
+    }
 }
 
 pub struct DeferredCalls {
@@ -148,7 +195,7 @@ pub struct DeferredCalls {
 impl DeferredCalls {
     pub fn new(max_calls: usize, max_logins: usize, max_webhooks: usize) -> Arc<Self> {
         let (finish_jobs, finish_receiver) = flume::unbounded();
-        Arc::new(Self {
+        let calls = Self {
             last_refusal_logged: AtomicU64::new(0),
             calls: Mutex::new(HashMap::new()),
             calls_in_use: Arc::new(AtomicUsize::new(0)),
@@ -159,25 +206,46 @@ impl DeferredCalls {
             max_webhooks,
             finish_jobs,
             finish_receiver,
-        })
+        };
+        // The daemon has one; later ones, in tests, are not exported.
+        let _ = POOLS.set([
+            (
+                CallPool::Authenticated,
+                calls.calls_in_use.clone(),
+                max_calls,
+            ),
+            (CallPool::Login, calls.logins_in_use.clone(), max_logins),
+            (
+                CallPool::Webhook,
+                calls.webhooks_in_use.clone(),
+                max_webhooks,
+            ),
+        ]);
+        Arc::new(calls)
     }
 
     /// Take capacity for a call about to start, or return `None` if there is none left.
     pub(crate) fn try_reserve(&self, pool: CallPool) -> Option<Arc<CallSlot>> {
         match pool {
-            CallPool::Authenticated => self.reserve_from(&self.calls_in_use, self.max_calls),
-            CallPool::Login => self.reserve_from(&self.logins_in_use, self.max_logins),
-            CallPool::Webhook => self.reserve_from(&self.webhooks_in_use, self.max_webhooks),
+            CallPool::Authenticated => self.reserve_from(pool, &self.calls_in_use, self.max_calls),
+            CallPool::Login => self.reserve_from(pool, &self.logins_in_use, self.max_logins),
+            CallPool::Webhook => self.reserve_from(pool, &self.webhooks_in_use, self.max_webhooks),
         }
     }
 
-    fn reserve_from(&self, in_use: &Arc<AtomicUsize>, limit: usize) -> Option<Arc<CallSlot>> {
+    fn reserve_from(
+        &self,
+        pool: CallPool,
+        in_use: &Arc<AtomicUsize>,
+        limit: usize,
+    ) -> Option<Arc<CallSlot>> {
         let slot = CallSlot(in_use.clone());
         let used = in_use.fetch_add(1, Ordering::AcqRel);
         // Over the limit, dropping the slot takes back the count just added.
         if used < limit {
             return Some(Arc::new(slot));
         }
+        REFUSED.inc(pool);
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_or(0, |elapsed| elapsed.as_secs());

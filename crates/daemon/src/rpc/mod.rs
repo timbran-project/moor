@@ -41,6 +41,7 @@ mod session_event_buffer;
 pub mod transport;
 
 pub use deferred_calls::DeferredCalls;
+pub(crate) use deferred_calls::visit_call_pool_metrics;
 pub use message_handler::MessageHandler;
 pub use server::RpcServer;
 pub use session::SessionActions;
