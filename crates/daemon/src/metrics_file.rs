@@ -29,6 +29,8 @@ use eyre::{Report, bail};
 use fast_telemetry::{MetricKind, MetricLabels, MetricMeta, MetricVisitor};
 use moor_common::{threading::spawn_efficient, util::PrometheusTextWriter};
 use moor_kernel::perf_counters::visit_all_metrics;
+
+use crate::rpc::transport::rpc_metrics;
 use tracing::{info, warn};
 
 /// Prefix for every metric name in the file.
@@ -131,6 +133,7 @@ fn run(config: &MetricsFileConfig, stop: &AtomicBool) {
 fn render(now: SystemTime) -> String {
     let mut writer = PrometheusTextWriter::new(NAMESPACE);
     visit_all_metrics(&mut writer);
+    rpc_metrics().visit_metrics(&mut writer);
     let written_at = now
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
@@ -174,6 +177,8 @@ mod tests {
         assert!(text.contains("# TYPE moor_db_cache_entries gauge\n"));
         assert!(text.contains("moor_db_cache_entries{cache=\"property\"} "));
         assert!(text.contains("# TYPE moor_program_cache_live_slots gauge\n"));
+        assert!(text.contains("# TYPE moor_rpc_queue_wait_samples histogram\n"));
+        assert!(text.contains("moor_rpc_queued{queue=\"worker\"} "));
         assert!(text.ends_with(
             "# TYPE moor_metrics_written_timestamp_seconds gauge\n\
              moor_metrics_written_timestamp_seconds 1.5\n"

@@ -14,11 +14,14 @@
 //! ZMQ transport layer for RPC, separated from business logic
 
 use eyre::Context;
+use fast_telemetry::{
+    DeriveLabel, ExportMetrics, LabeledCounter, LabeledGauge, LabeledSampledTimer,
+};
 use planus::ReadAsRoot;
 use r0z::Socket;
 use std::{
     sync::{
-        Arc, Mutex,
+        Arc, LazyLock, Mutex,
         atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::{Duration, Instant},
@@ -97,10 +100,41 @@ const BACKLOG_REPORT_INTERVAL: Duration = Duration::from_secs(30);
 const BACKLOG_CLEAR_AFTER: Duration = Duration::from_secs(5);
 
 /// The two request queues: pongs for the control thread, and everything else for the RPC workers.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-enum RpcQueue {
+#[derive(Copy, Clone, Debug, PartialEq, Eq, DeriveLabel)]
+#[label_name = "queue"]
+pub(crate) enum RpcQueue {
     Control,
     Worker,
+}
+
+/// Exported measurements of the request queues.
+#[derive(ExportMetrics)]
+#[metric_prefix = "rpc"]
+pub(crate) struct RpcMetrics {
+    /// Every wait is recorded, so its call count is the number of requests taken from the queue.
+    #[help = "Time RPC requests waited for a thread"]
+    queue_wait: LabeledSampledTimer<RpcQueue>,
+    #[help = "RPC requests dropped because their queue was full"]
+    dropped: LabeledCounter<RpcQueue>,
+    #[help = "RPC requests waiting for a thread"]
+    queued: LabeledGauge<RpcQueue>,
+}
+
+impl RpcMetrics {
+    fn new() -> Self {
+        Self {
+            queue_wait: LabeledSampledTimer::with_latency_buckets(16, 1),
+            dropped: LabeledCounter::new(16),
+            queued: LabeledGauge::new(),
+        }
+    }
+}
+
+static RPC_METRICS: LazyLock<RpcMetrics> = LazyLock::new(RpcMetrics::new);
+
+/// The RPC request queues' metrics, shared by every transport in the process.
+pub(crate) fn rpc_metrics() -> &'static RpcMetrics {
+    &RPC_METRICS
 }
 
 /// The receiving end of one request queue, as a thread serving it sees it.
@@ -111,22 +145,46 @@ struct WorkerQueue {
 
 /// What threads and the router report about the request queues. A backlog is exactly when there are
 /// too many requests to log each one, so these are only counted, and logged as a summary.
-#[derive(Default)]
 struct QueueStats {
+    /// The longest wait since the backlog monitor last looked, which it resets.
     longest_wait_ms: AtomicU64,
-    /// Requests taken by the RPC workers. Pongs taken by the control thread are not counted, so
-    /// that they cannot hide workers which have all stopped taking requests.
-    worker_picked_up: AtomicU64,
-    dropped: AtomicU64,
+    metrics: &'static RpcMetrics,
 }
 
 impl QueueStats {
-    fn picked_up(&self, queue: RpcQueue, waited: Duration) {
-        if queue == RpcQueue::Worker {
-            self.worker_picked_up.fetch_add(1, Ordering::Relaxed);
+    fn new(metrics: &'static RpcMetrics) -> Self {
+        Self {
+            longest_wait_ms: AtomicU64::new(0),
+            metrics,
         }
+    }
+
+    fn picked_up(&self, queue: RpcQueue, waited: Duration) {
+        self.metrics.queue_wait.record_elapsed(queue, waited);
         self.longest_wait_ms
             .fetch_max(waited.as_millis() as u64, Ordering::Relaxed);
+    }
+
+    fn dropped(&self, queue: RpcQueue) {
+        self.metrics.dropped.inc(queue);
+    }
+
+    fn set_queued(&self, queue: RpcQueue, queued: usize) {
+        self.metrics.queued.set(queue, queued as i64);
+    }
+
+    /// Requests taken by the RPC workers. Pongs taken by the control thread are not counted, so
+    /// that they cannot hide workers which have all stopped taking requests.
+    fn worker_picked_up(&self) -> u64 {
+        self.metrics.queue_wait.calls(RpcQueue::Worker)
+    }
+
+    fn total_dropped(&self) -> u64 {
+        self.metrics
+            .dropped
+            .iter()
+            .map(|(_, dropped)| dropped.max(0) as u64)
+            .sum()
     }
 }
 
@@ -158,6 +216,7 @@ struct Backlog {
 struct BacklogMonitor {
     last_check: Instant,
     last_picked_up: u64,
+    last_dropped: u64,
     /// How long the queue has held requests that no thread has taken. Waits are only measured when
     /// a request is taken, which never happens if every thread is stuck.
     stuck_for: Duration,
@@ -169,6 +228,7 @@ impl BacklogMonitor {
         Self {
             last_check: now,
             last_picked_up: 0,
+            last_dropped: 0,
             stuck_for: Duration::ZERO,
             backlog: None,
         }
@@ -183,7 +243,7 @@ impl BacklogMonitor {
         }
         self.last_check = now;
 
-        let picked_up = stats.worker_picked_up.load(Ordering::Relaxed);
+        let picked_up = stats.worker_picked_up();
         self.stuck_for = if queued > 0 && picked_up == self.last_picked_up {
             self.stuck_for + elapsed
         } else {
@@ -191,11 +251,13 @@ impl BacklogMonitor {
         };
         self.last_picked_up = picked_up;
         let measured = Duration::from_millis(stats.longest_wait_ms.swap(0, Ordering::Relaxed));
+        let dropped = stats.total_dropped();
         let sample = QueueSample {
             longest_wait: measured.max(self.stuck_for),
             queued,
-            dropped: stats.dropped.swap(0, Ordering::Relaxed),
+            dropped: dropped.saturating_sub(self.last_dropped),
         };
+        self.last_dropped = dropped;
 
         let Some(report) = self.observe(now, sample) else {
             return;
@@ -475,6 +537,8 @@ impl RpcTransport {
     ) -> eyre::Result<()> {
         let mut backlog = BacklogMonitor::new(Instant::now());
         while !self.kill_switch.load(Ordering::Relaxed) {
+            stats.set_queued(RpcQueue::Control, control_jobs.len());
+            stats.set_queued(RpcQueue::Worker, worker_jobs.len());
             backlog.check(Instant::now(), &stats, worker_jobs.len(), self.rpc_workers);
             let mut items: Vec<_> = clients
                 .iter()
@@ -522,8 +586,11 @@ impl RpcTransport {
             warn!("Dropping an RPC request with no routing envelope");
             return;
         };
-        let is_pong = request_is_pong(&request);
-        let queue = if is_pong { control_jobs } else { worker_jobs };
+        let (queue, jobs) = if request_is_pong(&request) {
+            (RpcQueue::Control, control_jobs)
+        } else {
+            (RpcQueue::Worker, worker_jobs)
+        };
         let job = RpcJob::Request(RpcRequest {
             queued_at: Instant::now(),
             transport,
@@ -531,8 +598,8 @@ impl RpcTransport {
             request,
         });
         // A host that gets no reply times out, as it does when any request is lost.
-        if queue.try_send(job).is_err() {
-            stats.dropped.fetch_add(1, Ordering::Relaxed);
+        if jobs.try_send(job).is_err() {
+            stats.dropped(queue);
         }
     }
 
@@ -990,7 +1057,7 @@ impl Transport for RpcTransport {
         let (control_jobs, control_receive) = flume::bounded(MAX_QUEUED_CONTROL_REQUESTS);
         let (worker_jobs, worker_receive) = flume::bounded(MAX_QUEUED_REQUESTS);
 
-        let stats = Arc::new(QueueStats::default());
+        let stats = Arc::new(QueueStats::new(rpc_metrics()));
 
         // A job that finds the queue full runs here instead: it finishes a request already started,
         // so it cannot be dropped, and this keeps its caller from waiting on the queue.
@@ -1216,7 +1283,7 @@ mod router_tests {
     fn requests_nobody_takes_count_as_waiting() {
         let start = Instant::now();
         let mut monitor = BacklogMonitor::new(start);
-        let stats = QueueStats::default();
+        let stats = QueueStats::new(Box::leak(Box::new(RpcMetrics::new())));
         monitor.check(start + Duration::from_secs(1), &stats, 3, 7);
         assert_eq!(monitor.stuck_for, Duration::from_secs(1));
         assert!(monitor.backlog.is_some());
@@ -1227,10 +1294,26 @@ mod router_tests {
     }
 
     #[test]
+    fn drops_are_counted_once_per_check() {
+        let start = Instant::now();
+        let mut monitor = BacklogMonitor::new(start);
+        let stats = QueueStats::new(Box::leak(Box::new(RpcMetrics::new())));
+        stats.dropped(RpcQueue::Worker);
+        stats.dropped(RpcQueue::Control);
+        monitor.check(start + Duration::from_secs(1), &stats, 0, 7);
+        assert_eq!(monitor.backlog.as_ref().unwrap().dropped, 2);
+
+        stats.dropped(RpcQueue::Worker);
+        monitor.check(start + Duration::from_secs(2), &stats, 0, 7);
+        monitor.check(start + Duration::from_secs(3), &stats, 0, 7);
+        assert_eq!(monitor.backlog.as_ref().unwrap().dropped, 3);
+    }
+
+    #[test]
     fn pongs_do_not_hide_stuck_workers() {
         let start = Instant::now();
         let mut monitor = BacklogMonitor::new(start);
-        let stats = QueueStats::default();
+        let stats = QueueStats::new(Box::leak(Box::new(RpcMetrics::new())));
         stats.picked_up(RpcQueue::Control, Duration::ZERO);
         monitor.check(start + Duration::from_secs(1), &stats, 3, 7);
         stats.picked_up(RpcQueue::Control, Duration::ZERO);
@@ -1243,7 +1326,7 @@ mod router_tests {
     fn an_idle_queue_is_not_stuck() {
         let start = Instant::now();
         let mut monitor = BacklogMonitor::new(start);
-        let stats = QueueStats::default();
+        let stats = QueueStats::new(Box::leak(Box::new(RpcMetrics::new())));
         monitor.check(start + Duration::from_secs(60), &stats, 0, 7);
         assert_eq!(monitor.stuck_for, Duration::ZERO);
         assert!(monitor.backlog.is_none());
