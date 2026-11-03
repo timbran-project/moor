@@ -19,12 +19,15 @@ use moor_common::util::{MetricEntriesVisitor, MetricEntry};
 use moor_db::{ANCESTRY_CACHE_STATS, PROP_CACHE_STATS, VERB_CACHE_STATS, db_counters};
 
 use crate::{
-    tasks::{sched_counters, task_program_cache::PROGRAM_CACHE_GLOBAL_STATS},
+    tasks::{
+        sched_counters, schedule_q::visit_schedule_metrics,
+        task_program_cache::PROGRAM_CACHE_GLOBAL_STATS,
+    },
     vm::builtins::bf_perf_counters,
 };
 
-/// Visit every runtime metric: database, scheduler and builtin timings and counts, and the
-/// resolution and program caches.
+/// Visit every runtime metric: database, scheduler and builtin timings and counts, the resolution
+/// and program caches, and native schedules.
 pub fn visit_all_metrics<V: MetricVisitor + ?Sized>(visitor: &mut V) {
     db_counters().visit_metrics(visitor);
     sched_counters().visit_metrics(visitor);
@@ -33,6 +36,7 @@ pub fn visit_all_metrics<V: MetricVisitor + ?Sized>(visitor: &mut V) {
     VERB_CACHE_STATS.visit_metrics("verb", visitor);
     ANCESTRY_CACHE_STATS.visit_metrics("ancestry", visitor);
     PROGRAM_CACHE_GLOBAL_STATS.visit_metrics(visitor);
+    visit_schedule_metrics(visitor);
 }
 
 /// World-state (database) operation counters and timings.
