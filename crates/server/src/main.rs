@@ -561,6 +561,8 @@ async fn run() -> Result<(), Report> {
     if services_config.web.enabled {
         let web_config = WebHostConfig {
             listen_address: services_config.web.listen_address,
+            // The daemon's metrics file covers this process.
+            metrics_listen: None,
             enable_webhooks: services_config.web.enable_webhooks,
             oauth2: services_config.web.oauth2,
             cors: services_config.web.cors,

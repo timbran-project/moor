@@ -4835,6 +4835,7 @@ dependencies = [
  "clap_derive",
  "color-eyre",
  "eyre",
+ "fast-telemetry",
  "futures-util",
  "hickory-resolver",
  "ipnet",

@@ -16,6 +16,7 @@
 pub mod host;
 pub(crate) mod latest_queue;
 pub mod listeners;
+pub mod metrics;
 pub mod routes;
 pub mod webrtc;
 
@@ -48,6 +49,8 @@ pub const DEFAULT_CLIENT_DATA_RATE: u32 = 50;
 #[derive(Clone, Debug)]
 pub struct WebHostConfig {
     pub listen_address: String,
+    /// Where to serve `GET /metrics`, apart from the public listener. Off if unset.
+    pub metrics_listen: Option<String>,
     pub enable_webhooks: bool,
     pub oauth2: OAuth2Config,
     pub cors: CorsConfig,
@@ -111,6 +114,9 @@ async fn run_with_host_services(
     runtime: HostRuntime,
     host_services: Arc<dyn HostServices>,
 ) -> Result<()> {
+    if let Some(metrics_listen) = &config.metrics_listen {
+        metrics::serve_metrics(metrics_listen).await?;
+    }
     let oauth2_manager = init_oauth2_manager(&config.oauth2);
     let trusted_proxy_cidrs = Arc::new(parse_trusted_proxy_cidrs(&config.trusted_proxy_cidrs));
 
