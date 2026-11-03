@@ -355,6 +355,17 @@ impl MessageHandler for RpcMessageHandler {
 
         let mut hosts = self.hosts.write().unwrap();
         hosts.ping_check(HOST_TIMEOUT);
+        let host_count = hosts.len();
+        drop(hosts);
+
+        let sessions = &crate::metrics::SESSION_METRICS;
+        sessions.hosts.set(host_count as i64);
+        sessions
+            .connected_players
+            .set(self.connections.connected_players(false).len() as i64);
+        sessions
+            .connections
+            .set(self.connections.connections().len() as i64);
         Ok(())
     }
 

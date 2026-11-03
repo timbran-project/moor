@@ -79,6 +79,10 @@ impl Hosts {
             .any(|HostRecord { listener_kinds, .. }| listener_kinds.contains(&kind))
     }
 
+    pub(crate) fn len(&self) -> usize {
+        self.0.len()
+    }
+
     pub(crate) fn unregister_host(&mut self, host_id: &Uuid) {
         self.0.remove(host_id);
     }
