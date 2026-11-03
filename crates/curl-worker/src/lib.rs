@@ -17,13 +17,14 @@ use std::{
     net::SocketAddr,
     str::FromStr,
     sync::{
-        Arc,
+        Arc, LazyLock,
         atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::Duration,
 };
 
 use eyre::{Result, eyre};
+use fast_telemetry::{DeriveLabel, ExportMetrics, LabeledCounter, MetricVisitor};
 use moor_common::tasks::WorkerError;
 use moor_runtime_api::{DaemonToWorkerEvent, WorkerServices, client_args::RpcClientConfig};
 use moor_var::{Obj, Symbol, Var, Variant, v_int, v_list, v_list_iter, v_str};
@@ -33,6 +34,65 @@ use tokio::time::timeout;
 use tokio::{io::AsyncWriteExt, net::TcpListener};
 use tracing::{debug, error, info};
 use uuid::Uuid;
+
+/// HTTP methods the worker supports.
+#[derive(Clone, Copy, Debug, DeriveLabel)]
+#[label_name = "method"]
+enum HttpMethod {
+    Get,
+    Post,
+    Put,
+}
+
+/// Response status codes, by class.
+#[derive(Clone, Copy, Debug, DeriveLabel)]
+#[label_name = "status"]
+enum StatusClass {
+    #[label = "1xx"]
+    Informational,
+    #[label = "2xx"]
+    Success,
+    #[label = "3xx"]
+    Redirection,
+    #[label = "4xx"]
+    ClientError,
+    #[label = "5xx"]
+    ServerError,
+}
+
+impl StatusClass {
+    fn of(status: reqwest::StatusCode) -> Self {
+        match status.as_u16() {
+            ..=199 => Self::Informational,
+            200..=299 => Self::Success,
+            300..=399 => Self::Redirection,
+            400..=499 => Self::ClientError,
+            _ => Self::ServerError,
+        }
+    }
+}
+
+#[derive(ExportMetrics)]
+#[metric_prefix = "curl"]
+struct CurlMetrics {
+    #[help = "HTTP requests sent, by method"]
+    requests: LabeledCounter<HttpMethod>,
+    #[help = "HTTP responses received, by status class"]
+    responses: LabeledCounter<StatusClass>,
+}
+
+static CURL_METRICS: LazyLock<CurlMetrics> = LazyLock::new(|| CurlMetrics {
+    requests: LabeledCounter::new(8),
+    responses: LabeledCounter::new(8),
+});
+
+/// Visit this worker's metrics: its HTTP traffic, the requests it handles, and its calls to the
+/// daemon.
+pub fn visit_metrics<V: MetricVisitor + ?Sized>(visitor: &mut V) {
+    CURL_METRICS.visit_metrics(visitor);
+    moor_zmq_client::metrics::visit_worker_metrics(visitor);
+    moor_zmq_client::metrics::visit_rpc_client_metrics(visitor);
+}
 
 #[derive(Clone, Debug)]
 pub struct CurlWorkerConfig {
@@ -421,6 +481,7 @@ async fn perform_http_request(
     );
     let mut response = match method.as_arc_str().to_lowercase().as_str() {
         "get" => {
+            CURL_METRICS.requests.inc(HttpMethod::Get);
             let client = client.get(url);
             let client = if let Some(headers) = headers {
                 client.headers(headers)
@@ -437,6 +498,7 @@ async fn perform_http_request(
             })?
         }
         "post" => {
+            CURL_METRICS.requests.inc(HttpMethod::Post);
             let client = client.post(url);
             let client = if let Some(headers) = headers {
                 client.headers(headers)
@@ -453,6 +515,7 @@ async fn perform_http_request(
             })?
         }
         "put" => {
+            CURL_METRICS.requests.inc(HttpMethod::Put);
             let client = client.put(url);
             let client = if let Some(headers) = headers {
                 client.headers(headers)
@@ -476,6 +539,9 @@ async fn perform_http_request(
         }
     };
 
+    CURL_METRICS
+        .responses
+        .inc(StatusClass::of(response.status()));
     let status_code = v_int(response.status().as_u16() as i64);
     let headers = response
         .headers()

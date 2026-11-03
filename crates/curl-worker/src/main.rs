@@ -15,8 +15,10 @@ use std::{sync::LazyLock, sync::atomic::Ordering};
 
 use clap::Parser;
 use clap_derive::Parser;
+use moor_common::util::MetricsFileWriter;
 use moor_curl_worker::{CurlWorkerConfig, WorkerRuntime};
 use moor_runtime_api::client_args::RpcClientArgs;
+use moor_zmq_client::metrics::MetricsFileArgs;
 use tokio::{
     select,
     signal::unix::{SignalKind, signal},
@@ -36,6 +38,9 @@ static VERSION_STRING: LazyLock<String> = LazyLock::new(|| {
 struct Args {
     #[command(flatten)]
     client_args: RpcClientArgs,
+
+    #[command(flatten)]
+    metrics: MetricsFileArgs,
 
     #[arg(long, help = "Enable debug logging", default_value = "false")]
     debug: bool,
@@ -70,6 +75,15 @@ async fn main() -> Result<(), eyre::Error> {
             std::process::exit(1);
         }
     };
+
+    // Stops writing and deletes the file when main returns.
+    let _metrics_file = args
+        .metrics
+        .config()
+        .map(|config| {
+            MetricsFileWriter::spawn(config, "curl-worker", moor_curl_worker::visit_metrics)
+        })
+        .transpose()?;
 
     let runtime = WorkerRuntime::default();
     let kill_switch = runtime.kill_switch.clone();

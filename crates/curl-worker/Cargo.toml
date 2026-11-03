@@ -12,6 +12,7 @@ rust-version.workspace = true
 description = "A worker for initiating outbound HTTP or related requests"
 
 [dependencies]
+fast-telemetry.workspace = true
 moor-common = { path = "../common" }
 moor-runtime-api = { path = "../runtime-api" }
 moor-var = { path = "../var" }
