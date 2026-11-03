@@ -1809,13 +1809,14 @@ dependencies = [
 
 [[package]]
 name = "fast-telemetry"
-version = "0.9.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a7e9cf7b3faad0a699cce0c23456bc3257f1630be02357057fca68be56d0719"
+checksum = "c13ae6c41d1d4e2cee8b8bec2121e689718b8f6af7800948229c37ef80533b25"
 dependencies = [
  "crossbeam-utils",
  "fast-telemetry-macros",
  "itoa",
+ "libc",
  "parking_lot",
  "ryu",
  "uuid 1.29.0",
@@ -1823,9 +1824,9 @@ dependencies = [
 
 [[package]]
 name = "fast-telemetry-macros"
-version = "0.9.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7aeacbd5a6da5ab7f7b716fe4297e2b577747ecf0d9a9c24e160050b2d8f5629"
+checksum = "58045fa8f3e9756e63aa7b8e50cf18f6fd3fa9b65e9a039809d4102e7323056f"
 dependencies = [
  "proc-macro2",
  "quote",
