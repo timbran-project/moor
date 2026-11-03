@@ -4872,6 +4872,7 @@ dependencies = [
  "clap",
  "clap_derive",
  "eyre",
+ "fast-telemetry",
  "futures-util",
  "hostname",
  "libc",

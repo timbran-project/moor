@@ -11,6 +11,7 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::metrics::{InFlightRequest, WorkerOutcome, record_worker_request};
 use crate::{
     WorkerRpcSendClient, attach_worker,
     pubsub_client::{WorkerMessage, workers_events_recv},
@@ -354,7 +355,11 @@ async fn process_fb<ProcessFunc, Fut>(
             };
 
             // Make an outbound HTTP request w/ request, pass timeout if needed
+            let in_flight = InFlightRequest::start();
+            let started = std::time::Instant::now();
             let result = perform(request_id, worker_type, perms, request, timeout).await;
+            record_worker_request(WorkerOutcome::of(&result), started.elapsed());
+            drop(in_flight);
             match result {
                 Ok(r) => {
                     rpc_client

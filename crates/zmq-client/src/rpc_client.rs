@@ -11,6 +11,7 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::metrics::{CallClass, record_rpc_call};
 use moor_common::config::MAX_CAPTURE_DEADLINE_MS;
 use moor_runtime_api::{RpcError, uuid_fb};
 use moor_schema::rpc as moor_rpc;
@@ -153,13 +154,6 @@ struct RpcClientInner {
     config: RpcConfig,
     connection_pool: Mutex<[VecDeque<RequestReply>; 3]>,
     admission: [Admission; 3],
-}
-
-#[derive(Clone, Copy)]
-enum CallClass {
-    Client = 0,
-    Control = 1,
-    Host = 2,
 }
 
 struct Admission {
@@ -312,8 +306,14 @@ impl RpcClient {
         } else {
             CallClass::Client
         };
-        let mut socket_guard = SocketGuard::new(self, class, receive_timeout).await?;
-        Self::perform_rpc_call(socket_guard.socket_mut(), client_id, rpc_msg).await
+        let started = std::time::Instant::now();
+        let result = async {
+            let mut socket_guard = SocketGuard::new(self, class, receive_timeout).await?;
+            Self::perform_rpc_call(socket_guard.socket_mut(), client_id, rpc_msg).await
+        }
+        .await;
+        record_rpc_call(class, started.elapsed(), &result);
+        result
     }
 
     /// Make a host RPC call with cancellation safety and connection pooling
@@ -322,10 +322,17 @@ impl RpcClient {
         host_id: Uuid,
         rpc_message: moor_rpc::HostToDaemonMessage,
     ) -> Result<Vec<u8>, RpcError> {
-        // Use a guard pattern to ensure socket cleanup regardless of cancellation
-        let mut socket_guard =
-            SocketGuard::new(self, CallClass::Host, self.inner.config.receive_timeout_ms).await?;
-        Self::perform_host_rpc_call(socket_guard.socket_mut(), host_id, rpc_message).await
+        let started = std::time::Instant::now();
+        let result = async {
+            // Use a guard pattern to ensure socket cleanup regardless of cancellation
+            let mut socket_guard =
+                SocketGuard::new(self, CallClass::Host, self.inner.config.receive_timeout_ms)
+                    .await?;
+            Self::perform_host_rpc_call(socket_guard.socket_mut(), host_id, rpc_message).await
+        }
+        .await;
+        record_rpc_call(CallClass::Host, started.elapsed(), &result);
+        result
     }
 
     /// Acquire a socket from the pool or create a new one
