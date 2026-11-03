@@ -22,4 +22,5 @@ use crate::rpc::transport::rpc_metrics;
 pub(crate) fn visit_daemon_metrics<V: MetricVisitor + ?Sized>(visitor: &mut V) {
     visit_all_metrics(visitor);
     rpc_metrics().visit_metrics(visitor);
+    crate::rpc::visit_call_pool_metrics(visitor);
 }
