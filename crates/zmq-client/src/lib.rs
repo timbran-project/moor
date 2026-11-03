@@ -31,6 +31,7 @@ mod host;
 mod host_args;
 mod host_services;
 mod listeners;
+pub mod metrics;
 pub mod pubsub_client;
 pub mod rpc_client;
 mod runtime_client_impl;
