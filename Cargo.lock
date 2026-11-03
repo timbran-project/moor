@@ -4744,6 +4744,7 @@ dependencies = [
  "colored",
  "escargot",
  "eyre",
+ "fast-telemetry",
  "flate2",
  "futures-util",
  "hickory-resolver",

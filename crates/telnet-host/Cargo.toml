@@ -34,6 +34,7 @@ systemd-units = { enable = false }
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage,coverage_nightly)'] }
 
 [dependencies]
+fast-telemetry.workspace = true
 # Internal Dependencies
 moor-common = { path = "../common" }
 moor-moot = { path = "../testing/moot", features = ["colors"] }
