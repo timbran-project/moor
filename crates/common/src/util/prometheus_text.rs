@@ -16,8 +16,13 @@
 use crate::util::metrics_snapshot::{MetricFamilyKind, MetricSample, MetricValue, MetricsSnapshot};
 use std::fmt::Write;
 
-/// Render `snapshot`, prefixing every metric name with `namespace` and an underscore.
-pub fn render_prometheus_text(snapshot: &MetricsSnapshot, namespace: &str) -> String {
+/// Render `snapshot`, prefixing every metric name with `namespace` and an underscore, and adding
+/// `const_labels` to every series ahead of its own labels.
+pub fn render_prometheus_text(
+    snapshot: &MetricsSnapshot,
+    namespace: &str,
+    const_labels: &[(&str, &str)],
+) -> String {
     let mut output = String::new();
     for family in &snapshot.families {
         let name = format!("{namespace}_{}", family.name);
@@ -29,84 +34,77 @@ pub fn render_prometheus_text(snapshot: &MetricsSnapshot, namespace: &str) -> St
         let _ = writeln!(output, "# HELP {name} {}", escape_help(&family.help));
         let _ = writeln!(output, "# TYPE {name} {kind}");
         for sample in &family.samples {
-            write_sample(&mut output, &name, sample);
+            let mut series = SeriesWriter {
+                output: &mut output,
+                name: &name,
+                const_labels,
+                sample,
+            };
+            series.write_sample();
         }
     }
     output
 }
 
-fn write_sample(output: &mut String, name: &str, sample: &MetricSample) {
-    match &sample.value {
-        MetricValue::Int(value) => write_series(output, name, "", sample, None, &value.to_string()),
-        MetricValue::Float(value) => {
-            write_series(output, name, "", sample, None, &format_f64(*value))
-        }
-        MetricValue::Histogram(histogram) => {
-            for (upper_bound, cumulative_count) in &histogram.buckets {
-                let le = if *upper_bound == u64::MAX {
-                    "+Inf".to_string()
-                } else {
-                    upper_bound.to_string()
-                };
-                write_series(
-                    output,
-                    name,
-                    "_bucket",
-                    sample,
-                    Some(&le),
-                    &cumulative_count.to_string(),
-                );
-            }
-            write_series(
-                output,
-                name,
-                "_sum",
-                sample,
-                None,
-                &histogram.sum.to_string(),
-            );
-            write_series(
-                output,
-                name,
-                "_count",
-                sample,
-                None,
-                &histogram.count.to_string(),
-            );
-        }
-    }
+/// Writes the lines of one sample: one for a counter or gauge, several for a histogram.
+struct SeriesWriter<'a> {
+    output: &'a mut String,
+    name: &'a str,
+    const_labels: &'a [(&'a str, &'a str)],
+    sample: &'a MetricSample,
 }
 
-fn write_series(
-    output: &mut String,
-    name: &str,
-    suffix: &str,
-    sample: &MetricSample,
-    le: Option<&str>,
-    value: &str,
-) {
-    output.push_str(name);
-    output.push_str(suffix);
-    let labels = sample
-        .labels
-        .iter()
-        .map(|(name, value)| (name.as_str(), value.as_str()))
-        .chain(le.map(|le| ("le", le)));
-    let mut first = true;
-    for (label_name, label_value) in labels {
-        output.push(if first { '{' } else { ',' });
-        first = false;
-        output.push_str(label_name);
-        output.push_str("=\"");
-        escape_label_value(output, label_value);
-        output.push('"');
+impl SeriesWriter<'_> {
+    fn write_sample(&mut self) {
+        match &self.sample.value {
+            MetricValue::Int(value) => self.write_line("", None, &value.to_string()),
+            MetricValue::Float(value) => self.write_line("", None, &format_f64(*value)),
+            MetricValue::Histogram(histogram) => {
+                for (upper_bound, cumulative_count) in &histogram.buckets {
+                    let le = if *upper_bound == u64::MAX {
+                        "+Inf".to_string()
+                    } else {
+                        upper_bound.to_string()
+                    };
+                    self.write_line("_bucket", Some(&le), &cumulative_count.to_string());
+                }
+                self.write_line("_sum", None, &histogram.sum.to_string());
+                self.write_line("_count", None, &histogram.count.to_string());
+            }
+        }
     }
-    if !first {
-        output.push('}');
+
+    fn write_line(&mut self, suffix: &str, le: Option<&str>, value: &str) {
+        let output = &mut *self.output;
+        output.push_str(self.name);
+        output.push_str(suffix);
+        let labels = self
+            .const_labels
+            .iter()
+            .copied()
+            .chain(
+                self.sample
+                    .labels
+                    .iter()
+                    .map(|(name, value)| (name.as_str(), value.as_str())),
+            )
+            .chain(le.map(|le| ("le", le)));
+        let mut first = true;
+        for (label_name, label_value) in labels {
+            output.push(if first { '{' } else { ',' });
+            first = false;
+            output.push_str(label_name);
+            output.push_str("=\"");
+            escape_label_value(output, label_value);
+            output.push('"');
+        }
+        if !first {
+            output.push('}');
+        }
+        output.push(' ');
+        output.push_str(value);
+        output.push('\n');
     }
-    output.push(' ');
-    output.push_str(value);
-    output.push('\n');
 }
 
 fn escape_label_value(output: &mut String, value: &str) {
@@ -204,7 +202,7 @@ moor_test_ops{op=\"write\"} 3
 # TYPE moor_test_depth gauge
 moor_test_depth -2
 ";
-        assert_eq!(render_prometheus_text(&snapshot, "moor"), expected);
+        assert_eq!(render_prometheus_text(&snapshot, "moor", &[]), expected);
     }
 
     #[test]
@@ -231,7 +229,7 @@ moor_test_depth -2
         });
 
         assert_eq!(
-            render_prometheus_text(&snapshot, "moor"),
+            render_prometheus_text(&snapshot, "moor", &[]),
             "# HELP moor_odd line one\\nback\\\\slash\n\
              # TYPE moor_odd gauge\n\
              moor_odd{name=\"a\\\"b\\\\c\\nd\"} NaN\n\

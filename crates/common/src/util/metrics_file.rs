@@ -11,8 +11,9 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Writes the runtime's metrics to a file in the Prometheus text format on an interval, for a
-//! static file server or node_exporter's textfile collector to serve.
+//! Exporting a process's metrics in the Prometheus text format: rendered on request, for a process
+//! that serves HTTP, or written to a file on an interval, for one that doesn't. A static file server
+//! or node_exporter's textfile collector can serve the file.
 
 use std::{
     io,
@@ -27,23 +28,36 @@ use std::{
 
 use eyre::{Report, bail};
 use fast_telemetry::{MetricKind, MetricLabels, MetricMeta, MetricVisitor};
-use moor_common::{
-    threading::spawn_efficient,
-    util::{MetricsSnapshot, render_prometheus_text},
-};
-
-use crate::metrics::visit_daemon_metrics;
 use tracing::{info, warn};
 
-/// Prefix for every metric name in the file.
+use crate::{
+    threading::spawn_efficient,
+    util::{MetricsSnapshot, MetricsSnapshotBuilder, render_prometheus_text},
+};
+
+/// Prefix for every metric name.
 const NAMESPACE: &str = "moor";
 
 const WRITTEN_AT: MetricMeta<'static> = MetricMeta {
     name: "metrics_written_timestamp_seconds",
-    help: "When the daemon wrote this file, in seconds since the Unix epoch",
+    help: "When the process wrote this file, in seconds since the Unix epoch",
     kind: MetricKind::Gauge,
     unit: Some("seconds"),
 };
+
+/// Render what `visit` reports in the Prometheus text format. Every name starts with `moor_`, and
+/// every series has a `service` label naming the process, so that files from several processes can
+/// be served side by side.
+pub fn render_service_metrics(
+    service: &str,
+    visit: impl FnOnce(&mut MetricsSnapshotBuilder),
+) -> String {
+    render_prometheus_text(
+        &MetricsSnapshot::collect(visit),
+        NAMESPACE,
+        &[("service", service)],
+    )
+}
 
 #[derive(Clone, Debug)]
 pub struct MetricsFileConfig {
@@ -51,16 +65,23 @@ pub struct MetricsFileConfig {
     pub interval: Duration,
 }
 
-/// The thread that keeps the metrics file current. Stopping it deletes the file, so a file
-/// server stops serving numbers from a daemon that has exited cleanly. A crash leaves the file
-/// behind; its timestamp shows how old it is.
-pub(crate) struct MetricsFileWriter {
+/// The thread that keeps a metrics file current. Dropping it, including on an early return,
+/// stops it and deletes the file, so a file server stops serving numbers from a process that has
+/// exited. A crash leaves the file behind; its timestamp shows how old it is.
+pub struct MetricsFileWriter {
     stop: Arc<AtomicBool>,
     thread: Option<JoinHandle<()>>,
 }
 
 impl MetricsFileWriter {
-    pub(crate) fn spawn(config: MetricsFileConfig) -> Result<Self, Report> {
+    pub fn spawn<F>(
+        config: MetricsFileConfig,
+        service: &'static str,
+        visit: F,
+    ) -> Result<Self, Report>
+    where
+        F: Fn(&mut MetricsSnapshotBuilder) + Send + 'static,
+    {
         if config.path.file_name().is_none() {
             bail!(
                 "Metrics file path {} has no file name",
@@ -80,7 +101,7 @@ impl MetricsFileWriter {
         let stop = Arc::new(AtomicBool::new(false));
         let thread_stop = stop.clone();
         let thread = spawn_efficient("moor-metrics-file", move || {
-            run(&config, &thread_stop);
+            run(&config, service, &visit, &thread_stop);
         })?;
         Ok(Self {
             stop,
@@ -89,8 +110,6 @@ impl MetricsFileWriter {
     }
 }
 
-/// Dropping the writer, including on an early return from the daemon, stops it and deletes the
-/// file.
 impl Drop for MetricsFileWriter {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::SeqCst);
@@ -104,10 +123,16 @@ impl Drop for MetricsFileWriter {
     }
 }
 
-fn run(config: &MetricsFileConfig, stop: &AtomicBool) {
+fn run<F>(config: &MetricsFileConfig, service: &str, visit: &F, stop: &AtomicBool)
+where
+    F: Fn(&mut MetricsSnapshotBuilder),
+{
     let mut failing = false;
     while !stop.load(Ordering::SeqCst) {
-        match write_atomically(&config.path, &render(SystemTime::now())) {
+        match write_atomically(
+            &config.path,
+            &render_file(SystemTime::now(), service, visit),
+        ) {
             Ok(()) if failing => {
                 info!(path = %config.path.display(), "Writing metrics file again");
                 failing = false;
@@ -119,7 +144,7 @@ fn run(config: &MetricsFileConfig, stop: &AtomicBool) {
             }
             Err(_) => {}
         }
-        // Woken early by stop(). A spurious wakeup only writes the file sooner.
+        // Woken early by drop. A spurious wakeup only writes the file sooner.
         std::thread::park_timeout(config.interval);
     }
 
@@ -132,16 +157,18 @@ fn run(config: &MetricsFileConfig, stop: &AtomicBool) {
     }
 }
 
-fn render(now: SystemTime) -> String {
+fn render_file<F>(now: SystemTime, service: &str, visit: &F) -> String
+where
+    F: Fn(&mut MetricsSnapshotBuilder),
+{
     let written_at = now
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs_f64();
-    let snapshot = MetricsSnapshot::collect(|builder| {
-        visit_daemon_metrics(builder);
+    render_service_metrics(service, |builder| {
+        visit(builder);
         builder.gauge_f64(WRITTEN_AT, MetricLabels::none(), written_at);
-    });
-    render_prometheus_text(&snapshot, NAMESPACE)
+    })
 }
 
 /// Write beside the target and rename over it, so readers never see a partial file.
@@ -172,29 +199,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn renders_runtime_metrics_and_timestamp() {
-        let text = render(UNIX_EPOCH + Duration::from_millis(1_500));
-        assert!(text.contains("# TYPE moor_db_timers_hot_calls counter\n"));
-        assert!(text.contains("# TYPE moor_bf_samples histogram\n"));
-        assert!(text.contains("# TYPE moor_db_cache_entries gauge\n"));
-        assert!(text.contains("moor_db_cache_entries{cache=\"property\"} "));
-        assert!(text.contains("# TYPE moor_program_cache_live_slots gauge\n"));
-        assert!(text.contains("# TYPE moor_rpc_queue_wait_samples histogram\n"));
-        assert!(text.contains("moor_rpc_queued{queue=\"worker\"} "));
-        assert!(text.ends_with(
-            "# TYPE moor_metrics_written_timestamp_seconds gauge\n\
-             moor_metrics_written_timestamp_seconds 1.5\n"
-        ));
-    }
-
-    #[test]
     fn writes_until_stopped_then_removes_the_file() {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("moor.prom");
-        let writer = MetricsFileWriter::spawn(MetricsFileConfig {
-            path: path.clone(),
-            interval: Duration::from_secs(3600),
-        })
+        let path = dir.path().join("test.prom");
+        let writer = MetricsFileWriter::spawn(
+            MetricsFileConfig {
+                path: path.clone(),
+                interval: Duration::from_secs(3600),
+            },
+            "test",
+            |_| {},
+        )
         .unwrap();
 
         let deadline = std::time::Instant::now() + Duration::from_secs(10);
@@ -208,7 +223,7 @@ mod tests {
         assert!(
             std::fs::read_to_string(&path)
                 .unwrap()
-                .contains("moor_metrics_written_timestamp_seconds")
+                .contains("moor_metrics_written_timestamp_seconds{service=\"test\"}")
         );
 
         drop(writer);
@@ -219,10 +234,14 @@ mod tests {
     #[test]
     fn rejects_missing_directory() {
         let dir = tempfile::tempdir().unwrap();
-        let result = MetricsFileWriter::spawn(MetricsFileConfig {
-            path: dir.path().join("missing").join("moor.prom"),
-            interval: Duration::from_secs(10),
-        });
+        let result = MetricsFileWriter::spawn(
+            MetricsFileConfig {
+                path: dir.path().join("missing").join("test.prom"),
+                interval: Duration::from_secs(10),
+            },
+            "test",
+            |_| {},
+        );
         assert!(result.is_err());
     }
 }
