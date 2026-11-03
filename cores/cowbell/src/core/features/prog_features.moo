@@ -60,11 +60,11 @@ object PROG_FEATURES [
   endmethod
 
   verb "@edit" (any any any) owner: ARCH_WIZARD flags: "rd" [ ui -> ["label" -> "Edit"] ]
-    "HINT: <object>:<verb> or <object>.<property> -- Edit a verb or property.";
+    "HINT: <object>, <object>:<verb> or <object>.<property> -- Edit an object, a verb or a property.";
     this:_challenge_command_perms();
     set_task_perms(player);
     if (!argstr)
-      player:inform_current($event:mk_error(player, $format.code:mk("@edit OBJECT:VERB\n@edit OBJECT.PROPERTY")));
+      player:inform_current($event:mk_error(player, $format.code:mk("@edit OBJECT\n@edit OBJECT:VERB\n@edit OBJECT.PROPERTY")));
       return;
     endif
     target_string = argstr:trim();
@@ -142,7 +142,7 @@ object PROG_FEATURES [
       this:present_property_editor(target_obj, prop_name);
       player:inform_current($event:mk_info(player, "Opened property editor for " + tostr(target_obj) + "." + prop_name));
     else
-      player:inform_current($event:mk_error(player, "Invalid reference. Use 'object:verb' or 'object.property'"));
+      $prog_utils:open_thing_sheet(target_string);
     endif
   endverb
 

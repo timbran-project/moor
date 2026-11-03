@@ -398,6 +398,61 @@ object THING [
     return true;
   endmethod
 
+  method test_thing_sheet_shows_and_changes_an_object owner: ARCH_WIZARD
+    "The thing sheet describes an object to its editor, and changes go through its setters.";
+    const item = $thing:create(true);
+    const who = $arch_wizard;
+    item:inspection_change({"field", "name", "brass lamp"}, who);
+    item:inspection_change({"field", "aliases", "lamp, light, "}, who);
+    item:inspection_change({"field", "description", "It glows."}, who);
+    $test_utils:assert_eq(item.name, "brass lamp", "the name should change");
+    $test_utils:assert_eq(item.aliases, {"lamp", "light"}, "aliases are split on commas");
+    $test_utils:assert_eq(item.description, "It glows.", "the description should change");
+    let sections = item:inspection_sheet(who);
+    let kinds = { section["kind"] for section in (sections) };
+    $test_utils:assert_eq(kinds[1], "fields", "identity comes first");
+    for wanted in ({"objects", "messages", "reactions", "actions"})
+      $test_utils:assert_true(wanted in kinds, "the sheet should have " + wanted);
+    endfor
+    const messages = sections["messages" in kinds]["messages"];
+    const rows = { row["property"] for row in (messages) };
+    const at = "get_msg" in rows;
+    $test_utils:assert_true(at, "an inherited message should be listed");
+    $test_utils:assert_true(messages[at]["inherited"], "get_msg comes from the parent");
+    item:inspection_change({"message", "get_msg", 1, "{nc} lifts the lamp."}, who);
+    $test_utils:assert_false(is_clear_property(item, "get_msg"), "editing makes a local copy");
+    sections = item:inspection_sheet(who);
+    const changed = sections["messages" in kinds]["messages"][at];
+    $test_utils:assert_eq(changed["entries"][1]["text"], "{nc} lifts the lamp.", "a template reads back as written");
+    $test_utils:assert_true(changed["resettable"], "a local copy can be reset");
+    item:inspection_change({"message_reset", "get_msg"}, who);
+    $test_utils:assert_true(is_clear_property(item, "get_msg"), "reset goes back to the parent's");
+    "An edit action reaches every kind of object through inspection.";
+    $test_utils:assert_true("edit" in { action["id"] for action in (item:inspection(who)["actions"]) }, "editors are offered the sheet");
+    return true;
+  endmethod
+
+  method test_thing_sheet_for_someone_who_cant_edit owner: ARCH_WIZARD
+    "Someone who can't edit sees what inspection would show, and can't change it.";
+    const item = $thing:create(true);
+    item.owner = $arch_wizard;
+    item:set_name_aliases("wizard's lamp", {});
+    const who = $hacker;
+    who.wizard && return true;
+    const kinds = { section["kind"] for section in (item:inspection_sheet(who)) };
+    $test_utils:assert_eq(kinds, {"fields", "actions"}, "only what inspection shows");
+    $test_utils:assert_false("edit" in { action["id"] for action in (item:inspection(who)["actions"]) }, "no edit is offered");
+    let refused = false;
+    try
+      item:inspection_change({"field", "name", "mine"}, who);
+    except (E_PERM)
+      refused = true;
+    endtry
+    $test_utils:assert_true(refused, "the change should be refused");
+    $test_utils:assert_eq(item.name, "wizard's lamp", "nothing should change");
+    return true;
+  endmethod
+
   method test_unlock_fact_and_inspection owner: HACKER
     "Cover unlock facts and basic inspection metadata.";
     key = this:create(true);

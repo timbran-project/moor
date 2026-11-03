@@ -271,6 +271,27 @@ object PROG_UTILS [
     return true;
   endmethod
 
+  method open_thing_sheet owner: ARCH_WIZARD
+    "Open the thing sheet for what a player named, for both kinds of @edit.";
+    caller_perms() == player || caller_perms().wizard || raise(E_PERM);
+    set_task_perms(caller_perms());
+    const {reference} = args;
+    let target = #-1;
+    try
+      target = $match:match_object(strsub(reference, "\"", ""), player);
+    except e (ANY)
+      player:inform_current($event:mk_error(player, typeof(e[2]) == TYPE_STR ? e[2] | "I don't see '" + reference + "' here."));
+      return false;
+    endtry
+    if (!valid(target))
+      player:inform_current($event:mk_error(player, "I don't see '" + reference + "' here."));
+      return false;
+    endif
+    target:present_sheet();
+    player:inform_current($event:mk_info(player, "Opened the sheet for " + tostr(target) + "."));
+    return true;
+  endmethod
+
   method parse_target_spec owner: ARCH_WIZARD
     "Parse a target specification for @show command.";
     "New syntax:";

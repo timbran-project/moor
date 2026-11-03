@@ -1273,15 +1273,19 @@ object BUILDER_FEATURES [
   endverb
 
   verb "@edit" (any any any) owner: ARCH_WIZARD flags: "rd"
-    "HINT: <object>.<property> -- Edit a property on an object.";
+    "HINT: <object> or <object>.<property> -- Edit an object or one of its properties.";
     caller != player && raise(E_PERM);
     player.is_builder || raise(E_PERM, "Builder features required.");
     set_task_perms(player);
     if (!argstr)
-      player:inform_current($event:mk_error(player, "Usage: " + verb + " <object>.<property>"));
+      player:inform_current($event:mk_error(player, "Usage: " + verb + " <object> or " + verb + " <object>.<property>"));
       return;
     endif
     target_spec = argstr:trim();
+    if (!target_spec:unquoted_index(".") && !target_spec:unquoted_index(":"))
+      $prog_utils:open_thing_sheet(target_spec);
+      return;
+    endif
     parsed = $prog_utils:parse_target_spec(target_spec);
     if (parsed && parsed['type] == 'property)
       object_str = parsed['object_str];

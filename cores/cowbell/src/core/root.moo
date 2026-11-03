@@ -908,7 +908,218 @@ object ROOT [
   method inspection owner: ARCH_WIZARD
     "Describe an object and its command suggestions for a viewer. Availability is advisory.";
     const {?who = player} = args;
-    return ["title" -> this:name(), "objectKind" -> this:reference_kind(), "description" -> this:description(), "state" -> this:inspection_state(who), "actions" -> this:inspection_actions(who)];
+    return ["title" -> this:name(), "objectKind" -> this:reference_kind(), "description" -> this:description(), "state" -> this:inspection_state(who), "actions" -> {@this:inspection_actions(who), @this:_inspection_edit_action(who)}];
+  endmethod
+
+  method _inspection_edit_action owner: ARCH_WIZARD
+    "Offer the thing sheet to who may edit this. Every kind of object gets it, whatever its own actions are.";
+    const {who} = args;
+    this:_inspection_editable(who) || return {};
+    return {["id" -> "edit", "label" -> "Edit", "command" -> "@edit " + tostr(this)]};
+  endmethod
+
+  method _inspection_editable owner: ARCH_WIZARD
+    "Whether who may author this object: its owner or a wizard, who also has authoring tools. This is advice for what to offer; each setter still checks.";
+    const {who} = args;
+    typeof(who) == TYPE_OBJ && valid(who) || return false;
+    who.wizard && return true;
+    return this.owner == who && (`who.programmer ! ANY => false' || `who.is_builder ! ANY => false');
+  endmethod
+
+  method present_sheet owner: ARCH_WIZARD
+    "Open the thing sheet for this object on the current connection. There is one per connection, so opening another replaces it.";
+    caller_perms() == player || caller_perms().wizard || raise(E_PERM);
+    present(connection(), "thing-sheet", "text/plain", "thing-sheet", "", {{"object", $url_utils:to_curie_str(this)}, {"title", this:name()}});
+  endmethod
+
+  method inspection_sheet owner: ARCH_WIZARD
+    "What the thing sheet shows who of this object: a list of typed sections that any client can draw. Clients draw a kind they don't know as text.";
+    const {?who = player} = args;
+    who == player || (valid(caller_perms()) && caller_perms().wizard) || raise(E_PERM);
+    const editable = this:_inspection_editable(who);
+    set_task_perms(who);
+    let sections = {["kind" -> "fields", "title" -> "Identity", "id" -> tostr(this), "editable" -> editable, "fields" -> this:inspection_fields(who, editable)]};
+    if (editable)
+      sections = {@sections, ["kind" -> "objects", "title" -> "Location", "objects" -> {this:_inspection_ref(this.location)}]};
+      const inside = this.contents;
+      length(inside) > 0 && (sections = {@sections, ["kind" -> "objects", "title" -> "Contents", "objects" -> { this:_inspection_ref(item) for item in (inside) }]});
+      sections = {@sections, ["kind" -> "messages", "title" -> "Messages", "messages" -> this:_inspection_messages(who)]};
+      sections = {@sections, ["kind" -> "reactions", "title" -> "Reactions", "reactions" -> this:_inspection_reactions(who)]};
+    endif
+    sections = {@sections, ["kind" -> "actions", "title" -> "Actions", "actions" -> { ["label" -> action["label"], "command" -> action["command"]] for action in (this:inspection_actions(who)) }]};
+    if (editable)
+      const rules = this:_inspection_rules(who);
+      length(rules) > 0 && (sections = {@sections, ["kind" -> "rules", "title" -> "Rules", "rules" -> rules]});
+    endif
+    return sections;
+  endmethod
+
+  method inspection_fields owner: ARCH_WIZARD
+    "The Identity fields of the thing sheet: id, label, kind (text, long_text or object), value as a string, and editable. Add to pass(@args) for more, and take them in inspection_set_field.";
+    set_task_perms(caller_perms());
+    const {who, editable} = args;
+    const description = `this.description ! ANY => ""';
+    const described = typeof(description) == TYPE_STR;
+    const fields = {["id" -> "name", "label" -> "Name", "kind" -> "text", "value" -> `this.name ! ANY => ""', "editable" -> editable], ["id" -> "description", "label" -> "Description", "kind" -> "long_text", "value" -> described ? description | toliteral(description), "editable" -> editable && described]};
+    editable || return fields;
+    const aliases = `this.aliases ! ANY => {}';
+    return {fields[1], ["id" -> "aliases", "label" -> "Aliases", "kind" -> "text", "value" -> aliases:join(", "), "editable" -> true], fields[2], ["id" -> "parent", "label" -> "Type", "kind" -> "object", "editable" -> false, "ref" -> this:_inspection_ref(parent(this))], ["id" -> "owner", "label" -> "Owner", "kind" -> "object", "editable" -> false, "ref" -> this:_inspection_ref(this.owner)]};
+  endmethod
+
+  method inspection_set_field owner: ARCH_WIZARD
+    "Change a field from inspection_fields, with the caller's authority. Override, passing what you don't know, to take more.";
+    set_task_perms(caller_perms());
+    const {id, value} = args;
+    typeof(value) == TYPE_STR || raise(E_TYPE, "A field's value should be text.");
+    if (id == "name")
+      this:set_name_aliases(value:trim(), this.aliases);
+    elseif (id == "aliases")
+      let aliases = {};
+      for alias in (value:split(","))
+        alias:trim() && (aliases = {@aliases, alias:trim()});
+      endfor
+      this:set_name_aliases(this.name, aliases);
+    elseif (id == "description")
+      this:set_description(value);
+    else
+      raise(E_INVARG, "There's no field called " + tostr(id) + ".");
+    endif
+  endmethod
+
+  method inspection_change owner: ARCH_WIZARD
+    "Make one change from the thing sheet. change is {\"field\", id, text}, {\"message\", property, index, template}, {\"message_add\", property, template}, {\"message_remove\", property, index}, {\"message_reset\", property} or {\"reaction\", name, \"enable\" or \"disable\"}.";
+    const {change, ?who = player} = args;
+    who == player || (valid(caller_perms()) && caller_perms().wizard) || raise(E_PERM);
+    this:_inspection_editable(who) || raise(E_PERM, "You can't change this.");
+    typeof(change) == TYPE_LIST && length(change) >= 2 || raise(E_INVARG, "That isn't a change.");
+    set_task_perms(who);
+    const operation = change[1];
+    if (operation == "field")
+      this:inspection_set_field(change[2], change[3]);
+    elseif (operation in {"message", "message_add", "message_remove", "message_reset"})
+      this:_inspection_change_message(change, who);
+    elseif (operation == "reaction")
+      change[3] in {"enable", "disable"} || raise(E_INVARG, "A reaction can be enabled or disabled.");
+      $builder_features:author_on('reaction, this, {tostr(this), change[2], change[3]}, who);
+    else
+      raise(E_INVARG, "That isn't a change.");
+    endif
+    return true;
+  endmethod
+
+  method _inspection_change_message owner: ARCH_WIZARD
+    "Change a message or a bag's entry, under the caller's permissions.";
+    set_task_perms(caller_perms());
+    const {change, who} = args;
+    const operation = change[1];
+    const name = change[2];
+    typeof(name) == TYPE_STR && (name:ends_with("_msg") || name:ends_with("_msgs") || name:ends_with("_msg_bag")) || raise(E_INVARG, "That isn't a message.");
+    const key = $obj_utils:property_key(this, name);
+    key == E_PROPNF && raise(E_PROPNF, "There's no message called " + name + ".");
+    if (operation == "message_reset")
+      clear_property(this, key);
+      return;
+    endif
+    const value = this.(key);
+    if (operation == "message_remove")
+      $obj_utils:remove_message_entry(this, key, change[3], who);
+      return;
+    endif
+    const template = operation == "message" ? change[4] | change[3];
+    typeof(template) == TYPE_STR || raise(E_TYPE, "A message should be text.");
+    const compiled = $sub_utils:compile(template, this:message_bindings(name));
+    const bag = $msg_bag:is_msg_bag(value);
+    const many = bag || this:_inspection_is_entries(name, value);
+    if (operation == "message_add")
+      if (bag)
+        $obj_utils:add_message_entry(this, key, compiled, who);
+      else
+        this.(key) = {@many ? value | {value}, compiled};
+      endif
+    elseif (!many)
+      $obj_utils:set_compiled_message(this, key, compiled, who);
+    elseif (bag)
+      const updated = value:set_entry(change[3], compiled);
+      typeof(value) == TYPE_FLYWEIGHT && (this.(key) = updated);
+    else
+      this.(key) = listset(value, compiled, change[3]);
+    endif
+  endmethod
+
+  method _inspection_is_entries owner: ARCH_WIZARD
+    "Whether a message's value is a plain list of several templates, rather than one compiled template.";
+    const {name, value} = args;
+    typeof(value) == TYPE_LIST || return false;
+    length(value) == 0 && return !name:ends_with("_msg");
+    return typeof(value[1]) == TYPE_LIST;
+  endmethod
+
+  method _inspection_ref owner: ARCH_WIZARD
+    "An object as the thing sheet shows it, with what a client needs to open its sheet in turn.";
+    set_task_perms(caller_perms());
+    const {target} = args;
+    typeof(target) == TYPE_OBJ && valid(target) || return ["name" -> "Nothing", "id" -> ""];
+    return ["name" -> `target:name() ! ANY => tostr(target)', "id" -> tostr(target), "object" -> $url_utils:to_curie_str(target)];
+  endmethod
+
+  method _inspection_messages owner: ARCH_WIZARD
+    "This object's messages for the thing sheet: each with its entries as editable templates, what it can name, and whether it's inherited.";
+    set_task_perms(caller_perms());
+    const {who} = args;
+    const own = { tostr(name) for name in (`properties(this) ! ANY => {}') };
+    let rows = {};
+    for found in ($obj_utils:message_properties(this, who))
+      const name = tostr(found[1]);
+      const value = found[2];
+      const bag = $msg_bag:is_msg_bag(value);
+      const many = bag || this:_inspection_is_entries(name, value);
+      const entries = bag ? value:entries() | (many ? value | {value});
+      const inherited = `is_clear_property(this, name) ! ANY => false';
+      rows = {@rows, ["property" -> name, "many" -> many, "entries" -> { this:_inspection_template(entry) for entry in (entries) }, "inherited" -> inherited, "resettable" -> !inherited && !(name in own), "help" -> this:_inspection_bindings(name)]};
+    endfor
+    return sort(rows, { row["property"] for row in (rows) });
+  endmethod
+
+  method _inspection_template owner: ARCH_WIZARD
+    "One template as text, and whether it can be written back that way.";
+    const {entry} = args;
+    typeof(entry) == TYPE_STR && return ["text" -> entry, "editable" -> true];
+    const text = typeof(entry) == TYPE_LIST ? `$sub_utils:decompile(entry) ! ANY => 0' | 0;
+    typeof(text) == TYPE_STR && return ["text" -> text, "editable" -> true];
+    return ["text" -> toliteral(entry), "editable" -> false];
+  endmethod
+
+  method _inspection_bindings owner: ARCH_WIZARD
+    "What a message can name, in a line to show beside it.";
+    const {name} = args;
+    const bindings = `this:message_bindings(name) ! ANY => []';
+    typeof(bindings) == TYPE_MAP || return "";
+    return { "{" + text + "}" for text in (sort({ tostr(binding) for binding in (mapkeys(bindings)) })) }:join(" ");
+  endmethod
+
+  method _inspection_reactions owner: ARCH_WIZARD
+    "This object's reactions for the thing sheet: their names, when they run, and whether they're on.";
+    set_task_perms(caller_perms());
+    const {who} = args;
+    let rows = {};
+    for found in ($obj_utils:reaction_properties(this, who))
+      const reaction = found[2];
+      rows = {@rows, ["name" -> tostr(found[1])[1..$ - 9], "when" -> `$builder_features:_author_trigger_text(reaction.trigger) ! ANY => "?"', "enabled" -> reaction.enabled ? true | false, "steps" -> `length(reaction.effects) ! ANY => 0']};
+    endfor
+    return rows;
+  endmethod
+
+  method _inspection_rules owner: ARCH_WIZARD
+    "The rules set on this object for the thing sheet, as text. Unset rules are left out.";
+    set_task_perms(caller_perms());
+    const {who} = args;
+    let rows = {};
+    for found in ($obj_utils:rule_properties(this, who))
+      if (found[2] != 0)
+        rows = {@rows, ["name" -> tostr(found[1]), "text" -> `$rule_engine:decompile_rule(found[2]) ! ANY => toliteral(found[2])']};
+      endif
+    endfor
+    return rows;
   endmethod
 
   method inspection_state owner: ARCH_WIZARD
