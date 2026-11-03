@@ -31,6 +31,7 @@ maintainer-scripts = "debian/scripts"
 systemd-units = { enable = false }
 
 [dependencies]
+fast-telemetry.workspace = true
 # Internal Dependencies
 moor-common = { path = "../common" }
 moor-compiler = { path = "../compiler" }

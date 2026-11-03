@@ -230,6 +230,8 @@ struct DeliveryStream {
     cursor: u64,
     latest_sequence: u64,
     closed: bool,
+    /// Counts this stream as open until the stream is dropped.
+    _open: crate::metrics::OpenEventStream,
 }
 
 impl DeliveryStream {
@@ -355,6 +357,7 @@ pub async fn event_stream_handler(
         cursor: query.after,
         latest_sequence: initial.latest_sequence,
         closed: false,
+        _open: crate::metrics::OpenEventStream::start(),
     };
     let events = stream::unfold(state, |mut state| async move {
         if state.closed {

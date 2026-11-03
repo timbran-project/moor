@@ -58,6 +58,14 @@ struct Args {
     )]
     listen_address: String,
 
+    #[arg(
+        long,
+        value_name = "metrics-listen",
+        help = "Address to serve GET /metrics on, in the Prometheus text format. Keep it private: it is separate from the public listener. Off unless set."
+    )]
+    #[serde(default)]
+    metrics_listen: Option<String>,
+
     #[arg(long, help = "Enable debug logging", default_value = "false")]
     pub debug: bool,
 
@@ -158,6 +166,7 @@ async fn main() -> Result<(), eyre::Error> {
         rpc: args.rpc,
         host: WebHostConfig {
             listen_address: args.listen_address,
+            metrics_listen: args.metrics_listen,
             enable_webhooks: args.enable_webhooks,
             oauth2: args.oauth2,
             cors: args.cors,

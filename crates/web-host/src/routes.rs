@@ -287,6 +287,11 @@ pub fn mk_routes(
         webhost_router = webhost_router.merge(webhook_router);
     }
 
+    // Applied to matched routes only, so each request is labelled with its route template.
+    webhost_router = webhost_router
+        .route_layer(axum::middleware::from_fn(crate::metrics::track_request))
+        .fallback(crate::metrics::unmatched);
+
     if let Some(cors_layer) = build_cors_layer(&options.cors)? {
         info!("CORS policy enabled");
         webhost_router = webhost_router.layer(cors_layer);
