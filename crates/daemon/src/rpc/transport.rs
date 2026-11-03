@@ -96,18 +96,35 @@ const BACKLOG_REPORT_INTERVAL: Duration = Duration::from_secs(30);
 /// goes does not log a line each time.
 const BACKLOG_CLEAR_AFTER: Duration = Duration::from_secs(5);
 
+/// The two request queues: pongs for the control thread, and everything else for the RPC workers.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+enum RpcQueue {
+    Control,
+    Worker,
+}
+
+/// The receiving end of one request queue, as a thread serving it sees it.
+struct WorkerQueue {
+    jobs: flume::Receiver<RpcJob>,
+    queue: RpcQueue,
+}
+
 /// What threads and the router report about the request queues. A backlog is exactly when there are
 /// too many requests to log each one, so these are only counted, and logged as a summary.
 #[derive(Default)]
 struct QueueStats {
     longest_wait_ms: AtomicU64,
-    picked_up: AtomicU64,
+    /// Requests taken by the RPC workers. Pongs taken by the control thread are not counted, so
+    /// that they cannot hide workers which have all stopped taking requests.
+    worker_picked_up: AtomicU64,
     dropped: AtomicU64,
 }
 
 impl QueueStats {
-    fn picked_up(&self, waited: Duration) {
-        self.picked_up.fetch_add(1, Ordering::Relaxed);
+    fn picked_up(&self, queue: RpcQueue, waited: Duration) {
+        if queue == RpcQueue::Worker {
+            self.worker_picked_up.fetch_add(1, Ordering::Relaxed);
+        }
         self.longest_wait_ms
             .fetch_max(waited.as_millis() as u64, Ordering::Relaxed);
     }
@@ -166,7 +183,7 @@ impl BacklogMonitor {
         }
         self.last_check = now;
 
-        let picked_up = stats.picked_up.load(Ordering::Relaxed);
+        let picked_up = stats.worker_picked_up.load(Ordering::Relaxed);
         self.stuck_for = if queued > 0 && picked_up == self.last_picked_up {
             self.stuck_for + elapsed
         } else {
@@ -411,7 +428,7 @@ impl RpcTransport {
         kill_switch: Arc<AtomicBool>,
         scheduler_client: SchedulerClient,
         message_handler: Arc<dyn MessageHandler>,
-        jobs: flume::Receiver<RpcJob>,
+        WorkerQueue { jobs, queue }: WorkerQueue,
         run_on_worker: RunOnWorker,
         stats: Arc<QueueStats>,
     ) -> eyre::Result<()> {
@@ -425,7 +442,7 @@ impl RpcTransport {
                 Err(flume::RecvTimeoutError::Timeout) => continue,
                 Err(flume::RecvTimeoutError::Disconnected) => return Ok(()),
             };
-            stats.picked_up(job.queued_at.elapsed());
+            stats.picked_up(queue, job.queued_at.elapsed());
             let route = ReplyRoute {
                 transport: job.transport,
                 envelope: job.envelope,
@@ -988,7 +1005,7 @@ impl Transport for RpcTransport {
             })
         };
 
-        let spawn_worker = |name: String, jobs: flume::Receiver<RpcJob>| {
+        let spawn_worker = |name: String, jobs: flume::Receiver<RpcJob>, queue: RpcQueue| {
             let handler = message_handler.clone();
             let sched_client = scheduler_client.clone();
             let kill_switch = self.kill_switch.clone();
@@ -1001,7 +1018,7 @@ impl Transport for RpcTransport {
                     kill_switch,
                     sched_client,
                     handler,
-                    jobs,
+                    WorkerQueue { jobs, queue },
                     run_on_worker,
                     stats,
                 ) {
@@ -1009,9 +1026,17 @@ impl Transport for RpcTransport {
                 }
             })
         };
-        spawn_worker("moor-rpc-control".to_string(), control_receive)?;
+        spawn_worker(
+            "moor-rpc-control".to_string(),
+            control_receive,
+            RpcQueue::Control,
+        )?;
         for i in 0..self.rpc_workers {
-            spawn_worker(format!("moor-rpc-srv{i}"), worker_receive.clone())?;
+            spawn_worker(
+                format!("moor-rpc-srv{i}"),
+                worker_receive.clone(),
+                RpcQueue::Worker,
+            )?;
         }
 
         signal_ready(&self.ready_signal);
@@ -1196,9 +1221,22 @@ mod router_tests {
         assert_eq!(monitor.stuck_for, Duration::from_secs(1));
         assert!(monitor.backlog.is_some());
 
-        stats.picked_up(Duration::ZERO);
+        stats.picked_up(RpcQueue::Worker, Duration::ZERO);
         monitor.check(start + Duration::from_secs(2), &stats, 3, 7);
         assert_eq!(monitor.stuck_for, Duration::ZERO);
+    }
+
+    #[test]
+    fn pongs_do_not_hide_stuck_workers() {
+        let start = Instant::now();
+        let mut monitor = BacklogMonitor::new(start);
+        let stats = QueueStats::default();
+        stats.picked_up(RpcQueue::Control, Duration::ZERO);
+        monitor.check(start + Duration::from_secs(1), &stats, 3, 7);
+        stats.picked_up(RpcQueue::Control, Duration::ZERO);
+        monitor.check(start + Duration::from_secs(2), &stats, 3, 7);
+        assert_eq!(monitor.stuck_for, Duration::from_secs(2));
+        assert!(monitor.backlog.is_some());
     }
 
     #[test]
