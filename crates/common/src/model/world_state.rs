@@ -881,6 +881,9 @@ pub enum WorldStateCountOp {
     PropertyValueAppendEncodedBytes,
     PropertyValueForegroundRollup,
     PropertyValueReconstructedRecords,
+    /// Commits refused because they waited too long to enter the commit queue. Tasks see these as
+    /// `DatabaseOverloaded`.
+    CommitQueueTimeout,
 }
 
 const WS_SHARD_COUNT: usize = 16;

@@ -453,6 +453,9 @@ impl AdmissionWait<'_> {
     }
 
     fn timed_out(mut self, waited: Duration) -> CommitAdmissionError {
+        db_counters()
+            .counters
+            .inc(WorldStateCountOp::CommitQueueTimeout);
         self.outcome = AdmissionWaitOutcome::TimedOut(waited);
         CommitAdmissionError::Timeout { waited }
     }
