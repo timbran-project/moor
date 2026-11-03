@@ -40,18 +40,10 @@ use crate::{
     event_log::EventLogOps,
     tasks::task_monitor::TaskMonitor,
 };
-use moor_common::{
-    tasks::{Event, NarrativeEvent, SessionError},
-    util::{
-        MetricEntriesVisitor, MetricEntry, scale_hot_sample_sum_nanos, scale_rare_sample_sum_nanos,
-    },
-};
-use moor_db::db_counters;
+use moor_common::tasks::{Event, NarrativeEvent, SessionError};
 #[cfg(test)]
 use moor_kernel::tasks::{TaskHandle, TaskNotification};
-use moor_kernel::{
-    SchedulerClient, config::Config, tasks::sched_counters, vm::builtins::bf_perf_counters,
-};
+use moor_kernel::{SchedulerClient, config::Config};
 use std::sync::{OnceLock, Weak};
 
 use crate::runtime::{RunOnWorker, RuntimeApi};
@@ -63,30 +55,6 @@ use moor_runtime_api::{
 use moor_var::{Obj, SYSTEM_OBJECT, Symbol, Var};
 use rusty_paseto::prelude::Key;
 use tracing::{error, warn};
-
-pub(crate) fn db_counter_entries() -> Vec<MetricEntry> {
-    let mut visitor = MetricEntriesVisitor::new(|metric_name, sum| {
-        if metric_name == "db_timers_rare_samples" {
-            return scale_rare_sample_sum_nanos(sum);
-        }
-
-        scale_hot_sample_sum_nanos(sum)
-    });
-    db_counters().visit_metrics(&mut visitor);
-    visitor.into_entries()
-}
-
-pub(crate) fn sched_counter_entries() -> Vec<MetricEntry> {
-    let mut visitor = MetricEntriesVisitor::new(|_, sum| scale_hot_sample_sum_nanos(sum));
-    sched_counters().visit_metrics(&mut visitor);
-    visitor.into_entries()
-}
-
-pub(crate) fn bf_counter_entries() -> Vec<MetricEntry> {
-    let mut visitor = MetricEntriesVisitor::new(|_, sum| scale_hot_sample_sum_nanos(sum));
-    bf_perf_counters().visit_metrics(&mut visitor);
-    visitor.into_entries()
-}
 
 pub(crate) static USER_CONNECTED_SYM: LazyLock<Symbol> =
     LazyLock::new(|| Symbol::mk("user_connected"));

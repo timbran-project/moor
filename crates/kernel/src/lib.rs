@@ -41,6 +41,7 @@ pub(crate) fn get_server_symmetric_key() -> Option<&'static [u8; 32]> {
 }
 
 pub mod config;
+pub mod perf_counters;
 pub mod task_context;
 pub mod tasks;
 pub mod vm;
