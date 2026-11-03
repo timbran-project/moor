@@ -28,8 +28,8 @@ pub use instant::Instant;
 pub use metric_entries::{MetricEntriesVisitor, MetricEntry};
 pub use time::{Deadline, Timestamp};
 pub use timing_policy::{
-    PerfTimingPolicy, hot_stride, perf_timing_policy, rare_stride, scale_hot_sample_sum_nanos,
-    scale_rare_sample_sum_nanos, set_perf_timing_policy,
+    PerfTimingPolicy, estimated_total_nanos, hot_stride, perf_timing_policy, rare_stride,
+    scale_sample_sum, set_perf_timing_policy,
 };
 pub use token_bucket::TokenBucket;
 pub use xdg::*;

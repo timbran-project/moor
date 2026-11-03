@@ -14,6 +14,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.0 series (`main`) branch
 
+- `db_counters()` and the daemon's performance counters report database timings correctly when
+  `--perf-timing-hot-path-shift` or `--perf-timing-enabled` is set. Before, the database sampled at
+  the default rate but its timings were scaled for the configured one, so they could read 64 times
+  too low, or 0.
 - The daemon logs a warning when RPC requests wait over a second for a worker, then at most once
   every 30 seconds while that continues, and a line when it clears. Dropped requests are counted in
   those lines instead of being logged one by one.

@@ -11,6 +11,7 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use fast_telemetry::{LabelEnum, LabeledSampledTimer};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -83,22 +84,36 @@ pub fn rare_stride() -> u64 {
     1
 }
 
-/// Estimate total elapsed nanoseconds from a hot-path sampled sum.
+/// Estimate the total of all calls' durations from the sampled ones: `sample_sum` covers
+/// `sample_count` of `calls` calls. Returns 0 when nothing was sampled.
 #[inline]
-pub fn scale_hot_sample_sum_nanos(sample_sum_nanos: u64) -> u64 {
-    let policy = perf_timing_policy();
-    if !policy.enabled {
+pub fn scale_sample_sum(calls: u64, sample_count: u64, sample_sum: u64) -> u64 {
+    if sample_count == 0 {
         return 0;
     }
-    sample_sum_nanos.saturating_mul(enabled_sample_stride(policy.hot_path_shift))
+    let total = (sample_sum as u128).saturating_mul(calls as u128) / sample_count as u128;
+    total.min(u64::MAX as u128) as u64
 }
 
-/// Estimate total elapsed nanoseconds from a rare-path sampled sum.
+/// Estimated total nanoseconds spent in `label`'s calls, scaled from that timer's own samples.
 #[inline]
-pub fn scale_rare_sample_sum_nanos(sample_sum_nanos: u64) -> u64 {
-    let policy = perf_timing_policy();
-    if !policy.enabled {
-        return 0;
+pub fn estimated_total_nanos<L: LabelEnum>(timer: &LabeledSampledTimer<L>, label: L) -> u64 {
+    scale_sample_sum(
+        timer.calls(label),
+        timer.sample_count(label),
+        timer.sample_sum_nanos(label),
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::scale_sample_sum;
+
+    #[test]
+    fn scales_by_sampled_share() {
+        assert_eq!(scale_sample_sum(64, 1, 500), 32_000);
+        assert_eq!(scale_sample_sum(10, 10, 500), 500);
+        assert_eq!(scale_sample_sum(10, 0, 0), 0);
+        assert_eq!(scale_sample_sum(u64::MAX, 1, u64::MAX), u64::MAX);
     }
-    sample_sum_nanos
 }

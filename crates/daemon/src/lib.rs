@@ -623,6 +623,8 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
         configured_service_perf_cores = config.runtime.service_perf_cores,
         "Thread core reservations initialized"
     );
+    // Before the database opens: it builds its timers on first use.
+    config.runtime.apply_perf_timing_policy();
     let (database, freshly_made) = TxDB::try_open(
         Some(&paths.db_path),
         config.database.clone().unwrap_or_default(),

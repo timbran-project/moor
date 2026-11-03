@@ -34,7 +34,7 @@ use micromeasure::{LinuxPerfBackend, MeasurementBackend, MetricValue};
 use moor_common::model::{WorldStateCountOp, WorldStateTimerOp};
 use moor_common::{
     model::{CommitResult, ObjAttrs, ObjFlag, ObjectKind, PropFlag},
-    util::{BitEnum, scale_hot_sample_sum_nanos, scale_rare_sample_sum_nanos},
+    util::{BitEnum, estimated_total_nanos},
 };
 use moor_db::{Database, StorageMaintenanceStats, TxDB, db_counters};
 use moor_model_checker::bench_common::{
@@ -706,37 +706,27 @@ fn run_benchmark(
 
         // Capture baseline counters for commit thread utilization
         let counters = db_counters();
-        let baseline_check_nanos = scale_hot_sample_sum_nanos(
-            counters
-                .timers_hot
-                .sample_sum_nanos(WorldStateTimerOp::CommitCheckPhase),
-        );
+        let baseline_check_nanos =
+            estimated_total_nanos(&counters.timers_hot, WorldStateTimerOp::CommitCheckPhase);
         let baseline_check_count = counters
             .timers_hot
             .calls(WorldStateTimerOp::CommitCheckPhase);
-        let baseline_apply_nanos = scale_hot_sample_sum_nanos(
-            counters
-                .timers_hot
-                .sample_sum_nanos(WorldStateTimerOp::CommitApplyPhase),
-        );
+        let baseline_apply_nanos =
+            estimated_total_nanos(&counters.timers_hot, WorldStateTimerOp::CommitApplyPhase);
         let baseline_apply_count = counters
             .timers_hot
             .calls(WorldStateTimerOp::CommitApplyPhase);
-        let baseline_index_insert_nanos = scale_rare_sample_sum_nanos(
-            counters
-                .timers_rare
-                .sample_sum_nanos(WorldStateTimerOp::ApplyIndexInsert),
-        );
+        let baseline_index_insert_nanos =
+            estimated_total_nanos(&counters.timers_rare, WorldStateTimerOp::ApplyIndexInsert);
         let baseline_index_insert_count = counters
             .timers_rare
             .calls(WorldStateTimerOp::ApplyIndexInsert);
         let baseline_batch_writer_backpressure = counters
             .counters
             .get(WorldStateCountOp::BatchWriterBackpressure);
-        let baseline_batch_writer_block_nanos = scale_rare_sample_sum_nanos(
-            counters
-                .timers_rare
-                .sample_sum_nanos(WorldStateTimerOp::BatchWriterBackpressureBlock),
+        let baseline_batch_writer_block_nanos = estimated_total_nanos(
+            &counters.timers_rare,
+            WorldStateTimerOp::BatchWriterBackpressureBlock,
         );
         let baseline_batch_writer_block_count = counters
             .timers_rare
@@ -825,29 +815,23 @@ fn run_benchmark(
 
         // Calculate commit thread utilization (how much of wall time was spent in commit phases)
         let counters = db_counters();
-        let check_nanos = scale_hot_sample_sum_nanos(
-            counters
-                .timers_hot
-                .sample_sum_nanos(WorldStateTimerOp::CommitCheckPhase),
-        ) - baseline_check_nanos;
+        let check_nanos =
+            estimated_total_nanos(&counters.timers_hot, WorldStateTimerOp::CommitCheckPhase)
+                - baseline_check_nanos;
         let check_count = counters
             .timers_hot
             .calls(WorldStateTimerOp::CommitCheckPhase)
             - baseline_check_count;
-        let apply_nanos = scale_hot_sample_sum_nanos(
-            counters
-                .timers_hot
-                .sample_sum_nanos(WorldStateTimerOp::CommitApplyPhase),
-        ) - baseline_apply_nanos;
+        let apply_nanos =
+            estimated_total_nanos(&counters.timers_hot, WorldStateTimerOp::CommitApplyPhase)
+                - baseline_apply_nanos;
         let apply_count = counters
             .timers_hot
             .calls(WorldStateTimerOp::CommitApplyPhase)
             - baseline_apply_count;
-        let index_insert_nanos = scale_rare_sample_sum_nanos(
-            counters
-                .timers_rare
-                .sample_sum_nanos(WorldStateTimerOp::ApplyIndexInsert),
-        ) - baseline_index_insert_nanos;
+        let index_insert_nanos =
+            estimated_total_nanos(&counters.timers_rare, WorldStateTimerOp::ApplyIndexInsert)
+                - baseline_index_insert_nanos;
         let index_insert_count = counters
             .timers_rare
             .calls(WorldStateTimerOp::ApplyIndexInsert)
@@ -857,10 +841,9 @@ fn run_benchmark(
             .get(WorldStateCountOp::BatchWriterBackpressure)
             .saturating_sub(baseline_batch_writer_backpressure)
             as u64;
-        let batch_writer_block_nanos = scale_rare_sample_sum_nanos(
-            counters
-                .timers_rare
-                .sample_sum_nanos(WorldStateTimerOp::BatchWriterBackpressureBlock),
+        let batch_writer_block_nanos = estimated_total_nanos(
+            &counters.timers_rare,
+            WorldStateTimerOp::BatchWriterBackpressureBlock,
         ) - baseline_batch_writer_block_nanos;
         let batch_writer_block_count = counters
             .timers_rare
@@ -1001,10 +984,9 @@ fn run_swamp_mode(
     let baseline_batch_writer_backpressure = counters
         .counters
         .get(WorldStateCountOp::BatchWriterBackpressure);
-    let baseline_batch_writer_block_nanos = scale_rare_sample_sum_nanos(
-        counters
-            .timers_rare
-            .sample_sum_nanos(WorldStateTimerOp::BatchWriterBackpressureBlock),
+    let baseline_batch_writer_block_nanos = estimated_total_nanos(
+        &counters.timers_rare,
+        WorldStateTimerOp::BatchWriterBackpressureBlock,
     );
     let rapl = RaplMeasurement::begin();
     let start = Instant::now();
@@ -1098,10 +1080,9 @@ fn run_swamp_mode(
         .get(WorldStateCountOp::BatchWriterBackpressure)
         .saturating_sub(baseline_batch_writer_backpressure)
         as u64;
-    let batch_writer_block_nanos = scale_rare_sample_sum_nanos(
-        counters
-            .timers_rare
-            .sample_sum_nanos(WorldStateTimerOp::BatchWriterBackpressureBlock),
+    let batch_writer_block_nanos = estimated_total_nanos(
+        &counters.timers_rare,
+        WorldStateTimerOp::BatchWriterBackpressureBlock,
     ) - baseline_batch_writer_block_nanos;
     let conflict_pct = if commits > 0 {
         (conflicts as f64 / (commits + conflicts) as f64) * 100.0

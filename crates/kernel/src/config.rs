@@ -14,7 +14,11 @@
 //! Config is created by the host daemon, and passed through the scheduler, whereupon it is
 //! available to all components. Used to hold things typically configured by CLI flags, etc.
 
-use moor_common::{config::MAX_CAPTURE_DEADLINE, threading::TaskPoolPinningMode};
+use moor_common::{
+    config::MAX_CAPTURE_DEADLINE,
+    threading::TaskPoolPinningMode,
+    util::{perf_timing_policy, set_perf_timing_policy},
+};
 use moor_db::DatabaseConfig;
 use serde::{Deserialize, Serialize};
 use std::{path::PathBuf, sync::Arc, time::Duration};
@@ -75,6 +79,19 @@ pub struct RuntimeConfig {
 pub const DEFAULT_MAX_CAPTURE_DEADLINE: Duration = Duration::from_secs(60);
 
 impl RuntimeConfig {
+    /// Install the configured perf timing policy. Timers take their sampling stride when they are
+    /// built, so this must run before anything records a timing, including opening the database.
+    pub fn apply_perf_timing_policy(&self) {
+        let mut policy = perf_timing_policy();
+        if let Some(enabled) = self.perf_timing_enabled {
+            policy.enabled = enabled;
+        }
+        if let Some(shift) = self.perf_timing_hot_path_shift {
+            policy.hot_path_shift = shift;
+        }
+        set_perf_timing_policy(policy);
+    }
+
     /// How many webhooks and other calls without credentials may wait at once.
     #[must_use]
     pub fn max_webhook_calls(&self) -> usize {

@@ -29,7 +29,7 @@ use moor_common::{
         WorldStateTimerOp,
     },
     threading::{ThreadClass, pin_current_thread_to_class},
-    util::{BitEnum, scale_hot_sample_sum_nanos},
+    util::{BitEnum, estimated_total_nanos},
 };
 use tabled::{Table, Tabled};
 
@@ -707,11 +707,8 @@ async fn swamp_mode_workload(
     // Get scheduler metrics
     let counters = sched_counters();
     let submit_count = counters.timers.calls(SchedulerOp::SubmitVerbTaskLatency);
-    let total_submit_nanos = scale_hot_sample_sum_nanos(
-        counters
-            .timers
-            .sample_sum_nanos(SchedulerOp::SubmitVerbTaskLatency),
-    );
+    let total_submit_nanos =
+        estimated_total_nanos(&counters.timers, SchedulerOp::SubmitVerbTaskLatency);
     let submit_avg_micros = avg_u64(total_submit_nanos, submit_count) / 1000;
 
     // Calculate submit overhead relative to total execution
@@ -766,7 +763,7 @@ async fn swamp_mode_workload(
     // Report additional per-operation metrics
     let setup_task_count = counters.timers.calls(SchedulerOp::SetupTask);
     let setup_task_avg_nanos = avg_u64(
-        scale_hot_sample_sum_nanos(counters.timers.sample_sum_nanos(SchedulerOp::SetupTask)),
+        estimated_total_nanos(&counters.timers, SchedulerOp::SetupTask),
         setup_task_count,
     );
 
@@ -774,11 +771,7 @@ async fn swamp_mode_workload(
         .timers_hot
         .calls(WorldStateTimerOp::DispatchVerb);
     let find_verb_avg_nanos = avg_u64(
-        scale_hot_sample_sum_nanos(
-            db_counters()
-                .timers_hot
-                .sample_sum_nanos(WorldStateTimerOp::DispatchVerb),
-        ),
+        estimated_total_nanos(&db_counters().timers_hot, WorldStateTimerOp::DispatchVerb),
         find_verb_count,
     );
 
@@ -831,44 +824,31 @@ async fn load_test_workload(
         let counters = sched_counters();
         let baseline_setup_task_count = counters.timers.calls(SchedulerOp::SetupTask);
         let baseline_setup_task_nanos =
-            scale_hot_sample_sum_nanos(counters.timers.sample_sum_nanos(SchedulerOp::SetupTask));
+            estimated_total_nanos(&counters.timers, SchedulerOp::SetupTask);
         let baseline_sched_msg_count = counters.timers.calls(SchedulerOp::HandleSchedulerMsg);
-        let baseline_sched_msg_nanos = scale_hot_sample_sum_nanos(
-            counters
-                .timers
-                .sample_sum_nanos(SchedulerOp::HandleSchedulerMsg),
-        );
+        let baseline_sched_msg_nanos =
+            estimated_total_nanos(&counters.timers, SchedulerOp::HandleSchedulerMsg);
         let baseline_resume_queue_count = counters
             .timers
             .calls(SchedulerOp::TaskWakeSignalToDispatchStartLatency);
-        let baseline_resume_queue_nanos = scale_hot_sample_sum_nanos(
-            counters
-                .timers
-                .sample_sum_nanos(SchedulerOp::TaskWakeSignalToDispatchStartLatency),
+        let baseline_resume_queue_nanos = estimated_total_nanos(
+            &counters.timers,
+            SchedulerOp::TaskWakeSignalToDispatchStartLatency,
         );
         let baseline_thread_handoff_count =
             counters.timers.calls(SchedulerOp::TaskThreadHandoffLatency);
-        let baseline_thread_handoff_nanos = scale_hot_sample_sum_nanos(
-            counters
-                .timers
-                .sample_sum_nanos(SchedulerOp::TaskThreadHandoffLatency),
-        );
+        let baseline_thread_handoff_nanos =
+            estimated_total_nanos(&counters.timers, SchedulerOp::TaskThreadHandoffLatency);
         let baseline_submit_to_first_run_count = counters
             .timers
             .calls(SchedulerOp::TaskSubmitToFirstRunLatency);
-        let baseline_submit_to_first_run_nanos = scale_hot_sample_sum_nanos(
-            counters
-                .timers
-                .sample_sum_nanos(SchedulerOp::TaskSubmitToFirstRunLatency),
-        );
+        let baseline_submit_to_first_run_nanos =
+            estimated_total_nanos(&counters.timers, SchedulerOp::TaskSubmitToFirstRunLatency);
         let baseline_find_verb_count = db_counters()
             .timers_hot
             .calls(WorldStateTimerOp::DispatchVerb);
-        let baseline_find_verb_nanos = scale_hot_sample_sum_nanos(
-            db_counters()
-                .timers_hot
-                .sample_sum_nanos(WorldStateTimerOp::DispatchVerb),
-        );
+        let baseline_find_verb_nanos =
+            estimated_total_nanos(&db_counters().timers_hot, WorldStateTimerOp::DispatchVerb);
 
         let mut workload_futures = FuturesUnordered::new();
         for _i in 0..num_concurrent_workload {
@@ -952,7 +932,7 @@ async fn load_test_workload(
         let setup_task_count =
             counters.timers.calls(SchedulerOp::SetupTask) - baseline_setup_task_count;
         let setup_task_total_nanos =
-            scale_hot_sample_sum_nanos(counters.timers.sample_sum_nanos(SchedulerOp::SetupTask))
+            estimated_total_nanos(&counters.timers, SchedulerOp::SetupTask)
                 - baseline_setup_task_nanos;
         let setup_task_avg_nanos = avg_u64(setup_task_total_nanos, setup_task_count);
 
@@ -960,50 +940,41 @@ async fn load_test_workload(
             .timers_hot
             .calls(WorldStateTimerOp::DispatchVerb)
             - baseline_find_verb_count;
-        let find_verb_total_nanos = scale_hot_sample_sum_nanos(
-            db_counters()
-                .timers_hot
-                .sample_sum_nanos(WorldStateTimerOp::DispatchVerb),
-        ) - baseline_find_verb_nanos;
+        let find_verb_total_nanos =
+            estimated_total_nanos(&db_counters().timers_hot, WorldStateTimerOp::DispatchVerb)
+                - baseline_find_verb_nanos;
         let find_verb_avg_nanos = avg_u64(find_verb_total_nanos, find_verb_count);
         let sched_msg_count =
             counters.timers.calls(SchedulerOp::HandleSchedulerMsg) - baseline_sched_msg_count;
-        let sched_msg_total_nanos = scale_hot_sample_sum_nanos(
-            counters
-                .timers
-                .sample_sum_nanos(SchedulerOp::HandleSchedulerMsg),
-        ) - baseline_sched_msg_nanos;
+        let sched_msg_total_nanos =
+            estimated_total_nanos(&counters.timers, SchedulerOp::HandleSchedulerMsg)
+                - baseline_sched_msg_nanos;
         let sched_msg_avg_nanos = avg_u64(sched_msg_total_nanos, sched_msg_count);
 
         let resume_queue_count = counters
             .timers
             .calls(SchedulerOp::TaskWakeSignalToDispatchStartLatency)
             - baseline_resume_queue_count;
-        let resume_queue_total_nanos = scale_hot_sample_sum_nanos(
-            counters
-                .timers
-                .sample_sum_nanos(SchedulerOp::TaskWakeSignalToDispatchStartLatency),
+        let resume_queue_total_nanos = estimated_total_nanos(
+            &counters.timers,
+            SchedulerOp::TaskWakeSignalToDispatchStartLatency,
         ) - baseline_resume_queue_nanos;
         let resume_queue_avg_nanos = avg_u64(resume_queue_total_nanos, resume_queue_count);
 
         let thread_handoff_count = counters.timers.calls(SchedulerOp::TaskThreadHandoffLatency)
             - baseline_thread_handoff_count;
-        let thread_handoff_total_nanos = scale_hot_sample_sum_nanos(
-            counters
-                .timers
-                .sample_sum_nanos(SchedulerOp::TaskThreadHandoffLatency),
-        ) - baseline_thread_handoff_nanos;
+        let thread_handoff_total_nanos =
+            estimated_total_nanos(&counters.timers, SchedulerOp::TaskThreadHandoffLatency)
+                - baseline_thread_handoff_nanos;
         let thread_handoff_avg_nanos = avg_u64(thread_handoff_total_nanos, thread_handoff_count);
 
         let submit_to_first_run_count = counters
             .timers
             .calls(SchedulerOp::TaskSubmitToFirstRunLatency)
             - baseline_submit_to_first_run_count;
-        let submit_to_first_run_total_nanos = scale_hot_sample_sum_nanos(
-            counters
-                .timers
-                .sample_sum_nanos(SchedulerOp::TaskSubmitToFirstRunLatency),
-        ) - baseline_submit_to_first_run_nanos;
+        let submit_to_first_run_total_nanos =
+            estimated_total_nanos(&counters.timers, SchedulerOp::TaskSubmitToFirstRunLatency)
+                - baseline_submit_to_first_run_nanos;
         let submit_to_first_run_avg_nanos =
             avg_u64(submit_to_first_run_total_nanos, submit_to_first_run_count);
 

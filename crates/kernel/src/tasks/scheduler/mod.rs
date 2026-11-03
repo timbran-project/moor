@@ -140,14 +140,7 @@ impl Scheduler {
         affinity_config.service_perf_cores = config.runtime.service_perf_cores;
         set_task_pool_affinity_config(affinity_config);
 
-        let mut timing_policy = moor_common::util::perf_timing_policy();
-        if let Some(enabled) = config.runtime.perf_timing_enabled {
-            timing_policy.enabled = enabled;
-        }
-        if let Some(shift) = config.runtime.perf_timing_hot_path_shift {
-            timing_policy.hot_path_shift = shift;
-        }
-        moor_common::util::set_perf_timing_policy(timing_policy);
+        config.runtime.apply_perf_timing_policy();
 
         let suspension_q = SuspensionQ::new(tasks_database);
         let task_q = TaskQ::new(suspension_q);
