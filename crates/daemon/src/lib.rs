@@ -60,7 +60,6 @@ mod curve_keys;
 mod enrollment;
 mod event_log;
 mod metrics;
-mod metrics_file;
 mod rpc;
 mod runtime;
 mod system_control;
@@ -74,7 +73,6 @@ use crate::tasks::tasks_db_fjall::FjallTasksDB;
 use moor_common::model::{CommitResult, CompileError, loader::LoaderInterface};
 
 pub use curve_keys::CurveKeyPair;
-pub use metrics_file::MetricsFileConfig;
 pub use rpc::{MessageHandler, RpcServer, Transport};
 pub use runtime::{ClientReplySink, RunOnWorker, RuntimeApi, WorkerJob};
 pub use workers::WorkersMessageHandlerImpl;
@@ -135,7 +133,7 @@ pub struct DaemonRuntimeConfig {
     pub workers_enabled: bool,
     pub startup_config: Option<Var>,
     /// Where and how often to write metrics in the Prometheus text format, if at all.
-    pub metrics_file: Option<MetricsFileConfig>,
+    pub metrics_file: Option<moor_common::util::MetricsFileConfig>,
 }
 
 #[derive(Clone)]
@@ -632,7 +630,13 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
     // Before the database opens: it builds its timers on first use.
     config.runtime.apply_perf_timing_policy();
     let metrics_file_writer = metrics_file
-        .map(metrics_file::MetricsFileWriter::spawn)
+        .map(|config| {
+            moor_common::util::MetricsFileWriter::spawn(
+                config,
+                "daemon",
+                metrics::visit_daemon_metrics,
+            )
+        })
         .transpose()?;
     let (database, freshly_made) = TxDB::try_open(
         Some(&paths.db_path),

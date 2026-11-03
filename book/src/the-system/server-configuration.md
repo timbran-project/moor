@@ -387,9 +387,10 @@ kilobytes, so put it on a memory file system such as `/run` rather than disk.
 
 The file holds database, scheduler and builtin function timings and counts, and the sizes and
 operation counts of the server's caches, and how long RPC requests wait for a thread. All metric
-names start with `moor_`. Timings come in pairs: a `_calls` counter of every call, and a `_samples`
-histogram of the sampled durations in nanoseconds (see Runtime Timing Configuration above). Estimate
-total time as `_samples_sum * _calls / _samples_count`.
+names start with `moor_`, and every series has the label `service="daemon"`. Timings come in pairs:
+a `_calls` counter of every call, and a `_samples` histogram of the sampled durations in nanoseconds
+(see Runtime Timing Configuration above). Estimate total time as
+`_samples_sum * _calls / _samples_count`.
 
 To serve the file with node_exporter, give it a `.prom` name in node_exporter's textfile directory:
 

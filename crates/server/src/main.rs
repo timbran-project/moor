@@ -505,7 +505,7 @@ async fn run() -> Result<(), Report> {
         metrics_file: args
             .metrics_file
             .clone()
-            .map(|path| moor_daemon::MetricsFileConfig {
+            .map(|path| moor_common::util::MetricsFileConfig {
                 path,
                 interval: std::time::Duration::from_secs(u64::from(args.metrics_interval_seconds)),
             }),
