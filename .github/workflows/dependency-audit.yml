@@ -1,13 +1,8 @@
 name: Rust dependency audit
 
+# Pull requests come from branches in this repository, so the push run covers them.
 on:
   push:
-    paths:
-      - '**/Cargo.toml'
-      - Cargo.lock
-      - deny.toml
-      - .github/workflows/dependency-audit.yml
-  pull_request:
     paths:
       - '**/Cargo.toml'
       - Cargo.lock
