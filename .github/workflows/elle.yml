@@ -1,8 +1,8 @@
 name: Elle consistency
 
+# Pull requests come from branches in this repository, so the push run covers them.
 on:
   push:
-  pull_request:
   workflow_dispatch:
 
 permissions:
