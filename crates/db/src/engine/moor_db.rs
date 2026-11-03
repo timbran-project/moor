@@ -217,6 +217,13 @@ impl Caches {
             || self.prop_resolution_cache.has_changed()
             || self.ancestry_cache.has_changed()
     }
+
+    /// Report these caches' sizes as the published sizes.
+    pub(crate) fn record_published_sizes(&self) {
+        self.verb_resolution_cache.record_published_size();
+        self.prop_resolution_cache.record_published_size();
+        self.ancestry_cache.record_published_size();
+    }
 }
 
 const SEQUENCE_COUNT: usize = 15;

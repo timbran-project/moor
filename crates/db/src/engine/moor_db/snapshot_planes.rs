@@ -41,6 +41,7 @@ pub(super) struct SnapshotPlanes {
 impl SnapshotPlanes {
     /// Initialize both publication planes from the same initial root snapshot.
     pub(super) fn new(initial_root: Arc<WorldStateSnapshot>) -> Self {
+        initial_root.caches.record_published_sizes();
         let initial_cache_publication = Arc::new(CachePublication {
             version: initial_root.version,
             caches: initial_root.caches.clone(),
@@ -77,6 +78,7 @@ impl SnapshotPlanes {
             return;
         }
 
+        combined_caches.record_published_sizes();
         self.cache_publication.store(Arc::new(CachePublication {
             version: snapshot_version,
             caches: Arc::new(combined_caches),
@@ -103,6 +105,9 @@ impl SnapshotPlanes {
                 Arc::clone(current)
             }
         });
+        if success {
+            next_root.caches.record_published_sizes();
+        }
         success
     }
 
