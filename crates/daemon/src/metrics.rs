@@ -13,14 +13,35 @@
 
 //! Every metric the daemon exports, for the metrics file and the `RequestMetrics` RPC.
 
-use fast_telemetry::MetricVisitor;
+use std::sync::LazyLock;
+
+use fast_telemetry::{ExportMetrics, Gauge, MetricVisitor};
 use moor_kernel::perf_counters::visit_all_metrics;
 
 use crate::rpc::transport::rpc_metrics;
+
+/// Connection and host counts, refreshed by the ping loop every few seconds.
+#[derive(ExportMetrics)]
+#[metric_prefix = "daemon"]
+pub(crate) struct SessionMetrics {
+    #[help = "Players connected"]
+    pub(crate) connected_players: Gauge,
+    #[help = "Connections open, logged in or not"]
+    pub(crate) connections: Gauge,
+    #[help = "Hosts registered with the daemon"]
+    pub(crate) hosts: Gauge,
+}
+
+pub(crate) static SESSION_METRICS: LazyLock<SessionMetrics> = LazyLock::new(|| SessionMetrics {
+    connected_players: Gauge::new(),
+    connections: Gauge::new(),
+    hosts: Gauge::new(),
+});
 
 /// Visit the runtime's metrics and the daemon's own.
 pub(crate) fn visit_daemon_metrics<V: MetricVisitor + ?Sized>(visitor: &mut V) {
     visit_all_metrics(visitor);
     rpc_metrics().visit_metrics(visitor);
     crate::rpc::visit_call_pool_metrics(visitor);
+    SESSION_METRICS.visit_metrics(visitor);
 }
