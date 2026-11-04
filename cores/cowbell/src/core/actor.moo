@@ -23,6 +23,13 @@ object ACTOR [
     return "person";
   endmethod
 
+  method inspection_sections owner: ARCH_WIZARD
+    "Show the plan this actor is pursuing, if any.";
+    set_task_perms(caller_perms());
+    const plan = $planner:sheet_section(this);
+    return plan == 0 ? pass(@args) | {@pass(@args), plan};
+  endmethod
+
   method is_actor owner: HACKER
     "Actors can perform actions in the world.";
     return true;

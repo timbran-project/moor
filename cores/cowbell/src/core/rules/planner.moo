@@ -126,6 +126,61 @@ object PLANNER [
     endtry
   endmethod
 
+  method sheet_section owner: ARCH_WIZARD
+    "The thing sheet's Plan section for an NPC, or 0 if it has no plan: its playbook, status and latest setback, and its open goals, outermost first, each with its approach and the step it's on.";
+    const {npc} = args;
+    const status = $planner:status(npc);
+    typeof(status) == TYPE_MAP || return 0;
+    const playbook = status['playbook];
+    let goals = {};
+    for frame in (status['frames])
+      let step = "";
+      const approach = frame['approach] == 0 ? 0 | $planner:_approach(playbook, frame);
+      if (approach != 0 && frame['step] <= length(approach['steps]))
+        step = tostr(frame['step]) + " of " + tostr(length(approach['steps])) + ": " + $planner:_step_text(playbook, approach['steps][frame['step]], frame);
+      endif
+      goals = {@goals, ["goal" -> $planner:_goal_text(playbook, frame['goal], frame['inputs]), "approach" -> frame['approach] == 0 ? "" | tostr(frame['approach]), "step" -> step, "working" -> frame['working]]};
+    endfor
+    return ["kind" -> "plan", "title" -> "Plan", "playbook" -> npc:_inspection_ref(playbook), "status" -> tostr(status['status]), "setback" -> status['setback], "goals" -> goals];
+  endmethod
+
+  method _goal_text owner: HACKER
+    "Show a goal by its playbook label, with its inputs filled in, or as a call when it has no label.";
+    const {playbook, goal, inputs} = args;
+    const label = `playbook.goals[goal]['label] ! E_RANGE, E_PROPNF, E_TYPE => ""';
+    typeof(label) == TYPE_STR && label || return $planner:_call_text(goal, inputs);
+    return $planner:_filled(label, inputs);
+  endmethod
+
+  method _step_text owner: HACKER
+    "Show a compiled step of an approach by its action's or goal's label, with the arguments a frame's inputs and bindings give filled in, or as a call when it has no label.";
+    const {playbook, step, frame} = args;
+    const label = step['kind] == 'action ? `$reaction:action_schemas()[step['name]]['label] ! E_RANGE, E_TYPE => ""' | `playbook.goals[step['name]]['label] ! E_RANGE, E_PROPNF, E_TYPE => ""';
+    typeof(label) == TYPE_STR && label || return step['text];
+    let values = [];
+    for field in (mapkeys(step['arguments]))
+      const argument = step['arguments][field];
+      const kind = `argument['kind] ! E_RANGE, E_TYPE => 0';
+      if (kind == 'literal)
+        values[field] = argument['value];
+      elseif (kind in {'input, 'binding})
+        const known = kind == 'input ? frame['inputs] | frame['bindings];
+        maphaskey(known, argument['name]) && (values[field] = known[argument['name]]);
+      endif
+    endfor
+    return $planner:_filled(label, values);
+  endmethod
+
+  method _filled owner: HACKER
+    "Fill a label's {name} places with the values given; places without one stay as they are.";
+    const {label, values} = args;
+    let text = label;
+    for name in (mapkeys(values))
+      text = strsub(text, "{" + tostr(name) + "}", $planner:_value_text(values[name]));
+    endfor
+    return text;
+  endmethod
+
   method _tick owner: ARCH_WIZARD
     "Advance one NPC's plan by at most one action. Return the delay before the next tick, or 0 when the plan ends.";
     caller_perms().wizard || raise(E_PERM);
@@ -495,6 +550,31 @@ object PLANNER [
     $test_utils:assert_eq({ reason['name] for reason in (reasons) }, {'here, 'walk}, "Its goal's approaches, in order");
     $test_utils:assert_eq(reasons[1]['holds], true, "It's already there");
     maphaskey(reasons[1], 'explanation) || raise(E_ASSERT, "With an explanation of that");
+    $planner:abandon(npc);
+    return true;
+  endmethod
+
+  method test_a_plan_shows_on_the_thing_sheet owner: HACKER
+    "An NPC's thing sheet has a Plan section while it pursues a goal: the playbook, the status, and the goal by its label.";
+    const npc = $test_utils:anonymous($actor);
+    $test_utils:assert_eq($planner:sheet_section(npc), 0, "No plan, no section");
+    npc:moveto(player.location);
+    $planner:pursue(npc, $errands, 'go_to, ['place -> player.location]);
+    schedule_stop(npc.plan_schedule);
+    const section = $planner:sheet_section(npc);
+    $test_utils:assert_eq(section["kind"], "plan", "A plan section");
+    $test_utils:assert_eq(section["playbook"]["id"], tostr($errands), "Naming its playbook");
+    $test_utils:assert_eq(section["status"], "running", "And its status");
+    $test_utils:assert_eq(length(section["goals"]), 1, "With its one goal");
+    $test_utils:assert_eq(section["goals"][1]["goal"], "go_to(place: " + player.location.name + ")", "Shown as a call, as it has no label");
+    $test_utils:assert_eq($planner:_goal_text($errands, 'go_to, ['place -> player.location]), section["goals"][1]["goal"], "The same text");
+    $test_utils:assert_eq($planner:_goal_text(<$playbook, .goals = ['go -> ['label -> "go to {place}"]]>, 'go, ['place -> {1, 2, 3}]), "go to {1, 2, 3}", "A label is filled in");
+    const book = <$playbook, .goals = ['go -> ['label -> "go to {place} from {start}"]]>;
+    const step = ['kind -> 'goal, 'name -> 'go, 'text -> "go(place: binding.Where)", 'arguments -> ['place -> ['kind -> 'binding, 'name -> 'Where], 'start -> ['kind -> 'input, 'name -> 'start]]];
+    $test_utils:assert_eq($planner:_step_text(book, step, ['inputs -> [], 'bindings -> ['Where -> {4, 5, 6}]]), "go to {4, 5, 6} from {start}", "A step shows its goal's label, filled in where the frame knows");
+    $test_utils:assert_eq($planner:_step_text($errands, mapmerge(step, ['name -> 'go_to]), ['inputs -> [], 'bindings -> []]), "go(place: binding.Where)", "Or its call when there's no label");
+    const kinds = { s["kind"] for s in (npc:inspection_sheet(player)) };
+    "plan" in kinds || raise(E_ASSERT, "The sheet shows it: " + toliteral(kinds));
     $planner:abandon(npc);
     return true;
   endmethod

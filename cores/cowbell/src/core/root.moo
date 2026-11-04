@@ -946,12 +946,19 @@ object ROOT [
       sections = {@sections, ["kind" -> "messages", "title" -> "Messages", "messages" -> this:_inspection_messages(who)]};
       sections = {@sections, ["kind" -> "reactions", "title" -> "Reactions", "reactions" -> this:_inspection_reactions(who)]};
     endif
+    sections = {@sections, @this:inspection_sections(who, editable)};
     sections = {@sections, ["kind" -> "actions", "title" -> "Actions", "actions" -> { ["label" -> action["label"], "command" -> action["command"]] for action in (this:inspection_actions(who)) }]};
     if (editable)
       const rules = this:_inspection_rules(who);
       length(rules) > 0 && (sections = {@sections, ["kind" -> "rules", "title" -> "Rules", "rules" -> rules]});
     endif
     return sections;
+  endmethod
+
+  method inspection_sections owner: ARCH_WIZARD
+    "More sections for the thing sheet, after Reactions and before Actions: maps with a kind and a title, as inspection_sheet makes. Override, adding to pass(@args), to show what a kind of object has.";
+    set_task_perms(caller_perms());
+    return {};
   endmethod
 
   method inspection_fields owner: ARCH_WIZARD
