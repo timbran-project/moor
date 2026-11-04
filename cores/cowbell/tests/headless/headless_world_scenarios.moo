@@ -534,7 +534,8 @@ object HEADLESS_WORLD_SCENARIOS [
       this:call_as_test_player(item, "get");
       $test_utils:assert_eq(item.location, remote, "stale Take cannot fetch a remote item");
       const distant = item:inspection(who);
-      $test_utils:assert_eq(length(distant["actions"]), 1, "remote inspection offers only Examine");
+      "Editors also see Edit, which opens the thing sheet and moves nothing.";
+      $test_utils:assert_eq({ action["id"] for action in (distant["actions"]) if action["id"] != "edit" }, {"examine"}, "remote inspection offers only Examine");
       move(item, room);
       this:call_as_test_player(item, "get");
       $test_utils:assert_eq(item.location, who, "nearby Take succeeds");
