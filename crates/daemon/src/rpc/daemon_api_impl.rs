@@ -1561,12 +1561,13 @@ impl RpcMessageHandler {
         if let Some(TransientConnection { content_types }) = transient_connection {
             let connection = self.connections.reserve_connection_id()?;
             debug!(?operation, %player, %connection, "Opening a transient connection");
-            session =
-                session.with_transient_connection(output_capture_session::TransientConnection {
+            session = session.with_transient_connection(
+                output_capture_session::TransientConnection {
                     connection,
                     content_types,
-                    registry: self.connections.clone(),
-                });
+                },
+                self.connections.clone(),
+            );
         }
         let session = Arc::new(session);
         // Held separately: a conflict retry replaces the session the task runs under, but every
