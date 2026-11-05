@@ -1283,6 +1283,7 @@ mod tests {
             &Symbol::mk("capture_test"),
             vec![],
             Some(Duration::from_secs(30)),
+            None,
         )
         .expect("Failed to build captured invoke message");
 
@@ -1327,6 +1328,7 @@ mod tests {
             &SYSTEM_OBJECT,
             "capture-command".to_string(),
             Some(Duration::from_secs(30)),
+            None,
         )
         .expect("Failed to build captured command message");
         let capture_client_id = Uuid::new_v4();
@@ -1355,6 +1357,7 @@ mod tests {
             &auth_token,
             "notify(player, \"eval output\"); return {player, 42};".to_string(),
             Some(Duration::from_secs(30)),
+            None,
         )
         .expect("Failed to build captured eval message");
         let reply = env
@@ -1384,6 +1387,7 @@ mod tests {
             &auth_token,
             "let b = 1;\nlet b = 2;".to_string(),
             Some(Duration::from_secs(30)),
+            None,
         )
         .expect("Failed to build captured eval message");
         let reply = env
@@ -1468,6 +1472,7 @@ mod tests {
             &auth_token,
             "suspend(60); return 1;".to_string(),
             Some(Duration::from_millis(500)),
+            None,
         )
         .expect("Failed to build captured eval message");
         let reply = env
@@ -1498,6 +1503,7 @@ mod tests {
             vec![],
             None,
             Some(Duration::from_secs(30)),
+            None,
         )
         .expect("System handler message should encode");
         let reply = env
@@ -1541,6 +1547,7 @@ mod tests {
             vec![],
             Some(&auth_token),
             Some(Duration::from_secs(30)),
+            None,
         )
         .expect("System handler message should encode");
         let reply = env
@@ -1571,6 +1578,7 @@ mod tests {
             vec![],
             Some(&auth_token),
             Some(Duration::from_secs(30)),
+            None,
         )
         .expect("System handler message should encode");
         let reply = env
@@ -1600,6 +1608,7 @@ mod tests {
             vec![],
             None,
             Some(Duration::from_millis(500)),
+            None,
         )
         .expect("System handler message should encode");
         let reply = env
@@ -1645,6 +1654,7 @@ mod tests {
             &SYSTEM_OBJECT,
             "slow-command".to_string(),
             Some(Duration::from_millis(500)),
+            None,
         )
         .expect("Failed to build captured command message");
         let reply = env
@@ -1688,6 +1698,7 @@ mod tests {
             &Symbol::mk("fork_test"),
             vec![],
             Some(Duration::from_secs(30)),
+            None,
         )
         .expect("Failed to build captured invoke message");
 
@@ -1728,6 +1739,7 @@ mod tests {
             &Symbol::mk("input_test"),
             vec![],
             Some(Duration::from_secs(30)),
+            None,
         )
         .expect("Failed to build captured invoke message");
 
@@ -1769,6 +1781,7 @@ mod tests {
             &Symbol::mk("error_output_test"),
             vec![],
             Some(Duration::from_secs(30)),
+            None,
         )
         .expect("Failed to build captured invoke message");
 
@@ -1815,6 +1828,7 @@ mod tests {
             &Symbol::mk("slow_test"),
             vec![],
             Some(Duration::from_millis(500)),
+            None,
         )
         .expect("Failed to build captured invoke message");
 
@@ -1858,6 +1872,7 @@ mod tests {
             &Symbol::mk("anything"),
             vec![],
             Some(Duration::from_secs(30)),
+            None,
         )
         .expect("Failed to build captured invoke message");
 
@@ -1888,6 +1903,7 @@ mod tests {
             &Symbol::mk("anything"),
             vec![],
             Some(Duration::from_secs(5)),
+            None,
         )
         .expect("Failed to build captured invoke message");
 
@@ -2016,6 +2032,7 @@ mod tests {
                         &auth_token,
                         code.to_string(),
                         Some(Duration::from_secs(5)),
+                        None,
                     )
                     .unwrap(),
                 )
@@ -2180,9 +2197,13 @@ mod tests {
         let env = setup_test_environment();
         let (_, auth_token, wizard) = logged_in_wizard(&env, Uuid::new_v4());
         let eval = |code: &str| {
-            let request =
-                mk_eval_capture_msg(&auth_token, code.to_string(), Some(Duration::from_secs(10)))
-                    .unwrap();
+            let request = mk_eval_capture_msg(
+                &auth_token,
+                code.to_string(),
+                Some(Duration::from_secs(10)),
+                None,
+            )
+            .unwrap();
             let reply = env
                 .transport
                 .process_client_message(
@@ -2753,6 +2774,7 @@ mod tests {
                         &auth_token,
                         code.to_string(),
                         Some(Duration::from_secs(5)),
+                        None,
                     )
                     .unwrap(),
                 )

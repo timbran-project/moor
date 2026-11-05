@@ -17,9 +17,10 @@ use flume::Sender;
 use uuid::Uuid;
 
 use moor_common::tasks::{ConnectionDetails, NarrativeEvent, Session, SessionError};
-use moor_var::{ByteSized, List, Obj, Symbol, Var};
+use moor_var::{ByteSized, List, Obj, Symbol, Var, v_list, v_map, v_obj};
 
 use crate::{
+    connections::ConnectionStateSource,
     event_log::EventLogOps,
     rpc::{session::SessionActions, session_event_buffer::SessionEventBuffer},
 };
@@ -101,6 +102,10 @@ impl CaptureAccumulator {
 /// A forked task is a new task which may outlive the captured response, so it gets a non-capturing
 /// session and its output is published normally. A *retry* of the root task after a commit
 /// conflict is the same task running again, so it shares the accumulator (see `fork_retry`).
+///
+/// A call given a [`TransientConnection`] runs on it: it is the call's own connection, it is
+/// among its player's connections alongside their registered ones, and events sent to it are
+/// captured as the player's are. Without one, the call has no connections at all.
 pub struct OutputCaptureSession {
     client_id: Uuid,
     /// The invoking principal. Events addressed here are captured; others are published.
@@ -115,7 +120,34 @@ pub struct OutputCaptureSession {
     /// accumulate without bound.
     pending: Mutex<Pending>,
     send: Sender<SessionActions>,
+    /// The connection this call runs on, if it was given one.
+    transient: Option<Arc<TransientConnection>>,
 }
+
+/// A connection opened for the length of a captured call, which the registry doesn't know: the
+/// call's own, standing for its caller.
+pub struct TransientConnection {
+    /// The connection object, reserved from the registry so no registered connection has it.
+    pub connection: Obj,
+    /// What the caller renders.
+    pub content_types: Vec<Symbol>,
+    /// The registry, for the player's registered connections, which the call sees alongside this.
+    pub registry: Arc<dyn ConnectionStateSource>,
+}
+
+impl TransientConnection {
+    fn details(&self) -> ConnectionDetails {
+        ConnectionDetails {
+            connection_obj: self.connection,
+            peer_addr: TRANSIENT_CONNECTION_NAME.to_string(),
+            idle_seconds: 0.0,
+            acceptable_content_types: self.content_types.clone(),
+        }
+    }
+}
+
+/// What a transient connection is called where a connection's peer address would be.
+const TRANSIENT_CONNECTION_NAME: &str = "transient";
 
 impl OutputCaptureSession {
     /// A capturing session for the root task of a captured invocation.
@@ -148,7 +180,27 @@ impl OutputCaptureSession {
             capture,
             pending: Mutex::new(Pending::default()),
             send,
+            transient: None,
         }
+    }
+
+    /// Run the call on `connection`.
+    pub fn with_transient_connection(mut self, connection: TransientConnection) -> Self {
+        self.transient = Some(Arc::new(connection));
+        self
+    }
+
+    /// The connection this call runs on, if `obj` is it.
+    fn transient_for(&self, obj: Obj) -> Option<&TransientConnection> {
+        self.transient
+            .as_deref()
+            .filter(|transient| transient.connection == obj)
+    }
+
+    /// Whether events sent to `target` are the caller's output: those to the player, and to the
+    /// connection the call runs on.
+    fn is_callers(&self, target: Obj) -> bool {
+        target == self.player || self.transient_for(target).is_some()
     }
 
     /// The accumulator holding this invocation's output, so the caller can read it once the task
@@ -185,7 +237,7 @@ impl Session for OutputCaptureSession {
         // response; the latter is ordinary delivery.
         let (captured, to_publish): (Vec<_>, Vec<_>) = events
             .into_iter()
-            .partition(|(player, _)| *player == self.player);
+            .partition(|(target, _)| self.is_callers(*target));
 
         capture.extend(captured, pending.bytes);
         self.publish(to_publish)
@@ -201,7 +253,7 @@ impl Session for OutputCaptureSession {
 
     fn fork(self: Arc<Self>) -> Result<Arc<dyn Session>, SessionError> {
         // A fork is a new task and may outlive the captured response, so its output is published
-        // rather than captured.
+        // rather than captured, and it has no transient connection, which closes with the call.
         Ok(Arc::new(Self::with_capture(
             self.client_id,
             self.player,
@@ -215,13 +267,15 @@ impl Session for OutputCaptureSession {
         // The same task running again after a commit conflict. It stands in for the original, so
         // it keeps accumulating into the same buffer; the rolled-back attempt's events were
         // already discarded by `rollback`.
-        Ok(Arc::new(Self::with_capture(
+        let mut retry = Self::with_capture(
             self.client_id,
             self.player,
             self.events.event_log(),
             self.send.clone(),
             self.capture.clone(),
-        )))
+        );
+        retry.transient = self.transient.clone();
+        Ok(Arc::new(retry))
     }
 
     fn request_input(
@@ -237,7 +291,7 @@ impl Session for OutputCaptureSession {
     }
 
     fn send_event(&self, player: Obj, event: Box<NarrativeEvent>) -> Result<(), SessionError> {
-        if self.capture.is_none() || player != self.player {
+        if self.capture.is_none() || !self.is_callers(player) {
             self.events.push_event(player, event);
             return Ok(());
         }
@@ -273,39 +327,98 @@ impl Session for OutputCaptureSession {
         Ok(())
     }
 
-    fn connection_name(&self, _player: Obj) -> Result<String, SessionError> {
-        Ok("output-capture-session".to_string())
+    fn connection_name(&self, player: Obj) -> Result<String, SessionError> {
+        let Some(transient) = self.transient.as_deref() else {
+            return Ok("output-capture-session".to_string());
+        };
+        if self.is_callers(player) {
+            return Ok(TRANSIENT_CONNECTION_NAME.to_string());
+        }
+        transient.registry.connection_name(player)
     }
 
     fn disconnect(&self, _player: Obj) -> Result<(), SessionError> {
         Ok(())
     }
 
-    fn connected_players(&self, _include_all: bool) -> Result<Vec<Obj>, SessionError> {
-        Ok(vec![])
+    fn connected_players(&self, include_all: bool) -> Result<Vec<Obj>, SessionError> {
+        let Some(transient) = self.transient.as_deref() else {
+            return Ok(vec![]);
+        };
+        let mut connected = transient.registry.connected_players(include_all);
+        if !connected.contains(&self.player) {
+            connected.push(self.player);
+        }
+        if include_all {
+            connected.push(transient.connection);
+        }
+        Ok(connected)
     }
 
-    fn connected_seconds(&self, _player: Obj) -> Result<f64, SessionError> {
-        Ok(0.0)
+    fn connected_seconds(&self, player: Obj) -> Result<f64, SessionError> {
+        match self.transient.as_deref() {
+            Some(transient) if !self.is_callers(player) => {
+                transient.registry.connected_seconds(player)
+            }
+            _ => Ok(0.0),
+        }
     }
 
-    fn idle_seconds(&self, _player: Obj) -> Result<f64, SessionError> {
-        Ok(0.0)
+    fn idle_seconds(&self, player: Obj) -> Result<f64, SessionError> {
+        match self.transient.as_deref() {
+            Some(transient) if !self.is_callers(player) => transient.registry.idle_seconds(player),
+            _ => Ok(0.0),
+        }
     }
 
-    fn connections(&self, _player: Option<Obj>) -> Result<Vec<Obj>, SessionError> {
-        Ok(vec![])
+    fn connections(&self, player: Option<Obj>) -> Result<Vec<Obj>, SessionError> {
+        Ok(self
+            .connection_details(player)?
+            .into_iter()
+            .map(|details| details.connection_obj)
+            .collect())
     }
 
+    /// With no player, or for the caller's, the transient connection first and then the player's
+    /// registered ones; for anyone else, theirs.
     fn connection_details(
         &self,
-        _player: Option<Obj>,
+        player: Option<Obj>,
     ) -> Result<Vec<ConnectionDetails>, SessionError> {
-        Ok(vec![])
+        let Some(transient) = self.transient.as_deref() else {
+            return Ok(vec![]);
+        };
+        let player = player.unwrap_or(self.player);
+        let registered = transient
+            .registry
+            .connection_details(self.client_id, Some(player))?;
+        if player != self.player {
+            return Ok(registered);
+        }
+        Ok(std::iter::once(transient.details())
+            .chain(registered)
+            .collect())
     }
 
-    fn connection_attributes(&self, _obj: Obj) -> Result<Var, SessionError> {
-        Ok(Var::from(List::mk_list(&[])))
+    fn connection_attributes(&self, obj: Obj) -> Result<Var, SessionError> {
+        let Some(transient) = self.transient.as_deref() else {
+            return Ok(Var::from(List::mk_list(&[])));
+        };
+        if self.transient_for(obj).is_some() {
+            return Ok(v_map(&[]));
+        }
+        let attributes = transient.registry.connection_attributes(obj)?;
+        if obj != self.player {
+            return Ok(attributes);
+        }
+        let own = v_list(&[v_obj(transient.connection), v_map(&[])]);
+        let registered = attributes
+            .as_list()
+            .into_iter()
+            .flat_map(|list| list.iter());
+        Ok(v_list(
+            &std::iter::once(own).chain(registered).collect::<Vec<_>>(),
+        ))
     }
 
     fn set_connection_attribute(
@@ -630,5 +743,126 @@ mod tests {
         let forked = h.session.clone().fork().unwrap();
         forked.send_event(caller, event("fine")).unwrap();
         forked.commit().unwrap();
+    }
+
+    /// A session for the caller, run on a transient connection, whose player also has a registered
+    /// connection: the session, the transient connection, the registered one, and where the
+    /// session publishes.
+    fn on_a_transient_connection() -> (
+        Arc<OutputCaptureSession>,
+        Obj,
+        Obj,
+        flume::Receiver<SessionActions>,
+    ) {
+        use crate::connections::{ConnectionRegistryFactory, NewConnectionParams};
+
+        let caller = Obj::mk_id(CALLER);
+        let registry = ConnectionRegistryFactory::in_memory_only().unwrap();
+        let registered = registry
+            .new_connection(NewConnectionParams {
+                client_id: Uuid::new_v4(),
+                hostname: "player.test".to_string(),
+                local_port: 7777,
+                remote_port: 12345,
+                player: Some(caller),
+                acceptable_content_types: None,
+                connection_attributes: None,
+            })
+            .unwrap();
+        let transient = registry.reserve_connection_id().unwrap();
+        let log = Arc::new(MockEventLog::new());
+        log.set_pubkey(caller, test_pubkey());
+        let (tx, rx) = flume::unbounded();
+        let session = OutputCaptureSession::new(Uuid::new_v4(), caller, log, tx)
+            .with_transient_connection(TransientConnection {
+                connection: transient,
+                content_types: vec![Symbol::mk("text/djot")],
+                registry,
+            });
+        (Arc::new(session), transient, registered, rx)
+    }
+
+    /// The transient connection is the call's own, and is among its player's connections
+    /// alongside the ones they have.
+    #[test]
+    fn a_transient_connection_is_the_calls_own_among_its_players() {
+        let (session, transient, registered, _) = on_a_transient_connection();
+        let caller = Obj::mk_id(CALLER);
+
+        assert_ne!(transient, registered, "no registered connection has it");
+        let own = session.connection_details(None).unwrap();
+        assert_eq!(own[0].connection_obj, transient, "it is connection()");
+        assert_eq!(
+            own[0].acceptable_content_types,
+            vec![Symbol::mk("text/djot")]
+        );
+        assert_eq!(
+            session.connections(Some(caller)).unwrap(),
+            vec![transient, registered]
+        );
+        assert!(
+            session
+                .connections(Some(Obj::mk_id(OTHER)))
+                .unwrap()
+                .is_empty(),
+            "nobody else has it"
+        );
+        assert!(session.connected_players(false).unwrap().contains(&caller));
+    }
+
+    /// What is sent to the transient connection comes back with the call; what is sent to the
+    /// player's registered connection is delivered to it.
+    #[test]
+    fn a_transient_connection_is_captured_and_the_others_are_published() {
+        let (session, transient, registered, published) = on_a_transient_connection();
+
+        session
+            .send_event(transient, event("to the caller"))
+            .unwrap();
+        session
+            .send_event(registered, event("to their client"))
+            .unwrap();
+        session.commit().unwrap();
+
+        assert_eq!(
+            messages(&session.take_captured_events()),
+            vec!["to the caller"]
+        );
+        let mut delivered = vec![];
+        while let Ok(action) = published.try_recv() {
+            if let SessionActions::PublishNarrativeEvents(events) = action {
+                delivered.extend(events);
+            }
+        }
+        assert_eq!(delivered.len(), 1);
+        assert_eq!(delivered[0].0, registered);
+    }
+
+    /// A fork may outlive the call, and the transient connection closes with it, so the fork
+    /// doesn't have it; a retry is the same call, so it does.
+    #[test]
+    fn a_retry_keeps_the_transient_connection_and_a_fork_does_not() {
+        let (session, transient, _, _) = on_a_transient_connection();
+
+        let retry = session.clone().fork_retry().unwrap();
+        assert_eq!(
+            retry.connection_details(None).unwrap()[0].connection_obj,
+            transient
+        );
+        let forked = session.fork().unwrap();
+        assert!(forked.connections(None).unwrap().is_empty());
+    }
+
+    /// Without a transient connection a captured call has no connections, as it always had.
+    #[test]
+    fn without_a_transient_connection_there_are_none() {
+        let h = Harness::new();
+        assert!(h.session.connection_details(None).unwrap().is_empty());
+        assert!(
+            h.session
+                .connections(Some(Obj::mk_id(CALLER)))
+                .unwrap()
+                .is_empty()
+        );
     }
 }

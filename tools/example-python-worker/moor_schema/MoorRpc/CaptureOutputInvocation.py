@@ -31,12 +31,26 @@ class CaptureOutputInvocation(object):
             return self._tab.Get(flatbuffers.number_types.Uint64Flags, o + self._tab.Pos)
         return 0
 
-def CaptureOutputInvocationStart(builder): builder.StartObject(1)
+    # CaptureOutputInvocation
+    def TransientConnection(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(6))
+        if o != 0:
+            x = self._tab.Indirect(o + self._tab.Pos)
+            from MoorRpc.TransientConnection import TransientConnection
+            obj = TransientConnection()
+            obj.Init(self._tab.Bytes, x)
+            return obj
+        return None
+
+def CaptureOutputInvocationStart(builder): builder.StartObject(2)
 def Start(builder):
     return CaptureOutputInvocationStart(builder)
 def CaptureOutputInvocationAddTimeoutMs(builder, timeoutMs): builder.PrependUint64Slot(0, timeoutMs, 0)
 def AddTimeoutMs(builder, timeoutMs):
     return CaptureOutputInvocationAddTimeoutMs(builder, timeoutMs)
+def CaptureOutputInvocationAddTransientConnection(builder, transientConnection): builder.PrependUOffsetTRelativeSlot(1, flatbuffers.number_types.UOffsetTFlags.py_type(transientConnection), 0)
+def AddTransientConnection(builder, transientConnection):
+    return CaptureOutputInvocationAddTransientConnection(builder, transientConnection)
 def CaptureOutputInvocationEnd(builder): return builder.EndObject()
 def End(builder):
     return CaptureOutputInvocationEnd(builder)

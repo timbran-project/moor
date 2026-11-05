@@ -640,6 +640,7 @@ mod tests {
             &Symbol::mk("look"),
             vec![],
             Some(Duration::from_secs(120)),
+            None,
         )
         .expect("message");
         let timeout_ms = required_receive_timeout_ms(&msg).expect("a timeout");
@@ -656,6 +657,7 @@ mod tests {
             &moor_var::SYSTEM_OBJECT,
             "look".to_string(),
             Some(Duration::from_secs(120)),
+            None,
         )
         .expect("message");
         let timeout_ms = required_receive_timeout_ms(&msg).expect("a timeout");
@@ -671,6 +673,7 @@ mod tests {
             &auth_token(),
             "return 1;".to_string(),
             Some(Duration::from_secs(120)),
+            None,
         )
         .expect("message");
         let timeout_ms = required_receive_timeout_ms(&msg).expect("a timeout");
@@ -679,7 +682,7 @@ mod tests {
 
     #[test]
     fn a_system_handler_waits_for_the_longest_daemon_deadline() {
-        let msg = mk_invoke_system_handler_msg(&Uuid::new_v4(), "http", vec![], None, None)
+        let msg = mk_invoke_system_handler_msg(&Uuid::new_v4(), "http", vec![], None, None, None)
             .expect("message");
         let timeout_ms = required_receive_timeout_ms(&msg).expect("a timeout");
         assert!(timeout_ms > MAX_CAPTURE_DEADLINE_MS as i32);
@@ -693,6 +696,7 @@ mod tests {
             vec![],
             None,
             Some(Duration::from_secs(30)),
+            None,
         )
         .expect("message");
         let timeout_ms = required_receive_timeout_ms(&msg).expect("a timeout");
@@ -714,6 +718,7 @@ mod tests {
             &moor_common::model::ObjectRef::Id(moor_var::Obj::mk_id(1)),
             &Symbol::mk("look"),
             vec![],
+            None,
             None,
         )
         .expect("message");
@@ -1020,6 +1025,7 @@ mod tests {
                         vec![],
                         None,
                         Some(Duration::from_secs(30)),
+                        None,
                     )
                     .unwrap()
                 } else {
@@ -1137,7 +1143,8 @@ mod tests {
         );
         tokio::time::timeout(Duration::from_secs(2), async {
             let long_msg =
-                mk_invoke_system_handler_msg(&Uuid::new_v4(), "http", vec![], None, None).unwrap();
+                mk_invoke_system_handler_msg(&Uuid::new_v4(), "http", vec![], None, None, None)
+                    .unwrap();
             {
                 let long = client.make_client_rpc_call(Uuid::new_v4(), long_msg);
                 tokio::pin!(long);

@@ -1176,7 +1176,10 @@ pub async fn eval_handler(
     let eval_msg = ClientRequest::Eval {
         auth_token,
         expression,
-        mode: InvocationMode::CaptureOutput { timeout },
+        mode: InvocationMode::CaptureOutput {
+            timeout,
+            transient_connection: None,
+        },
     };
 
     let response = match run_captured_invocation(client_id, &rpc_client, eval_msg, "eval").await {

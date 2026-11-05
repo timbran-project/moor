@@ -103,6 +103,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   for a player, what the handler `notify()`s or presents to that player now comes back in the reply,
   for the host to deliver; it was dropped. Hosts and daemons without the reply's new `output` field
   ignore it.
+- A captured call or system handler can run on a transient connection, so that output a verb
+  addresses to its player's connections, rather than to the player, reaches its caller. Captured
+  calls run with no connection: `connection()` raised `E_INVARG` and `connections()` was empty, so a
+  verb that sends to connections, to render each one's copy for what it displays or to answer only
+  the one that asked, sent nothing. Cowbell's `tell` and `inform_*` are examples. A request whose
+  `CaptureOutputInvocation` or `InvokeSystemHandler` carries a `transient_connection`, with the
+  content types the caller renders, runs on a connection opened for it. `connection()` returns it,
+  `connections()` lists it with the player's own, and what is sent to it comes back with the call's
+  output. What goes to the player's other connections is delivered to them as usual. It closes when
+  the call finishes; a forked task doesn't have it. Without the field, captured calls run with no
+  connection as before, and older daemons ignore it.
 - `suspend_if_needed()` also commits when the task is close to its time limit, not only its tick
   limit, so work that is slow per tick no longer runs out of time. A second argument sets how many
   seconds to keep in reserve (default one second, or half the limit if shorter), and a third,

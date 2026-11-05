@@ -71,7 +71,10 @@ pub async fn command_handler(
         auth_token,
         handler_object: host.handler_object,
         command,
-        mode: InvocationMode::CaptureOutput { timeout },
+        mode: InvocationMode::CaptureOutput {
+            timeout,
+            transient_connection: None,
+        },
     };
     let response = match run_captured_invocation(client_id, &rpc_client, request, "command").await {
         Ok(response) => response,

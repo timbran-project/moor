@@ -90,6 +90,10 @@ pub trait ConnectionRegistry: ConnectionStateSource {
     /// Create a new connection object for the given client.
     fn new_connection(&self, params: NewConnectionParams) -> Result<Obj, RpcMessageError>;
 
+    /// Take a connection object no connection has or will have, for one that lives outside the
+    /// registry, such as a captured call's transient connection.
+    fn reserve_connection_id(&self) -> Result<Obj, RpcMessageError>;
+
     /// Record activity for the given client.
     fn record_client_activity(&self, client_id: Uuid, connobj: Obj) -> Result<(), eyre::Error>;
 

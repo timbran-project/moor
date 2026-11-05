@@ -222,6 +222,7 @@ fn exercise(core: &str) {
                     args,
                     mode: InvocationMode::CaptureOutput {
                         timeout: Some(Duration::from_secs(5)),
+                        transient_connection: None,
                     },
                 },
             )
@@ -482,6 +483,7 @@ fn exercise(core: &str) {
             args: vec![v_str("oauth2_check"), v_str("probe"), v_str("Known-ID")],
             mode: InvocationMode::CaptureOutput {
                 timeout: Some(Duration::from_secs(5)),
+                transient_connection: None,
             },
         },
     );
