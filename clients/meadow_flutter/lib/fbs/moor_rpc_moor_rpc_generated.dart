@@ -11387,10 +11387,12 @@ class CaptureOutputInvocation {
   final int _bcOffset;
 
   int get timeoutMs => const fb.Uint64Reader().vTableGet(_bc, _bcOffset, 4, 0);
+  TransientConnection? get transientConnection =>
+      TransientConnection.reader.vTableGetNullable(_bc, _bcOffset, 6);
 
   @override
   String toString() {
-    return 'CaptureOutputInvocation{timeoutMs: ${timeoutMs}}';
+    return 'CaptureOutputInvocation{timeoutMs: ${timeoutMs}, transientConnection: ${transientConnection}}';
   }
 }
 
@@ -11409,11 +11411,16 @@ class CaptureOutputInvocationBuilder {
   final fb.Builder fbBuilder;
 
   void begin() {
-    fbBuilder.startTable(1);
+    fbBuilder.startTable(2);
   }
 
   int addTimeoutMs(int? timeoutMs) {
     fbBuilder.addUint64(0, timeoutMs);
+    return fbBuilder.offset;
+  }
+
+  int addTransientConnectionOffset(int? offset) {
+    fbBuilder.addOffset(1, offset);
     return fbBuilder.offset;
   }
 
@@ -11424,16 +11431,100 @@ class CaptureOutputInvocationBuilder {
 
 class CaptureOutputInvocationObjectBuilder extends fb.ObjectBuilder {
   final int? _timeoutMs;
+  final TransientConnectionObjectBuilder? _transientConnection;
 
   CaptureOutputInvocationObjectBuilder({
     int? timeoutMs,
-  }) : _timeoutMs = timeoutMs;
+    TransientConnectionObjectBuilder? transientConnection,
+  }) : _timeoutMs = timeoutMs,
+       _transientConnection = transientConnection;
 
   /// Finish building, and store into the [fbBuilder].
   @override
   int finish(fb.Builder fbBuilder) {
-    fbBuilder.startTable(1);
+    final int? transientConnectionOffset = _transientConnection
+        ?.getOrCreateOffset(fbBuilder);
+    fbBuilder.startTable(2);
     fbBuilder.addUint64(0, _timeoutMs);
+    fbBuilder.addOffset(1, transientConnectionOffset);
+    return fbBuilder.endTable();
+  }
+
+  /// Convenience method to serialize to byte list.
+  @override
+  Uint8List toBytes([String? fileIdentifier]) {
+    final fbBuilder = fb.Builder(deduplicateTables: false);
+    fbBuilder.finish(finish(fbBuilder), fileIdentifier);
+    return fbBuilder.buffer;
+  }
+}
+
+class TransientConnection {
+  TransientConnection._(this._bc, this._bcOffset);
+  factory TransientConnection(List<int> bytes) {
+    final rootRef = fb.BufferContext.fromBytes(bytes);
+    return reader.read(rootRef, 0);
+  }
+
+  static const fb.Reader<TransientConnection> reader =
+      _TransientConnectionReader();
+
+  final fb.BufferContext _bc;
+  final int _bcOffset;
+
+  List<String>? get contentTypes => const fb.ListReader<String>(
+    fb.StringReader(),
+  ).vTableGetNullable(_bc, _bcOffset, 4);
+
+  @override
+  String toString() {
+    return 'TransientConnection{contentTypes: ${contentTypes}}';
+  }
+}
+
+class _TransientConnectionReader extends fb.TableReader<TransientConnection> {
+  const _TransientConnectionReader();
+
+  @override
+  TransientConnection createObject(fb.BufferContext bc, int offset) =>
+      TransientConnection._(bc, offset);
+}
+
+class TransientConnectionBuilder {
+  TransientConnectionBuilder(this.fbBuilder);
+
+  final fb.Builder fbBuilder;
+
+  void begin() {
+    fbBuilder.startTable(1);
+  }
+
+  int addContentTypesOffset(int? offset) {
+    fbBuilder.addOffset(0, offset);
+    return fbBuilder.offset;
+  }
+
+  int finish() {
+    return fbBuilder.endTable();
+  }
+}
+
+class TransientConnectionObjectBuilder extends fb.ObjectBuilder {
+  final List<String>? _contentTypes;
+
+  TransientConnectionObjectBuilder({List<String>? contentTypes})
+    : _contentTypes = contentTypes;
+
+  /// Finish building, and store into the [fbBuilder].
+  @override
+  int finish(fb.Builder fbBuilder) {
+    final int? contentTypesOffset = _contentTypes == null
+        ? null
+        : fbBuilder.writeList(
+            _contentTypes!.map(fbBuilder.writeString).toList(),
+          );
+    fbBuilder.startTable(1);
+    fbBuilder.addOffset(0, contentTypesOffset);
     return fbBuilder.endTable();
   }
 
@@ -13591,10 +13682,12 @@ class InvokeSystemHandler {
   AuthToken? get authToken =>
       AuthToken.reader.vTableGetNullable(_bc, _bcOffset, 10);
   int get timeoutMs => const fb.Uint64Reader().vTableGet(_bc, _bcOffset, 12, 0);
+  TransientConnection? get transientConnection =>
+      TransientConnection.reader.vTableGetNullable(_bc, _bcOffset, 14);
 
   @override
   String toString() {
-    return 'InvokeSystemHandler{hostId: ${hostId}, handlerType: ${handlerType}, args: ${args}, authToken: ${authToken}, timeoutMs: ${timeoutMs}}';
+    return 'InvokeSystemHandler{hostId: ${hostId}, handlerType: ${handlerType}, args: ${args}, authToken: ${authToken}, timeoutMs: ${timeoutMs}, transientConnection: ${transientConnection}}';
   }
 }
 
@@ -13612,7 +13705,7 @@ class InvokeSystemHandlerBuilder {
   final fb.Builder fbBuilder;
 
   void begin() {
-    fbBuilder.startTable(5);
+    fbBuilder.startTable(6);
   }
 
   int addHostIdOffset(int? offset) {
@@ -13640,6 +13733,11 @@ class InvokeSystemHandlerBuilder {
     return fbBuilder.offset;
   }
 
+  int addTransientConnectionOffset(int? offset) {
+    fbBuilder.addOffset(5, offset);
+    return fbBuilder.offset;
+  }
+
   int finish() {
     return fbBuilder.endTable();
   }
@@ -13651,6 +13749,7 @@ class InvokeSystemHandlerObjectBuilder extends fb.ObjectBuilder {
   final List<moor_var.VarObjectBuilder>? _args;
   final AuthTokenObjectBuilder? _authToken;
   final int? _timeoutMs;
+  final TransientConnectionObjectBuilder? _transientConnection;
 
   InvokeSystemHandlerObjectBuilder({
     moor_common.UuidObjectBuilder? hostId,
@@ -13658,11 +13757,13 @@ class InvokeSystemHandlerObjectBuilder extends fb.ObjectBuilder {
     List<moor_var.VarObjectBuilder>? args,
     AuthTokenObjectBuilder? authToken,
     int? timeoutMs,
+    TransientConnectionObjectBuilder? transientConnection,
   }) : _hostId = hostId,
        _handlerType = handlerType,
        _args = args,
        _authToken = authToken,
-       _timeoutMs = timeoutMs;
+       _timeoutMs = timeoutMs,
+       _transientConnection = transientConnection;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -13677,12 +13778,15 @@ class InvokeSystemHandlerObjectBuilder extends fb.ObjectBuilder {
             _args!.map((b) => b.getOrCreateOffset(fbBuilder)).toList(),
           );
     final int? authTokenOffset = _authToken?.getOrCreateOffset(fbBuilder);
-    fbBuilder.startTable(5);
+    final int? transientConnectionOffset = _transientConnection
+        ?.getOrCreateOffset(fbBuilder);
+    fbBuilder.startTable(6);
     fbBuilder.addOffset(0, hostIdOffset);
     fbBuilder.addOffset(1, handlerTypeOffset);
     fbBuilder.addOffset(2, argsOffset);
     fbBuilder.addOffset(3, authTokenOffset);
     fbBuilder.addUint64(4, _timeoutMs);
+    fbBuilder.addOffset(5, transientConnectionOffset);
     return fbBuilder.endTable();
   }
 
@@ -16104,9 +16208,14 @@ class SystemHandlerResponseReply {
     }
   }
 
+  List<moor_common.NarrativeEvent>? get output =>
+      const fb.ListReader<moor_common.NarrativeEvent>(
+        moor_common.NarrativeEvent.reader,
+      ).vTableGetNullable(_bc, _bcOffset, 8);
+
   @override
   String toString() {
-    return 'SystemHandlerResponseReply{responseType: ${responseType}, response: ${response}}';
+    return 'SystemHandlerResponseReply{responseType: ${responseType}, response: ${response}, output: ${output}}';
   }
 }
 
@@ -16125,7 +16234,7 @@ class SystemHandlerResponseReplyBuilder {
   final fb.Builder fbBuilder;
 
   void begin() {
-    fbBuilder.startTable(2);
+    fbBuilder.startTable(3);
   }
 
   int addResponseType(SystemHandlerResponseUnionTypeId? responseType) {
@@ -16138,6 +16247,11 @@ class SystemHandlerResponseReplyBuilder {
     return fbBuilder.offset;
   }
 
+  int addOutputOffset(int? offset) {
+    fbBuilder.addOffset(2, offset);
+    return fbBuilder.offset;
+  }
+
   int finish() {
     return fbBuilder.endTable();
   }
@@ -16146,20 +16260,29 @@ class SystemHandlerResponseReplyBuilder {
 class SystemHandlerResponseReplyObjectBuilder extends fb.ObjectBuilder {
   final SystemHandlerResponseUnionTypeId? _responseType;
   final dynamic _response;
+  final List<moor_common.NarrativeEventObjectBuilder>? _output;
 
   SystemHandlerResponseReplyObjectBuilder({
     SystemHandlerResponseUnionTypeId? responseType,
     dynamic response,
+    List<moor_common.NarrativeEventObjectBuilder>? output,
   }) : _responseType = responseType,
-       _response = response;
+       _response = response,
+       _output = output;
 
   /// Finish building, and store into the [fbBuilder].
   @override
   int finish(fb.Builder fbBuilder) {
     final int? responseOffset = _response?.getOrCreateOffset(fbBuilder);
-    fbBuilder.startTable(2);
+    final int? outputOffset = _output == null
+        ? null
+        : fbBuilder.writeList(
+            _output!.map((b) => b.getOrCreateOffset(fbBuilder)).toList(),
+          );
+    fbBuilder.startTable(3);
     fbBuilder.addUint8(0, _responseType?.value);
     fbBuilder.addOffset(1, responseOffset);
+    fbBuilder.addOffset(2, outputOffset);
     return fbBuilder.endTable();
   }
 

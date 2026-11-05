@@ -41,7 +41,32 @@ class SystemHandlerResponseReply(object):
             return obj
         return None
 
-def SystemHandlerResponseReplyStart(builder): builder.StartObject(2)
+    # SystemHandlerResponseReply
+    def Output(self, j):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(8))
+        if o != 0:
+            x = self._tab.Vector(o)
+            x += flatbuffers.number_types.UOffsetTFlags.py_type(j) * 4
+            x = self._tab.Indirect(x)
+            from MoorCommon.NarrativeEvent import NarrativeEvent
+            obj = NarrativeEvent()
+            obj.Init(self._tab.Bytes, x)
+            return obj
+        return None
+
+    # SystemHandlerResponseReply
+    def OutputLength(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(8))
+        if o != 0:
+            return self._tab.VectorLen(o)
+        return 0
+
+    # SystemHandlerResponseReply
+    def OutputIsNone(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(8))
+        return o == 0
+
+def SystemHandlerResponseReplyStart(builder): builder.StartObject(3)
 def Start(builder):
     return SystemHandlerResponseReplyStart(builder)
 def SystemHandlerResponseReplyAddResponseType(builder, responseType): builder.PrependUint8Slot(0, responseType, 0)
@@ -50,6 +75,12 @@ def AddResponseType(builder, responseType):
 def SystemHandlerResponseReplyAddResponse(builder, response): builder.PrependUOffsetTRelativeSlot(1, flatbuffers.number_types.UOffsetTFlags.py_type(response), 0)
 def AddResponse(builder, response):
     return SystemHandlerResponseReplyAddResponse(builder, response)
+def SystemHandlerResponseReplyAddOutput(builder, output): builder.PrependUOffsetTRelativeSlot(2, flatbuffers.number_types.UOffsetTFlags.py_type(output), 0)
+def AddOutput(builder, output):
+    return SystemHandlerResponseReplyAddOutput(builder, output)
+def SystemHandlerResponseReplyStartOutputVector(builder, numElems): return builder.StartVector(4, numElems, 4)
+def StartOutputVector(builder, numElems):
+    return SystemHandlerResponseReplyStartOutputVector(builder, numElems)
 def SystemHandlerResponseReplyEnd(builder): return builder.EndObject()
 def End(builder):
     return SystemHandlerResponseReplyEnd(builder)

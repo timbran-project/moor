@@ -21,7 +21,7 @@ use std::time::Duration;
 use crate::api::{
     self, BatchAction, BatchActionEntry, BroadcastEvent, ClientEvent, ClientEventMessage,
     ClientReply, ClientRequest, ConnectType, EntityType, HostBroadcastEvent, HostReply,
-    HostRequest, InvocationMode, ListenerInfo,
+    HostRequest, InvocationMode, ListenerInfo, TransientConnection,
 };
 use crate::{
     AuthToken, ListenerKind, RpcErr, RpcError, RpcMessageError, auth_token_fb, auth_token_from_ref,
@@ -1136,12 +1136,18 @@ pub fn decode_client_request(
                 _ => None,
             };
             let timeout_ms = invoke.timeout_ms().rpc_err()?;
+            let transient_connection = invoke
+                .transient_connection()
+                .rpc_err()?
+                .map(transient_connection_from_ref)
+                .transpose()?;
             Ok(ClientRequest::InvokeSystemHandler {
                 host_id,
                 handler_type,
                 args,
                 auth_token,
                 timeout: (timeout_ms != 0).then(|| Duration::from_millis(timeout_ms)),
+                transient_connection,
             })
         }
         U::InvokeWelcomeMessage(_) => Ok(ClientRequest::InvokeWelcomeMessage),
@@ -1189,11 +1195,30 @@ fn invocation_mode_from_ref(
         }
         moor_rpc::InvocationModeRef::CaptureOutputInvocation(capture) => {
             let timeout_ms = capture.timeout_ms().rpc_err()?;
+            let transient_connection = capture
+                .transient_connection()
+                .rpc_err()?
+                .map(transient_connection_from_ref)
+                .transpose()?;
             Ok(InvocationMode::CaptureOutput {
                 timeout: (timeout_ms != 0).then(|| Duration::from_millis(timeout_ms)),
+                transient_connection,
             })
         }
     }
+}
+
+fn transient_connection_from_ref(
+    connection: moor_rpc::TransientConnectionRef<'_>,
+) -> Result<TransientConnection, RpcMessageError> {
+    let content_types = match connection.content_types().rpc_err()? {
+        Some(content_types) => content_types
+            .iter()
+            .map(|content_type| content_type.rpc_err().map(Symbol::mk))
+            .collect::<Result<_, _>>()?,
+        None => vec![],
+    };
+    Ok(TransientConnection { content_types })
 }
 
 fn decode_history_recall(
@@ -2192,16 +2217,18 @@ mod tests {
     use moor_schema::rpc;
     use moor_var::{Obj, Symbol, v_int, v_map, v_str};
     use planus::ReadAsRoot;
+    use uuid::Uuid;
 
     use crate::{
         AuthToken, ClientToken, ListenerKind,
         api::{
             BatchAction, ClientEvent, ClientEventMessage, ClientRequest, HostBroadcastEvent,
-            HostRequest, InvocationMode, ListenerInfo,
+            HostRequest, InvocationMode, ListenerInfo, TransientConnection,
         },
         client_messages::{
-            mk_client_data_msg, mk_command_capture_msg, mk_command_msg, mk_invoke_verb_capture_msg,
-            mk_invoke_verb_msg, mk_invoke_welcome_message_msg, mk_set_client_attribute_msg,
+            mk_client_data_msg, mk_command_capture_msg, mk_command_msg,
+            mk_invoke_system_handler_msg, mk_invoke_verb_capture_msg, mk_invoke_verb_msg,
+            mk_invoke_welcome_message_msg, mk_set_client_attribute_msg,
         },
         host_messages::listener_fb,
     };
@@ -2454,6 +2481,7 @@ mod tests {
             &Obj::mk_id(0),
             "look".to_string(),
             Some(Duration::from_secs(5)),
+            None,
         )
         .unwrap();
 
@@ -2463,7 +2491,8 @@ mod tests {
         assert_eq!(
             mode,
             InvocationMode::CaptureOutput {
-                timeout: Some(Duration::from_secs(5))
+                timeout: Some(Duration::from_secs(5)),
+                transient_connection: None,
             }
         );
     }
@@ -2476,6 +2505,7 @@ mod tests {
             &Symbol::mk("look"),
             vec![],
             Some(Duration::from_secs(5)),
+            None,
         )
         .unwrap();
 
@@ -2486,7 +2516,8 @@ mod tests {
         assert_eq!(
             mode,
             InvocationMode::CaptureOutput {
-                timeout: Some(Duration::from_secs(5))
+                timeout: Some(Duration::from_secs(5)),
+                transient_connection: None,
             }
         );
     }
@@ -2501,6 +2532,7 @@ mod tests {
             &Symbol::mk("look"),
             vec![],
             None,
+            None,
         )
         .unwrap();
 
@@ -2508,7 +2540,59 @@ mod tests {
             panic!("expected InvokeVerb");
         };
 
-        assert_eq!(mode, InvocationMode::CaptureOutput { timeout: None });
+        assert_eq!(
+            mode,
+            InvocationMode::CaptureOutput {
+                timeout: None,
+                transient_connection: None,
+            }
+        );
+    }
+
+    /// A call asked to run on a transient connection says so, with what its caller renders, both
+    /// as a captured invocation and as a system handler call.
+    #[test]
+    fn a_transient_connection_survives_the_round_trip() {
+        let connection = TransientConnection {
+            content_types: vec![Symbol::mk("text/plain"), Symbol::mk("text/djot")],
+        };
+        let message = mk_invoke_verb_capture_msg(
+            &AuthToken("auth".to_string()),
+            &ObjectRef::Id(Obj::mk_id(7)),
+            &Symbol::mk("look"),
+            vec![],
+            None,
+            Some(&connection),
+        )
+        .unwrap();
+        let ClientRequest::InvokeVerb { mode, .. } = round_trip(message) else {
+            panic!("expected InvokeVerb");
+        };
+        assert_eq!(
+            mode,
+            InvocationMode::CaptureOutput {
+                timeout: None,
+                transient_connection: Some(connection.clone()),
+            }
+        );
+
+        let message = mk_invoke_system_handler_msg(
+            &Uuid::new_v4(),
+            "package",
+            vec![],
+            Some(&AuthToken("auth".to_string())),
+            None,
+            Some(&connection),
+        )
+        .unwrap();
+        let ClientRequest::InvokeSystemHandler {
+            transient_connection,
+            ..
+        } = round_trip(message)
+        else {
+            panic!("expected InvokeSystemHandler");
+        };
+        assert_eq!(transient_connection, Some(connection));
     }
 
     #[test]
@@ -2520,6 +2604,7 @@ mod tests {
                 &Symbol::mk("look"),
                 vec![],
                 Some(timeout),
+                None,
             )
         };
         assert!(build(Duration::ZERO).is_none());

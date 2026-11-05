@@ -85,7 +85,18 @@ class InvokeSystemHandler(object):
             return self._tab.Get(flatbuffers.number_types.Uint64Flags, o + self._tab.Pos)
         return 0
 
-def InvokeSystemHandlerStart(builder): builder.StartObject(5)
+    # InvokeSystemHandler
+    def TransientConnection(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(14))
+        if o != 0:
+            x = self._tab.Indirect(o + self._tab.Pos)
+            from MoorRpc.TransientConnection import TransientConnection
+            obj = TransientConnection()
+            obj.Init(self._tab.Bytes, x)
+            return obj
+        return None
+
+def InvokeSystemHandlerStart(builder): builder.StartObject(6)
 def Start(builder):
     return InvokeSystemHandlerStart(builder)
 def InvokeSystemHandlerAddHostId(builder, hostId): builder.PrependUOffsetTRelativeSlot(0, flatbuffers.number_types.UOffsetTFlags.py_type(hostId), 0)
@@ -106,6 +117,9 @@ def AddAuthToken(builder, authToken):
 def InvokeSystemHandlerAddTimeoutMs(builder, timeoutMs): builder.PrependUint64Slot(4, timeoutMs, 0)
 def AddTimeoutMs(builder, timeoutMs):
     return InvokeSystemHandlerAddTimeoutMs(builder, timeoutMs)
+def InvokeSystemHandlerAddTransientConnection(builder, transientConnection): builder.PrependUOffsetTRelativeSlot(5, flatbuffers.number_types.UOffsetTFlags.py_type(transientConnection), 0)
+def AddTransientConnection(builder, transientConnection):
+    return InvokeSystemHandlerAddTransientConnection(builder, transientConnection)
 def InvokeSystemHandlerEnd(builder): return builder.EndObject()
 def End(builder):
     return InvokeSystemHandlerEnd(builder)

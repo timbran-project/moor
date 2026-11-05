@@ -828,6 +828,15 @@ table ConnectedInvocation {
 // refused rather than quietly shortened, so a caller is never told it has longer than it does.
 table CaptureOutputInvocation {
     timeout_ms: uint64 = 0;
+    transient_connection: TransientConnection;
+}
+
+// A connection opened for the length of a captured call and closed when it finishes. The call sees
+// it among its player's connections, as its own `connection()`, and what is sent to it comes back
+// with the result, so verbs that speak to connections rather than players are heard by the caller.
+// `content_types` are what the caller renders, as a connection's acceptable content types are.
+table TransientConnection {
+    content_types: [string];
 }
 
 union InvocationMode {
@@ -976,6 +985,7 @@ table InvokeSystemHandler {
     auth_token: AuthToken;
     // Zero asks for the daemon's configured maximum.
     timeout_ms: uint64 = 0;
+    transient_connection: TransientConnection;
 }
 
 // Ask for the world's welcome message: `#0:do_login_command` with no arguments, as the system

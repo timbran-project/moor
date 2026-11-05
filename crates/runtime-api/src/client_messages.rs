@@ -15,6 +15,7 @@
 
 use crate::{
     AuthToken, ClientToken,
+    api::TransientConnection,
     helpers::{auth_token_fb, client_token_fb, obj_fb, objectref_fb, symbol_fb, uuid_fb, var_fb},
 };
 use moor_common::{config::MAX_CAPTURE_DEADLINE, model::ObjectRef};
@@ -91,12 +92,13 @@ pub fn mk_command_capture_msg(
     handler_object: &Obj,
     command: String,
     timeout: Option<Duration>,
+    transient_connection: Option<&TransientConnection>,
 ) -> Option<rpc::HostClientToDaemonMessage> {
     Some(mk_command_msg_with_mode(
         auth_token,
         handler_object,
         command,
-        capture_invocation_mode(timeout)?,
+        capture_invocation_mode(timeout, transient_connection)?,
     ))
 }
 
@@ -292,11 +294,12 @@ pub fn mk_eval_capture_msg(
     auth_token: &AuthToken,
     expression: String,
     timeout: Option<Duration>,
+    transient_connection: Option<&TransientConnection>,
 ) -> Option<rpc::HostClientToDaemonMessage> {
     Some(mk_eval_msg_with_mode(
         auth_token,
         expression,
-        capture_invocation_mode(timeout)?,
+        capture_invocation_mode(timeout, transient_connection)?,
     ))
 }
 
@@ -568,21 +571,40 @@ pub fn mk_invoke_verb_capture_msg(
     verb_name: &Symbol,
     args: Vec<&Var>,
     timeout: Option<Duration>,
+    transient_connection: Option<&TransientConnection>,
 ) -> Option<rpc::HostClientToDaemonMessage> {
     mk_invoke_verb_msg_with_mode(
         auth_token,
         object,
         verb_name,
         args,
-        capture_invocation_mode(timeout)?,
+        capture_invocation_mode(timeout, transient_connection)?,
     )
 }
 
-fn capture_invocation_mode(timeout: Option<Duration>) -> Option<rpc::InvocationMode> {
+fn capture_invocation_mode(
+    timeout: Option<Duration>,
+    transient_connection: Option<&TransientConnection>,
+) -> Option<rpc::InvocationMode> {
     let timeout_ms = capture_timeout_ms(timeout)?;
     Some(rpc::InvocationMode::CaptureOutputInvocation(Box::new(
-        rpc::CaptureOutputInvocation { timeout_ms },
+        rpc::CaptureOutputInvocation {
+            timeout_ms,
+            transient_connection: transient_connection.map(transient_connection_fb),
+        },
     )))
+}
+
+fn transient_connection_fb(connection: &TransientConnection) -> Box<rpc::TransientConnection> {
+    Box::new(rpc::TransientConnection {
+        content_types: Some(
+            connection
+                .content_types
+                .iter()
+                .map(|content_type| content_type.as_string())
+                .collect(),
+        ),
+    })
 }
 
 fn capture_timeout_ms(timeout: Option<Duration>) -> Option<u64> {
@@ -655,6 +677,7 @@ pub fn mk_invoke_system_handler_msg(
     args: Vec<&Var>,
     auth_token: Option<&AuthToken>,
     timeout: Option<Duration>,
+    transient_connection: Option<&TransientConnection>,
 ) -> Option<rpc::HostClientToDaemonMessage> {
     let args_fb: Vec<var::Var> = args.iter().filter_map(|v| var_fb(v).map(|b| *b)).collect();
 
@@ -670,6 +693,7 @@ pub fn mk_invoke_system_handler_msg(
                 args: args_fb,
                 auth_token: auth_token.map(auth_token_fb),
                 timeout_ms: capture_timeout_ms(timeout)?,
+                transient_connection: transient_connection.map(transient_connection_fb),
             },
         )),
     })

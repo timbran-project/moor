@@ -173,6 +173,7 @@ pub async fn web_hook_handler(
         args,
         auth_token: None,
         timeout: Some(Duration::from_secs(30)),
+        transient_connection: None,
     };
     debug!("System handler message created successfully");
 

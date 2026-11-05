@@ -211,7 +211,10 @@ pub async fn invoke_verb_handler(
         object: object_ref,
         verb: verb_symbol,
         args: moo_args,
-        mode: InvocationMode::CaptureOutput { timeout },
+        mode: InvocationMode::CaptureOutput {
+            timeout,
+            transient_connection: None,
+        },
     };
 
     // This endpoint answers with a bare InvocationResponse rather than the ReplyResult envelope the

@@ -27,7 +27,7 @@ use moor_kernel::{
 use moor_runtime_api::api::{
     ClientReply, ClientRequest, ConnectType, EntityType, HostReply, HostRequest, InvocationMode,
     InvocationOutcome, InvocationResponse, ObjectInfo, ServerFeatures, SystemHandlerResponse,
-    VerbProgramResponse, WorldStateResult, WorldStateResultEntry,
+    TransientConnection, VerbProgramResponse, WorldStateResult, WorldStateResultEntry,
 };
 use moor_runtime_api::{AuthToken, ClientToken, ListenerKind, RpcMessageError};
 use moor_schema::rpc as moor_rpc;
@@ -44,7 +44,7 @@ use crate::rpc::deferred_calls::{
     capture_result_response, capture_timeout_response, deadline_instants, task_on_finish,
 };
 use crate::rpc::message_handler::{DO_LOGIN_COMMAND, RpcMessageHandler};
-use crate::rpc::output_capture_session::CaptureAccumulator;
+use crate::rpc::output_capture_session::{self, CaptureAccumulator};
 use crate::runtime::{ClientReplySink, RunOnWorker, RuntimeApi};
 
 fn require_player_flags(
@@ -977,6 +977,8 @@ pub(crate) struct CaptureCall {
     submit: CaptureSubmit,
     to_reply: fn(InvocationResponse) -> ClientReply,
     pool: CallPool,
+    /// The connection to open for the call, if the caller asked for one.
+    transient_connection: Option<TransientConnection>,
 }
 
 pub(crate) enum PreparedRequest {
@@ -1023,6 +1025,7 @@ fn captured_verb_call(
         }),
         to_reply: invocation_reply,
         pool: CallPool::Authenticated,
+        transient_connection: None,
     }
 }
 
@@ -1377,7 +1380,11 @@ impl RpcMessageHandler {
                 auth_token,
                 handler_object,
                 command,
-                mode: InvocationMode::CaptureOutput { timeout },
+                mode:
+                    InvocationMode::CaptureOutput {
+                        timeout,
+                        transient_connection,
+                    },
             } => {
                 let player = self.validate_auth_token(auth_token, None)?;
                 let deadline = self.capture_deadline(timeout)?;
@@ -1398,12 +1405,17 @@ impl RpcMessageHandler {
                     }),
                     to_reply: invocation_reply,
                     pool: CallPool::Authenticated,
+                    transient_connection,
                 }
             }
             ClientRequest::Eval {
                 auth_token,
                 expression,
-                mode: InvocationMode::CaptureOutput { timeout },
+                mode:
+                    InvocationMode::CaptureOutput {
+                        timeout,
+                        transient_connection,
+                    },
             } => {
                 let player = self.validate_auth_token(auth_token, None)?;
                 let deadline = self.capture_deadline(timeout)?;
@@ -1420,6 +1432,7 @@ impl RpcMessageHandler {
                     }),
                     to_reply: invocation_reply,
                     pool: CallPool::Authenticated,
+                    transient_connection,
                 }
             }
             ClientRequest::InvokeVerb {
@@ -1427,7 +1440,11 @@ impl RpcMessageHandler {
                 object,
                 verb,
                 args,
-                mode: InvocationMode::CaptureOutput { timeout },
+                mode:
+                    InvocationMode::CaptureOutput {
+                        timeout,
+                        transient_connection,
+                    },
             } => {
                 let player = self.validate_auth_token(auth_token, None)?;
                 let deadline = self.capture_deadline(timeout)?;
@@ -1440,7 +1457,10 @@ impl RpcMessageHandler {
                     deadline = ?deadline,
                     "Submitting captured invoke-verb request"
                 );
-                captured_verb_call(client_id, player, object, verb, args, deadline)
+                CaptureCall {
+                    transient_connection,
+                    ..captured_verb_call(client_id, player, object, verb, args, deadline)
+                }
             }
             ClientRequest::InvokeSystemHandler {
                 host_id: _,
@@ -1448,6 +1468,7 @@ impl RpcMessageHandler {
                 args,
                 auth_token,
                 timeout,
+                transient_connection,
             } => {
                 // Anyone can send a webhook, so calls with no credentials have their own limit.
                 let (player, pool) = match auth_token {
@@ -1474,6 +1495,7 @@ impl RpcMessageHandler {
                     }),
                     to_reply: system_handler_reply,
                     pool,
+                    transient_connection,
                 }
             }
             ClientRequest::InvokeWelcomeMessage => {
@@ -1526,15 +1548,27 @@ impl RpcMessageHandler {
             submit,
             to_reply,
             pool: _,
+            transient_connection,
         } = call;
         let expires_at = Instant::now() + deadline;
 
-        let session = Arc::new(OutputCaptureSession::new(
+        let mut session = OutputCaptureSession::new(
             client_id,
             player,
             self.event_log.clone(),
             self.mailbox_sender.clone(),
-        ));
+        );
+        if let Some(TransientConnection { content_types }) = transient_connection {
+            let connection = self.connections.reserve_connection_id()?;
+            debug!(?operation, %player, %connection, "Opening a transient connection");
+            session =
+                session.with_transient_connection(output_capture_session::TransientConnection {
+                    connection,
+                    content_types,
+                    registry: self.connections.clone(),
+                });
+        }
+        let session = Arc::new(session);
         // Held separately: a conflict retry replaces the session the task runs under, but every
         // session in that lineage accumulates into this one buffer.
         let output = session.accumulator();

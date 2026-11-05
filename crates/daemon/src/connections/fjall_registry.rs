@@ -693,6 +693,21 @@ impl FjallConnectionRegistry {
         }))
     }
 
+    /// The next connection object from the persisted sequence, which only counts down, so an object
+    /// handed out once is never handed out again.
+    fn next_connection_id(inner: &mut FjallInner) -> Result<Obj, RpcMessageError> {
+        let id = inner.connection_id_sequence;
+        inner.connection_id_sequence -= 1;
+        inner
+            .connection_id_sequence_table
+            .insert(
+                "connection_id_sequence",
+                inner.connection_id_sequence.to_le_bytes(),
+            )
+            .map_err(|e| RpcMessageError::InternalError(e.to_string()))?;
+        Ok(Obj::mk_id(id))
+    }
+
     /// Get connection records for an object, checking both connection_records and player_clients tables.
     fn get_connections_record(inner: &FjallInner, obj: Obj) -> Option<ConnectionsRecords> {
         let oid_bytes = obj.as_bytes();
@@ -991,6 +1006,11 @@ impl ConnectionRegistry for FjallConnectionRegistry {
         Ok(client_ids)
     }
 
+    fn reserve_connection_id(&self) -> Result<Obj, RpcMessageError> {
+        let mut inner = self.inner.lock().unwrap();
+        Self::next_connection_id(&mut inner)
+    }
+
     fn new_connection(&self, params: NewConnectionParams) -> Result<Obj, RpcMessageError> {
         let NewConnectionParams {
             client_id,
@@ -1003,20 +1023,7 @@ impl ConnectionRegistry for FjallConnectionRegistry {
         } = params;
 
         let mut inner = self.inner.lock().unwrap();
-
-        // Allocate connection ID
-        let connection_id = {
-            let id = inner.connection_id_sequence;
-            inner.connection_id_sequence -= 1;
-            inner
-                .connection_id_sequence_table
-                .insert(
-                    "connection_id_sequence",
-                    inner.connection_id_sequence.to_le_bytes(),
-                )
-                .map_err(|e| RpcMessageError::InternalError(e.to_string()))?;
-            Obj::mk_id(id)
-        };
+        let connection_id = Self::next_connection_id(&mut inner)?;
 
         let now = SystemTime::now();
 

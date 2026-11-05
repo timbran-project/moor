@@ -527,10 +527,17 @@ mod tests {
                     &handler_object,
                     command,
                 )),
-                InvocationMode::CaptureOutput { timeout } => {
-                    mk_command_capture_msg(&auth_token, &handler_object, command, timeout)
-                        .ok_or_else(|| "Failed to encode captured command".to_string())
-                }
+                InvocationMode::CaptureOutput {
+                    timeout,
+                    transient_connection,
+                } => mk_command_capture_msg(
+                    &auth_token,
+                    &handler_object,
+                    command,
+                    timeout,
+                    transient_connection.as_ref(),
+                )
+                .ok_or_else(|| "Failed to encode captured command".to_string()),
             },
             ClientRequest::ClientPong {
                 client_token,

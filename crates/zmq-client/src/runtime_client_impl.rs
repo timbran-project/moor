@@ -262,11 +262,19 @@ fn encode_client_request(
             InvocationMode::Connected { client_token } => {
                 mk_command_msg(&client_token, &auth_token, &handler_object, command)
             }
-            InvocationMode::CaptureOutput { timeout } => {
-                mk_command_capture_msg(&auth_token, &handler_object, command, timeout).ok_or_else(
-                    || RpcError::CouldNotDecode("Failed to encode captured command".to_string()),
-                )?
-            }
+            InvocationMode::CaptureOutput {
+                timeout,
+                transient_connection,
+            } => mk_command_capture_msg(
+                &auth_token,
+                &handler_object,
+                command,
+                timeout,
+                transient_connection.as_ref(),
+            )
+            .ok_or_else(|| {
+                RpcError::CouldNotDecode("Failed to encode captured command".to_string())
+            })?,
         },
         ClientRequest::Detach {
             client_token,
@@ -313,11 +321,18 @@ fn encode_client_request(
             InvocationMode::Connected { client_token } => {
                 mk_eval_msg(&client_token, &auth_token, expression)
             }
-            InvocationMode::CaptureOutput { timeout } => {
-                mk_eval_capture_msg(&auth_token, expression, timeout).ok_or_else(|| {
-                    RpcError::CouldNotDecode("Failed to encode captured eval".to_string())
-                })?
-            }
+            InvocationMode::CaptureOutput {
+                timeout,
+                transient_connection,
+            } => mk_eval_capture_msg(
+                &auth_token,
+                expression,
+                timeout,
+                transient_connection.as_ref(),
+            )
+            .ok_or_else(|| {
+                RpcError::CouldNotDecode("Failed to encode captured eval".to_string())
+            })?,
         },
         ClientRequest::InvokeVerb {
             auth_token,
@@ -331,9 +346,17 @@ fn encode_client_request(
                 InvocationMode::Connected { client_token } => {
                     mk_invoke_verb_msg(&client_token, &auth_token, &object, &verb, args_refs)
                 }
-                InvocationMode::CaptureOutput { timeout } => {
-                    mk_invoke_verb_capture_msg(&auth_token, &object, &verb, args_refs, timeout)
-                }
+                InvocationMode::CaptureOutput {
+                    timeout,
+                    transient_connection,
+                } => mk_invoke_verb_capture_msg(
+                    &auth_token,
+                    &object,
+                    &verb,
+                    args_refs,
+                    timeout,
+                    transient_connection.as_ref(),
+                ),
             };
             msg.ok_or_else(|| {
                 RpcError::CouldNotDecode("Failed to encode invoke verb args".to_string())
@@ -412,6 +435,7 @@ fn encode_client_request(
             args,
             auth_token,
             timeout,
+            transient_connection,
         } => {
             let args_refs: Vec<&Var> = args.iter().collect();
             mk_invoke_system_handler_msg(
@@ -420,6 +444,7 @@ fn encode_client_request(
                 args_refs,
                 auth_token.as_ref(),
                 timeout,
+                transient_connection.as_ref(),
             )
             .ok_or_else(|| {
                 RpcError::CouldNotDecode("Failed to encode invoke system handler args".to_string())

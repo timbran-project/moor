@@ -489,8 +489,22 @@ pub enum InvocationMode {
     Connected { client_token: ClientToken },
     /// Run with no connection behind the call, collect the narrative output the root task commits,
     /// and reply once it finishes. `timeout` bounds the wait; `None` asks for the daemon's
-    /// configured maximum.
-    CaptureOutput { timeout: Option<Duration> },
+    /// configured maximum. With a `transient_connection`, the call runs on a connection opened
+    /// for it, whose output is collected too.
+    CaptureOutput {
+        timeout: Option<Duration>,
+        transient_connection: Option<TransientConnection>,
+    },
+}
+
+/// A connection opened for the length of a captured call and closed when it finishes. The call
+/// sees it among its player's connections, and as its own `connection()`, and what is sent to it is
+/// collected with the call's output, so verbs that speak to a player's connections, rather than to
+/// the player, are heard by the caller.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TransientConnection {
+    /// What the caller renders, as a connection's acceptable content types are.
+    pub content_types: Vec<Symbol>,
 }
 
 /// Requests a client (via a host) sends to the daemon.
@@ -667,6 +681,7 @@ pub enum ClientRequest {
         args: Vec<Var>,
         auth_token: Option<AuthToken>,
         timeout: Option<Duration>,
+        transient_connection: Option<TransientConnection>,
     },
     InvokeWelcomeMessage,
     BatchWorldState {
