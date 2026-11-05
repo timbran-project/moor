@@ -14,6 +14,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.0 series (`main`) branch
 
+- The daemon's connection registry keeps its state in memory and writes it to disk from a thread of
+  its own, so looking up a player's connections, which every event sent to a player and every
+  `connection()` and `connections()` does, no longer takes a lock, reads the database, or waits
+  behind a player connecting, a ping or a flush, and nothing a session or a request does waits on
+  the disk. Changes reach the disk within a second, and connection objects are reserved on disk in
+  blocks before they're handed out, so none is handed out twice even after a crash. Connections
+  restored when the daemon restarts are given the usual time to answer a ping rather than expiring
+  at the first check, which dropped those whose last ping on disk was more than 30 seconds old. A
+  connection logged in again as another player is no longer also left among the first player's
+  connections. The database is one table of clients instead of five kept in step by hand; one in the
+  earlier layout is migrated when the daemon starts, and records that don't decode, aren't
+  connections, or claim a connection another has are dropped then rather than left to a periodic
+  prune.
+
 - `--metrics-file` makes the server write its metrics to a file in the Prometheus text format every
   10 seconds, or as often as `--metrics-interval-seconds` sets. Serve the file with node_exporter or
   a web server for Prometheus or vmagent to scrape. It includes timing histograms and cache sizes

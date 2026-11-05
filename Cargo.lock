@@ -1292,7 +1292,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d045de693cb712d0b22c6a64be5b953f67b3ce00ab5ad3dd5d8b441886ab8e1a"
 dependencies = [
  "quote",
- "syn 3.0.9",
+ "syn 2.0.119",
 ]
 
 [[package]]
@@ -4166,9 +4166,9 @@ dependencies = [
 
 [[package]]
 name = "micromeasure"
-version = "0.16.0"
+version = "0.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ccf8ae277d139c9623f01ef41dc6334e3701ae9a8c4a71017cc9daff1e8a477"
+checksum = "a3f07a9d01d55f55c60cc42b21fe211b39882c25e8f6ce5fb648415885d68310"
 dependencies = [
  "libc",
  "perf-event2",
@@ -4384,6 +4384,8 @@ dependencies = [
  "fast-telemetry",
  "fjall",
  "flume",
+ "imbl",
+ "micromeasure",
  "mimalloc",
  "moor-common",
  "moor-compiler",
