@@ -112,8 +112,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   content types the caller renders, runs on a connection opened for it. `connection()` returns it,
   `connections()` lists it with the player's own, and what is sent to it comes back with the call's
   output. What goes to the player's other connections is delivered to them as usual. It closes when
-  the call finishes; a forked task doesn't have it. Without the field, captured calls run with no
-  connection as before, and older daemons ignore it.
+  the call finishes; a forked task doesn't have it, but still finds the player's registered
+  connections. Without the field, captured calls run with no connection as before, and older daemons
+  ignore it.
 - `suspend_if_needed()` also commits when the task is close to its time limit, not only its tick
   limit, so work that is slow per tick no longer runs out of time. A second argument sets how many
   seconds to keep in reserve (default one second, or half the limit if shorter), and a third,
