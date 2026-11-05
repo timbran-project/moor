@@ -18,6 +18,10 @@
 //
 // Note: This schema is daemon-specific and doesn't need to be shared with
 // other crates since connection records are an internal daemon concern.
+//
+// StoredClient is what the registry keeps: one per client, keyed by its id. The tables after it
+// are the layout the registry used before, kept only to read a database it wrote, once, when it
+// is opened.
 
 include "../../../schema/schema/common.fbs";
 include "../../../schema/schema/var.fbs";
@@ -27,6 +31,42 @@ namespace MoorConnections;
 // ============================================================================
 // Connection Registry Persistence Types
 // ============================================================================
+
+// One client and its connection: who it is logged in as, whose history it is in, where it
+// connected from, what it renders, and the attributes its host set.
+table StoredClient {
+    client_id_high: uint64;
+    client_id_low: uint64;
+    // The connection object, the player and the history owner, as Obj bytes. A client that isn't
+    // logged in has no player, and one that never was has no history owner.
+    connection: [uint8] (required);
+    player: [uint8];
+    history: [uint8];
+    // When the client joined its player, as a sequence the registry keeps: its player's clients
+    // are in this order.
+    joined: uint64;
+    connected_secs: uint64;
+    connected_nanos: uint32;
+    last_activity_secs: uint64;
+    last_activity_nanos: uint32;
+    last_ping_secs: uint64;
+    last_ping_nanos: uint32;
+    hostname: string (required);
+    local_port: uint16;
+    remote_port: uint16;
+    content_types: [string] (required);
+    attributes: [StoredAttribute] (required);
+}
+
+// An attribute: its name, and its value as a MoorVar.Var flatbuffer.
+table StoredAttribute {
+    key: string (required);
+    value: [uint8] (required);
+}
+
+// ----------------------------------------------------------------------------
+// The layout before StoredClient, read only to migrate from it.
+// ----------------------------------------------------------------------------
 
 // Wrapper for a byte array (used for Symbol and Var serialization)
 table ByteArray {

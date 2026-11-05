@@ -5,19 +5,1614 @@ const _: () = ::planus::check_version_compatibility("planus-1.3.0");
 /// The root namespace
 ///
 /// Generated from these locations:
-/// * File `crates/daemon/src/connections/connections.fbs`
+/// * File `connections/connections.fbs`
 #[no_implicit_prelude]
 #[allow(clippy::needless_lifetimes)]
 mod root {
     /// The namespace `MoorConnections`
     ///
     /// Generated from these locations:
-    /// * File `crates/daemon/src/connections/connections.fbs`
+    /// * File `connections/connections.fbs`
     pub mod moor_connections {
+        /// The table `StoredClient` in the namespace `MoorConnections`
+        ///
+        /// Generated from these locations:
+        /// * Table `StoredClient` in the file `connections/connections.fbs:37`
+        #[derive(
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        pub struct StoredClient {
+            /// The field `client_id_high` in the table `StoredClient`
+            pub client_id_high: u64,
+            /// The field `client_id_low` in the table `StoredClient`
+            pub client_id_low: u64,
+            /// The field `connection` in the table `StoredClient`
+            pub connection: ::planus::alloc::vec::Vec<u8>,
+            /// The field `player` in the table `StoredClient`
+            pub player: ::core::option::Option<::planus::alloc::vec::Vec<u8>>,
+            /// The field `history` in the table `StoredClient`
+            pub history: ::core::option::Option<::planus::alloc::vec::Vec<u8>>,
+            /// The field `joined` in the table `StoredClient`
+            pub joined: u64,
+            /// The field `connected_secs` in the table `StoredClient`
+            pub connected_secs: u64,
+            /// The field `connected_nanos` in the table `StoredClient`
+            pub connected_nanos: u32,
+            /// The field `last_activity_secs` in the table `StoredClient`
+            pub last_activity_secs: u64,
+            /// The field `last_activity_nanos` in the table `StoredClient`
+            pub last_activity_nanos: u32,
+            /// The field `last_ping_secs` in the table `StoredClient`
+            pub last_ping_secs: u64,
+            /// The field `last_ping_nanos` in the table `StoredClient`
+            pub last_ping_nanos: u32,
+            /// The field `hostname` in the table `StoredClient`
+            pub hostname: ::planus::alloc::string::String,
+            /// The field `local_port` in the table `StoredClient`
+            pub local_port: u16,
+            /// The field `remote_port` in the table `StoredClient`
+            pub remote_port: u16,
+            /// The field `content_types` in the table `StoredClient`
+            pub content_types: ::planus::alloc::vec::Vec<::planus::alloc::string::String>,
+            /// The field `attributes` in the table `StoredClient`
+            pub attributes: ::planus::alloc::vec::Vec<self::StoredAttribute>,
+        }
+
+        #[allow(clippy::derivable_impls)]
+        impl ::core::default::Default for StoredClient {
+            fn default() -> Self {
+                Self {
+                    client_id_high: 0,
+                    client_id_low: 0,
+                    connection: ::core::default::Default::default(),
+                    player: ::core::default::Default::default(),
+                    history: ::core::default::Default::default(),
+                    joined: 0,
+                    connected_secs: 0,
+                    connected_nanos: 0,
+                    last_activity_secs: 0,
+                    last_activity_nanos: 0,
+                    last_ping_secs: 0,
+                    last_ping_nanos: 0,
+                    hostname: ::core::default::Default::default(),
+                    local_port: 0,
+                    remote_port: 0,
+                    content_types: ::core::default::Default::default(),
+                    attributes: ::core::default::Default::default(),
+                }
+            }
+        }
+
+        impl StoredClient {
+            /// Creates a [StoredClientBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> StoredClientBuilder<()> {
+                StoredClientBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(
+                builder: &mut ::planus::Builder,
+                field_client_id_high: impl ::planus::WriteAsDefault<u64, u64>,
+                field_client_id_low: impl ::planus::WriteAsDefault<u64, u64>,
+                field_connection: impl ::planus::WriteAs<::planus::Offset<[u8]>>,
+                field_player: impl ::planus::WriteAsOptional<::planus::Offset<[u8]>>,
+                field_history: impl ::planus::WriteAsOptional<::planus::Offset<[u8]>>,
+                field_joined: impl ::planus::WriteAsDefault<u64, u64>,
+                field_connected_secs: impl ::planus::WriteAsDefault<u64, u64>,
+                field_connected_nanos: impl ::planus::WriteAsDefault<u32, u32>,
+                field_last_activity_secs: impl ::planus::WriteAsDefault<u64, u64>,
+                field_last_activity_nanos: impl ::planus::WriteAsDefault<u32, u32>,
+                field_last_ping_secs: impl ::planus::WriteAsDefault<u64, u64>,
+                field_last_ping_nanos: impl ::planus::WriteAsDefault<u32, u32>,
+                field_hostname: impl ::planus::WriteAs<::planus::Offset<str>>,
+                field_local_port: impl ::planus::WriteAsDefault<u16, u16>,
+                field_remote_port: impl ::planus::WriteAsDefault<u16, u16>,
+                field_content_types: impl ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
+                field_attributes: impl ::planus::WriteAs<
+                    ::planus::Offset<[::planus::Offset<self::StoredAttribute>]>,
+                >,
+            ) -> ::planus::Offset<Self> {
+                let prepared_client_id_high = field_client_id_high.prepare(builder, &0);
+                let prepared_client_id_low = field_client_id_low.prepare(builder, &0);
+                let prepared_connection = field_connection.prepare(builder);
+                let prepared_player = field_player.prepare(builder);
+                let prepared_history = field_history.prepare(builder);
+                let prepared_joined = field_joined.prepare(builder, &0);
+                let prepared_connected_secs = field_connected_secs.prepare(builder, &0);
+                let prepared_connected_nanos = field_connected_nanos.prepare(builder, &0);
+                let prepared_last_activity_secs = field_last_activity_secs.prepare(builder, &0);
+                let prepared_last_activity_nanos = field_last_activity_nanos.prepare(builder, &0);
+                let prepared_last_ping_secs = field_last_ping_secs.prepare(builder, &0);
+                let prepared_last_ping_nanos = field_last_ping_nanos.prepare(builder, &0);
+                let prepared_hostname = field_hostname.prepare(builder);
+                let prepared_local_port = field_local_port.prepare(builder, &0);
+                let prepared_remote_port = field_remote_port.prepare(builder, &0);
+                let prepared_content_types = field_content_types.prepare(builder);
+                let prepared_attributes = field_attributes.prepare(builder);
+
+                let mut table_writer: ::planus::table_writer::TableWriter<38> =
+                    ::core::default::Default::default();
+                if prepared_client_id_high.is_some() {
+                    table_writer.write_entry::<u64>(0);
+                }
+                if prepared_client_id_low.is_some() {
+                    table_writer.write_entry::<u64>(1);
+                }
+                if prepared_joined.is_some() {
+                    table_writer.write_entry::<u64>(5);
+                }
+                if prepared_connected_secs.is_some() {
+                    table_writer.write_entry::<u64>(6);
+                }
+                if prepared_last_activity_secs.is_some() {
+                    table_writer.write_entry::<u64>(8);
+                }
+                if prepared_last_ping_secs.is_some() {
+                    table_writer.write_entry::<u64>(10);
+                }
+                table_writer.write_entry::<::planus::Offset<[u8]>>(2);
+                if prepared_player.is_some() {
+                    table_writer.write_entry::<::planus::Offset<[u8]>>(3);
+                }
+                if prepared_history.is_some() {
+                    table_writer.write_entry::<::planus::Offset<[u8]>>(4);
+                }
+                if prepared_connected_nanos.is_some() {
+                    table_writer.write_entry::<u32>(7);
+                }
+                if prepared_last_activity_nanos.is_some() {
+                    table_writer.write_entry::<u32>(9);
+                }
+                if prepared_last_ping_nanos.is_some() {
+                    table_writer.write_entry::<u32>(11);
+                }
+                table_writer.write_entry::<::planus::Offset<str>>(12);
+                table_writer.write_entry::<::planus::Offset<[::planus::Offset<str>]>>(15);
+                table_writer
+                    .write_entry::<::planus::Offset<[::planus::Offset<self::StoredAttribute>]>>(16);
+                if prepared_local_port.is_some() {
+                    table_writer.write_entry::<u16>(13);
+                }
+                if prepared_remote_port.is_some() {
+                    table_writer.write_entry::<u16>(14);
+                }
+
+                unsafe {
+                    table_writer.finish(builder, |object_writer| {
+                        if let ::core::option::Option::Some(prepared_client_id_high) =
+                            prepared_client_id_high
+                        {
+                            object_writer.write::<_, _, 8>(&prepared_client_id_high);
+                        }
+                        if let ::core::option::Option::Some(prepared_client_id_low) =
+                            prepared_client_id_low
+                        {
+                            object_writer.write::<_, _, 8>(&prepared_client_id_low);
+                        }
+                        if let ::core::option::Option::Some(prepared_joined) = prepared_joined {
+                            object_writer.write::<_, _, 8>(&prepared_joined);
+                        }
+                        if let ::core::option::Option::Some(prepared_connected_secs) =
+                            prepared_connected_secs
+                        {
+                            object_writer.write::<_, _, 8>(&prepared_connected_secs);
+                        }
+                        if let ::core::option::Option::Some(prepared_last_activity_secs) =
+                            prepared_last_activity_secs
+                        {
+                            object_writer.write::<_, _, 8>(&prepared_last_activity_secs);
+                        }
+                        if let ::core::option::Option::Some(prepared_last_ping_secs) =
+                            prepared_last_ping_secs
+                        {
+                            object_writer.write::<_, _, 8>(&prepared_last_ping_secs);
+                        }
+                        object_writer.write::<_, _, 4>(&prepared_connection);
+                        if let ::core::option::Option::Some(prepared_player) = prepared_player {
+                            object_writer.write::<_, _, 4>(&prepared_player);
+                        }
+                        if let ::core::option::Option::Some(prepared_history) = prepared_history {
+                            object_writer.write::<_, _, 4>(&prepared_history);
+                        }
+                        if let ::core::option::Option::Some(prepared_connected_nanos) =
+                            prepared_connected_nanos
+                        {
+                            object_writer.write::<_, _, 4>(&prepared_connected_nanos);
+                        }
+                        if let ::core::option::Option::Some(prepared_last_activity_nanos) =
+                            prepared_last_activity_nanos
+                        {
+                            object_writer.write::<_, _, 4>(&prepared_last_activity_nanos);
+                        }
+                        if let ::core::option::Option::Some(prepared_last_ping_nanos) =
+                            prepared_last_ping_nanos
+                        {
+                            object_writer.write::<_, _, 4>(&prepared_last_ping_nanos);
+                        }
+                        object_writer.write::<_, _, 4>(&prepared_hostname);
+                        object_writer.write::<_, _, 4>(&prepared_content_types);
+                        object_writer.write::<_, _, 4>(&prepared_attributes);
+                        if let ::core::option::Option::Some(prepared_local_port) =
+                            prepared_local_port
+                        {
+                            object_writer.write::<_, _, 2>(&prepared_local_port);
+                        }
+                        if let ::core::option::Option::Some(prepared_remote_port) =
+                            prepared_remote_port
+                        {
+                            object_writer.write::<_, _, 2>(&prepared_remote_port);
+                        }
+                    });
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<StoredClient>> for StoredClient {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<StoredClient> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<StoredClient>> for StoredClient {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<StoredClient>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<StoredClient> for StoredClient {
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<StoredClient> {
+                StoredClient::create(
+                    builder,
+                    self.client_id_high,
+                    self.client_id_low,
+                    &self.connection,
+                    &self.player,
+                    &self.history,
+                    self.joined,
+                    self.connected_secs,
+                    self.connected_nanos,
+                    self.last_activity_secs,
+                    self.last_activity_nanos,
+                    self.last_ping_secs,
+                    self.last_ping_nanos,
+                    &self.hostname,
+                    self.local_port,
+                    self.remote_port,
+                    &self.content_types,
+                    &self.attributes,
+                )
+            }
+        }
+
+        /// Builder for serializing an instance of the [StoredClient] type.
+        ///
+        /// Can be created using the [StoredClient::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct StoredClientBuilder<State>(State);
+
+        impl StoredClientBuilder<()> {
+            /// Setter for the [`client_id_high` field](StoredClient#structfield.client_id_high).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn client_id_high<T0>(self, value: T0) -> StoredClientBuilder<(T0,)>
+            where
+                T0: ::planus::WriteAsDefault<u64, u64>,
+            {
+                StoredClientBuilder((value,))
+            }
+
+            /// Sets the [`client_id_high` field](StoredClient#structfield.client_id_high) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn client_id_high_as_default(
+                self,
+            ) -> StoredClientBuilder<(::planus::DefaultValue,)> {
+                self.client_id_high(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0> StoredClientBuilder<(T0,)> {
+            /// Setter for the [`client_id_low` field](StoredClient#structfield.client_id_low).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn client_id_low<T1>(self, value: T1) -> StoredClientBuilder<(T0, T1)>
+            where
+                T1: ::planus::WriteAsDefault<u64, u64>,
+            {
+                let (v0,) = self.0;
+                StoredClientBuilder((v0, value))
+            }
+
+            /// Sets the [`client_id_low` field](StoredClient#structfield.client_id_low) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn client_id_low_as_default(
+                self,
+            ) -> StoredClientBuilder<(T0, ::planus::DefaultValue)> {
+                self.client_id_low(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0, T1> StoredClientBuilder<(T0, T1)> {
+            /// Setter for the [`connection` field](StoredClient#structfield.connection).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn connection<T2>(self, value: T2) -> StoredClientBuilder<(T0, T1, T2)>
+            where
+                T2: ::planus::WriteAs<::planus::Offset<[u8]>>,
+            {
+                let (v0, v1) = self.0;
+                StoredClientBuilder((v0, v1, value))
+            }
+        }
+
+        impl<T0, T1, T2> StoredClientBuilder<(T0, T1, T2)> {
+            /// Setter for the [`player` field](StoredClient#structfield.player).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn player<T3>(self, value: T3) -> StoredClientBuilder<(T0, T1, T2, T3)>
+            where
+                T3: ::planus::WriteAsOptional<::planus::Offset<[u8]>>,
+            {
+                let (v0, v1, v2) = self.0;
+                StoredClientBuilder((v0, v1, v2, value))
+            }
+
+            /// Sets the [`player` field](StoredClient#structfield.player) to null.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn player_as_null(self) -> StoredClientBuilder<(T0, T1, T2, ())> {
+                self.player(())
+            }
+        }
+
+        impl<T0, T1, T2, T3> StoredClientBuilder<(T0, T1, T2, T3)> {
+            /// Setter for the [`history` field](StoredClient#structfield.history).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn history<T4>(self, value: T4) -> StoredClientBuilder<(T0, T1, T2, T3, T4)>
+            where
+                T4: ::planus::WriteAsOptional<::planus::Offset<[u8]>>,
+            {
+                let (v0, v1, v2, v3) = self.0;
+                StoredClientBuilder((v0, v1, v2, v3, value))
+            }
+
+            /// Sets the [`history` field](StoredClient#structfield.history) to null.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn history_as_null(self) -> StoredClientBuilder<(T0, T1, T2, T3, ())> {
+                self.history(())
+            }
+        }
+
+        impl<T0, T1, T2, T3, T4> StoredClientBuilder<(T0, T1, T2, T3, T4)> {
+            /// Setter for the [`joined` field](StoredClient#structfield.joined).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn joined<T5>(self, value: T5) -> StoredClientBuilder<(T0, T1, T2, T3, T4, T5)>
+            where
+                T5: ::planus::WriteAsDefault<u64, u64>,
+            {
+                let (v0, v1, v2, v3, v4) = self.0;
+                StoredClientBuilder((v0, v1, v2, v3, v4, value))
+            }
+
+            /// Sets the [`joined` field](StoredClient#structfield.joined) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn joined_as_default(
+                self,
+            ) -> StoredClientBuilder<(T0, T1, T2, T3, T4, ::planus::DefaultValue)> {
+                self.joined(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0, T1, T2, T3, T4, T5> StoredClientBuilder<(T0, T1, T2, T3, T4, T5)> {
+            /// Setter for the [`connected_secs` field](StoredClient#structfield.connected_secs).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn connected_secs<T6>(
+                self,
+                value: T6,
+            ) -> StoredClientBuilder<(T0, T1, T2, T3, T4, T5, T6)>
+            where
+                T6: ::planus::WriteAsDefault<u64, u64>,
+            {
+                let (v0, v1, v2, v3, v4, v5) = self.0;
+                StoredClientBuilder((v0, v1, v2, v3, v4, v5, value))
+            }
+
+            /// Sets the [`connected_secs` field](StoredClient#structfield.connected_secs) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn connected_secs_as_default(
+                self,
+            ) -> StoredClientBuilder<(T0, T1, T2, T3, T4, T5, ::planus::DefaultValue)> {
+                self.connected_secs(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0, T1, T2, T3, T4, T5, T6> StoredClientBuilder<(T0, T1, T2, T3, T4, T5, T6)> {
+            /// Setter for the [`connected_nanos` field](StoredClient#structfield.connected_nanos).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn connected_nanos<T7>(
+                self,
+                value: T7,
+            ) -> StoredClientBuilder<(T0, T1, T2, T3, T4, T5, T6, T7)>
+            where
+                T7: ::planus::WriteAsDefault<u32, u32>,
+            {
+                let (v0, v1, v2, v3, v4, v5, v6) = self.0;
+                StoredClientBuilder((v0, v1, v2, v3, v4, v5, v6, value))
+            }
+
+            /// Sets the [`connected_nanos` field](StoredClient#structfield.connected_nanos) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn connected_nanos_as_default(
+                self,
+            ) -> StoredClientBuilder<(T0, T1, T2, T3, T4, T5, T6, ::planus::DefaultValue)>
+            {
+                self.connected_nanos(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0, T1, T2, T3, T4, T5, T6, T7> StoredClientBuilder<(T0, T1, T2, T3, T4, T5, T6, T7)> {
+            /// Setter for the [`last_activity_secs` field](StoredClient#structfield.last_activity_secs).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn last_activity_secs<T8>(
+                self,
+                value: T8,
+            ) -> StoredClientBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8)>
+            where
+                T8: ::planus::WriteAsDefault<u64, u64>,
+            {
+                let (v0, v1, v2, v3, v4, v5, v6, v7) = self.0;
+                StoredClientBuilder((v0, v1, v2, v3, v4, v5, v6, v7, value))
+            }
+
+            /// Sets the [`last_activity_secs` field](StoredClient#structfield.last_activity_secs) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn last_activity_secs_as_default(
+                self,
+            ) -> StoredClientBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, ::planus::DefaultValue)>
+            {
+                self.last_activity_secs(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0, T1, T2, T3, T4, T5, T6, T7, T8> StoredClientBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8)> {
+            /// Setter for the [`last_activity_nanos` field](StoredClient#structfield.last_activity_nanos).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn last_activity_nanos<T9>(
+                self,
+                value: T9,
+            ) -> StoredClientBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9)>
+            where
+                T9: ::planus::WriteAsDefault<u32, u32>,
+            {
+                let (v0, v1, v2, v3, v4, v5, v6, v7, v8) = self.0;
+                StoredClientBuilder((v0, v1, v2, v3, v4, v5, v6, v7, v8, value))
+            }
+
+            /// Sets the [`last_activity_nanos` field](StoredClient#structfield.last_activity_nanos) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn last_activity_nanos_as_default(
+                self,
+            ) -> StoredClientBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8, ::planus::DefaultValue)>
+            {
+                self.last_activity_nanos(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9>
+            StoredClientBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9)>
+        {
+            /// Setter for the [`last_ping_secs` field](StoredClient#structfield.last_ping_secs).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn last_ping_secs<T10>(
+                self,
+                value: T10,
+            ) -> StoredClientBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10)>
+            where
+                T10: ::planus::WriteAsDefault<u64, u64>,
+            {
+                let (v0, v1, v2, v3, v4, v5, v6, v7, v8, v9) = self.0;
+                StoredClientBuilder((v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, value))
+            }
+
+            /// Sets the [`last_ping_secs` field](StoredClient#structfield.last_ping_secs) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn last_ping_secs_as_default(
+                self,
+            ) -> StoredClientBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                ::planus::DefaultValue,
+            )> {
+                self.last_ping_secs(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10>
+            StoredClientBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10)>
+        {
+            /// Setter for the [`last_ping_nanos` field](StoredClient#structfield.last_ping_nanos).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn last_ping_nanos<T11>(
+                self,
+                value: T11,
+            ) -> StoredClientBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11)>
+            where
+                T11: ::planus::WriteAsDefault<u32, u32>,
+            {
+                let (v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10) = self.0;
+                StoredClientBuilder((v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, value))
+            }
+
+            /// Sets the [`last_ping_nanos` field](StoredClient#structfield.last_ping_nanos) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn last_ping_nanos_as_default(
+                self,
+            ) -> StoredClientBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                ::planus::DefaultValue,
+            )> {
+                self.last_ping_nanos(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11>
+            StoredClientBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11)>
+        {
+            /// Setter for the [`hostname` field](StoredClient#structfield.hostname).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn hostname<T12>(
+                self,
+                value: T12,
+            ) -> StoredClientBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12)>
+            where
+                T12: ::planus::WriteAs<::planus::Offset<str>>,
+            {
+                let (v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11) = self.0;
+                StoredClientBuilder((v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, value))
+            }
+        }
+
+        impl<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12>
+            StoredClientBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12)>
+        {
+            /// Setter for the [`local_port` field](StoredClient#structfield.local_port).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn local_port<T13>(
+                self,
+                value: T13,
+            ) -> StoredClientBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13)>
+            where
+                T13: ::planus::WriteAsDefault<u16, u16>,
+            {
+                let (v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12) = self.0;
+                StoredClientBuilder((v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, value))
+            }
+
+            /// Sets the [`local_port` field](StoredClient#structfield.local_port) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn local_port_as_default(
+                self,
+            ) -> StoredClientBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                ::planus::DefaultValue,
+            )> {
+                self.local_port(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13>
+            StoredClientBuilder<(T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13)>
+        {
+            /// Setter for the [`remote_port` field](StoredClient#structfield.remote_port).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn remote_port<T14>(
+                self,
+                value: T14,
+            ) -> StoredClientBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+            )>
+            where
+                T14: ::planus::WriteAsDefault<u16, u16>,
+            {
+                let (v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13) = self.0;
+                StoredClientBuilder((
+                    v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, value,
+                ))
+            }
+
+            /// Sets the [`remote_port` field](StoredClient#structfield.remote_port) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn remote_port_as_default(
+                self,
+            ) -> StoredClientBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                ::planus::DefaultValue,
+            )> {
+                self.remote_port(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14>
+            StoredClientBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+            )>
+        {
+            /// Setter for the [`content_types` field](StoredClient#structfield.content_types).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn content_types<T15>(
+                self,
+                value: T15,
+            ) -> StoredClientBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+            )>
+            where
+                T15: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
+            {
+                let (v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14) = self.0;
+                StoredClientBuilder((
+                    v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, value,
+                ))
+            }
+        }
+
+        impl<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15>
+            StoredClientBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+            )>
+        {
+            /// Setter for the [`attributes` field](StoredClient#structfield.attributes).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn attributes<T16>(
+                self,
+                value: T16,
+            ) -> StoredClientBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+            )>
+            where
+                T16: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredAttribute>]>>,
+            {
+                let (v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15) = self.0;
+                StoredClientBuilder((
+                    v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, value,
+                ))
+            }
+        }
+
+        impl<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16>
+            StoredClientBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+            )>
+        {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [StoredClient].
+            #[inline]
+            pub fn finish(self, builder: &mut ::planus::Builder) -> ::planus::Offset<StoredClient>
+            where
+                Self: ::planus::WriteAsOffset<StoredClient>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAsDefault<u64, u64>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAs<::planus::Offset<[u8]>>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<[u8]>>,
+            T4: ::planus::WriteAsOptional<::planus::Offset<[u8]>>,
+            T5: ::planus::WriteAsDefault<u64, u64>,
+            T6: ::planus::WriteAsDefault<u64, u64>,
+            T7: ::planus::WriteAsDefault<u32, u32>,
+            T8: ::planus::WriteAsDefault<u64, u64>,
+            T9: ::planus::WriteAsDefault<u32, u32>,
+            T10: ::planus::WriteAsDefault<u64, u64>,
+            T11: ::planus::WriteAsDefault<u32, u32>,
+            T12: ::planus::WriteAs<::planus::Offset<str>>,
+            T13: ::planus::WriteAsDefault<u16, u16>,
+            T14: ::planus::WriteAsDefault<u16, u16>,
+            T15: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
+            T16: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredAttribute>]>>,
+        > ::planus::WriteAs<::planus::Offset<StoredClient>>
+            for StoredClientBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+            )>
+        {
+            type Prepared = ::planus::Offset<StoredClient>;
+
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<StoredClient> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAsDefault<u64, u64>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAs<::planus::Offset<[u8]>>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<[u8]>>,
+            T4: ::planus::WriteAsOptional<::planus::Offset<[u8]>>,
+            T5: ::planus::WriteAsDefault<u64, u64>,
+            T6: ::planus::WriteAsDefault<u64, u64>,
+            T7: ::planus::WriteAsDefault<u32, u32>,
+            T8: ::planus::WriteAsDefault<u64, u64>,
+            T9: ::planus::WriteAsDefault<u32, u32>,
+            T10: ::planus::WriteAsDefault<u64, u64>,
+            T11: ::planus::WriteAsDefault<u32, u32>,
+            T12: ::planus::WriteAs<::planus::Offset<str>>,
+            T13: ::planus::WriteAsDefault<u16, u16>,
+            T14: ::planus::WriteAsDefault<u16, u16>,
+            T15: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
+            T16: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredAttribute>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<StoredClient>>
+            for StoredClientBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+            )>
+        {
+            type Prepared = ::planus::Offset<StoredClient>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<StoredClient>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAsDefault<u64, u64>,
+            T1: ::planus::WriteAsDefault<u64, u64>,
+            T2: ::planus::WriteAs<::planus::Offset<[u8]>>,
+            T3: ::planus::WriteAsOptional<::planus::Offset<[u8]>>,
+            T4: ::planus::WriteAsOptional<::planus::Offset<[u8]>>,
+            T5: ::planus::WriteAsDefault<u64, u64>,
+            T6: ::planus::WriteAsDefault<u64, u64>,
+            T7: ::planus::WriteAsDefault<u32, u32>,
+            T8: ::planus::WriteAsDefault<u64, u64>,
+            T9: ::planus::WriteAsDefault<u32, u32>,
+            T10: ::planus::WriteAsDefault<u64, u64>,
+            T11: ::planus::WriteAsDefault<u32, u32>,
+            T12: ::planus::WriteAs<::planus::Offset<str>>,
+            T13: ::planus::WriteAsDefault<u16, u16>,
+            T14: ::planus::WriteAsDefault<u16, u16>,
+            T15: ::planus::WriteAs<::planus::Offset<[::planus::Offset<str>]>>,
+            T16: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredAttribute>]>>,
+        > ::planus::WriteAsOffset<StoredClient>
+            for StoredClientBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+            )>
+        {
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<StoredClient> {
+                let (v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16) =
+                    &self.0;
+                StoredClient::create(
+                    builder, v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15,
+                    v16,
+                )
+            }
+        }
+
+        /// Reference to a deserialized [StoredClient].
+        #[derive(Copy, Clone)]
+        pub struct StoredClientRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+
+        impl<'a> StoredClientRef<'a> {
+            /// Getter for the [`client_id_high` field](StoredClient#structfield.client_id_high).
+            #[inline]
+            pub fn client_id_high(&self) -> ::planus::Result<u64> {
+                ::core::result::Result::Ok(
+                    self.0
+                        .access(0, "StoredClient", "client_id_high")?
+                        .unwrap_or(0),
+                )
+            }
+
+            /// Getter for the [`client_id_low` field](StoredClient#structfield.client_id_low).
+            #[inline]
+            pub fn client_id_low(&self) -> ::planus::Result<u64> {
+                ::core::result::Result::Ok(
+                    self.0
+                        .access(1, "StoredClient", "client_id_low")?
+                        .unwrap_or(0),
+                )
+            }
+
+            /// Getter for the [`connection` field](StoredClient#structfield.connection).
+            #[inline]
+            pub fn connection(&self) -> ::planus::Result<&'a [u8]> {
+                self.0.access_required(2, "StoredClient", "connection")
+            }
+
+            /// Getter for the [`player` field](StoredClient#structfield.player).
+            #[inline]
+            pub fn player(&self) -> ::planus::Result<::core::option::Option<&'a [u8]>> {
+                self.0.access(3, "StoredClient", "player")
+            }
+
+            /// Getter for the [`history` field](StoredClient#structfield.history).
+            #[inline]
+            pub fn history(&self) -> ::planus::Result<::core::option::Option<&'a [u8]>> {
+                self.0.access(4, "StoredClient", "history")
+            }
+
+            /// Getter for the [`joined` field](StoredClient#structfield.joined).
+            #[inline]
+            pub fn joined(&self) -> ::planus::Result<u64> {
+                ::core::result::Result::Ok(self.0.access(5, "StoredClient", "joined")?.unwrap_or(0))
+            }
+
+            /// Getter for the [`connected_secs` field](StoredClient#structfield.connected_secs).
+            #[inline]
+            pub fn connected_secs(&self) -> ::planus::Result<u64> {
+                ::core::result::Result::Ok(
+                    self.0
+                        .access(6, "StoredClient", "connected_secs")?
+                        .unwrap_or(0),
+                )
+            }
+
+            /// Getter for the [`connected_nanos` field](StoredClient#structfield.connected_nanos).
+            #[inline]
+            pub fn connected_nanos(&self) -> ::planus::Result<u32> {
+                ::core::result::Result::Ok(
+                    self.0
+                        .access(7, "StoredClient", "connected_nanos")?
+                        .unwrap_or(0),
+                )
+            }
+
+            /// Getter for the [`last_activity_secs` field](StoredClient#structfield.last_activity_secs).
+            #[inline]
+            pub fn last_activity_secs(&self) -> ::planus::Result<u64> {
+                ::core::result::Result::Ok(
+                    self.0
+                        .access(8, "StoredClient", "last_activity_secs")?
+                        .unwrap_or(0),
+                )
+            }
+
+            /// Getter for the [`last_activity_nanos` field](StoredClient#structfield.last_activity_nanos).
+            #[inline]
+            pub fn last_activity_nanos(&self) -> ::planus::Result<u32> {
+                ::core::result::Result::Ok(
+                    self.0
+                        .access(9, "StoredClient", "last_activity_nanos")?
+                        .unwrap_or(0),
+                )
+            }
+
+            /// Getter for the [`last_ping_secs` field](StoredClient#structfield.last_ping_secs).
+            #[inline]
+            pub fn last_ping_secs(&self) -> ::planus::Result<u64> {
+                ::core::result::Result::Ok(
+                    self.0
+                        .access(10, "StoredClient", "last_ping_secs")?
+                        .unwrap_or(0),
+                )
+            }
+
+            /// Getter for the [`last_ping_nanos` field](StoredClient#structfield.last_ping_nanos).
+            #[inline]
+            pub fn last_ping_nanos(&self) -> ::planus::Result<u32> {
+                ::core::result::Result::Ok(
+                    self.0
+                        .access(11, "StoredClient", "last_ping_nanos")?
+                        .unwrap_or(0),
+                )
+            }
+
+            /// Getter for the [`hostname` field](StoredClient#structfield.hostname).
+            #[inline]
+            pub fn hostname(&self) -> ::planus::Result<&'a ::core::primitive::str> {
+                self.0.access_required(12, "StoredClient", "hostname")
+            }
+
+            /// Getter for the [`local_port` field](StoredClient#structfield.local_port).
+            #[inline]
+            pub fn local_port(&self) -> ::planus::Result<u16> {
+                ::core::result::Result::Ok(
+                    self.0
+                        .access(13, "StoredClient", "local_port")?
+                        .unwrap_or(0),
+                )
+            }
+
+            /// Getter for the [`remote_port` field](StoredClient#structfield.remote_port).
+            #[inline]
+            pub fn remote_port(&self) -> ::planus::Result<u16> {
+                ::core::result::Result::Ok(
+                    self.0
+                        .access(14, "StoredClient", "remote_port")?
+                        .unwrap_or(0),
+                )
+            }
+
+            /// Getter for the [`content_types` field](StoredClient#structfield.content_types).
+            #[inline]
+            pub fn content_types(
+                &self,
+            ) -> ::planus::Result<::planus::Vector<'a, ::planus::Result<&'a ::core::primitive::str>>>
+            {
+                self.0.access_required(15, "StoredClient", "content_types")
+            }
+
+            /// Getter for the [`attributes` field](StoredClient#structfield.attributes).
+            #[inline]
+            pub fn attributes(
+                &self,
+            ) -> ::planus::Result<
+                ::planus::Vector<'a, ::planus::Result<self::StoredAttributeRef<'a>>>,
+            > {
+                self.0.access_required(16, "StoredClient", "attributes")
+            }
+        }
+
+        impl<'a> ::core::fmt::Debug for StoredClientRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("StoredClientRef");
+                f.field("client_id_high", &self.client_id_high());
+                f.field("client_id_low", &self.client_id_low());
+                f.field("connection", &self.connection());
+                if let ::core::option::Option::Some(field_player) = self.player().transpose() {
+                    f.field("player", &field_player);
+                }
+                if let ::core::option::Option::Some(field_history) = self.history().transpose() {
+                    f.field("history", &field_history);
+                }
+                f.field("joined", &self.joined());
+                f.field("connected_secs", &self.connected_secs());
+                f.field("connected_nanos", &self.connected_nanos());
+                f.field("last_activity_secs", &self.last_activity_secs());
+                f.field("last_activity_nanos", &self.last_activity_nanos());
+                f.field("last_ping_secs", &self.last_ping_secs());
+                f.field("last_ping_nanos", &self.last_ping_nanos());
+                f.field("hostname", &self.hostname());
+                f.field("local_port", &self.local_port());
+                f.field("remote_port", &self.remote_port());
+                f.field("content_types", &self.content_types());
+                f.field("attributes", &self.attributes());
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<StoredClientRef<'a>> for StoredClient {
+            type Error = ::planus::Error;
+
+            #[allow(unreachable_code)]
+            fn try_from(value: StoredClientRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {
+                    client_id_high: ::core::convert::TryInto::try_into(value.client_id_high()?)?,
+                    client_id_low: ::core::convert::TryInto::try_into(value.client_id_low()?)?,
+                    connection: value.connection()?.to_vec(),
+                    player: value.player()?.map(|v| v.to_vec()),
+                    history: value.history()?.map(|v| v.to_vec()),
+                    joined: ::core::convert::TryInto::try_into(value.joined()?)?,
+                    connected_secs: ::core::convert::TryInto::try_into(value.connected_secs()?)?,
+                    connected_nanos: ::core::convert::TryInto::try_into(value.connected_nanos()?)?,
+                    last_activity_secs: ::core::convert::TryInto::try_into(
+                        value.last_activity_secs()?,
+                    )?,
+                    last_activity_nanos: ::core::convert::TryInto::try_into(
+                        value.last_activity_nanos()?,
+                    )?,
+                    last_ping_secs: ::core::convert::TryInto::try_into(value.last_ping_secs()?)?,
+                    last_ping_nanos: ::core::convert::TryInto::try_into(value.last_ping_nanos()?)?,
+                    hostname: ::core::convert::Into::into(value.hostname()?),
+                    local_port: ::core::convert::TryInto::try_into(value.local_port()?)?,
+                    remote_port: ::core::convert::TryInto::try_into(value.remote_port()?)?,
+                    content_types: value.content_types()?.to_vec_result()?,
+                    attributes: value.attributes()?.to_vec_result()?,
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for StoredClientRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for StoredClientRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[StoredClientRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<StoredClient>> for StoredClient {
+            type Value = ::planus::Offset<StoredClient>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<StoredClient>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for StoredClientRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[StoredClientRef]", "read_as_root", 0)
+                })
+            }
+        }
+
+        /// The table `StoredAttribute` in the namespace `MoorConnections`
+        ///
+        /// Generated from these locations:
+        /// * Table `StoredAttribute` in the file `connections/connections.fbs:62`
+        #[derive(
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        pub struct StoredAttribute {
+            /// The field `key` in the table `StoredAttribute`
+            pub key: ::planus::alloc::string::String,
+            /// The field `value` in the table `StoredAttribute`
+            pub value: ::planus::alloc::vec::Vec<u8>,
+        }
+
+        #[allow(clippy::derivable_impls)]
+        impl ::core::default::Default for StoredAttribute {
+            fn default() -> Self {
+                Self {
+                    key: ::core::default::Default::default(),
+                    value: ::core::default::Default::default(),
+                }
+            }
+        }
+
+        impl StoredAttribute {
+            /// Creates a [StoredAttributeBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> StoredAttributeBuilder<()> {
+                StoredAttributeBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(
+                builder: &mut ::planus::Builder,
+                field_key: impl ::planus::WriteAs<::planus::Offset<str>>,
+                field_value: impl ::planus::WriteAs<::planus::Offset<[u8]>>,
+            ) -> ::planus::Offset<Self> {
+                let prepared_key = field_key.prepare(builder);
+                let prepared_value = field_value.prepare(builder);
+
+                let mut table_writer: ::planus::table_writer::TableWriter<8> =
+                    ::core::default::Default::default();
+                table_writer.write_entry::<::planus::Offset<str>>(0);
+                table_writer.write_entry::<::planus::Offset<[u8]>>(1);
+
+                unsafe {
+                    table_writer.finish(builder, |object_writer| {
+                        object_writer.write::<_, _, 4>(&prepared_key);
+                        object_writer.write::<_, _, 4>(&prepared_value);
+                    });
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<StoredAttribute>> for StoredAttribute {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<StoredAttribute> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<StoredAttribute>> for StoredAttribute {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<StoredAttribute>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<StoredAttribute> for StoredAttribute {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<StoredAttribute> {
+                StoredAttribute::create(builder, &self.key, &self.value)
+            }
+        }
+
+        /// Builder for serializing an instance of the [StoredAttribute] type.
+        ///
+        /// Can be created using the [StoredAttribute::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct StoredAttributeBuilder<State>(State);
+
+        impl StoredAttributeBuilder<()> {
+            /// Setter for the [`key` field](StoredAttribute#structfield.key).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn key<T0>(self, value: T0) -> StoredAttributeBuilder<(T0,)>
+            where
+                T0: ::planus::WriteAs<::planus::Offset<str>>,
+            {
+                StoredAttributeBuilder((value,))
+            }
+        }
+
+        impl<T0> StoredAttributeBuilder<(T0,)> {
+            /// Setter for the [`value` field](StoredAttribute#structfield.value).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn value<T1>(self, value: T1) -> StoredAttributeBuilder<(T0, T1)>
+            where
+                T1: ::planus::WriteAs<::planus::Offset<[u8]>>,
+            {
+                let (v0,) = self.0;
+                StoredAttributeBuilder((v0, value))
+            }
+        }
+
+        impl<T0, T1> StoredAttributeBuilder<(T0, T1)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [StoredAttribute].
+            #[inline]
+            pub fn finish(
+                self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<StoredAttribute>
+            where
+                Self: ::planus::WriteAsOffset<StoredAttribute>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<[u8]>>,
+        > ::planus::WriteAs<::planus::Offset<StoredAttribute>>
+            for StoredAttributeBuilder<(T0, T1)>
+        {
+            type Prepared = ::planus::Offset<StoredAttribute>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<StoredAttribute> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<[u8]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<StoredAttribute>>
+            for StoredAttributeBuilder<(T0, T1)>
+        {
+            type Prepared = ::planus::Offset<StoredAttribute>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<StoredAttribute>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<[u8]>>,
+        > ::planus::WriteAsOffset<StoredAttribute> for StoredAttributeBuilder<(T0, T1)>
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<StoredAttribute> {
+                let (v0, v1) = &self.0;
+                StoredAttribute::create(builder, v0, v1)
+            }
+        }
+
+        /// Reference to a deserialized [StoredAttribute].
+        #[derive(Copy, Clone)]
+        pub struct StoredAttributeRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+
+        impl<'a> StoredAttributeRef<'a> {
+            /// Getter for the [`key` field](StoredAttribute#structfield.key).
+            #[inline]
+            pub fn key(&self) -> ::planus::Result<&'a ::core::primitive::str> {
+                self.0.access_required(0, "StoredAttribute", "key")
+            }
+
+            /// Getter for the [`value` field](StoredAttribute#structfield.value).
+            #[inline]
+            pub fn value(&self) -> ::planus::Result<&'a [u8]> {
+                self.0.access_required(1, "StoredAttribute", "value")
+            }
+        }
+
+        impl<'a> ::core::fmt::Debug for StoredAttributeRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("StoredAttributeRef");
+                f.field("key", &self.key());
+                f.field("value", &self.value());
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<StoredAttributeRef<'a>> for StoredAttribute {
+            type Error = ::planus::Error;
+
+            #[allow(unreachable_code)]
+            fn try_from(value: StoredAttributeRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {
+                    key: ::core::convert::Into::into(value.key()?),
+                    value: value.value()?.to_vec(),
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for StoredAttributeRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for StoredAttributeRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[StoredAttributeRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<StoredAttribute>> for StoredAttribute {
+            type Value = ::planus::Offset<StoredAttribute>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<StoredAttribute>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for StoredAttributeRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[StoredAttributeRef]", "read_as_root", 0)
+                })
+            }
+        }
+
         /// The table `ByteArray` in the namespace `MoorConnections`
         ///
         /// Generated from these locations:
-        /// * Table `ByteArray` in the file `crates/daemon/src/connections/connections.fbs:32`
+        /// * Table `ByteArray` in the file `connections/connections.fbs:72`
         #[derive(
             Clone,
             Debug,
@@ -270,7 +1865,7 @@ mod root {
         /// The table `ClientAttribute` in the namespace `MoorConnections`
         ///
         /// Generated from these locations:
-        /// * Table `ClientAttribute` in the file `crates/daemon/src/connections/connections.fbs:37`
+        /// * Table `ClientAttribute` in the file `connections/connections.fbs:77`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ClientAttribute {
             /// The field `key` in the table `ClientAttribute`
@@ -558,7 +2153,7 @@ mod root {
         /// The table `ConnectionRecord` in the namespace `MoorConnections`
         ///
         /// Generated from these locations:
-        /// * Table `ConnectionRecord` in the file `crates/daemon/src/connections/connections.fbs:43`
+        /// * Table `ConnectionRecord` in the file `connections/connections.fbs:83`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ConnectionRecord {
             /// The field `client_id_high` in the table `ConnectionRecord`
@@ -1475,7 +3070,7 @@ mod root {
         /// The table `ConnectionsRecords` in the namespace `MoorConnections`
         ///
         /// Generated from these locations:
-        /// * Table `ConnectionsRecords` in the file `crates/daemon/src/connections/connections.fbs:62`
+        /// * Table `ConnectionsRecords` in the file `connections/connections.fbs:102`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ConnectionsRecords {
             /// The field `connections` in the table `ConnectionsRecords`
@@ -1743,12 +3338,12 @@ mod root {
     /// The namespace `MoorCommon`
     ///
     /// Generated from these locations:
-    /// * File `crates/schema/schema/common.fbs`
+    /// * File `../../schema/schema/common.fbs`
     pub mod moor_common {
         /// The table `VarBytes` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `VarBytes` in the file `crates/schema/schema/common.fbs:30`
+        /// * Table `VarBytes` in the file `../../schema/schema/common.fbs:30`
         #[derive(
             Clone,
             Debug,
@@ -1997,7 +3592,7 @@ mod root {
         /// The table `Symbol` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `Symbol` in the file `crates/schema/schema/common.fbs:34`
+        /// * Table `Symbol` in the file `../../schema/schema/common.fbs:34`
         #[derive(
             Clone,
             Debug,
@@ -2246,7 +3841,7 @@ mod root {
         /// The table `Uuid` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `Uuid` in the file `crates/schema/schema/common.fbs:38`
+        /// * Table `Uuid` in the file `../../schema/schema/common.fbs:38`
         #[derive(
             Clone,
             Debug,
@@ -2495,7 +4090,7 @@ mod root {
         /// The union `ObjUnion` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Union `ObjUnion` in the file `crates/schema/schema/common.fbs:46`
+        /// * Union `ObjUnion` in the file `../../schema/schema/common.fbs:46`
         #[derive(
             Clone,
             Debug,
@@ -2751,7 +4346,7 @@ mod root {
         /// The table `ObjId` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `ObjId` in the file `crates/schema/schema/common.fbs:52`
+        /// * Table `ObjId` in the file `../../schema/schema/common.fbs:52`
         #[derive(
             Clone,
             Debug,
@@ -3009,7 +4604,7 @@ mod root {
         /// The table `UuObjId` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `UuObjId` in the file `crates/schema/schema/common.fbs:56`
+        /// * Table `UuObjId` in the file `../../schema/schema/common.fbs:56`
         #[derive(
             Clone,
             Debug,
@@ -3271,7 +4866,7 @@ mod root {
         /// The table `AnonymousObjId` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `AnonymousObjId` in the file `crates/schema/schema/common.fbs:61`
+        /// * Table `AnonymousObjId` in the file `../../schema/schema/common.fbs:61`
         #[derive(
             Clone,
             Debug,
@@ -3542,7 +5137,7 @@ mod root {
         /// The table `Obj` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `Obj` in the file `crates/schema/schema/common.fbs:66`
+        /// * Table `Obj` in the file `../../schema/schema/common.fbs:66`
         #[derive(
             Clone,
             Debug,
@@ -3782,7 +5377,7 @@ mod root {
         /// The enum `ErrorCode` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Enum `ErrorCode` in the file `crates/schema/schema/common.fbs:74`
+        /// * Enum `ErrorCode` in the file `../../schema/schema/common.fbs:74`
         #[derive(
             Copy,
             Clone,
@@ -4044,7 +5639,7 @@ mod root {
         /// The table `Error` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `Error` in the file `crates/schema/schema/common.fbs:97`
+        /// * Table `Error` in the file `../../schema/schema/common.fbs:97`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct Error {
             /// The field `err_type` in the table `Error`
@@ -4463,7 +6058,7 @@ mod root {
         /// The table `NarrativeEvent` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `NarrativeEvent` in the file `crates/schema/schema/common.fbs:108`
+        /// * Table `NarrativeEvent` in the file `../../schema/schema/common.fbs:108`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct NarrativeEvent {
             /// The field `event_id` in the table `NarrativeEvent`
@@ -4822,7 +6417,7 @@ mod root {
         /// The union `EventUnion` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Union `EventUnion` in the file `crates/schema/schema/common.fbs:115`
+        /// * Union `EventUnion` in the file `../../schema/schema/common.fbs:115`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum EventUnion {
             /// The variant of type `NotifyEvent` in the union `EventUnion`
@@ -5206,7 +6801,7 @@ mod root {
         /// The table `EventMetadata` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `EventMetadata` in the file `crates/schema/schema/common.fbs:123`
+        /// * Table `EventMetadata` in the file `../../schema/schema/common.fbs:123`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct EventMetadata {
             /// The field `key` in the table `EventMetadata`
@@ -5478,7 +7073,7 @@ mod root {
         /// The table `NotifyEvent` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `NotifyEvent` in the file `crates/schema/schema/common.fbs:128`
+        /// * Table `NotifyEvent` in the file `../../schema/schema/common.fbs:128`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct NotifyEvent {
             /// The field `value` in the table `NotifyEvent`
@@ -5939,7 +7534,7 @@ mod root {
         /// The table `PresentEvent` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `PresentEvent` in the file `crates/schema/schema/common.fbs:136`
+        /// * Table `PresentEvent` in the file `../../schema/schema/common.fbs:136`
         #[derive(
             Clone,
             Debug,
@@ -6195,7 +7790,7 @@ mod root {
         /// The table `UnpresentEvent` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `UnpresentEvent` in the file `crates/schema/schema/common.fbs:140`
+        /// * Table `UnpresentEvent` in the file `../../schema/schema/common.fbs:140`
         #[derive(
             Clone,
             Debug,
@@ -6450,7 +8045,7 @@ mod root {
         /// The table `TracebackEvent` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `TracebackEvent` in the file `crates/schema/schema/common.fbs:144`
+        /// * Table `TracebackEvent` in the file `../../schema/schema/common.fbs:144`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct TracebackEvent {
             /// The field `exception` in the table `TracebackEvent`
@@ -6696,7 +8291,7 @@ mod root {
         /// The table `DataEvent` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `DataEvent` in the file `crates/schema/schema/common.fbs:148`
+        /// * Table `DataEvent` in the file `../../schema/schema/common.fbs:148`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct DataEvent {
             /// The field `domain` in the table `DataEvent`
@@ -6705,6 +8300,8 @@ mod root {
             pub kind: ::planus::alloc::boxed::Box<self::Symbol>,
             /// The field `payload` in the table `DataEvent`
             pub payload: ::planus::alloc::boxed::Box<super::moor_var::Var>,
+            /// The field `ephemeral` in the table `DataEvent`
+            pub ephemeral: bool,
         }
 
         impl DataEvent {
@@ -6720,22 +8317,31 @@ mod root {
                 field_domain: impl ::planus::WriteAs<::planus::Offset<self::Symbol>>,
                 field_kind: impl ::planus::WriteAs<::planus::Offset<self::Symbol>>,
                 field_payload: impl ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+                field_ephemeral: impl ::planus::WriteAsDefault<bool, bool>,
             ) -> ::planus::Offset<Self> {
                 let prepared_domain = field_domain.prepare(builder);
                 let prepared_kind = field_kind.prepare(builder);
                 let prepared_payload = field_payload.prepare(builder);
+                let prepared_ephemeral = field_ephemeral.prepare(builder, &false);
 
-                let mut table_writer: ::planus::table_writer::TableWriter<10> =
+                let mut table_writer: ::planus::table_writer::TableWriter<12> =
                     ::core::default::Default::default();
                 table_writer.write_entry::<::planus::Offset<self::Symbol>>(0);
                 table_writer.write_entry::<::planus::Offset<self::Symbol>>(1);
                 table_writer.write_entry::<::planus::Offset<super::moor_var::Var>>(2);
+                if prepared_ephemeral.is_some() {
+                    table_writer.write_entry::<bool>(3);
+                }
 
                 unsafe {
                     table_writer.finish(builder, |object_writer| {
                         object_writer.write::<_, _, 4>(&prepared_domain);
                         object_writer.write::<_, _, 4>(&prepared_kind);
                         object_writer.write::<_, _, 4>(&prepared_payload);
+                        if let ::core::option::Option::Some(prepared_ephemeral) = prepared_ephemeral
+                        {
+                            object_writer.write::<_, _, 1>(&prepared_ephemeral);
+                        }
                     });
                 }
                 builder.current_offset()
@@ -6766,7 +8372,13 @@ mod root {
         impl ::planus::WriteAsOffset<DataEvent> for DataEvent {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<DataEvent> {
-                DataEvent::create(builder, &self.domain, &self.kind, &self.payload)
+                DataEvent::create(
+                    builder,
+                    &self.domain,
+                    &self.kind,
+                    &self.payload,
+                    self.ephemeral,
+                )
             }
         }
 
@@ -6816,6 +8428,28 @@ mod root {
         }
 
         impl<T0, T1, T2> DataEventBuilder<(T0, T1, T2)> {
+            /// Setter for the [`ephemeral` field](DataEvent#structfield.ephemeral).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn ephemeral<T3>(self, value: T3) -> DataEventBuilder<(T0, T1, T2, T3)>
+            where
+                T3: ::planus::WriteAsDefault<bool, bool>,
+            {
+                let (v0, v1, v2) = self.0;
+                DataEventBuilder((v0, v1, v2, value))
+            }
+
+            /// Sets the [`ephemeral` field](DataEvent#structfield.ephemeral) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn ephemeral_as_default(
+                self,
+            ) -> DataEventBuilder<(T0, T1, T2, ::planus::DefaultValue)> {
+                self.ephemeral(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0, T1, T2, T3> DataEventBuilder<(T0, T1, T2, T3)> {
             /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [DataEvent].
             #[inline]
             pub fn finish(self, builder: &mut ::planus::Builder) -> ::planus::Offset<DataEvent>
@@ -6830,7 +8464,8 @@ mod root {
             T0: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
             T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
             T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-        > ::planus::WriteAs<::planus::Offset<DataEvent>> for DataEventBuilder<(T0, T1, T2)>
+            T3: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAs<::planus::Offset<DataEvent>> for DataEventBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<DataEvent>;
 
@@ -6844,8 +8479,9 @@ mod root {
             T0: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
             T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
             T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            T3: ::planus::WriteAsDefault<bool, bool>,
         > ::planus::WriteAsOptional<::planus::Offset<DataEvent>>
-            for DataEventBuilder<(T0, T1, T2)>
+            for DataEventBuilder<(T0, T1, T2, T3)>
         {
             type Prepared = ::planus::Offset<DataEvent>;
 
@@ -6862,12 +8498,13 @@ mod root {
             T0: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
             T1: ::planus::WriteAs<::planus::Offset<self::Symbol>>,
             T2: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-        > ::planus::WriteAsOffset<DataEvent> for DataEventBuilder<(T0, T1, T2)>
+            T3: ::planus::WriteAsDefault<bool, bool>,
+        > ::planus::WriteAsOffset<DataEvent> for DataEventBuilder<(T0, T1, T2, T3)>
         {
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<DataEvent> {
-                let (v0, v1, v2) = &self.0;
-                DataEvent::create(builder, v0, v1, v2)
+                let (v0, v1, v2, v3) = &self.0;
+                DataEvent::create(builder, v0, v1, v2, v3)
             }
         }
 
@@ -6893,6 +8530,14 @@ mod root {
             pub fn payload(&self) -> ::planus::Result<super::moor_var::VarRef<'a>> {
                 self.0.access_required(2, "DataEvent", "payload")
             }
+
+            /// Getter for the [`ephemeral` field](DataEvent#structfield.ephemeral).
+            #[inline]
+            pub fn ephemeral(&self) -> ::planus::Result<bool> {
+                ::core::result::Result::Ok(
+                    self.0.access(3, "DataEvent", "ephemeral")?.unwrap_or(false),
+                )
+            }
         }
 
         impl<'a> ::core::fmt::Debug for DataEventRef<'a> {
@@ -6901,6 +8546,7 @@ mod root {
                 f.field("domain", &self.domain());
                 f.field("kind", &self.kind());
                 f.field("payload", &self.payload());
+                f.field("ephemeral", &self.ephemeral());
                 f.finish()
             }
         }
@@ -6920,6 +8566,7 @@ mod root {
                     payload: ::planus::alloc::boxed::Box::new(::core::convert::TryInto::try_into(
                         value.payload()?,
                     )?),
+                    ephemeral: ::core::convert::TryInto::try_into(value.ephemeral()?)?,
                 })
             }
         }
@@ -6997,10 +8644,296 @@ mod root {
             }
         }
 
+        /// The table `ClientDataMessage` in the namespace `MoorCommon`
+        ///
+        /// Generated from these locations:
+        /// * Table `ClientDataMessage` in the file `../../schema/schema/common.fbs:158`
+        #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
+        pub struct ClientDataMessage {
+            /// The field `kind` in the table `ClientDataMessage`
+            pub kind: ::planus::alloc::string::String,
+            /// The field `payload` in the table `ClientDataMessage`
+            pub payload: ::planus::alloc::boxed::Box<super::moor_var::Var>,
+        }
+
+        impl ClientDataMessage {
+            /// Creates a [ClientDataMessageBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> ClientDataMessageBuilder<()> {
+                ClientDataMessageBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(
+                builder: &mut ::planus::Builder,
+                field_kind: impl ::planus::WriteAs<::planus::Offset<str>>,
+                field_payload: impl ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            ) -> ::planus::Offset<Self> {
+                let prepared_kind = field_kind.prepare(builder);
+                let prepared_payload = field_payload.prepare(builder);
+
+                let mut table_writer: ::planus::table_writer::TableWriter<8> =
+                    ::core::default::Default::default();
+                table_writer.write_entry::<::planus::Offset<str>>(0);
+                table_writer.write_entry::<::planus::Offset<super::moor_var::Var>>(1);
+
+                unsafe {
+                    table_writer.finish(builder, |object_writer| {
+                        object_writer.write::<_, _, 4>(&prepared_kind);
+                        object_writer.write::<_, _, 4>(&prepared_payload);
+                    });
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<ClientDataMessage>> for ClientDataMessage {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<ClientDataMessage> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<ClientDataMessage>> for ClientDataMessage {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<ClientDataMessage>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<ClientDataMessage> for ClientDataMessage {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<ClientDataMessage> {
+                ClientDataMessage::create(builder, &self.kind, &self.payload)
+            }
+        }
+
+        /// Builder for serializing an instance of the [ClientDataMessage] type.
+        ///
+        /// Can be created using the [ClientDataMessage::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct ClientDataMessageBuilder<State>(State);
+
+        impl ClientDataMessageBuilder<()> {
+            /// Setter for the [`kind` field](ClientDataMessage#structfield.kind).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn kind<T0>(self, value: T0) -> ClientDataMessageBuilder<(T0,)>
+            where
+                T0: ::planus::WriteAs<::planus::Offset<str>>,
+            {
+                ClientDataMessageBuilder((value,))
+            }
+        }
+
+        impl<T0> ClientDataMessageBuilder<(T0,)> {
+            /// Setter for the [`payload` field](ClientDataMessage#structfield.payload).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn payload<T1>(self, value: T1) -> ClientDataMessageBuilder<(T0, T1)>
+            where
+                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            {
+                let (v0,) = self.0;
+                ClientDataMessageBuilder((v0, value))
+            }
+        }
+
+        impl<T0, T1> ClientDataMessageBuilder<(T0, T1)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [ClientDataMessage].
+            #[inline]
+            pub fn finish(
+                self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<ClientDataMessage>
+            where
+                Self: ::planus::WriteAsOffset<ClientDataMessage>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAs<::planus::Offset<ClientDataMessage>>
+            for ClientDataMessageBuilder<(T0, T1)>
+        {
+            type Prepared = ::planus::Offset<ClientDataMessage>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<ClientDataMessage> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOptional<::planus::Offset<ClientDataMessage>>
+            for ClientDataMessageBuilder<(T0, T1)>
+        {
+            type Prepared = ::planus::Offset<ClientDataMessage>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<ClientDataMessage>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAs<::planus::Offset<str>>,
+            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+        > ::planus::WriteAsOffset<ClientDataMessage> for ClientDataMessageBuilder<(T0, T1)>
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<ClientDataMessage> {
+                let (v0, v1) = &self.0;
+                ClientDataMessage::create(builder, v0, v1)
+            }
+        }
+
+        /// Reference to a deserialized [ClientDataMessage].
+        #[derive(Copy, Clone)]
+        pub struct ClientDataMessageRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+
+        impl<'a> ClientDataMessageRef<'a> {
+            /// Getter for the [`kind` field](ClientDataMessage#structfield.kind).
+            #[inline]
+            pub fn kind(&self) -> ::planus::Result<&'a ::core::primitive::str> {
+                self.0.access_required(0, "ClientDataMessage", "kind")
+            }
+
+            /// Getter for the [`payload` field](ClientDataMessage#structfield.payload).
+            #[inline]
+            pub fn payload(&self) -> ::planus::Result<super::moor_var::VarRef<'a>> {
+                self.0.access_required(1, "ClientDataMessage", "payload")
+            }
+        }
+
+        impl<'a> ::core::fmt::Debug for ClientDataMessageRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("ClientDataMessageRef");
+                f.field("kind", &self.kind());
+                f.field("payload", &self.payload());
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<ClientDataMessageRef<'a>> for ClientDataMessage {
+            type Error = ::planus::Error;
+
+            #[allow(unreachable_code)]
+            fn try_from(value: ClientDataMessageRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {
+                    kind: ::core::convert::Into::into(value.kind()?),
+                    payload: ::planus::alloc::boxed::Box::new(::core::convert::TryInto::try_into(
+                        value.payload()?,
+                    )?),
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for ClientDataMessageRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for ClientDataMessageRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[ClientDataMessageRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<ClientDataMessage>> for ClientDataMessage {
+            type Value = ::planus::Offset<ClientDataMessage>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<ClientDataMessage>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for ClientDataMessageRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[ClientDataMessageRef]", "read_as_root", 0)
+                })
+            }
+        }
+
         /// The table `Event` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `Event` in the file `crates/schema/schema/common.fbs:154`
+        /// * Table `Event` in the file `../../schema/schema/common.fbs:163`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct Event {
             /// The field `event` in the table `Event`
@@ -7232,7 +9165,7 @@ mod root {
         /// The table `Presentation` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `Presentation` in the file `crates/schema/schema/common.fbs:158`
+        /// * Table `Presentation` in the file `../../schema/schema/common.fbs:167`
         #[derive(
             Clone,
             Debug,
@@ -7629,7 +9562,7 @@ mod root {
         /// The table `PresentationAttribute` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `PresentationAttribute` in the file `crates/schema/schema/common.fbs:166`
+        /// * Table `PresentationAttribute` in the file `../../schema/schema/common.fbs:175`
         #[derive(
             Clone,
             Debug,
@@ -7938,7 +9871,7 @@ mod root {
         /// The table `Exception` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `Exception` in the file `crates/schema/schema/common.fbs:171`
+        /// * Table `Exception` in the file `../../schema/schema/common.fbs:180`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct Exception {
             /// The field `error` in the table `Exception`
@@ -8261,7 +10194,7 @@ mod root {
         /// The table `CompileContext` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `CompileContext` in the file `crates/schema/schema/common.fbs:181`
+        /// * Table `CompileContext` in the file `../../schema/schema/common.fbs:190`
         #[derive(
             Clone,
             Debug,
@@ -8563,7 +10496,7 @@ mod root {
         /// The table `StringLexError` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `StringLexError` in the file `crates/schema/schema/common.fbs:186`
+        /// * Table `StringLexError` in the file `../../schema/schema/common.fbs:195`
         #[derive(
             Clone,
             Debug,
@@ -8853,7 +10786,7 @@ mod root {
         /// The table `ParseError` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `ParseError` in the file `crates/schema/schema/common.fbs:191`
+        /// * Table `ParseError` in the file `../../schema/schema/common.fbs:200`
         #[derive(
             Clone,
             Debug,
@@ -9604,7 +11537,7 @@ mod root {
         /// The table `UnknownBuiltinFunction` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `UnknownBuiltinFunction` in the file `crates/schema/schema/common.fbs:205`
+        /// * Table `UnknownBuiltinFunction` in the file `../../schema/schema/common.fbs:214`
         #[derive(
             Clone,
             Debug,
@@ -9918,7 +11851,7 @@ mod root {
         /// The table `UnknownTypeConstant` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `UnknownTypeConstant` in the file `crates/schema/schema/common.fbs:210`
+        /// * Table `UnknownTypeConstant` in the file `../../schema/schema/common.fbs:219`
         #[derive(
             Clone,
             Debug,
@@ -10226,7 +12159,7 @@ mod root {
         /// The table `UnknownLoopLabel` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `UnknownLoopLabel` in the file `crates/schema/schema/common.fbs:215`
+        /// * Table `UnknownLoopLabel` in the file `../../schema/schema/common.fbs:224`
         #[derive(
             Clone,
             Debug,
@@ -10532,7 +12465,7 @@ mod root {
         /// The table `DuplicateVariable` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `DuplicateVariable` in the file `crates/schema/schema/common.fbs:220`
+        /// * Table `DuplicateVariable` in the file `../../schema/schema/common.fbs:229`
         #[derive(
             Clone,
             Debug,
@@ -10840,7 +12773,7 @@ mod root {
         /// The table `AssignToConst` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `AssignToConst` in the file `crates/schema/schema/common.fbs:225`
+        /// * Table `AssignToConst` in the file `../../schema/schema/common.fbs:234`
         #[derive(
             Clone,
             Debug,
@@ -11132,7 +13065,7 @@ mod root {
         /// The table `DisabledFeature` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `DisabledFeature` in the file `crates/schema/schema/common.fbs:230`
+        /// * Table `DisabledFeature` in the file `../../schema/schema/common.fbs:239`
         #[derive(
             Clone,
             Debug,
@@ -11438,7 +13371,7 @@ mod root {
         /// The table `BadSlotName` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `BadSlotName` in the file `crates/schema/schema/common.fbs:235`
+        /// * Table `BadSlotName` in the file `../../schema/schema/common.fbs:244`
         #[derive(
             Clone,
             Debug,
@@ -11728,7 +13661,7 @@ mod root {
         /// The table `InvalidAssignment` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `InvalidAssignment` in the file `crates/schema/schema/common.fbs:240`
+        /// * Table `InvalidAssignment` in the file `../../schema/schema/common.fbs:249`
         #[derive(
             Clone,
             Debug,
@@ -12000,7 +13933,7 @@ mod root {
         /// The table `InvalidTypeLiteralAssignment` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `InvalidTypeLiteralAssignment` in the file `crates/schema/schema/common.fbs:244`
+        /// * Table `InvalidTypeLiteralAssignment` in the file `../../schema/schema/common.fbs:253`
         #[derive(
             Clone,
             Debug,
@@ -12325,7 +14258,7 @@ mod root {
         /// The table `AssignmentToCapturedVariable` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `AssignmentToCapturedVariable` in the file `crates/schema/schema/common.fbs:249`
+        /// * Table `AssignmentToCapturedVariable` in the file `../../schema/schema/common.fbs:258`
         #[derive(
             Clone,
             Debug,
@@ -12652,7 +14585,7 @@ mod root {
         /// The union `CompileErrorUnion` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Union `CompileErrorUnion` in the file `crates/schema/schema/common.fbs:254`
+        /// * Union `CompileErrorUnion` in the file `../../schema/schema/common.fbs:263`
         #[derive(
             Clone,
             Debug,
@@ -13502,7 +15435,7 @@ mod root {
         /// The table `CompileError` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `CompileError` in the file `crates/schema/schema/common.fbs:269`
+        /// * Table `CompileError` in the file `../../schema/schema/common.fbs:278`
         #[derive(
             Clone,
             Debug,
@@ -13749,7 +15682,7 @@ mod root {
         /// The union `ObjectRefUnion` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Union `ObjectRefUnion` in the file `crates/schema/schema/common.fbs:277`
+        /// * Union `ObjectRefUnion` in the file `../../schema/schema/common.fbs:286`
         #[derive(
             Clone,
             Debug,
@@ -14032,7 +15965,7 @@ mod root {
         /// The table `ObjectRefId` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `ObjectRefId` in the file `crates/schema/schema/common.fbs:283`
+        /// * Table `ObjectRefId` in the file `../../schema/schema/common.fbs:292`
         #[derive(
             Clone,
             Debug,
@@ -14278,7 +16211,7 @@ mod root {
         /// The table `ObjectRefSysObj` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `ObjectRefSysObj` in the file `crates/schema/schema/common.fbs:287`
+        /// * Table `ObjectRefSysObj` in the file `../../schema/schema/common.fbs:296`
         #[derive(
             Clone,
             Debug,
@@ -14552,7 +16485,7 @@ mod root {
         /// The table `ObjectRefMatch` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `ObjectRefMatch` in the file `crates/schema/schema/common.fbs:291`
+        /// * Table `ObjectRefMatch` in the file `../../schema/schema/common.fbs:300`
         #[derive(
             Clone,
             Debug,
@@ -14806,7 +16739,7 @@ mod root {
         /// The table `ObjectRef` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `ObjectRef` in the file `crates/schema/schema/common.fbs:295`
+        /// * Table `ObjectRef` in the file `../../schema/schema/common.fbs:304`
         #[derive(
             Clone,
             Debug,
@@ -15052,7 +16985,7 @@ mod root {
         /// The union `WorldStateErrorUnion` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Union `WorldStateErrorUnion` in the file `crates/schema/schema/common.fbs:303`
+        /// * Union `WorldStateErrorUnion` in the file `../../schema/schema/common.fbs:312`
         #[derive(
             Clone,
             Debug,
@@ -16398,7 +18331,7 @@ mod root {
         /// The table `ObjectNotFound` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `ObjectNotFound` in the file `crates/schema/schema/common.fbs:326`
+        /// * Table `ObjectNotFound` in the file `../../schema/schema/common.fbs:335`
         #[derive(
             Clone,
             Debug,
@@ -16645,7 +18578,7 @@ mod root {
         /// The table `ObjectAlreadyExists` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `ObjectAlreadyExists` in the file `crates/schema/schema/common.fbs:330`
+        /// * Table `ObjectAlreadyExists` in the file `../../schema/schema/common.fbs:339`
         #[derive(
             Clone,
             Debug,
@@ -16910,7 +18843,7 @@ mod root {
         /// The table `RecursiveMove` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `RecursiveMove` in the file `crates/schema/schema/common.fbs:334`
+        /// * Table `RecursiveMove` in the file `../../schema/schema/common.fbs:343`
         #[derive(
             Clone,
             Debug,
@@ -17192,7 +19125,7 @@ mod root {
         /// The table `ObjectPermissionDenied` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `ObjectPermissionDenied` in the file `crates/schema/schema/common.fbs:339`
+        /// * Table `ObjectPermissionDenied` in the file `../../schema/schema/common.fbs:348`
         #[derive(
             Clone,
             Debug,
@@ -17428,7 +19361,7 @@ mod root {
         /// The table `PropertyNotFound` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `PropertyNotFound` in the file `crates/schema/schema/common.fbs:342`
+        /// * Table `PropertyNotFound` in the file `../../schema/schema/common.fbs:351`
         #[derive(
             Clone,
             Debug,
@@ -17724,7 +19657,7 @@ mod root {
         /// The table `PropertyPermissionDenied` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `PropertyPermissionDenied` in the file `crates/schema/schema/common.fbs:347`
+        /// * Table `PropertyPermissionDenied` in the file `../../schema/schema/common.fbs:356`
         #[derive(
             Clone,
             Debug,
@@ -17964,7 +19897,7 @@ mod root {
         /// The table `PropertyDefinitionNotFound` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `PropertyDefinitionNotFound` in the file `crates/schema/schema/common.fbs:350`
+        /// * Table `PropertyDefinitionNotFound` in the file `../../schema/schema/common.fbs:359`
         #[derive(
             Clone,
             Debug,
@@ -18277,7 +20210,7 @@ mod root {
         /// The table `DuplicatePropertyDefinition` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `DuplicatePropertyDefinition` in the file `crates/schema/schema/common.fbs:355`
+        /// * Table `DuplicatePropertyDefinition` in the file `../../schema/schema/common.fbs:364`
         #[derive(
             Clone,
             Debug,
@@ -18590,7 +20523,7 @@ mod root {
         /// The table `ChparentPropertyNameConflict` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `ChparentPropertyNameConflict` in the file `crates/schema/schema/common.fbs:360`
+        /// * Table `ChparentPropertyNameConflict` in the file `../../schema/schema/common.fbs:369`
         #[derive(
             Clone,
             Debug,
@@ -18946,7 +20879,7 @@ mod root {
         /// The table `PropertyTypeMismatch` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `PropertyTypeMismatch` in the file `crates/schema/schema/common.fbs:366`
+        /// * Table `PropertyTypeMismatch` in the file `../../schema/schema/common.fbs:375`
         #[derive(
             Clone,
             Debug,
@@ -19176,7 +21109,7 @@ mod root {
         /// The table `VerbNotFound` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `VerbNotFound` in the file `crates/schema/schema/common.fbs:369`
+        /// * Table `VerbNotFound` in the file `../../schema/schema/common.fbs:378`
         #[derive(
             Clone,
             Debug,
@@ -19456,7 +21389,7 @@ mod root {
         /// The table `InvalidVerb` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `InvalidVerb` in the file `crates/schema/schema/common.fbs:374`
+        /// * Table `InvalidVerb` in the file `../../schema/schema/common.fbs:383`
         #[derive(
             Clone,
             Debug,
@@ -19718,7 +21651,7 @@ mod root {
         /// The table `VerbDecodeError` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `VerbDecodeError` in the file `crates/schema/schema/common.fbs:378`
+        /// * Table `VerbDecodeError` in the file `../../schema/schema/common.fbs:387`
         #[derive(
             Clone,
             Debug,
@@ -20016,7 +21949,7 @@ mod root {
         /// The table `VerbPermissionDenied` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `VerbPermissionDenied` in the file `crates/schema/schema/common.fbs:383`
+        /// * Table `VerbPermissionDenied` in the file `../../schema/schema/common.fbs:392`
         #[derive(
             Clone,
             Debug,
@@ -20246,7 +22179,7 @@ mod root {
         /// The table `DuplicateVerb` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `DuplicateVerb` in the file `crates/schema/schema/common.fbs:386`
+        /// * Table `DuplicateVerb` in the file `../../schema/schema/common.fbs:395`
         #[derive(
             Clone,
             Debug,
@@ -20528,7 +22461,7 @@ mod root {
         /// The table `FailedMatch` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `FailedMatch` in the file `crates/schema/schema/common.fbs:391`
+        /// * Table `FailedMatch` in the file `../../schema/schema/common.fbs:400`
         #[derive(
             Clone,
             Debug,
@@ -20781,7 +22714,7 @@ mod root {
         /// The table `AmbiguousMatch` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `AmbiguousMatch` in the file `crates/schema/schema/common.fbs:395`
+        /// * Table `AmbiguousMatch` in the file `../../schema/schema/common.fbs:404`
         #[derive(
             Clone,
             Debug,
@@ -21035,7 +22968,7 @@ mod root {
         /// The table `InvalidRenumber` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `InvalidRenumber` in the file `crates/schema/schema/common.fbs:399`
+        /// * Table `InvalidRenumber` in the file `../../schema/schema/common.fbs:408`
         #[derive(
             Clone,
             Debug,
@@ -21304,7 +23237,7 @@ mod root {
         /// The table `WorldStateDatabaseError` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `WorldStateDatabaseError` in the file `crates/schema/schema/common.fbs:403`
+        /// * Table `WorldStateDatabaseError` in the file `../../schema/schema/common.fbs:412`
         #[derive(
             Clone,
             Debug,
@@ -21586,7 +23519,7 @@ mod root {
         /// The table `RollbackRetry` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `RollbackRetry` in the file `crates/schema/schema/common.fbs:407`
+        /// * Table `RollbackRetry` in the file `../../schema/schema/common.fbs:416`
         #[derive(
             Clone,
             Debug,
@@ -21797,7 +23730,7 @@ mod root {
         /// The table `WorldStateError` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `WorldStateError` in the file `crates/schema/schema/common.fbs:410`
+        /// * Table `WorldStateError` in the file `../../schema/schema/common.fbs:419`
         #[derive(
             Clone,
             Debug,
@@ -22059,7 +23992,7 @@ mod root {
         /// The table `PropInfo` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `PropInfo` in the file `crates/schema/schema/common.fbs:418`
+        /// * Table `PropInfo` in the file `../../schema/schema/common.fbs:427`
         #[derive(
             Clone,
             Debug,
@@ -22538,7 +24471,7 @@ mod root {
         /// The table `VerbInfo` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `VerbInfo` in the file `crates/schema/schema/common.fbs:428`
+        /// * Table `VerbInfo` in the file `../../schema/schema/common.fbs:437`
         #[derive(
             Clone,
             Debug,
@@ -23066,7 +24999,7 @@ mod root {
         /// The enum `ArgSpec` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Enum `ArgSpec` in the file `crates/schema/schema/common.fbs:444`
+        /// * Enum `ArgSpec` in the file `../../schema/schema/common.fbs:453`
         #[derive(
             Copy,
             Clone,
@@ -23236,7 +25169,7 @@ mod root {
         /// The table `PrepSpec` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `PrepSpec` in the file `crates/schema/schema/common.fbs:452`
+        /// * Table `PrepSpec` in the file `../../schema/schema/common.fbs:461`
         #[derive(
             Clone,
             Debug,
@@ -23494,7 +25427,7 @@ mod root {
         /// The table `VerbArgsSpec` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `VerbArgsSpec` in the file `crates/schema/schema/common.fbs:458`
+        /// * Table `VerbArgsSpec` in the file `../../schema/schema/common.fbs:467`
         #[derive(
             Clone,
             Debug,
@@ -23854,7 +25787,7 @@ mod root {
         /// The table `VerbDef` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `VerbDef` in the file `crates/schema/schema/common.fbs:465`
+        /// * Table `VerbDef` in the file `../../schema/schema/common.fbs:474`
         #[derive(
             Clone,
             Debug,
@@ -24281,7 +26214,7 @@ mod root {
         /// The table `PropDef` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `PropDef` in the file `crates/schema/schema/common.fbs:475`
+        /// * Table `PropDef` in the file `../../schema/schema/common.fbs:484`
         #[derive(
             Clone,
             Debug,
@@ -24629,7 +26562,7 @@ mod root {
         /// The table `VerbDefs` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `VerbDefs` in the file `crates/schema/schema/common.fbs:483`
+        /// * Table `VerbDefs` in the file `../../schema/schema/common.fbs:492`
         #[derive(
             Clone,
             Debug,
@@ -24881,7 +26814,7 @@ mod root {
         /// The table `PropDefs` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `PropDefs` in the file `crates/schema/schema/common.fbs:488`
+        /// * Table `PropDefs` in the file `../../schema/schema/common.fbs:497`
         #[derive(
             Clone,
             Debug,
@@ -25133,7 +27066,7 @@ mod root {
         /// The table `ObjAttrs` in the namespace `MoorCommon`
         ///
         /// Generated from these locations:
-        /// * Table `ObjAttrs` in the file `crates/schema/schema/common.fbs:493`
+        /// * Table `ObjAttrs` in the file `../../schema/schema/common.fbs:502`
         #[derive(
             Clone,
             Debug,
@@ -25536,12 +27469,12 @@ mod root {
     /// The namespace `MoorVar`
     ///
     /// Generated from these locations:
-    /// * File `crates/schema/schema/var.fbs`
+    /// * File `../../schema/schema/var.fbs`
     pub mod moor_var {
         /// The union `VarUnion` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Union `VarUnion` in the file `crates/schema/schema/var.fbs:27`
+        /// * Union `VarUnion` in the file `../../schema/schema/var.fbs:27`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum VarUnion {
             /// The variant of type `VarNone` in the union `VarUnion`
@@ -26352,7 +28285,7 @@ mod root {
         /// The table `VarNone` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `VarNone` in the file `crates/schema/schema/var.fbs:49`
+        /// * Table `VarNone` in the file `../../schema/schema/var.fbs:49`
         #[derive(
             Clone,
             Debug,
@@ -26559,7 +28492,7 @@ mod root {
         /// The table `VarBool` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `VarBool` in the file `crates/schema/schema/var.fbs:52`
+        /// * Table `VarBool` in the file `../../schema/schema/var.fbs:52`
         #[derive(
             Clone,
             Debug,
@@ -26817,7 +28750,7 @@ mod root {
         /// The table `VarInt` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `VarInt` in the file `crates/schema/schema/var.fbs:56`
+        /// * Table `VarInt` in the file `../../schema/schema/var.fbs:56`
         #[derive(
             Clone,
             Debug,
@@ -27075,7 +29008,7 @@ mod root {
         /// The table `VarFloat` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `VarFloat` in the file `crates/schema/schema/var.fbs:60`
+        /// * Table `VarFloat` in the file `../../schema/schema/var.fbs:60`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct VarFloat {
             /// The field `value` in the table `VarFloat`
@@ -27323,7 +29256,7 @@ mod root {
         /// The table `VarStr` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `VarStr` in the file `crates/schema/schema/var.fbs:64`
+        /// * Table `VarStr` in the file `../../schema/schema/var.fbs:64`
         #[derive(
             Clone,
             Debug,
@@ -27572,7 +29505,7 @@ mod root {
         /// The table `VarObj` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `VarObj` in the file `crates/schema/schema/var.fbs:68`
+        /// * Table `VarObj` in the file `../../schema/schema/var.fbs:68`
         #[derive(
             Clone,
             Debug,
@@ -27814,7 +29747,7 @@ mod root {
         /// The table `VarErr` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `VarErr` in the file `crates/schema/schema/var.fbs:72`
+        /// * Table `VarErr` in the file `../../schema/schema/var.fbs:72`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct VarErr {
             /// The field `error` in the table `VarErr`
@@ -28055,7 +29988,7 @@ mod root {
         /// The table `VarSym` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `VarSym` in the file `crates/schema/schema/var.fbs:76`
+        /// * Table `VarSym` in the file `../../schema/schema/var.fbs:76`
         #[derive(
             Clone,
             Debug,
@@ -28306,7 +30239,7 @@ mod root {
         /// The table `VarBinary` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `VarBinary` in the file `crates/schema/schema/var.fbs:80`
+        /// * Table `VarBinary` in the file `../../schema/schema/var.fbs:80`
         #[derive(
             Clone,
             Debug,
@@ -28559,7 +30492,7 @@ mod root {
         /// The table `VarList` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `VarList` in the file `crates/schema/schema/var.fbs:84`
+        /// * Table `VarList` in the file `../../schema/schema/var.fbs:84`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct VarList {
             /// The field `elements` in the table `VarList`
@@ -28801,7 +30734,7 @@ mod root {
         /// The table `VarMapPair` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `VarMapPair` in the file `crates/schema/schema/var.fbs:88`
+        /// * Table `VarMapPair` in the file `../../schema/schema/var.fbs:88`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct VarMapPair {
             /// The field `key` in the table `VarMapPair`
@@ -29072,7 +31005,7 @@ mod root {
         /// The table `VarMap` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `VarMap` in the file `crates/schema/schema/var.fbs:93`
+        /// * Table `VarMap` in the file `../../schema/schema/var.fbs:93`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct VarMap {
             /// The field `pairs` in the table `VarMap`
@@ -29317,7 +31250,7 @@ mod root {
         /// The table `FlyweightSlot` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `FlyweightSlot` in the file `crates/schema/schema/var.fbs:97`
+        /// * Table `FlyweightSlot` in the file `../../schema/schema/var.fbs:97`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct FlyweightSlot {
             /// The field `name` in the table `FlyweightSlot`
@@ -29589,7 +31522,7 @@ mod root {
         /// The table `VarFlyweight` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `VarFlyweight` in the file `crates/schema/schema/var.fbs:102`
+        /// * Table `VarFlyweight` in the file `../../schema/schema/var.fbs:102`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct VarFlyweight {
             /// The field `delegate` in the table `VarFlyweight`
@@ -29897,7 +31830,7 @@ mod root {
         /// The table `VarLambda` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `VarLambda` in the file `crates/schema/schema/var.fbs:108`
+        /// * Table `VarLambda` in the file `../../schema/schema/var.fbs:108`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct VarLambda {
             /// The field `params` in the table `VarLambda`
@@ -30272,7 +32205,7 @@ mod root {
         /// The table `VarAnonymous` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `VarAnonymous` in the file `crates/schema/schema/var.fbs:115`
+        /// * Table `VarAnonymous` in the file `../../schema/schema/var.fbs:115`
         #[derive(
             Clone,
             Debug,
@@ -30519,7 +32452,7 @@ mod root {
         /// The table `Var` in the namespace `MoorVar`
         ///
         /// Generated from these locations:
-        /// * Table `Var` in the file `crates/schema/schema/var.fbs:119`
+        /// * Table `Var` in the file `../../schema/schema/var.fbs:119`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct Var {
             /// The field `variant` in the table `Var`
@@ -30749,12 +32682,12 @@ mod root {
     /// The namespace `MoorProgram`
     ///
     /// Generated from these locations:
-    /// * File `crates/schema/schema/moor_program.fbs`
+    /// * File `../../schema/schema/moor_program.fbs`
     pub mod moor_program {
         /// The table `StoredName` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredName` in the file `crates/schema/schema/moor_program.fbs:35`
+        /// * Table `StoredName` in the file `../../schema/schema/moor_program.fbs:35`
         #[derive(
             Clone,
             Debug,
@@ -31112,7 +33045,7 @@ mod root {
         /// The table `StoredJumpLabel` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredJumpLabel` in the file `crates/schema/schema/moor_program.fbs:41`
+        /// * Table `StoredJumpLabel` in the file `../../schema/schema/moor_program.fbs:41`
         #[derive(
             Clone,
             Debug,
@@ -31496,7 +33429,7 @@ mod root {
         /// The enum `StoredDeclType` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Enum `StoredDeclType` in the file `crates/schema/schema/moor_program.fbs:48`
+        /// * Enum `StoredDeclType` in the file `../../schema/schema/moor_program.fbs:48`
         #[derive(
             Copy,
             Clone,
@@ -31703,7 +33636,7 @@ mod root {
         /// The union `StoredVarNameUnion` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Union `StoredVarNameUnion` in the file `crates/schema/schema/moor_program.fbs:61`
+        /// * Union `StoredVarNameUnion` in the file `../../schema/schema/moor_program.fbs:61`
         #[derive(
             Clone,
             Debug,
@@ -31927,7 +33860,7 @@ mod root {
         /// The table `StoredNamedVar` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredNamedVar` in the file `crates/schema/schema/moor_program.fbs:66`
+        /// * Table `StoredNamedVar` in the file `../../schema/schema/moor_program.fbs:66`
         #[derive(
             Clone,
             Debug,
@@ -32183,7 +34116,7 @@ mod root {
         /// The table `StoredRegisterVar` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredRegisterVar` in the file `crates/schema/schema/moor_program.fbs:70`
+        /// * Table `StoredRegisterVar` in the file `../../schema/schema/moor_program.fbs:70`
         #[derive(
             Clone,
             Debug,
@@ -32470,7 +34403,7 @@ mod root {
         /// The table `StoredVariable` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredVariable` in the file `crates/schema/schema/moor_program.fbs:75`
+        /// * Table `StoredVariable` in the file `../../schema/schema/moor_program.fbs:75`
         #[derive(
             Clone,
             Debug,
@@ -32808,7 +34741,7 @@ mod root {
         /// The table `StoredDecl` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredDecl` in the file `crates/schema/schema/moor_program.fbs:82`
+        /// * Table `StoredDecl` in the file `../../schema/schema/moor_program.fbs:82`
         #[derive(
             Clone,
             Debug,
@@ -33245,7 +35178,7 @@ mod root {
         /// The table `StoredNameDeclPair` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredNameDeclPair` in the file `crates/schema/schema/moor_program.fbs:91`
+        /// * Table `StoredNameDeclPair` in the file `../../schema/schema/moor_program.fbs:91`
         #[derive(
             Clone,
             Debug,
@@ -33543,7 +35476,7 @@ mod root {
         /// The table `StoredNames` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredNames` in the file `crates/schema/schema/moor_program.fbs:96`
+        /// * Table `StoredNames` in the file `../../schema/schema/moor_program.fbs:96`
         #[derive(
             Clone,
             Debug,
@@ -33859,7 +35792,7 @@ mod root {
         /// The union `StoredScatterLabelUnion` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Union `StoredScatterLabelUnion` in the file `crates/schema/schema/moor_program.fbs:105`
+        /// * Union `StoredScatterLabelUnion` in the file `../../schema/schema/moor_program.fbs:105`
         #[derive(
             Clone,
             Debug,
@@ -34151,7 +36084,7 @@ mod root {
         /// The table `StoredScatterRequired` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredScatterRequired` in the file `crates/schema/schema/moor_program.fbs:111`
+        /// * Table `StoredScatterRequired` in the file `../../schema/schema/moor_program.fbs:111`
         #[derive(
             Clone,
             Debug,
@@ -34427,7 +36360,7 @@ mod root {
         /// The table `StoredScatterOptional` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredScatterOptional` in the file `crates/schema/schema/moor_program.fbs:115`
+        /// * Table `StoredScatterOptional` in the file `../../schema/schema/moor_program.fbs:115`
         #[derive(
             Clone,
             Debug,
@@ -34812,7 +36745,7 @@ mod root {
         /// The table `StoredScatterRest` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredScatterRest` in the file `crates/schema/schema/moor_program.fbs:121`
+        /// * Table `StoredScatterRest` in the file `../../schema/schema/moor_program.fbs:121`
         #[derive(
             Clone,
             Debug,
@@ -35084,7 +37017,7 @@ mod root {
         /// The table `StoredScatterLabel` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredScatterLabel` in the file `crates/schema/schema/moor_program.fbs:125`
+        /// * Table `StoredScatterLabel` in the file `../../schema/schema/moor_program.fbs:125`
         #[derive(
             Clone,
             Debug,
@@ -35348,7 +37281,7 @@ mod root {
         /// The table `StoredScatterArgs` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredScatterArgs` in the file `crates/schema/schema/moor_program.fbs:129`
+        /// * Table `StoredScatterArgs` in the file `../../schema/schema/moor_program.fbs:129`
         #[derive(
             Clone,
             Debug,
@@ -35676,7 +37609,7 @@ mod root {
         /// The table `StoredForSequenceOperand` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredForSequenceOperand` in the file `crates/schema/schema/moor_program.fbs:134`
+        /// * Table `StoredForSequenceOperand` in the file `../../schema/schema/moor_program.fbs:134`
         #[derive(
             Clone,
             Debug,
@@ -36125,7 +38058,7 @@ mod root {
         /// The table `StoredForRangeOperand` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredForRangeOperand` in the file `crates/schema/schema/moor_program.fbs:141`
+        /// * Table `StoredForRangeOperand` in the file `../../schema/schema/moor_program.fbs:141`
         #[derive(
             Clone,
             Debug,
@@ -36515,7 +38448,7 @@ mod root {
         /// The table `StoredRangeComprehend` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredRangeComprehend` in the file `crates/schema/schema/moor_program.fbs:147`
+        /// * Table `StoredRangeComprehend` in the file `../../schema/schema/moor_program.fbs:147`
         #[derive(
             Clone,
             Debug,
@@ -36887,7 +38820,7 @@ mod root {
         /// The table `StoredListComprehend` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredListComprehend` in the file `crates/schema/schema/moor_program.fbs:153`
+        /// * Table `StoredListComprehend` in the file `../../schema/schema/moor_program.fbs:153`
         #[derive(
             Clone,
             Debug,
@@ -37289,7 +39222,7 @@ mod root {
         /// The table `StoredErrorOperand` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredErrorOperand` in the file `crates/schema/schema/moor_program.fbs:164`
+        /// * Table `StoredErrorOperand` in the file `../../schema/schema/moor_program.fbs:164`
         #[derive(
             Clone,
             Debug,
@@ -37627,7 +39560,7 @@ mod root {
         /// The table `ForkVector` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `ForkVector` in the file `crates/schema/schema/moor_program.fbs:173`
+        /// * Table `ForkVector` in the file `../../schema/schema/moor_program.fbs:173`
         #[derive(
             Clone,
             Debug,
@@ -37917,10 +39850,968 @@ mod root {
             }
         }
 
+        /// The enum `DeclarationKind` in the namespace `MoorProgram`
+        ///
+        /// Generated from these locations:
+        /// * Enum `DeclarationKind` in the file `../../schema/schema/moor_program.fbs:182`
+        #[derive(
+            Copy,
+            Clone,
+            Debug,
+            PartialEq,
+            Eq,
+            PartialOrd,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        #[repr(u8)]
+        pub enum DeclarationKind {
+            /// The variant `Let` in the enum `DeclarationKind`
+            Let = 0,
+
+            /// The variant `Const` in the enum `DeclarationKind`
+            Const = 1,
+        }
+
+        impl DeclarationKind {
+            /// Array containing all valid variants of DeclarationKind
+            pub const ENUM_VALUES: [Self; 2] = [Self::Let, Self::Const];
+        }
+
+        impl ::core::convert::TryFrom<u8> for DeclarationKind {
+            type Error = ::planus::errors::UnknownEnumTagKind;
+            #[inline]
+            fn try_from(
+                value: u8,
+            ) -> ::core::result::Result<Self, ::planus::errors::UnknownEnumTagKind> {
+                #[allow(clippy::match_single_binding)]
+                match value {
+                    0 => ::core::result::Result::Ok(DeclarationKind::Let),
+                    1 => ::core::result::Result::Ok(DeclarationKind::Const),
+
+                    _ => ::core::result::Result::Err(::planus::errors::UnknownEnumTagKind {
+                        tag: value as i128,
+                    }),
+                }
+            }
+        }
+
+        impl ::core::convert::From<DeclarationKind> for u8 {
+            #[inline]
+            fn from(value: DeclarationKind) -> Self {
+                value as u8
+            }
+        }
+
+        /// # Safety
+        /// The Planus compiler correctly calculates `ALIGNMENT` and `SIZE`.
+        unsafe impl ::planus::Primitive for DeclarationKind {
+            const ALIGNMENT: usize = 1;
+            const SIZE: usize = 1;
+        }
+
+        impl ::planus::WriteAsPrimitive<DeclarationKind> for DeclarationKind {
+            #[inline]
+            fn write<const N: usize>(&self, cursor: ::planus::Cursor<'_, N>, buffer_position: u32) {
+                (*self as u8).write(cursor, buffer_position);
+            }
+        }
+
+        impl ::planus::WriteAs<DeclarationKind> for DeclarationKind {
+            type Prepared = Self;
+
+            #[inline]
+            fn prepare(&self, _builder: &mut ::planus::Builder) -> DeclarationKind {
+                *self
+            }
+        }
+
+        impl ::planus::WriteAsDefault<DeclarationKind, DeclarationKind> for DeclarationKind {
+            type Prepared = Self;
+
+            #[inline]
+            fn prepare(
+                &self,
+                _builder: &mut ::planus::Builder,
+                default: &DeclarationKind,
+            ) -> ::core::option::Option<DeclarationKind> {
+                if self == default {
+                    ::core::option::Option::None
+                } else {
+                    ::core::option::Option::Some(*self)
+                }
+            }
+        }
+
+        impl ::planus::WriteAsOptional<DeclarationKind> for DeclarationKind {
+            type Prepared = Self;
+
+            #[inline]
+            fn prepare(
+                &self,
+                _builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<DeclarationKind> {
+                ::core::option::Option::Some(*self)
+            }
+        }
+
+        impl<'buf> ::planus::TableRead<'buf> for DeclarationKind {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'buf>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                let n: u8 = ::planus::TableRead::from_buffer(buffer, offset)?;
+                ::core::result::Result::Ok(::core::convert::TryInto::try_into(n)?)
+            }
+        }
+
+        impl<'buf> ::planus::VectorReadInner<'buf> for DeclarationKind {
+            type Error = ::planus::errors::UnknownEnumTag;
+            const STRIDE: usize = 1;
+            #[inline]
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'buf>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::UnknownEnumTag> {
+                let value = unsafe { *buffer.buffer.get_unchecked(offset) };
+                let value: ::core::result::Result<Self, _> =
+                    ::core::convert::TryInto::try_into(value);
+                value.map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "DeclarationKind",
+                        "VectorRead::from_buffer",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<DeclarationKind> for DeclarationKind {
+            const STRIDE: usize = 1;
+
+            type Value = Self;
+
+            #[inline]
+            fn prepare(&self, _builder: &mut ::planus::Builder) -> Self {
+                *self
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[Self],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 1];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - i as u32,
+                    );
+                }
+            }
+        }
+
+        /// The struct `DeclarationSite` in the namespace `MoorProgram`
+        ///
+        /// Generated from these locations:
+        /// * Struct `DeclarationSite` in the file `../../schema/schema/moor_program.fbs:185`
+        #[derive(
+            Copy,
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        pub struct DeclarationSite {
+            /// The field `offset` in the struct `DeclarationSite`
+            pub offset: u64,
+
+            /// The field `kind` in the struct `DeclarationSite`
+            pub kind: self::DeclarationKind,
+
+            /// The field `has_initializer` in the struct `DeclarationSite`
+            pub has_initializer: bool,
+        }
+
+        /// # Safety
+        /// The Planus compiler correctly calculates `ALIGNMENT` and `SIZE`.
+        unsafe impl ::planus::Primitive for DeclarationSite {
+            const ALIGNMENT: usize = 8;
+            const SIZE: usize = 16;
+        }
+
+        #[allow(clippy::identity_op)]
+        impl ::planus::WriteAsPrimitive<DeclarationSite> for DeclarationSite {
+            #[inline]
+            fn write<const N: usize>(&self, cursor: ::planus::Cursor<'_, N>, buffer_position: u32) {
+                let (cur, cursor) = cursor.split::<8, 8>();
+                self.offset.write(cur, buffer_position - 0);
+                let (cur, cursor) = cursor.split::<1, 7>();
+                self.kind.write(cur, buffer_position - 8);
+                let (cur, cursor) = cursor.split::<1, 6>();
+                self.has_initializer.write(cur, buffer_position - 9);
+                let cursor = cursor.write::<6, 0>([0; 6]);
+                cursor.finish([]);
+            }
+        }
+
+        impl ::planus::WriteAsOffset<DeclarationSite> for DeclarationSite {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<DeclarationSite> {
+                unsafe {
+                    builder.write_with(16, 7, |buffer_position, bytes| {
+                        let bytes = bytes.as_mut_ptr();
+
+                        ::planus::WriteAsPrimitive::write(
+                            self,
+                            ::planus::Cursor::new(
+                                &mut *(bytes as *mut [::core::mem::MaybeUninit<u8>; 16]),
+                            ),
+                            buffer_position,
+                        );
+                    });
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<DeclarationSite> for DeclarationSite {
+            type Prepared = Self;
+            #[inline]
+            fn prepare(&self, _builder: &mut ::planus::Builder) -> Self {
+                *self
+            }
+        }
+
+        impl ::planus::WriteAsOptional<DeclarationSite> for DeclarationSite {
+            type Prepared = Self;
+            #[inline]
+            fn prepare(&self, _builder: &mut ::planus::Builder) -> ::core::option::Option<Self> {
+                ::core::option::Option::Some(*self)
+            }
+        }
+
+        /// Reference to a deserialized [DeclarationSite].
+        #[derive(Copy, Clone)]
+        pub struct DeclarationSiteRef<'a>(::planus::ArrayWithStartOffset<'a, 16>);
+
+        impl<'a> DeclarationSiteRef<'a> {
+            /// Getter for the [`offset` field](DeclarationSite#structfield.offset).
+            pub fn offset(&self) -> u64 {
+                let buffer = self.0.advance_as_array::<8>(0).unwrap();
+
+                u64::from_le_bytes(*buffer.as_array())
+            }
+
+            /// Getter for the [`kind` field](DeclarationSite#structfield.kind).
+            pub fn kind(
+                &self,
+            ) -> ::core::result::Result<self::DeclarationKind, ::planus::errors::UnknownEnumTag>
+            {
+                let buffer = self.0.advance_as_array::<1>(8).unwrap();
+
+                let value: ::core::result::Result<self::DeclarationKind, _> =
+                    ::core::convert::TryInto::try_into(u8::from_le_bytes(*buffer.as_array()));
+                value.map_err(|e| {
+                    e.with_error_location("DeclarationSiteRef", "kind", buffer.offset_from_start)
+                })
+            }
+
+            /// Getter for the [`has_initializer` field](DeclarationSite#structfield.has_initializer).
+            pub fn has_initializer(&self) -> bool {
+                let buffer = self.0.advance_as_array::<1>(9).unwrap();
+
+                buffer.as_array()[0] != 0
+            }
+        }
+
+        impl<'a> ::core::fmt::Debug for DeclarationSiteRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("DeclarationSiteRef");
+                f.field("offset", &self.offset());
+                f.field("kind", &self.kind());
+                f.field("has_initializer", &self.has_initializer());
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::From<::planus::ArrayWithStartOffset<'a, 16>> for DeclarationSiteRef<'a> {
+            fn from(array: ::planus::ArrayWithStartOffset<'a, 16>) -> Self {
+                Self(array)
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<DeclarationSiteRef<'a>> for DeclarationSite {
+            type Error = ::planus::Error;
+
+            #[allow(unreachable_code)]
+            fn try_from(value: DeclarationSiteRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {
+                    offset: value.offset(),
+                    kind: value.kind()?,
+                    has_initializer: value.has_initializer(),
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for DeclarationSiteRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                let buffer = buffer.advance_as_array::<16>(offset)?;
+                ::core::result::Result::Ok(Self(buffer))
+            }
+        }
+
+        impl<'a> ::planus::VectorRead<'a> for DeclarationSiteRef<'a> {
+            const STRIDE: usize = 16;
+
+            #[inline]
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> Self {
+                Self(unsafe { buffer.unchecked_advance_as_array(offset) })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<DeclarationSite> for DeclarationSite {
+            const STRIDE: usize = 16;
+
+            type Value = DeclarationSite;
+
+            #[inline]
+            fn prepare(&self, _builder: &mut ::planus::Builder) -> Self::Value {
+                *self
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[DeclarationSite],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 16];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (16 * i) as u32,
+                    );
+                }
+            }
+        }
+
+        /// The table `DeclarationSites` in the namespace `MoorProgram`
+        ///
+        /// Generated from these locations:
+        /// * Table `DeclarationSites` in the file `../../schema/schema/moor_program.fbs:191`
+        #[derive(
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        pub struct DeclarationSites {
+            /// The field `sites` in the table `DeclarationSites`
+            pub sites: ::planus::alloc::vec::Vec<self::DeclarationSite>,
+        }
+
+        #[allow(clippy::derivable_impls)]
+        impl ::core::default::Default for DeclarationSites {
+            fn default() -> Self {
+                Self {
+                    sites: ::core::default::Default::default(),
+                }
+            }
+        }
+
+        impl DeclarationSites {
+            /// Creates a [DeclarationSitesBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> DeclarationSitesBuilder<()> {
+                DeclarationSitesBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(
+                builder: &mut ::planus::Builder,
+                field_sites: impl ::planus::WriteAs<::planus::Offset<[self::DeclarationSite]>>,
+            ) -> ::planus::Offset<Self> {
+                let prepared_sites = field_sites.prepare(builder);
+
+                let mut table_writer: ::planus::table_writer::TableWriter<6> =
+                    ::core::default::Default::default();
+                table_writer.write_entry::<::planus::Offset<[self::DeclarationSite]>>(0);
+
+                unsafe {
+                    table_writer.finish(builder, |object_writer| {
+                        object_writer.write::<_, _, 4>(&prepared_sites);
+                    });
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<DeclarationSites>> for DeclarationSites {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<DeclarationSites> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<DeclarationSites>> for DeclarationSites {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<DeclarationSites>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<DeclarationSites> for DeclarationSites {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<DeclarationSites> {
+                DeclarationSites::create(builder, &self.sites)
+            }
+        }
+
+        /// Builder for serializing an instance of the [DeclarationSites] type.
+        ///
+        /// Can be created using the [DeclarationSites::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct DeclarationSitesBuilder<State>(State);
+
+        impl DeclarationSitesBuilder<()> {
+            /// Setter for the [`sites` field](DeclarationSites#structfield.sites).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn sites<T0>(self, value: T0) -> DeclarationSitesBuilder<(T0,)>
+            where
+                T0: ::planus::WriteAs<::planus::Offset<[self::DeclarationSite]>>,
+            {
+                DeclarationSitesBuilder((value,))
+            }
+        }
+
+        impl<T0> DeclarationSitesBuilder<(T0,)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [DeclarationSites].
+            #[inline]
+            pub fn finish(
+                self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<DeclarationSites>
+            where
+                Self: ::planus::WriteAsOffset<DeclarationSites>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl<T0: ::planus::WriteAs<::planus::Offset<[self::DeclarationSite]>>>
+            ::planus::WriteAs<::planus::Offset<DeclarationSites>>
+            for DeclarationSitesBuilder<(T0,)>
+        {
+            type Prepared = ::planus::Offset<DeclarationSites>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<DeclarationSites> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl<T0: ::planus::WriteAs<::planus::Offset<[self::DeclarationSite]>>>
+            ::planus::WriteAsOptional<::planus::Offset<DeclarationSites>>
+            for DeclarationSitesBuilder<(T0,)>
+        {
+            type Prepared = ::planus::Offset<DeclarationSites>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<DeclarationSites>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl<T0: ::planus::WriteAs<::planus::Offset<[self::DeclarationSite]>>>
+            ::planus::WriteAsOffset<DeclarationSites> for DeclarationSitesBuilder<(T0,)>
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<DeclarationSites> {
+                let (v0,) = &self.0;
+                DeclarationSites::create(builder, v0)
+            }
+        }
+
+        /// Reference to a deserialized [DeclarationSites].
+        #[derive(Copy, Clone)]
+        pub struct DeclarationSitesRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+
+        impl<'a> DeclarationSitesRef<'a> {
+            /// Getter for the [`sites` field](DeclarationSites#structfield.sites).
+            #[inline]
+            pub fn sites(
+                &self,
+            ) -> ::planus::Result<::planus::Vector<'a, self::DeclarationSiteRef<'a>>> {
+                self.0.access_required(0, "DeclarationSites", "sites")
+            }
+        }
+
+        impl<'a> ::core::fmt::Debug for DeclarationSitesRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("DeclarationSitesRef");
+                f.field("sites", &self.sites());
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<DeclarationSitesRef<'a>> for DeclarationSites {
+            type Error = ::planus::Error;
+
+            #[allow(unreachable_code)]
+            fn try_from(value: DeclarationSitesRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {
+                    sites: value.sites()?.to_vec()?,
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for DeclarationSitesRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for DeclarationSitesRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[DeclarationSitesRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<DeclarationSites>> for DeclarationSites {
+            type Value = ::planus::Offset<DeclarationSites>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<DeclarationSites>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for DeclarationSitesRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[DeclarationSitesRef]", "read_as_root", 0)
+                })
+            }
+        }
+
+        /// The table `SourceDeclarations` in the namespace `MoorProgram`
+        ///
+        /// Generated from these locations:
+        /// * Table `SourceDeclarations` in the file `../../schema/schema/moor_program.fbs:195`
+        #[derive(
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        pub struct SourceDeclarations {
+            /// The field `main` in the table `SourceDeclarations`
+            pub main: ::planus::alloc::vec::Vec<self::DeclarationSite>,
+            /// The field `forks` in the table `SourceDeclarations`
+            pub forks: ::planus::alloc::vec::Vec<self::DeclarationSites>,
+        }
+
+        #[allow(clippy::derivable_impls)]
+        impl ::core::default::Default for SourceDeclarations {
+            fn default() -> Self {
+                Self {
+                    main: ::core::default::Default::default(),
+                    forks: ::core::default::Default::default(),
+                }
+            }
+        }
+
+        impl SourceDeclarations {
+            /// Creates a [SourceDeclarationsBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> SourceDeclarationsBuilder<()> {
+                SourceDeclarationsBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(
+                builder: &mut ::planus::Builder,
+                field_main: impl ::planus::WriteAs<::planus::Offset<[self::DeclarationSite]>>,
+                field_forks: impl ::planus::WriteAs<
+                    ::planus::Offset<[::planus::Offset<self::DeclarationSites>]>,
+                >,
+            ) -> ::planus::Offset<Self> {
+                let prepared_main = field_main.prepare(builder);
+                let prepared_forks = field_forks.prepare(builder);
+
+                let mut table_writer: ::planus::table_writer::TableWriter<8> =
+                    ::core::default::Default::default();
+                table_writer.write_entry::<::planus::Offset<[self::DeclarationSite]>>(0);
+                table_writer
+                    .write_entry::<::planus::Offset<[::planus::Offset<self::DeclarationSites>]>>(1);
+
+                unsafe {
+                    table_writer.finish(builder, |object_writer| {
+                        object_writer.write::<_, _, 4>(&prepared_main);
+                        object_writer.write::<_, _, 4>(&prepared_forks);
+                    });
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<SourceDeclarations>> for SourceDeclarations {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<SourceDeclarations> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<SourceDeclarations>> for SourceDeclarations {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<SourceDeclarations>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<SourceDeclarations> for SourceDeclarations {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<SourceDeclarations> {
+                SourceDeclarations::create(builder, &self.main, &self.forks)
+            }
+        }
+
+        /// Builder for serializing an instance of the [SourceDeclarations] type.
+        ///
+        /// Can be created using the [SourceDeclarations::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct SourceDeclarationsBuilder<State>(State);
+
+        impl SourceDeclarationsBuilder<()> {
+            /// Setter for the [`main` field](SourceDeclarations#structfield.main).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn main<T0>(self, value: T0) -> SourceDeclarationsBuilder<(T0,)>
+            where
+                T0: ::planus::WriteAs<::planus::Offset<[self::DeclarationSite]>>,
+            {
+                SourceDeclarationsBuilder((value,))
+            }
+        }
+
+        impl<T0> SourceDeclarationsBuilder<(T0,)> {
+            /// Setter for the [`forks` field](SourceDeclarations#structfield.forks).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn forks<T1>(self, value: T1) -> SourceDeclarationsBuilder<(T0, T1)>
+            where
+                T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::DeclarationSites>]>>,
+            {
+                let (v0,) = self.0;
+                SourceDeclarationsBuilder((v0, value))
+            }
+        }
+
+        impl<T0, T1> SourceDeclarationsBuilder<(T0, T1)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [SourceDeclarations].
+            #[inline]
+            pub fn finish(
+                self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<SourceDeclarations>
+            where
+                Self: ::planus::WriteAsOffset<SourceDeclarations>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAs<::planus::Offset<[self::DeclarationSite]>>,
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::DeclarationSites>]>>,
+        > ::planus::WriteAs<::planus::Offset<SourceDeclarations>>
+            for SourceDeclarationsBuilder<(T0, T1)>
+        {
+            type Prepared = ::planus::Offset<SourceDeclarations>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<SourceDeclarations> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAs<::planus::Offset<[self::DeclarationSite]>>,
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::DeclarationSites>]>>,
+        > ::planus::WriteAsOptional<::planus::Offset<SourceDeclarations>>
+            for SourceDeclarationsBuilder<(T0, T1)>
+        {
+            type Prepared = ::planus::Offset<SourceDeclarations>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<SourceDeclarations>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAs<::planus::Offset<[self::DeclarationSite]>>,
+            T1: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::DeclarationSites>]>>,
+        > ::planus::WriteAsOffset<SourceDeclarations> for SourceDeclarationsBuilder<(T0, T1)>
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<SourceDeclarations> {
+                let (v0, v1) = &self.0;
+                SourceDeclarations::create(builder, v0, v1)
+            }
+        }
+
+        /// Reference to a deserialized [SourceDeclarations].
+        #[derive(Copy, Clone)]
+        pub struct SourceDeclarationsRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+
+        impl<'a> SourceDeclarationsRef<'a> {
+            /// Getter for the [`main` field](SourceDeclarations#structfield.main).
+            #[inline]
+            pub fn main(
+                &self,
+            ) -> ::planus::Result<::planus::Vector<'a, self::DeclarationSiteRef<'a>>> {
+                self.0.access_required(0, "SourceDeclarations", "main")
+            }
+
+            /// Getter for the [`forks` field](SourceDeclarations#structfield.forks).
+            #[inline]
+            pub fn forks(
+                &self,
+            ) -> ::planus::Result<
+                ::planus::Vector<'a, ::planus::Result<self::DeclarationSitesRef<'a>>>,
+            > {
+                self.0.access_required(1, "SourceDeclarations", "forks")
+            }
+        }
+
+        impl<'a> ::core::fmt::Debug for SourceDeclarationsRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("SourceDeclarationsRef");
+                f.field("main", &self.main());
+                f.field("forks", &self.forks());
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<SourceDeclarationsRef<'a>> for SourceDeclarations {
+            type Error = ::planus::Error;
+
+            #[allow(unreachable_code)]
+            fn try_from(value: SourceDeclarationsRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {
+                    main: value.main()?.to_vec()?,
+                    forks: value.forks()?.to_vec_result()?,
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for SourceDeclarationsRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for SourceDeclarationsRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[SourceDeclarationsRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<SourceDeclarations>> for SourceDeclarations {
+            type Value = ::planus::Offset<SourceDeclarations>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<SourceDeclarations>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for SourceDeclarationsRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[SourceDeclarationsRef]", "read_as_root", 0)
+                })
+            }
+        }
+
         /// The table `StoredMooRProgram` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredMooRProgram` in the file `crates/schema/schema/moor_program.fbs:183`
+        /// * Table `StoredMooRProgram` in the file `../../schema/schema/moor_program.fbs:201`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct StoredMooRProgram {
             /// The field `version` in the table `StoredMooRProgram`
@@ -37955,6 +40846,19 @@ mod root {
             pub line_number_spans: ::planus::alloc::vec::Vec<self::LineSpan>,
             /// The field `fork_line_number_spans` in the table `StoredMooRProgram`
             pub fork_line_number_spans: ::planus::alloc::vec::Vec<self::ForkLineSpans>,
+            /// The field `main_max_stack` in the table `StoredMooRProgram`
+            pub main_max_stack: u64,
+            /// The field `fork_max_stacks` in the table `StoredMooRProgram`
+            pub fork_max_stacks: ::core::option::Option<::planus::alloc::vec::Vec<u64>>,
+            /// The field `main_max_scope_depth` in the table `StoredMooRProgram`
+            pub main_max_scope_depth: u64,
+            /// The field `fork_max_scope_depths` in the table `StoredMooRProgram`
+            pub fork_max_scope_depths: ::core::option::Option<::planus::alloc::vec::Vec<u64>>,
+            /// The field `source_declarations` in the table `StoredMooRProgram`
+            pub source_declarations:
+                ::core::option::Option<::planus::alloc::boxed::Box<self::SourceDeclarations>>,
+            /// The field `lambda_entry_scope_count` in the table `StoredMooRProgram`
+            pub lambda_entry_scope_count: u16,
         }
 
         #[allow(clippy::derivable_impls)]
@@ -37977,6 +40881,12 @@ mod root {
                     lambda_programs: ::core::default::Default::default(),
                     line_number_spans: ::core::default::Default::default(),
                     fork_line_number_spans: ::core::default::Default::default(),
+                    main_max_stack: 0,
+                    fork_max_stacks: ::core::default::Default::default(),
+                    main_max_scope_depth: 0,
+                    fork_max_scope_depths: ::core::default::Default::default(),
+                    source_declarations: ::core::default::Default::default(),
+                    lambda_entry_scope_count: 0,
                 }
             }
         }
@@ -38031,6 +40941,14 @@ mod root {
                 field_fork_line_number_spans: impl ::planus::WriteAs<
                     ::planus::Offset<[::planus::Offset<self::ForkLineSpans>]>,
                 >,
+                field_main_max_stack: impl ::planus::WriteAsDefault<u64, u64>,
+                field_fork_max_stacks: impl ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
+                field_main_max_scope_depth: impl ::planus::WriteAsDefault<u64, u64>,
+                field_fork_max_scope_depths: impl ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
+                field_source_declarations: impl ::planus::WriteAsOptional<
+                    ::planus::Offset<self::SourceDeclarations>,
+                >,
+                field_lambda_entry_scope_count: impl ::planus::WriteAsDefault<u16, u16>,
             ) -> ::planus::Offset<Self> {
                 let prepared_version = field_version.prepare(builder, &0);
                 let prepared_builtin_signature = field_builtin_signature.prepare(builder, &0);
@@ -38048,11 +40966,24 @@ mod root {
                 let prepared_lambda_programs = field_lambda_programs.prepare(builder);
                 let prepared_line_number_spans = field_line_number_spans.prepare(builder);
                 let prepared_fork_line_number_spans = field_fork_line_number_spans.prepare(builder);
+                let prepared_main_max_stack = field_main_max_stack.prepare(builder, &0);
+                let prepared_fork_max_stacks = field_fork_max_stacks.prepare(builder);
+                let prepared_main_max_scope_depth = field_main_max_scope_depth.prepare(builder, &0);
+                let prepared_fork_max_scope_depths = field_fork_max_scope_depths.prepare(builder);
+                let prepared_source_declarations = field_source_declarations.prepare(builder);
+                let prepared_lambda_entry_scope_count =
+                    field_lambda_entry_scope_count.prepare(builder, &0);
 
-                let mut table_writer: ::planus::table_writer::TableWriter<36> =
+                let mut table_writer: ::planus::table_writer::TableWriter<48> =
                     ::core::default::Default::default();
                 if prepared_builtin_signature.is_some() {
                     table_writer.write_entry::<u64>(1);
+                }
+                if prepared_main_max_stack.is_some() {
+                    table_writer.write_entry::<u64>(16);
+                }
+                if prepared_main_max_scope_depth.is_some() {
+                    table_writer.write_entry::<u64>(18);
                 }
                 table_writer.write_entry::<::planus::Offset<[u16]>>(2);
                 table_writer
@@ -38082,8 +41013,20 @@ mod root {
                     .write_entry::<::planus::Offset<[::planus::Offset<self::LineSpan>]>>(14);
                 table_writer
                     .write_entry::<::planus::Offset<[::planus::Offset<self::ForkLineSpans>]>>(15);
+                if prepared_fork_max_stacks.is_some() {
+                    table_writer.write_entry::<::planus::Offset<[u64]>>(17);
+                }
+                if prepared_fork_max_scope_depths.is_some() {
+                    table_writer.write_entry::<::planus::Offset<[u64]>>(19);
+                }
+                if prepared_source_declarations.is_some() {
+                    table_writer.write_entry::<::planus::Offset<self::SourceDeclarations>>(20);
+                }
                 if prepared_version.is_some() {
                     table_writer.write_entry::<u16>(0);
+                }
+                if prepared_lambda_entry_scope_count.is_some() {
+                    table_writer.write_entry::<u16>(21);
                 }
 
                 unsafe {
@@ -38092,6 +41035,16 @@ mod root {
                             prepared_builtin_signature
                         {
                             object_writer.write::<_, _, 8>(&prepared_builtin_signature);
+                        }
+                        if let ::core::option::Option::Some(prepared_main_max_stack) =
+                            prepared_main_max_stack
+                        {
+                            object_writer.write::<_, _, 8>(&prepared_main_max_stack);
+                        }
+                        if let ::core::option::Option::Some(prepared_main_max_scope_depth) =
+                            prepared_main_max_scope_depth
+                        {
+                            object_writer.write::<_, _, 8>(&prepared_main_max_scope_depth);
                         }
                         object_writer.write::<_, _, 4>(&prepared_main_vector);
                         object_writer.write::<_, _, 4>(&prepared_fork_vectors);
@@ -38107,8 +41060,28 @@ mod root {
                         object_writer.write::<_, _, 4>(&prepared_lambda_programs);
                         object_writer.write::<_, _, 4>(&prepared_line_number_spans);
                         object_writer.write::<_, _, 4>(&prepared_fork_line_number_spans);
+                        if let ::core::option::Option::Some(prepared_fork_max_stacks) =
+                            prepared_fork_max_stacks
+                        {
+                            object_writer.write::<_, _, 4>(&prepared_fork_max_stacks);
+                        }
+                        if let ::core::option::Option::Some(prepared_fork_max_scope_depths) =
+                            prepared_fork_max_scope_depths
+                        {
+                            object_writer.write::<_, _, 4>(&prepared_fork_max_scope_depths);
+                        }
+                        if let ::core::option::Option::Some(prepared_source_declarations) =
+                            prepared_source_declarations
+                        {
+                            object_writer.write::<_, _, 4>(&prepared_source_declarations);
+                        }
                         if let ::core::option::Option::Some(prepared_version) = prepared_version {
                             object_writer.write::<_, _, 2>(&prepared_version);
+                        }
+                        if let ::core::option::Option::Some(prepared_lambda_entry_scope_count) =
+                            prepared_lambda_entry_scope_count
+                        {
+                            object_writer.write::<_, _, 2>(&prepared_lambda_entry_scope_count);
                         }
                     });
                 }
@@ -38164,6 +41137,12 @@ mod root {
                     &self.lambda_programs,
                     &self.line_number_spans,
                     &self.fork_line_number_spans,
+                    self.main_max_stack,
+                    &self.fork_max_stacks,
+                    self.main_max_scope_depth,
+                    &self.fork_max_scope_depths,
+                    &self.source_declarations,
+                    self.lambda_entry_scope_count,
                 )
             }
         }
@@ -38545,6 +41524,703 @@ mod root {
                 T15,
             )>
         {
+            /// Setter for the [`main_max_stack` field](StoredMooRProgram#structfield.main_max_stack).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn main_max_stack<T16>(
+                self,
+                value: T16,
+            ) -> StoredMooRProgramBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+            )>
+            where
+                T16: ::planus::WriteAsDefault<u64, u64>,
+            {
+                let (v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15) = self.0;
+                StoredMooRProgramBuilder((
+                    v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, value,
+                ))
+            }
+
+            /// Sets the [`main_max_stack` field](StoredMooRProgram#structfield.main_max_stack) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn main_max_stack_as_default(
+                self,
+            ) -> StoredMooRProgramBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                ::planus::DefaultValue,
+            )> {
+                self.main_max_stack(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16>
+            StoredMooRProgramBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+            )>
+        {
+            /// Setter for the [`fork_max_stacks` field](StoredMooRProgram#structfield.fork_max_stacks).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn fork_max_stacks<T17>(
+                self,
+                value: T17,
+            ) -> StoredMooRProgramBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+                T17,
+            )>
+            where
+                T17: ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
+            {
+                let (v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16) =
+                    self.0;
+                StoredMooRProgramBuilder((
+                    v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16,
+                    value,
+                ))
+            }
+
+            /// Sets the [`fork_max_stacks` field](StoredMooRProgram#structfield.fork_max_stacks) to null.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn fork_max_stacks_as_null(
+                self,
+            ) -> StoredMooRProgramBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+                (),
+            )> {
+                self.fork_max_stacks(())
+            }
+        }
+
+        impl<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17>
+            StoredMooRProgramBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+                T17,
+            )>
+        {
+            /// Setter for the [`main_max_scope_depth` field](StoredMooRProgram#structfield.main_max_scope_depth).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn main_max_scope_depth<T18>(
+                self,
+                value: T18,
+            ) -> StoredMooRProgramBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+                T17,
+                T18,
+            )>
+            where
+                T18: ::planus::WriteAsDefault<u64, u64>,
+            {
+                let (
+                    v0,
+                    v1,
+                    v2,
+                    v3,
+                    v4,
+                    v5,
+                    v6,
+                    v7,
+                    v8,
+                    v9,
+                    v10,
+                    v11,
+                    v12,
+                    v13,
+                    v14,
+                    v15,
+                    v16,
+                    v17,
+                ) = self.0;
+                StoredMooRProgramBuilder((
+                    v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17,
+                    value,
+                ))
+            }
+
+            /// Sets the [`main_max_scope_depth` field](StoredMooRProgram#structfield.main_max_scope_depth) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn main_max_scope_depth_as_default(
+                self,
+            ) -> StoredMooRProgramBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+                T17,
+                ::planus::DefaultValue,
+            )> {
+                self.main_max_scope_depth(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18>
+            StoredMooRProgramBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+                T17,
+                T18,
+            )>
+        {
+            /// Setter for the [`fork_max_scope_depths` field](StoredMooRProgram#structfield.fork_max_scope_depths).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn fork_max_scope_depths<T19>(
+                self,
+                value: T19,
+            ) -> StoredMooRProgramBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+                T17,
+                T18,
+                T19,
+            )>
+            where
+                T19: ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
+            {
+                let (
+                    v0,
+                    v1,
+                    v2,
+                    v3,
+                    v4,
+                    v5,
+                    v6,
+                    v7,
+                    v8,
+                    v9,
+                    v10,
+                    v11,
+                    v12,
+                    v13,
+                    v14,
+                    v15,
+                    v16,
+                    v17,
+                    v18,
+                ) = self.0;
+                StoredMooRProgramBuilder((
+                    v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17,
+                    v18, value,
+                ))
+            }
+
+            /// Sets the [`fork_max_scope_depths` field](StoredMooRProgram#structfield.fork_max_scope_depths) to null.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn fork_max_scope_depths_as_null(
+                self,
+            ) -> StoredMooRProgramBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+                T17,
+                T18,
+                (),
+            )> {
+                self.fork_max_scope_depths(())
+            }
+        }
+
+        impl<
+            T0,
+            T1,
+            T2,
+            T3,
+            T4,
+            T5,
+            T6,
+            T7,
+            T8,
+            T9,
+            T10,
+            T11,
+            T12,
+            T13,
+            T14,
+            T15,
+            T16,
+            T17,
+            T18,
+            T19,
+        >
+            StoredMooRProgramBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+                T17,
+                T18,
+                T19,
+            )>
+        {
+            /// Setter for the [`source_declarations` field](StoredMooRProgram#structfield.source_declarations).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn source_declarations<T20>(
+                self,
+                value: T20,
+            ) -> StoredMooRProgramBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+                T17,
+                T18,
+                T19,
+                T20,
+            )>
+            where
+                T20: ::planus::WriteAsOptional<::planus::Offset<self::SourceDeclarations>>,
+            {
+                let (
+                    v0,
+                    v1,
+                    v2,
+                    v3,
+                    v4,
+                    v5,
+                    v6,
+                    v7,
+                    v8,
+                    v9,
+                    v10,
+                    v11,
+                    v12,
+                    v13,
+                    v14,
+                    v15,
+                    v16,
+                    v17,
+                    v18,
+                    v19,
+                ) = self.0;
+                StoredMooRProgramBuilder((
+                    v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17,
+                    v18, v19, value,
+                ))
+            }
+
+            /// Sets the [`source_declarations` field](StoredMooRProgram#structfield.source_declarations) to null.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn source_declarations_as_null(
+                self,
+            ) -> StoredMooRProgramBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+                T17,
+                T18,
+                T19,
+                (),
+            )> {
+                self.source_declarations(())
+            }
+        }
+
+        impl<
+            T0,
+            T1,
+            T2,
+            T3,
+            T4,
+            T5,
+            T6,
+            T7,
+            T8,
+            T9,
+            T10,
+            T11,
+            T12,
+            T13,
+            T14,
+            T15,
+            T16,
+            T17,
+            T18,
+            T19,
+            T20,
+        >
+            StoredMooRProgramBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+                T17,
+                T18,
+                T19,
+                T20,
+            )>
+        {
+            /// Setter for the [`lambda_entry_scope_count` field](StoredMooRProgram#structfield.lambda_entry_scope_count).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn lambda_entry_scope_count<T21>(
+                self,
+                value: T21,
+            ) -> StoredMooRProgramBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+                T17,
+                T18,
+                T19,
+                T20,
+                T21,
+            )>
+            where
+                T21: ::planus::WriteAsDefault<u16, u16>,
+            {
+                let (
+                    v0,
+                    v1,
+                    v2,
+                    v3,
+                    v4,
+                    v5,
+                    v6,
+                    v7,
+                    v8,
+                    v9,
+                    v10,
+                    v11,
+                    v12,
+                    v13,
+                    v14,
+                    v15,
+                    v16,
+                    v17,
+                    v18,
+                    v19,
+                    v20,
+                ) = self.0;
+                StoredMooRProgramBuilder((
+                    v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15, v16, v17,
+                    v18, v19, v20, value,
+                ))
+            }
+
+            /// Sets the [`lambda_entry_scope_count` field](StoredMooRProgram#structfield.lambda_entry_scope_count) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn lambda_entry_scope_count_as_default(
+                self,
+            ) -> StoredMooRProgramBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+                T17,
+                T18,
+                T19,
+                T20,
+                ::planus::DefaultValue,
+            )> {
+                self.lambda_entry_scope_count(::planus::DefaultValue)
+            }
+        }
+
+        impl<
+            T0,
+            T1,
+            T2,
+            T3,
+            T4,
+            T5,
+            T6,
+            T7,
+            T8,
+            T9,
+            T10,
+            T11,
+            T12,
+            T13,
+            T14,
+            T15,
+            T16,
+            T17,
+            T18,
+            T19,
+            T20,
+            T21,
+        >
+            StoredMooRProgramBuilder<(
+                T0,
+                T1,
+                T2,
+                T3,
+                T4,
+                T5,
+                T6,
+                T7,
+                T8,
+                T9,
+                T10,
+                T11,
+                T12,
+                T13,
+                T14,
+                T15,
+                T16,
+                T17,
+                T18,
+                T19,
+                T20,
+                T21,
+            )>
+        {
             /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [StoredMooRProgram].
             #[inline]
             pub fn finish(
@@ -38575,6 +42251,12 @@ mod root {
             T13: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredMooRProgram>]>>,
             T14: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::LineSpan>]>>,
             T15: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::ForkLineSpans>]>>,
+            T16: ::planus::WriteAsDefault<u64, u64>,
+            T17: ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
+            T18: ::planus::WriteAsDefault<u64, u64>,
+            T19: ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
+            T20: ::planus::WriteAsOptional<::planus::Offset<self::SourceDeclarations>>,
+            T21: ::planus::WriteAsDefault<u16, u16>,
         > ::planus::WriteAs<::planus::Offset<StoredMooRProgram>>
             for StoredMooRProgramBuilder<(
                 T0,
@@ -38593,6 +42275,12 @@ mod root {
                 T13,
                 T14,
                 T15,
+                T16,
+                T17,
+                T18,
+                T19,
+                T20,
+                T21,
             )>
         {
             type Prepared = ::planus::Offset<StoredMooRProgram>;
@@ -38623,6 +42311,12 @@ mod root {
             T13: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredMooRProgram>]>>,
             T14: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::LineSpan>]>>,
             T15: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::ForkLineSpans>]>>,
+            T16: ::planus::WriteAsDefault<u64, u64>,
+            T17: ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
+            T18: ::planus::WriteAsDefault<u64, u64>,
+            T19: ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
+            T20: ::planus::WriteAsOptional<::planus::Offset<self::SourceDeclarations>>,
+            T21: ::planus::WriteAsDefault<u16, u16>,
         > ::planus::WriteAsOptional<::planus::Offset<StoredMooRProgram>>
             for StoredMooRProgramBuilder<(
                 T0,
@@ -38641,6 +42335,12 @@ mod root {
                 T13,
                 T14,
                 T15,
+                T16,
+                T17,
+                T18,
+                T19,
+                T20,
+                T21,
             )>
         {
             type Prepared = ::planus::Offset<StoredMooRProgram>;
@@ -38671,6 +42371,12 @@ mod root {
             T13: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::StoredMooRProgram>]>>,
             T14: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::LineSpan>]>>,
             T15: ::planus::WriteAs<::planus::Offset<[::planus::Offset<self::ForkLineSpans>]>>,
+            T16: ::planus::WriteAsDefault<u64, u64>,
+            T17: ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
+            T18: ::planus::WriteAsDefault<u64, u64>,
+            T19: ::planus::WriteAsOptional<::planus::Offset<[u64]>>,
+            T20: ::planus::WriteAsOptional<::planus::Offset<self::SourceDeclarations>>,
+            T21: ::planus::WriteAsDefault<u16, u16>,
         > ::planus::WriteAsOffset<StoredMooRProgram>
             for StoredMooRProgramBuilder<(
                 T0,
@@ -38689,6 +42395,12 @@ mod root {
                 T13,
                 T14,
                 T15,
+                T16,
+                T17,
+                T18,
+                T19,
+                T20,
+                T21,
             )>
         {
             #[inline]
@@ -38696,10 +42408,33 @@ mod root {
                 &self,
                 builder: &mut ::planus::Builder,
             ) -> ::planus::Offset<StoredMooRProgram> {
-                let (v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15) =
-                    &self.0;
+                let (
+                    v0,
+                    v1,
+                    v2,
+                    v3,
+                    v4,
+                    v5,
+                    v6,
+                    v7,
+                    v8,
+                    v9,
+                    v10,
+                    v11,
+                    v12,
+                    v13,
+                    v14,
+                    v15,
+                    v16,
+                    v17,
+                    v18,
+                    v19,
+                    v20,
+                    v21,
+                ) = &self.0;
                 StoredMooRProgram::create(
                     builder, v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10, v11, v12, v13, v14, v15,
+                    v16, v17, v18, v19, v20, v21,
                 )
             }
         }
@@ -38868,6 +42603,63 @@ mod root {
                 self.0
                     .access_required(15, "StoredMooRProgram", "fork_line_number_spans")
             }
+
+            /// Getter for the [`main_max_stack` field](StoredMooRProgram#structfield.main_max_stack).
+            #[inline]
+            pub fn main_max_stack(&self) -> ::planus::Result<u64> {
+                ::core::result::Result::Ok(
+                    self.0
+                        .access(16, "StoredMooRProgram", "main_max_stack")?
+                        .unwrap_or(0),
+                )
+            }
+
+            /// Getter for the [`fork_max_stacks` field](StoredMooRProgram#structfield.fork_max_stacks).
+            #[inline]
+            pub fn fork_max_stacks(
+                &self,
+            ) -> ::planus::Result<::core::option::Option<::planus::Vector<'a, u64>>> {
+                self.0.access(17, "StoredMooRProgram", "fork_max_stacks")
+            }
+
+            /// Getter for the [`main_max_scope_depth` field](StoredMooRProgram#structfield.main_max_scope_depth).
+            #[inline]
+            pub fn main_max_scope_depth(&self) -> ::planus::Result<u64> {
+                ::core::result::Result::Ok(
+                    self.0
+                        .access(18, "StoredMooRProgram", "main_max_scope_depth")?
+                        .unwrap_or(0),
+                )
+            }
+
+            /// Getter for the [`fork_max_scope_depths` field](StoredMooRProgram#structfield.fork_max_scope_depths).
+            #[inline]
+            pub fn fork_max_scope_depths(
+                &self,
+            ) -> ::planus::Result<::core::option::Option<::planus::Vector<'a, u64>>> {
+                self.0
+                    .access(19, "StoredMooRProgram", "fork_max_scope_depths")
+            }
+
+            /// Getter for the [`source_declarations` field](StoredMooRProgram#structfield.source_declarations).
+            #[inline]
+            pub fn source_declarations(
+                &self,
+            ) -> ::planus::Result<::core::option::Option<self::SourceDeclarationsRef<'a>>>
+            {
+                self.0
+                    .access(20, "StoredMooRProgram", "source_declarations")
+            }
+
+            /// Getter for the [`lambda_entry_scope_count` field](StoredMooRProgram#structfield.lambda_entry_scope_count).
+            #[inline]
+            pub fn lambda_entry_scope_count(&self) -> ::planus::Result<u16> {
+                ::core::result::Result::Ok(
+                    self.0
+                        .access(21, "StoredMooRProgram", "lambda_entry_scope_count")?
+                        .unwrap_or(0),
+                )
+            }
         }
 
         impl<'a> ::core::fmt::Debug for StoredMooRProgramRef<'a> {
@@ -38889,6 +42681,24 @@ mod root {
                 f.field("lambda_programs", &self.lambda_programs());
                 f.field("line_number_spans", &self.line_number_spans());
                 f.field("fork_line_number_spans", &self.fork_line_number_spans());
+                f.field("main_max_stack", &self.main_max_stack());
+                if let ::core::option::Option::Some(field_fork_max_stacks) =
+                    self.fork_max_stacks().transpose()
+                {
+                    f.field("fork_max_stacks", &field_fork_max_stacks);
+                }
+                f.field("main_max_scope_depth", &self.main_max_scope_depth());
+                if let ::core::option::Option::Some(field_fork_max_scope_depths) =
+                    self.fork_max_scope_depths().transpose()
+                {
+                    f.field("fork_max_scope_depths", &field_fork_max_scope_depths);
+                }
+                if let ::core::option::Option::Some(field_source_declarations) =
+                    self.source_declarations().transpose()
+                {
+                    f.field("source_declarations", &field_source_declarations);
+                }
+                f.field("lambda_entry_scope_count", &self.lambda_entry_scope_count());
                 f.finish()
             }
         }
@@ -38919,6 +42729,37 @@ mod root {
                     lambda_programs: value.lambda_programs()?.to_vec_result()?,
                     line_number_spans: value.line_number_spans()?.to_vec_result()?,
                     fork_line_number_spans: value.fork_line_number_spans()?.to_vec_result()?,
+                    main_max_stack: ::core::convert::TryInto::try_into(value.main_max_stack()?)?,
+                    fork_max_stacks: if let ::core::option::Option::Some(fork_max_stacks) =
+                        value.fork_max_stacks()?
+                    {
+                        ::core::option::Option::Some(fork_max_stacks.to_vec()?)
+                    } else {
+                        ::core::option::Option::None
+                    },
+                    main_max_scope_depth: ::core::convert::TryInto::try_into(
+                        value.main_max_scope_depth()?,
+                    )?,
+                    fork_max_scope_depths: if let ::core::option::Option::Some(
+                        fork_max_scope_depths,
+                    ) = value.fork_max_scope_depths()?
+                    {
+                        ::core::option::Option::Some(fork_max_scope_depths.to_vec()?)
+                    } else {
+                        ::core::option::Option::None
+                    },
+                    source_declarations: if let ::core::option::Option::Some(source_declarations) =
+                        value.source_declarations()?
+                    {
+                        ::core::option::Option::Some(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryInto::try_into(source_declarations)?,
+                        ))
+                    } else {
+                        ::core::option::Option::None
+                    },
+                    lambda_entry_scope_count: ::core::convert::TryInto::try_into(
+                        value.lambda_entry_scope_count()?,
+                    )?,
                 })
             }
         }
@@ -38999,7 +42840,7 @@ mod root {
         /// The union `StoredProgramLanguage` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Union `StoredProgramLanguage` in the file `crates/schema/schema/moor_program.fbs:234`
+        /// * Union `StoredProgramLanguage` in the file `../../schema/schema/moor_program.fbs:270`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum StoredProgramLanguage {
             /// The variant of type `StoredMooRProgram` in the union `StoredProgramLanguage`
@@ -39152,7 +42993,7 @@ mod root {
         /// The table `StoredProgram` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `StoredProgram` in the file `crates/schema/schema/moor_program.fbs:240`
+        /// * Table `StoredProgram` in the file `../../schema/schema/moor_program.fbs:276`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct StoredProgram {
             /// The field `language` in the table `StoredProgram`
@@ -39389,7 +43230,7 @@ mod root {
         /// The table `LineSpan` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `LineSpan` in the file `crates/schema/schema/moor_program.fbs:244`
+        /// * Table `LineSpan` in the file `../../schema/schema/moor_program.fbs:280`
         #[derive(
             Clone,
             Debug,
@@ -39692,7 +43533,7 @@ mod root {
         /// The table `ForkLineSpans` in the namespace `MoorProgram`
         ///
         /// Generated from these locations:
-        /// * Table `ForkLineSpans` in the file `crates/schema/schema/moor_program.fbs:249`
+        /// * Table `ForkLineSpans` in the file `../../schema/schema/moor_program.fbs:285`
         #[derive(
             Clone,
             Debug,

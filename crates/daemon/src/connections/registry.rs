@@ -15,7 +15,7 @@ use std::{collections::HashMap, sync::Arc, time::SystemTime};
 
 use uuid::Uuid;
 
-use crate::connections::fjall_registry::FjallConnectionRegistry;
+use crate::connections::snapshot_registry::SnapshotRegistry;
 use eyre::Report as Error;
 use moor_common::tasks::{ConnectionDetails, SessionError};
 use moor_runtime_api::RpcMessageError;
@@ -159,19 +159,19 @@ pub trait ConnectionRegistry: ConnectionStateSource {
 pub struct ConnectionRegistryFactory;
 
 impl ConnectionRegistryFactory {
-    /// Create in-memory only database (useful for testing)
+    /// A registry kept in memory only, which a restart forgets.
     pub fn in_memory_only() -> Result<Arc<dyn ConnectionRegistry>, Error> {
-        let db = FjallConnectionRegistry::open(None)?;
-        Ok(Arc::new(db))
+        Ok(Arc::new(SnapshotRegistry::in_memory()))
     }
 
-    /// Create database with Fjall persistence
+    /// A registry kept on disk at `path`, or in memory only without one.
     pub fn with_fjall_persistence<P: AsRef<Path>>(
         path: Option<P>,
     ) -> Result<Arc<dyn ConnectionRegistry>, Error> {
-        let path = path.as_ref().map(|p| p.as_ref());
-        let db = FjallConnectionRegistry::open(path)?;
-        Ok(Arc::new(db))
+        match path {
+            Some(path) => Ok(Arc::new(SnapshotRegistry::open(path.as_ref())?)),
+            None => Self::in_memory_only(),
+        }
     }
 }
 

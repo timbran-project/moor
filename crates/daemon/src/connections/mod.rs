@@ -11,16 +11,21 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Shared data types for connections management
+//! The connection registry: which clients are connected, as which connection objects, logged
+//! in as which players, and what their hosts have said of them.
 
 use moor_var::{Symbol, Var};
 use std::{collections::HashMap, time::SystemTime};
 
 #[allow(dead_code, clippy::all)]
 mod connections_generated;
+#[cfg(test)]
+mod contract_tests;
 mod conversions;
-mod fjall_registry;
 mod registry;
+mod snapshot_registry;
+mod state;
+mod store;
 
 pub const FIRST_CONNECTION_ID: i32 = -4;
 
@@ -28,8 +33,9 @@ pub use registry::{
     ConnectionRegistry, ConnectionRegistryFactory, ConnectionStateSource, NewConnectionParams,
     RemovedConnection,
 };
+pub use snapshot_registry::SnapshotRegistry;
 
-/// In-memory representation of a connection record
+/// A connection as the registry's earlier layout stored it, read only to migrate from it.
 #[derive(Debug, Clone)]
 pub struct ConnectionRecord {
     pub client_id: u128,
@@ -43,7 +49,7 @@ pub struct ConnectionRecord {
     pub client_attributes: HashMap<Symbol, Var>,
 }
 
-/// In-memory representation of a collection of connection records
+/// The connections the earlier layout stored under one connection or player.
 #[derive(Debug, Clone)]
 pub struct ConnectionsRecords {
     pub connections: Vec<ConnectionRecord>,

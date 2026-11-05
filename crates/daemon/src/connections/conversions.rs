@@ -11,15 +11,17 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Conversion functions between in-memory and FlatBuffers representations
+//! The registry's earlier record layout, which it reads only to migrate a database from it. Its
+//! encoders remain for tests that make such a database.
 
 use crate::connections::{ConnectionRecord, ConnectionsRecords, connections_generated};
 use eyre::Error;
 use moor_schema::convert as convert_schema;
-use planus::{ReadAsRoot, WriteAsOffset};
+use planus::ReadAsRoot;
 use std::time::{Duration, UNIX_EPOCH};
 
 /// Convert in-memory ConnectionRecord to FlatBuffers struct representation
+#[cfg(test)]
 pub fn connection_record_to_fb(
     record: &ConnectionRecord,
 ) -> Result<connections_generated::moor_connections::ConnectionRecord, Error> {
@@ -151,6 +153,7 @@ pub fn connection_record_from_fb(
 }
 
 /// Convert in-memory ConnectionsRecords to FlatBuffers bytes
+#[cfg(test)]
 pub fn connections_records_to_bytes(records: &ConnectionsRecords) -> Result<Vec<u8>, Error> {
     let mut fb_connections = Vec::new();
     for record in &records.connections {
@@ -162,7 +165,7 @@ pub fn connections_records_to_bytes(records: &ConnectionsRecords) -> Result<Vec<
     };
 
     let mut builder = planus::Builder::new();
-    let offset = WriteAsOffset::prepare(&fb_records, &mut builder);
+    let offset = planus::WriteAsOffset::prepare(&fb_records, &mut builder);
     builder.finish(offset, None);
     Ok(builder.as_slice().to_vec())
 }

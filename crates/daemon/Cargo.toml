@@ -40,6 +40,10 @@ maintainer-scripts = "debian/scripts"
 name = "moor-daemon"
 path = "src/bin/moor-daemon.rs"
 
+[[bench]]
+name = "connection_registry_benches"
+harness = false
+
 [dependencies]
 # Telemetry
 fast-telemetry.workspace = true
@@ -76,6 +80,7 @@ r0z.workspace = true
 # Async Runtime & Concurrency
 arc-swap.workspace = true
 flume.workspace = true
+imbl.workspace = true
 oneshot.workspace = true
 papaya.workspace = true
 
@@ -101,3 +106,6 @@ uuid.workspace = true
 
 # Testing & Development
 tempfile.workspace = true
+
+[dev-dependencies]
+micromeasure.workspace = true
