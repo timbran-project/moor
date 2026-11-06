@@ -57,6 +57,7 @@
   - [Alternative Installation Methods](the-system/alternative-installation-methods.md)
   - [Server Configuration](the-system/server-configuration.md)
   - [Performance and Concurrency](the-system/performance-and-concurrency.md)
+  - [Watching a Server with mootop](the-system/mootop.md)
   - [Clustered Deployment](the-system/clustered-deployment.md)
   - [File Worker](the-system/file-worker.md)
   - [Event Logging](the-system/event-logging.md)

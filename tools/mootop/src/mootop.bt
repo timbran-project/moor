@@ -1,0 +1,121 @@
+// Copyright (C) 2026 Ryan Daum <ryan.daum@gmail.com> This program is free
+// software: you can redistribute it and/or modify it under the terms of the GNU
+// Affero General Public License as published by the Free Software Foundation,
+// version 3.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+// details.
+//
+// You should have received a copy of the GNU Affero General Public License along
+// with this program. If not, see <https://www.gnu.org/licenses/>.
+
+// mootop's BPF side. `mootop` substitutes @BINARY@ and @PID@ and @HZ@, runs this with
+// `bpftrace -f json --usdt-file-activation`, and reads what it prints.
+//
+// File activation turns the probes on in every process running the binary, so every probe is
+// filtered to the daemon's PID. mootop doesn't pass `-p`: with it, bpftrace 0.27 (though not 0.20)
+// took no profile samples at all on a busy daemon; its profile probes appear to follow only the
+// process's main thread, which never runs MOO code.
+//
+// Per thread, the probes keep what is running: the task, and the identity of the top frame
+// (kind, a, b, c; see crates/vm/src/probes.rs). A timer samples that state on every CPU.
+// The state is one tuple, replaced whole, because the timer can fire while a probe runs.
+//
+// Each second it prints:
+//   printf "T"              start of a snapshot
+//   @samples                daemon samples on any thread
+//   @frame[task, kind, a, b, c]   samples by task and top frame
+//   @commit[task]           samples inside a commit, by task
+//   @calls[kind, a, b, c]   frames entered
+//   @commits[result]        commits finished, by result
+//   @commit_ns[result]      total commit time in nanoseconds, by result
+//   printf "E"              end of a snapshot
+// and once per frame identity, the first time it is seen:
+//   printf "N kind a b c name"
+//
+// Strings are printed with buf() and %r, not str(): in newer bpftrace (0.27, not 0.20), str()'s
+// length counts a terminating NUL, and these strings have none. %r writes unprintable bytes as
+// \xNN.
+
+usdt:@BINARY@:moor:frame_enter
+/pid == @PID@/
+{
+    @calls[arg1, arg2, arg3, arg4] = count();
+}
+
+usdt:@BINARY@:moor:frame_enter,
+usdt:@BINARY@:moor:frame_top
+/pid == @PID@/
+{
+    // Task ids are stored plus one, so that zero means no task.
+    @cur[tid] = (arg0 + 1, arg1, arg2, arg3, arg4);
+    if (arg1 != 0 && @named[arg1, arg2, arg3, arg4] == 0) {
+        @named[arg1, arg2, arg3, arg4] = 1;
+        printf("N %lld %lld %lld %lld %r\n", arg1, arg2, arg3, arg4, buf(arg5, arg6));
+    }
+}
+
+usdt:@BINARY@:moor:task_off
+/pid == @PID@/
+{
+    delete(@cur[tid]);
+}
+
+usdt:@BINARY@:moor:commit_start
+/pid == @PID@/
+{
+    @commit_at[tid] = nsecs;
+}
+
+usdt:@BINARY@:moor:commit_done
+/pid == @PID@ && @commit_at[tid] != 0/
+{
+    @commits[arg0] = count();
+    @commit_ns[arg0] = sum(nsecs - @commit_at[tid]);
+    delete(@commit_at[tid]);
+}
+
+profile:hz:@HZ@
+/pid == @PID@/
+{
+    @samples = count();
+    $cur = @cur[tid];
+    if (@commit_at[tid] != 0) {
+        @commit[$cur.0] = count();
+    } else if ($cur.0 != 0) {
+        @frame[$cur.0, $cur.1, $cur.2, $cur.3, $cur.4] = count();
+    }
+}
+
+interval:s:1
+{
+    printf("T\n");
+    print(@samples);
+    print(@frame);
+    print(@commit);
+    print(@calls);
+    print(@commits);
+    print(@commit_ns);
+    clear(@samples);
+    clear(@frame);
+    clear(@commit);
+    clear(@calls);
+    clear(@commits);
+    clear(@commit_ns);
+    printf("E\n");
+}
+
+END
+{
+    clear(@samples);
+    clear(@frame);
+    clear(@commit);
+    clear(@calls);
+    clear(@commits);
+    clear(@commit_ns);
+    clear(@cur);
+    clear(@named);
+    clear(@commit_at);
+}

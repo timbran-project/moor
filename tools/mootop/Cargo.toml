@@ -1,0 +1,31 @@
+[package]
+name = "mootop"
+version = "2.0.0-dev"
+authors.workspace = true
+categories.workspace = true
+edition.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Live view of where a running mooR daemon spends its time, by verb, builtin and task"
+
+[dependencies]
+# Internal Dependencies
+moor-var = { path = "../../crates/var" }
+
+# Command Line & Configuration
+clap.workspace = true
+clap_derive.workspace = true
+
+# Serialization & Data Formats
+serde.workspace = true
+serde_json.workspace = true
+
+# Terminal & UI
+ratatui.workspace = true
+
+# Utilities & Helpers
+libc.workspace = true
+uuid.workspace = true

@@ -14,6 +14,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.0 series (`main`) branch
 
+- `mootop` shows, live, which verbs, builtins and tasks are using a running server's CPU, and can
+  record a session and print a report from it later. It reads new USDT probes in the server through
+  bpftrace, so it needs Linux and root. When nothing is attached, the probes add a few instructions
+  per verb call and no measurable time. Build it with `cargo build --release -p mootop`. See
+  "Watching a Server with mootop" in the book.
 - The daemon's connection registry keeps its state in memory and writes it to disk from a thread of
   its own, so looking up a player's connections, which every event sent to a player and every
   `connection()` and `connections()` does, no longer takes a lock, reads the database, or waits
