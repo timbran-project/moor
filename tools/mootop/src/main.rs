@@ -16,7 +16,9 @@
 //! It attaches bpftrace to the daemon's `moor` USDT probes and samples what each thread is
 //! running. It needs root, or the capabilities bpftrace needs.
 
+mod dash;
 mod live;
+mod metrics;
 mod record;
 mod snapshot;
 mod trace;

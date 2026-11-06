@@ -25,9 +25,14 @@ use std::{
 
 use serde_json::Value;
 
-use crate::snapshot::{FrameKey, Snapshot};
+use crate::{
+    metrics::{MetricSet, MetricValue},
+    snapshot::{FrameKey, Snapshot},
+};
 
 const SCRIPT: &str = include_str!("mootop.bt");
+/// Added when the binary has the metrics probes, which only the daemon's exporter fires.
+const METRICS_SCRIPT: &str = include_str!("metrics.bt");
 
 /// Process names of the binaries that run the daemon.
 const DAEMON_NAMES: [&str; 2] = ["moor-daemon", "moor"];
@@ -45,6 +50,8 @@ pub struct Trace {
     pub pid: u32,
     pub binary: String,
     pub events: Receiver<TraceEvent>,
+    /// Whether the binary sends its metrics.
+    pub metrics: bool,
     child: Child,
 }
 
@@ -55,7 +62,12 @@ impl Trace {
             None => find_daemon()?,
         };
         let binary = daemon_binary(pid)?;
-        let script = SCRIPT
+        let metrics = has_probe(bpftrace, &binary, "metrics_begin")?;
+        let mut script = SCRIPT.to_string();
+        if metrics {
+            script.push_str(METRICS_SCRIPT);
+        }
+        let script = script
             .replace("@BINARY@", &binary)
             .replace("@PID@", &pid.to_string())
             .replace("@HZ@", &hz.to_string());
@@ -91,6 +103,7 @@ impl Trace {
             pid,
             binary,
             events: rx,
+            metrics,
             child,
         })
     }
@@ -112,6 +125,26 @@ impl Drop for Trace {
         let _ = self.child.kill();
         let _ = self.child.wait();
     }
+}
+
+/// Whether `binary` has the USDT probe `moor:name`. bpftrace refuses a script naming a probe
+/// that doesn't exist.
+fn has_probe(bpftrace: &str, binary: &str, name: &str) -> Result<bool, String> {
+    let output = Command::new(bpftrace)
+        .args(["-l", &format!("usdt:{binary}:moor:*")])
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|e| format!("Couldn't run {bpftrace}: {e}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "{bpftrace} couldn't list the probes in {binary}.\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    let suffix = format!(":moor:{name}");
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .any(|line| line.trim().ends_with(&suffix)))
 }
 
 fn find_daemon() -> Result<u32, String> {
@@ -149,9 +182,11 @@ fn daemon_binary(pid: u32) -> Result<String, String> {
 
 fn read_output(reader: impl BufRead, tx: &Sender<TraceEvent>) {
     let mut current = Snapshot::default();
-    let mut started = Instant::now();
-    // Names arrive whenever a frame is first seen, between snapshots too.
+    let capture_start = Instant::now();
+    // Names and metric sets arrive on their own schedule, between snapshots too.
     let mut names = vec![];
+    let mut metrics: Option<MetricSet> = None;
+    let mut building: Option<MetricSet> = None;
     for line in reader.lines() {
         let Ok(line) = line else {
             return;
@@ -167,16 +202,29 @@ fn read_output(reader: impl BufRead, tx: &Sender<TraceEvent>) {
                     if text == "T" {
                         current = Snapshot::default();
                     } else if text == "E" {
-                        let now = Instant::now();
-                        current.seconds = now.duration_since(started).as_secs_f64();
-                        started = now;
+                        // The script prints its counts every second, clearing them, so each
+                        // snapshot covers one second of probes, however late it arrives.
+                        current.seconds = 1.0;
                         current.names.append(&mut names);
+                        current.metrics = metrics.take();
                         let snapshot = std::mem::take(&mut current);
                         if tx.send(TraceEvent::Snapshot(snapshot)).is_err() {
                             return;
                         }
                     } else if let Some(name) = text.strip_prefix("N ").and_then(parse_name) {
                         names.push(name);
+                    } else if text.starts_with("MB ") {
+                        building = Some(MetricSet::default());
+                    } else if text == "ME" {
+                        if let Some(mut set) = building.take() {
+                            set.at = capture_start.elapsed().as_secs_f64();
+                            metrics = Some(set);
+                        }
+                    } else if let Some(rest) = text.strip_prefix("M ")
+                        && let Some(set) = building.as_mut()
+                        && let Some(value) = parse_metric(rest)
+                    {
+                        set.values.push(value);
                     }
                 }
             }
@@ -220,6 +268,21 @@ fn unescape(text: &str) -> String {
         i += 1;
     }
     String::from_utf8_lossy(&out).into_owned()
+}
+
+/// `kind part value bound name labels`; the labels may be empty.
+fn parse_metric(text: &str) -> Option<MetricValue> {
+    let mut parts = text.splitn(6, ' ');
+    let mut num = || parts.next().and_then(parse_u64);
+    let (kind, part, value, bound) = (num()?, num()?, num()?, num()?);
+    Some(MetricValue {
+        kind,
+        part,
+        value,
+        bound,
+        name: unescape(parts.next()?),
+        labels: unescape(parts.next().unwrap_or_default()),
+    })
 }
 
 /// bpftrace prints probe arguments as signed integers.
