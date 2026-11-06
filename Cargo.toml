@@ -62,6 +62,7 @@ authors = [
 ]
 categories = [
     "game",
+
     "virtual-world",
     "mud",
     "database",
