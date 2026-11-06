@@ -1,0 +1,38 @@
+// Copyright (C) 2026 Ryan Daum <ryan.daum@gmail.com> This program is free
+// software: you can redistribute it and/or modify it under the terms of the GNU
+// Affero General Public License as published by the Free Software Foundation,
+// version 3.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+// details.
+//
+// You should have received a copy of the GNU Affero General Public License along
+// with this program. If not, see <https://www.gnu.org/licenses/>.
+
+// The daemon's metrics, added to mootop.bt when the binary has these probes. Once a second the
+// daemon's metrics exporter sends every sample (see crates/common/src/util/metrics_file.rs):
+//   printf "MB service"                             start of a set
+//   printf "M kind part value bound name labels"    one value
+//   printf "ME"                                     end of a set
+// Strings are printed with buf() and %r, as in mootop.bt.
+
+usdt:@BINARY@:moor:metrics_begin
+/pid == @PID@/
+{
+    printf("MB %r\n", buf(arg0, arg1));
+}
+
+usdt:@BINARY@:moor:metric
+/pid == @PID@/
+{
+    printf("M %lld %lld %llu %llu %r %r\n", arg4, arg5, arg6, arg7, buf(arg0, arg1),
+        buf(arg2, arg3));
+}
+
+usdt:@BINARY@:moor:metrics_end
+/pid == @PID@/
+{
+    printf("ME\n");
+}

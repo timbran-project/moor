@@ -16,6 +16,8 @@
 use std::collections::HashMap;
 
 use moor_var::Obj;
+
+use crate::metrics::MetricSet;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -66,6 +68,9 @@ pub struct Snapshot {
     pub commit_ns: [u64; 4],
     /// Names first seen in this interval.
     pub names: Vec<(FrameKey, String)>,
+    /// The daemon's metrics, the last set that arrived in this interval.
+    #[serde(default)]
+    pub metrics: Option<MetricSet>,
 }
 
 impl Snapshot {
@@ -81,6 +86,9 @@ impl Snapshot {
             self.commit_ns[i] += other.commit_ns[i];
         }
         self.names.extend_from_slice(&other.names);
+        if other.metrics.is_some() {
+            self.metrics.clone_from(&other.metrics);
+        }
     }
 }
 
@@ -139,19 +147,32 @@ pub struct Row {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum View {
+    Overview,
     Verbs,
     Builtins,
     Tasks,
+    Database,
+    Rpc,
 }
 
 impl View {
-    pub const ALL: [View; 3] = [View::Verbs, View::Builtins, View::Tasks];
+    pub const ALL: [View; 6] = [
+        View::Overview,
+        View::Verbs,
+        View::Builtins,
+        View::Tasks,
+        View::Database,
+        View::Rpc,
+    ];
 
     pub fn title(self) -> &'static str {
         match self {
+            View::Overview => "Overview",
             View::Verbs => "Verbs",
             View::Builtins => "Builtins",
             View::Tasks => "Tasks",
+            View::Database => "Database",
+            View::Rpc => "RPC",
         }
     }
 }
@@ -220,6 +241,7 @@ pub fn rows(snapshot: &Snapshot, hz: u32, names: &Names, view: View) -> Vec<Row>
         }),
         View::Builtins => frame_rows(snapshot, &scale, names, |k| k.kind == KIND_BUILTIN),
         View::Tasks => task_rows(snapshot, &scale, names),
+        View::Overview | View::Database | View::Rpc => vec![],
     };
     rows.sort_by(|x, y| {
         y.cpu
