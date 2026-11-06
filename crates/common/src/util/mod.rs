@@ -29,7 +29,7 @@ pub use cache_padded::CachePadded;
 pub use fatal::{is_fatal_db_error_reported, signal_fatal_db_error};
 pub use instant::Instant;
 pub use metric_entries::{MetricEntriesVisitor, MetricEntry};
-pub use metrics_file::{MetricsFileConfig, MetricsFileWriter, render_service_metrics};
+pub use metrics_file::{MetricsExporter, MetricsFileConfig, render_service_metrics};
 pub use metrics_snapshot::{
     HistogramValue, MetricFamily, MetricFamilyKind, MetricSample, MetricValue, MetricsSnapshot,
     MetricsSnapshotBuilder,

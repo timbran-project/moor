@@ -15,7 +15,7 @@
 
 use clap::Parser;
 use clap_derive::Parser;
-use moor_common::util::MetricsFileWriter;
+use moor_common::util::MetricsExporter;
 use moor_git_worker::{
     job::{Executor, child_main},
     protocol::Limits,
@@ -105,7 +105,7 @@ async fn run(args: Args) -> eyre::Result<()> {
         .metrics
         .config()
         .map(|config| {
-            MetricsFileWriter::spawn(config, "git-worker", move |visitor| {
+            MetricsExporter::spawn(Some(config), "git-worker", move |visitor| {
                 metrics_executor.visit_metrics(visitor);
                 visit_worker_metrics(visitor);
                 visit_rpc_client_metrics(visitor);

@@ -48,6 +48,7 @@ fast-telemetry.workspace = true
 
 # System
 libc.workspace = true
+probe.workspace = true
 
 # Text Processing
 strsim.workspace = true
