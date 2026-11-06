@@ -2011,6 +2011,27 @@ impl WorldStateTransaction {
     }
 
     pub fn commit(self) -> Result<CommitResult, WorldStateError> {
+        // `moor:commit_start` and `moor:commit_done(result)` bracket the commit for tracers.
+        // The result is 0 for a read-only success, 1 for a write, 2 for a conflict, 3 for an error.
+        probe::probe!(moor, commit_start);
+        let result = self.commit_inner();
+        probe::probe_lazy!(
+            moor,
+            commit_done,
+            match &result {
+                Ok(CommitResult::Success {
+                    mutations_made: false,
+                    ..
+                }) => 0_u64,
+                Ok(CommitResult::Success { .. }) => 1,
+                Ok(CommitResult::ConflictRetry { .. }) => 2,
+                Err(_) => 3,
+            }
+        );
+        result
+    }
+
+    fn commit_inner(self) -> Result<CommitResult, WorldStateError> {
         let counters = db_counters();
         let commit_start = Instant::now();
         let record_commit_result = |result: &CommitResult| match result {

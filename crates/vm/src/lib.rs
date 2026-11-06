@@ -25,6 +25,7 @@ pub(crate) mod config;
 pub(crate) mod environment;
 pub(crate) mod moo_execute;
 pub(crate) mod moo_frame;
+pub(crate) mod probes;
 pub(crate) mod scatter_assign;
 pub(crate) mod vm_unwind;
 
@@ -39,6 +40,7 @@ pub use moo_frame::{
     CachedProgramPtr, CatchType, ForRangeScope, ForSequenceScope, FrameProgram, MooStackFrame,
     PcType, ProgramSlot, Scope, ScopeKind, ScopePayload, ScopeType,
 };
+pub use probes::{probe_frame_enter, probe_frame_top, probe_task_off};
 pub use scatter_assign::{ScatterResult, scatter_assign};
 pub use vm_unwind::FinallyReason;
 

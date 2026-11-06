@@ -22,7 +22,7 @@ use moor_var::{
 
 use crate::exec_state::ExecState;
 use crate::moo_execute::ExecutionResult;
-use crate::{Activation, CatchType, Frame, MooStackFrame, ScopeKind, ScopeType};
+use crate::{Activation, CatchType, Frame, MooStackFrame, ScopeKind, ScopeType, probes};
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum FinallyReason {
@@ -304,6 +304,7 @@ impl ExecState {
         };
 
         self.stack.truncate(activation_idx + 1);
+        probes::probe_frame_top(self.task_id, self.stack.last());
         let Some(activation) = self.stack.last_mut() else {
             return false;
         };
@@ -390,6 +391,7 @@ impl ExecState {
             }
 
             self.stack.pop();
+            probes::probe_frame_top(self.task_id, self.stack.last());
             if self.stack.is_empty() {
                 break;
             }
