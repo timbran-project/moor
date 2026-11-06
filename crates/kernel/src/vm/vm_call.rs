@@ -83,7 +83,7 @@ impl ExecStateBuiltinExt for ExecState {
 
         // Push an activation frame for the builtin function.
         let flags = self.top().verbdef.flags();
-        self.stack.push(Activation::for_bf_call(
+        let activation = Activation::for_bf_call(
             bf_id,
             bf_name,
             args.clone(),
@@ -91,7 +91,9 @@ impl ExecStateBuiltinExt for ExecState {
             // behaviour below.
             flags,
             self.top().player(),
-        ));
+        );
+        moor_vm::probe_frame_enter(self.task_id, &activation);
+        self.stack.push(activation);
         let mut bf_args = BfCallState {
             exec_state: self,
             name: bf_name,

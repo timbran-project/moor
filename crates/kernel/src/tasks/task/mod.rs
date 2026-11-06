@@ -233,6 +233,9 @@ impl Task {
     ) {
         // Transaction context is already set up by the caller
 
+        let task_id = task.task_id;
+        moor_vm::probe_frame_top(task_id, task.vm_host.vm_exec_state().stack.last());
+
         while task.vm_host.is_running() {
             let outcome = if task.control.is_cancelled() {
                 task.cancelled_outcome()
@@ -260,6 +263,7 @@ impl Task {
                 }
             }
         }
+        moor_vm::probe_task_off(task_id);
 
         // Transaction is automatically cleaned up by _tx_guard drop
     }

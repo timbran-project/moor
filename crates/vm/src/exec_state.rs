@@ -33,7 +33,7 @@ use moor_var::{
 
 use crate::activation::CallProgram;
 use crate::moo_execute::{ExecutionResult, Fork, VerbExecutionRequest};
-use crate::{Activation, Frame, PhantomUnsync, VmHost};
+use crate::{Activation, Frame, PhantomUnsync, VmHost, probes};
 use moor_common::model::CapabilityGrants;
 
 static LIST_PROTO_SYM: LazyLock<Symbol> = LazyLock::new(|| Symbol::mk("list_proto"));
@@ -408,6 +408,7 @@ impl ExecState {
             current_activation,
             program,
         );
+        probes::probe_frame_enter(self.task_id, &a);
         self.stack.push(a);
     }
 
@@ -464,6 +465,7 @@ impl ExecState {
             command.iobjstr.take().map_or_else(v_empty_str, v_string),
         );
 
+        probes::probe_frame_enter(self.task_id, &a);
         self.stack.push(a);
     }
 
@@ -488,6 +490,7 @@ impl ExecState {
 
         // TODO how to set the task_id in the parent activation, as we no longer have a reference
         //  to it?
+        probes::probe_frame_enter(self.task_id, &a);
         self.stack = vec![a];
     }
 
@@ -500,6 +503,7 @@ impl ExecState {
         // Get current activation before borrowing self immutably
         let current_activation = self.top();
         let a = Activation::for_lambda_call(&lambda, current_activation, args.into_vec())?;
+        probes::probe_frame_enter(self.task_id, &a);
         self.stack.push(a);
         Ok(())
     }
@@ -689,6 +693,7 @@ impl ExecState {
             program,
             initial_env,
         );
+        probes::probe_frame_enter(self.task_id, &a);
         self.stack.push(a);
     }
 

@@ -21,6 +21,9 @@ moor-common = { path = "../common" }
 moor-compiler = { path = "../compiler" }
 moor-var = { path = "../var" }
 
+# Tracing probes
+probe.workspace = true
+
 # Serialization
 serde.workspace = true
 
