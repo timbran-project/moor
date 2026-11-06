@@ -28,6 +28,7 @@ members = [
     "tools/moor-emh",
     "tools/moor-loadsim",
     "tools/moorc",
+    "tools/mootop",
 ]
 default-members = [
     "crates/var",
@@ -258,4 +259,5 @@ anstream = { version = "1.0", features = ["test"] }
 anstyle = "1.0"
 colored = "3.0"
 crossterm = "0.29"
+ratatui = { version = "0.30", default-features = false, features = ["crossterm_0_29"] }
 rustyline = "18.0"

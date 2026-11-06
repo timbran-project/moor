@@ -30,6 +30,7 @@ database conflict, or storage backpressure.
 
 Look first at:
 
+- [mootop](mootop.md), to see which verbs and builtins are using the CPU
 - [scheduler counters](#scheduler-counters) such as submit, wakeup, and handoff latency
 - [builtin counters](#builtin-counters) if commands spend time in a few heavy builtins
 - [database counters](#database-counters) if the command performs a lot of object/property/verb
@@ -430,6 +431,7 @@ workload-specific tuning, not to require up-front hand tuning on day one.
 
 ## Related Reading
 
+- [Watching a Server with mootop](mootop.md)
 - [Server Configuration](server-configuration.md)
 - [Server Architecture](server-architecture.md)
 - [Server Assumptions About the Database](server-assumptions-about-the-database.md)
