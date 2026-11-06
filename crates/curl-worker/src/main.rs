@@ -15,7 +15,7 @@ use std::{sync::LazyLock, sync::atomic::Ordering};
 
 use clap::Parser;
 use clap_derive::Parser;
-use moor_common::util::MetricsFileWriter;
+use moor_common::util::MetricsExporter;
 use moor_curl_worker::{CurlWorkerConfig, WorkerRuntime};
 use moor_runtime_api::client_args::RpcClientArgs;
 use moor_zmq_client::metrics::MetricsFileArgs;
@@ -88,7 +88,7 @@ async fn main() -> Result<(), eyre::Error> {
         .metrics
         .config()
         .map(|config| {
-            MetricsFileWriter::spawn(config, "curl-worker", moor_curl_worker::visit_metrics)
+            MetricsExporter::spawn(Some(config), "curl-worker", moor_curl_worker::visit_metrics)
         })
         .transpose()?;
 

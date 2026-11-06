@@ -149,7 +149,7 @@ pub fn visit_worker_metrics<V: MetricVisitor + ?Sized>(visitor: &mut V) {
 }
 
 /// Command line options for writing a process's metrics to a file. See
-/// [`moor_common::util::MetricsFileWriter`].
+/// [`moor_common::util::MetricsExporter`].
 #[derive(Args, Clone, Debug)]
 pub struct MetricsFileArgs {
     #[arg(
