@@ -11,7 +11,7 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Error, Timestamp};
+use crate::{Error, RelationIndex, Timestamp, WorkingSet};
 
 pub mod batch_writer;
 pub mod fjall_format;
@@ -39,4 +39,31 @@ pub trait Provider<Domain, Codomain>: Clone {
 
     // Stop any background processing that is running on this provider.
     fn stop(&self) -> Result<(), Error>;
+
+    /// Load every stored tuple into `index` at startup, and return the highest timestamp seen.
+    fn seed(&self, index: &mut dyn RelationIndex<Domain, Codomain>) -> Result<Timestamp, Error>
+    where
+        Domain: crate::RelationDomain,
+        Codomain: crate::RelationCodomain,
+    {
+        let mut max_timestamp = Timestamp(0);
+        for (timestamp, domain, codomain) in self.scan(&|_, _| true)? {
+            max_timestamp = max_timestamp.max(timestamp);
+            index.insert_entry(timestamp, domain, codomain);
+        }
+        Ok(max_timestamp)
+    }
+}
+
+/// How a relation's committed changes become writes for the batch writer.
+pub(crate) trait RelationStorage<Domain, Codomain>
+where
+    Domain: crate::RelationDomain,
+    Codomain: crate::RelationCodomain,
+{
+    /// Consume a published working set into operations for the batch writer.
+    fn encode_working_set(
+        &self,
+        working_set: WorkingSet<Domain, Codomain>,
+    ) -> Result<Vec<batch_writer::BatchOp>, Error>;
 }

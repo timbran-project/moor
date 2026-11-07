@@ -457,8 +457,10 @@ impl MoorDB {
         }
 
         let relations = Relations::init(&keyspace, &config, &path_buf)?;
-        let (initial_root, property_value_chains) =
+        let initial_root =
             relations.snapshot(0, Timestamp(0), Arc::new(Caches::new()), &path_buf)?;
+        // Seeding rebuilt the property-value chains; the batch writer continues from them.
+        let property_value_chains = relations.object_propvalues.provider().take_seeded_chains();
         let start_tx_num = initial_root
             .committed_ts
             .0

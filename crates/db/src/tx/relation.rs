@@ -110,12 +110,7 @@ where
         &self,
     ) -> Result<SeededIndex<Domain, Codomain>, Error> {
         let mut index = (self.index_factory)();
-        let tuples = self.source.scan(&|_, _| true)?;
-        let mut max_timestamp = Timestamp(0);
-        for (timestamp, domain, codomain) in tuples {
-            max_timestamp = max_timestamp.max(timestamp);
-            index.insert_entry(timestamp, domain, codomain);
-        }
+        let max_timestamp = self.source.seed(index.as_mut())?;
         index.set_provider_fully_loaded(true);
         Ok((index, max_timestamp))
     }

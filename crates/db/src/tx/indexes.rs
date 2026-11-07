@@ -15,7 +15,7 @@ use crate::Timestamp;
 use crate::tx::{RelationCodomain, RelationCodomainHashable, RelationDomain};
 use ahash::AHasher;
 use imbl::shared_ptr::DefaultSharedPtr;
-use std::{any::Any, collections::HashMap, hash::BuildHasherDefault};
+use std::{collections::HashMap, hash::BuildHasherDefault};
 
 /// Type alias for imbl HashMap with AHasher
 type ImblHashMap<K, V> = imbl::GenericHashMap<K, V, BuildHasherDefault<AHasher>, DefaultSharedPtr>;
@@ -62,7 +62,6 @@ where
         }
     }
     fn fork(&self) -> Box<dyn RelationIndex<Domain, Codomain>>;
-    fn as_any(&self) -> &dyn Any;
 
     /// Get all domains that map to the given codomain
     /// Returns empty Vec if no secondary index is supported
@@ -197,10 +196,6 @@ where
 
     fn fork(&self) -> Box<dyn RelationIndex<Domain, Codomain>> {
         Box::new(self.clone())
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
     }
 
     fn get_by_codomain(&self, _codomain: &Codomain) -> Vec<Domain> {
@@ -386,10 +381,6 @@ where
         Box::new(Self {
             inner: self.inner.clone(),
         })
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
     }
 
     fn get_by_codomain(&self, codomain: &Codomain) -> Vec<Domain> {

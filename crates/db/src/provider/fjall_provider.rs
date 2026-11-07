@@ -158,15 +158,14 @@ where
     }
 }
 
-impl<Domain, Codomain> FjallProvider<Domain, Codomain>
+impl<Domain, Codomain> super::RelationStorage<Domain, Codomain> for FjallProvider<Domain, Codomain>
 where
     Domain: RelationDomain,
     Codomain: RelationCodomain,
     Self: EncodeFor<Domain, Stored = ByteView> + EncodeFor<Codomain, Stored = ByteView>,
     FjallCodec: EncodeFjallValue<Codomain>,
 {
-    /// Consume a published working set into operations for the BatchWriter.
-    pub fn encode_working_set(
+    fn encode_working_set(
         &self,
         working_set: crate::tx::WorkingSet<Domain, Codomain>,
     ) -> Result<Vec<super::batch_writer::BatchOp>, Error> {
@@ -204,7 +203,13 @@ where
         }
         Ok(batch_ops)
     }
+}
 
+impl<Domain, Codomain> FjallProvider<Domain, Codomain>
+where
+    Domain: RelationDomain,
+    Codomain: RelationCodomain,
+{
     fn batch_op_source(&self, domain: &Domain) -> super::batch_writer::BatchOpSource {
         use super::batch_writer::BatchOpSource;
 
