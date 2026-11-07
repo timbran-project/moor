@@ -15,8 +15,12 @@ import { Uuid } from "@moor/schema/generated/moor-common/uuid";
 import { ClientEvent } from "@moor/schema/generated/moor-rpc/client-event";
 import { ClientEventUnion } from "@moor/schema/generated/moor-rpc/client-event-union";
 import { DisconnectEvent } from "@moor/schema/generated/moor-rpc/disconnect-event";
+import { Kept } from "@moor/schema/generated/moor-rpc/kept";
 import { RequestInputEvent } from "@moor/schema/generated/moor-rpc/request-input-event";
-import { TaskSuspendedEvent } from "@moor/schema/generated/moor-rpc/task-suspended-event";
+import { TaskEnding } from "@moor/schema/generated/moor-rpc/task-ending";
+import { TaskOutcome } from "@moor/schema/generated/moor-rpc/task-outcome";
+import { TaskOutcomeEvent } from "@moor/schema/generated/moor-rpc/task-outcome-event";
+import { TaskSuspended } from "@moor/schema/generated/moor-rpc/task-suspended";
 import { Builder } from "flatbuffers";
 import { afterEach, expect, it, vi } from "vitest";
 import { encodeAction } from "../../../web-sdk/src/actions";
@@ -30,6 +34,15 @@ afterEach(() => {
     vi.useRealTimers();
 });
 
+function suspendedOutcomeEvent(b: Builder): number {
+    const ending = TaskSuspended.createTaskSuspended(b);
+    const outcome = TaskOutcome.createTaskOutcome(b, Kept.Yes, TaskEnding.TaskSuspended, ending);
+    TaskOutcomeEvent.startTaskOutcomeEvent(b);
+    TaskOutcomeEvent.addTaskId(b, 7n);
+    TaskOutcomeEvent.addOutcome(b, outcome);
+    return TaskOutcomeEvent.endTaskOutcomeEvent(b);
+}
+
 function eventBytes(sequence: bigint, kind = ClientEventUnion.DisconnectEvent): Uint8Array<ArrayBuffer> {
     const b = new Builder();
     const event = kind === ClientEventUnion.RequestInputEvent
@@ -38,8 +51,8 @@ function eventBytes(sequence: bigint, kind = ClientEventUnion.DisconnectEvent): 
             Uuid.createUuid(b, Uuid.createDataVector(b, new Uint8Array(16).fill(0x22))),
             0,
         )
-        : kind === ClientEventUnion.TaskSuspendedEvent
-        ? TaskSuspendedEvent.createTaskSuspendedEvent(b, 7n)
+        : kind === ClientEventUnion.TaskOutcomeEvent
+        ? suspendedOutcomeEvent(b)
         : DisconnectEvent.createDisconnectEvent(b);
     ClientEvent.startClientEvent(b);
     ClientEvent.addSequence(b, sequence);
@@ -259,7 +272,7 @@ it("continues delivery and releases queued commands while an ACK response is del
     await vi.advanceTimersByTimeAsync(101);
     expect(acknowledgements).toEqual(["1"]);
     expect(f.requests.filter(path => path === "/v1/session/command")).toHaveLength(1);
-    f.deliver(2n, ClientEventUnion.TaskSuspendedEvent);
+    f.deliver(2n, ClientEventUnion.TaskOutcomeEvent);
     await vi.advanceTimersByTimeAsync(1);
     expect(f.resume.sequence).toBe(2n);
     expect(f.transport.onmessage).toHaveBeenCalledTimes(2);

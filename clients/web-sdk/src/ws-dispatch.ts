@@ -17,8 +17,7 @@ import { NarrativeEventMessage } from "@moor/schema/generated/moor-rpc/narrative
 import { PlayerSwitchedEvent } from "@moor/schema/generated/moor-rpc/player-switched-event";
 import { RequestInputEvent } from "@moor/schema/generated/moor-rpc/request-input-event";
 import { SystemMessageEvent } from "@moor/schema/generated/moor-rpc/system-message-event";
-import { TaskErrorEvent } from "@moor/schema/generated/moor-rpc/task-error-event";
-import { TaskSuccessEvent } from "@moor/schema/generated/moor-rpc/task-success-event";
+import { TaskOutcomeEvent } from "@moor/schema/generated/moor-rpc/task-outcome-event";
 
 import { parseClientEvent } from "./client-event.js";
 
@@ -26,8 +25,7 @@ export interface WsDispatchHandlers {
     onNarrativeEventMessage?: (narrative: NarrativeEventMessage) => void;
     onSystemMessageEvent?: (sysMsg: SystemMessageEvent) => void;
     onRequestInputEvent?: (requestInput: RequestInputEvent) => void;
-    onTaskErrorEvent?: (taskError: TaskErrorEvent) => void;
-    onTaskSuccessEvent?: (taskSuccess: TaskSuccessEvent) => void;
+    onTaskOutcomeEvent?: (taskOutcome: TaskOutcomeEvent) => void;
     onCredentialsUpdatedEvent?: (credentials: CredentialsUpdatedEvent) => void;
     onPlayerSwitchedEvent?: (playerSwitched: PlayerSwitchedEvent) => void;
     onIgnoredEvent?: (eventType: ClientEventUnion) => void;
@@ -63,20 +61,12 @@ export function dispatchClientEvent(bytes: Uint8Array, handlers: WsDispatchHandl
             handlers.onRequestInputEvent?.(eventUnion);
             return;
         }
-        case ClientEventUnion.TaskErrorEvent: {
-            if (!(eventUnion instanceof TaskErrorEvent)) {
-                handlers.onMalformedEvent?.(eventType, "TaskErrorEvent");
+        case ClientEventUnion.TaskOutcomeEvent: {
+            if (!(eventUnion instanceof TaskOutcomeEvent)) {
+                handlers.onMalformedEvent?.(eventType, "TaskOutcomeEvent");
                 return;
             }
-            handlers.onTaskErrorEvent?.(eventUnion);
-            return;
-        }
-        case ClientEventUnion.TaskSuccessEvent: {
-            if (!(eventUnion instanceof TaskSuccessEvent)) {
-                handlers.onMalformedEvent?.(eventType, "TaskSuccessEvent");
-                return;
-            }
-            handlers.onTaskSuccessEvent?.(eventUnion);
+            handlers.onTaskOutcomeEvent?.(eventUnion);
             return;
         }
         case ClientEventUnion.CredentialsUpdatedEvent: {

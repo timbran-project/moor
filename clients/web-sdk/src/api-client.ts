@@ -11,6 +11,12 @@
 // You should have received a copy of the GNU Lesser General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
+import {
+    compilationFailureFromBody,
+    type CompileErrorDescription,
+    formatCompileErrorDescription,
+} from "./compile-errors.js";
+
 export type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 export type MoorApiErrorKind = "transport" | "decode" | "protocol";
@@ -21,12 +27,15 @@ export class MoorApiError extends Error {
     statusText?: string;
     context?: string;
     cause?: unknown;
+    /** For code that does not compile (HTTP 422): the compiler's diagnostic. */
+    compileError?: CompileErrorDescription;
 
     constructor(kind: MoorApiErrorKind, message: string, options?: {
         status?: number;
         statusText?: string;
         context?: string;
         cause?: unknown;
+        compileError?: CompileErrorDescription;
     }) {
         super(message);
         this.name = "MoorApiError";
@@ -35,6 +44,7 @@ export class MoorApiError extends Error {
         this.statusText = options?.statusText;
         this.context = options?.context;
         this.cause = options?.cause;
+        this.compileError = options?.compileError;
     }
 }
 
@@ -82,6 +92,7 @@ async function toBytes(response: Response): Promise<Uint8Array> {
 
 async function responseError(response: Response, context: string): Promise<MoorApiError> {
     let message = `Request failed: ${response.status} ${response.statusText}`;
+    let compileError: CompileErrorDescription | undefined;
     const contentType = response.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase();
     if (contentType === "application/json") {
         try {
@@ -92,6 +103,10 @@ async function responseError(response: Response, context: string): Promise<MoorA
             ) {
                 message = body.error;
             }
+            compileError = compilationFailureFromBody(body) ?? undefined;
+            if (compileError) {
+                message = `Compilation failed. ${formatCompileErrorDescription(compileError)}`;
+            }
         } catch {
             // Keep the HTTP status when a proxy or server returns an invalid body.
         }
@@ -100,6 +115,7 @@ async function responseError(response: Response, context: string): Promise<MoorA
         status: response.status,
         statusText: response.statusText,
         context,
+        compileError,
     });
 }
 

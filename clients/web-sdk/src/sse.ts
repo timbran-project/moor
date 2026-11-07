@@ -241,9 +241,7 @@ export class SseSessionTransport implements SessionTransport {
                 this.resume.inputRequests.push(uuidString(input.requestId()?.dataArray()));
                 break;
             }
-            case ClientEventUnion.TaskSuccessEvent:
-            case ClientEventUnion.TaskErrorEvent:
-            case ClientEventUnion.TaskSuspendedEvent:
+            case ClientEventUnion.TaskOutcomeEvent:
                 this.resume.pendingTask = false;
                 break;
             case ClientEventUnion.PlayerSwitchedEvent: {
