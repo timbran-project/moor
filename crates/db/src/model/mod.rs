@@ -130,12 +130,89 @@ impl ByteSized for SystemTimeHolder {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, IntoBytes, FromBytes, Immutable)]
-#[repr(C)]
-pub struct ObjAndUUIDHolder {
-    pub obj: Obj,
-    pub uuid: [u8; 16],
+/// A relation key made of an object and a uuid.
+pub(crate) trait ObjectUuidKey {
+    fn uuid(&self) -> Uuid;
 }
+
+/// Define a relation key made of an object and a uuid. Each kind of key is its own type, so a key
+/// for one kind of entity cannot be used for another. All have the same stored bytes.
+macro_rules! object_uuid_key {
+    ($(#[$doc:meta])* $name:ident) => {
+        $(#[$doc])*
+        #[derive(Clone, Debug, PartialEq, Eq, IntoBytes, FromBytes, Immutable)]
+        #[repr(C)]
+        pub struct $name {
+            pub obj: Obj,
+            pub uuid: [u8; 16],
+        }
+
+        impl $name {
+            pub fn new(obj: &Obj, uuid: Uuid) -> Self {
+                Self {
+                    obj: *obj,
+                    uuid: *uuid.as_bytes(),
+                }
+            }
+
+            pub fn obj(&self) -> Obj {
+                self.obj
+            }
+
+            pub fn uuid(&self) -> Uuid {
+                Uuid::from_bytes(self.uuid)
+            }
+        }
+
+        impl ObjectUuidKey for $name {
+            fn uuid(&self) -> Uuid {
+                Uuid::from_bytes(self.uuid)
+            }
+        }
+
+        impl PartialOrd for $name {
+            fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+                Some(self.cmp(other))
+            }
+        }
+
+        impl Ord for $name {
+            fn cmp(&self, other: &Self) -> Ordering {
+                self.obj
+                    .cmp(&other.obj)
+                    .then_with(|| self.uuid.cmp(&other.uuid))
+            }
+        }
+
+        impl std::hash::Hash for $name {
+            fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+                state.write(IntoBytes::as_bytes(self));
+            }
+        }
+
+        impl std::fmt::Display for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "{}:{}", self.obj, Uuid::from_bytes(self.uuid))
+            }
+        }
+
+        impl ByteSized for $name {
+            fn size_bytes(&self) -> usize {
+                std::mem::size_of::<Self>()
+            }
+        }
+    };
+}
+
+object_uuid_key!(
+    /// A property on an object: the object and the property definition's uuid.
+    PropertyKey
+);
+
+object_uuid_key!(
+    /// A verb on an object: the object and the verb definition's uuid.
+    VerbKey
+);
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct EntityMetadataKey {
@@ -150,37 +227,6 @@ pub struct EntityMetadataKey {
 pub struct AnonymousObjectMetadata {
     created_micros: u128,
     last_accessed_micros: u128,
-}
-
-impl PartialOrd for ObjAndUUIDHolder {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for ObjAndUUIDHolder {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.obj
-            .cmp(&other.obj)
-            .then_with(|| self.uuid.cmp(&other.uuid))
-    }
-}
-
-impl ObjAndUUIDHolder {
-    pub fn new(obj: &Obj, uuid: Uuid) -> Self {
-        Self {
-            obj: *obj,
-            uuid: *uuid.as_bytes(),
-        }
-    }
-
-    pub fn obj(&self) -> Obj {
-        self.obj
-    }
-
-    pub fn uuid(&self) -> Uuid {
-        Uuid::from_bytes(self.uuid)
-    }
 }
 
 impl EntityMetadataKey {
@@ -268,12 +314,6 @@ impl EntityMetadataKey {
     }
 }
 
-impl std::hash::Hash for ObjAndUUIDHolder {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        state.write(IntoBytes::as_bytes(self));
-    }
-}
-
 impl std::fmt::Display for EntityMetadataKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.tag {
@@ -294,12 +334,6 @@ impl std::fmt::Display for EntityMetadataKey {
             ),
             other => write!(f, "unknown:{other}:{}", self.key.as_string()),
         }
-    }
-}
-
-impl std::fmt::Display for ObjAndUUIDHolder {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}:{}", self.obj, Uuid::from_bytes(self.uuid))
     }
 }
 
@@ -379,12 +413,6 @@ impl ByteSized for AnonymousObjectMetadata {
     }
 }
 
-impl ByteSized for ObjAndUUIDHolder {
-    fn size_bytes(&self) -> usize {
-        24
-    }
-}
-
 impl ByteSized for EntityMetadataKey {
     fn size_bytes(&self) -> usize {
         std::mem::size_of::<Self>()
@@ -393,7 +421,7 @@ impl ByteSized for EntityMetadataKey {
 
 #[cfg(test)]
 mod tests {
-    use crate::model::ObjAndUUIDHolder;
+    use crate::model::PropertyKey;
     use moor_var::{Obj, SYSTEM_OBJECT};
     use std::hash::{Hash, Hasher};
     use uuid::Uuid;
@@ -402,9 +430,9 @@ mod tests {
     #[test]
     fn test_reconstitute_obj_uuid_holder() {
         let u = Uuid::new_v4();
-        let oh = ObjAndUUIDHolder::new(&SYSTEM_OBJECT, u);
+        let oh = PropertyKey::new(&SYSTEM_OBJECT, u);
         let bytes = oh.as_bytes();
-        let oh2 = ObjAndUUIDHolder::read_from_bytes(bytes).unwrap();
+        let oh2 = PropertyKey::read_from_bytes(bytes).unwrap();
         assert_eq!(oh, oh2);
         assert_eq!(oh.uuid(), oh2.uuid());
         assert_eq!(oh.obj(), oh2.obj());
@@ -413,8 +441,8 @@ mod tests {
     #[test]
     fn test_hash_obj_uuid_holder() {
         let u = Uuid::new_v4();
-        let oh = ObjAndUUIDHolder::new(&SYSTEM_OBJECT, u);
-        let oh2 = ObjAndUUIDHolder::new(&SYSTEM_OBJECT, u);
+        let oh = PropertyKey::new(&SYSTEM_OBJECT, u);
+        let oh2 = PropertyKey::new(&SYSTEM_OBJECT, u);
 
         let mut first = std::collections::hash_map::DefaultHasher::new();
         let mut second = std::collections::hash_map::DefaultHasher::new();
@@ -426,7 +454,7 @@ mod tests {
     #[test]
     fn object_uuid_keys_have_an_object_prefix() {
         let obj = Obj::mk_id(42);
-        let key = ObjAndUUIDHolder::new(&obj, Uuid::new_v4());
+        let key = PropertyKey::new(&obj, Uuid::new_v4());
 
         assert!(key.as_bytes().starts_with(obj.as_bytes()));
     }

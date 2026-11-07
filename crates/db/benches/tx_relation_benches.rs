@@ -35,6 +35,8 @@ const BASE_TS: u64 = 10_000;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct Domain(u64);
 
+impl moor_db::KeyTarget for Domain {}
+
 impl std::fmt::Display for Domain {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Domain({})", self.0)

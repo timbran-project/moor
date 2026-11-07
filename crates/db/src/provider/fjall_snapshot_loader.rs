@@ -17,7 +17,8 @@ use std::cmp::Ordering;
 use uuid::Uuid;
 
 use crate::{
-    EntityMetadataKey, ObjAndUUIDHolder, StringHolder,
+    EntityMetadataKey, PropertyKey, StringHolder, VerbKey,
+    model::ObjectUuidKey,
     provider::{
         fjall_provider::{FjallCodec, decode_fjall_value, split_fjall_value},
         property_value_store::{
@@ -68,9 +69,9 @@ struct FjallSnapshotExportSession {
     names: ObjectRelationCursor<StringHolder>,
     verbdefs: ObjectRelationCursor<Vec<SnapshotVerbDefinition>>,
     propdefs: PropertyDefinitionIndex,
-    programs: ObjectUuidRelationCursor<ProgramType>,
+    programs: RelationCursor<VerbKey, ProgramType>,
     values: PropertyValueCursor,
-    permissions: ObjectUuidRelationCursor<PropPerms>,
+    permissions: RelationCursor<PropertyKey, PropPerms>,
     entity_metadata: ObjectMetadataCursor,
     property_uuid_scratch: Vec<Uuid>,
     property_work: ExportPropertyWork,
@@ -502,11 +503,10 @@ where
     }
 }
 
-type ObjectUuidRelationCursor<T> = RelationCursor<ObjAndUUIDHolder, T>;
-
-impl<T> RelationCursor<ObjAndUUIDHolder, T>
+impl<K, T> RelationCursor<K, T>
 where
-    FjallCodec: EncodeFor<ObjAndUUIDHolder, Stored = ByteView>,
+    K: ObjectUuidKey,
+    FjallCodec: EncodeFor<K, Stored = ByteView>,
 {
     fn take_object(&mut self, target: &ObjectOrderKey) -> Result<UuidValues<T>, WorldStateError> {
         let mut values = Vec::new();
@@ -532,7 +532,7 @@ where
 
 struct PropertyValueCursor {
     scan: PropertyValueScan,
-    pending: Option<(ObjectOrderKey, ObjAndUUIDHolder, Var)>,
+    pending: Option<(ObjectOrderKey, PropertyKey, Var)>,
 }
 
 impl PropertyValueCursor {
@@ -545,7 +545,7 @@ impl PropertyValueCursor {
 
     fn next_entry(
         &mut self,
-    ) -> Result<Option<(ObjectOrderKey, ObjAndUUIDHolder, Var)>, WorldStateError> {
+    ) -> Result<Option<(ObjectOrderKey, PropertyKey, Var)>, WorldStateError> {
         let Some(entry) = self.scan.next() else {
             return Ok(None);
         };
@@ -924,9 +924,9 @@ impl SnapshotInterface for FjallSnapshotLoader {
                     continue;
                 }
                 let uuid = definition.uuid();
-                let key = ObjAndUUIDHolder::new(this, uuid);
+                let key = PropertyKey::new(this, uuid);
                 let value = self.get_property_value(&key)?;
-                let permissions = self.get_from_snapshot::<ObjAndUUIDHolder, PropPerms>(
+                let permissions = self.get_from_snapshot::<PropertyKey, PropPerms>(
                     &self.object_propflags_keyspace,
                     &key,
                 )?;
@@ -1072,15 +1072,9 @@ impl FjallSnapshotExportSession {
                 decode_snapshot_verbdefs,
             ),
             propdefs,
-            programs: ObjectUuidRelationCursor::new(
-                &loader.snapshot,
-                &loader.object_verbs_keyspace,
-            ),
+            programs: RelationCursor::new(&loader.snapshot, &loader.object_verbs_keyspace),
             values: PropertyValueCursor::new(&loader.snapshot, &loader.object_propvalues_keyspace),
-            permissions: ObjectUuidRelationCursor::new(
-                &loader.snapshot,
-                &loader.object_propflags_keyspace,
-            ),
+            permissions: RelationCursor::new(&loader.snapshot, &loader.object_propflags_keyspace),
             entity_metadata: ObjectMetadataCursor::new(
                 &loader.snapshot,
                 &loader.entity_metadata_keyspace,
@@ -1223,10 +1217,7 @@ impl FjallSnapshotLoader {
         Ok(Some(codomain))
     }
 
-    fn get_property_value(
-        &self,
-        property: &ObjAndUUIDHolder,
-    ) -> Result<Option<Var>, WorldStateError> {
+    fn get_property_value(&self, property: &PropertyKey) -> Result<Option<Var>, WorldStateError> {
         let (start, end) = property_value_record_bounds(property);
         let reconstructed = reconstruct_property_value(
             self.snapshot
@@ -1294,8 +1285,8 @@ impl FjallSnapshotLoader {
         objid: &Obj,
         uuid: Uuid,
     ) -> Result<ProgramType, WorldStateError> {
-        let key = ObjAndUUIDHolder::new(objid, uuid);
-        self.get_from_snapshot::<ObjAndUUIDHolder, ProgramType>(&self.object_verbs_keyspace, &key)?
+        let key = VerbKey::new(objid, uuid);
+        self.get_from_snapshot::<VerbKey, ProgramType>(&self.object_verbs_keyspace, &key)?
             .ok_or_else(|| WorldStateError::VerbNotFound(*objid, uuid.to_string()))
     }
 
@@ -1310,16 +1301,14 @@ impl FjallSnapshotLoader {
         obj: &Obj,
         uuid: Uuid,
     ) -> Result<(Option<Var>, PropPerms), WorldStateError> {
-        let key = ObjAndUUIDHolder::new(obj, uuid);
+        let key = PropertyKey::new(obj, uuid);
 
         // Get property value
         let value = self.get_property_value(&key)?;
 
         // Get property permissions - if not found, this property doesn't exist on this object
-        let Some(perms) = self.get_from_snapshot::<ObjAndUUIDHolder, PropPerms>(
-            &self.object_propflags_keyspace,
-            &key,
-        )?
+        let Some(perms) = self
+            .get_from_snapshot::<PropertyKey, PropPerms>(&self.object_propflags_keyspace, &key)?
         else {
             return Err(WorldStateError::PropertyNotFound(*obj, uuid.to_string()));
         };

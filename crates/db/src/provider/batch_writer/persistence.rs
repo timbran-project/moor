@@ -21,7 +21,6 @@ pub(super) struct PreparedPersistence<'a> {
     write_batch: fjall::OwnedWriteBatch,
     version: u64,
     transaction: u64,
-    property_definition_changes: Box<[PropertyDefinitionChange]>,
     property_value_changes: Vec<PropertyValueChainChange>,
     next_property_value_record_version: Option<u64>,
     encoding: EncodingStats,
@@ -51,7 +50,6 @@ impl<'a> PreparedPersistence<'a> {
             version,
             timestamp,
             operations,
-            property_definition_changes,
             mut encoding,
         } = batch;
         let transaction = timestamp.0;
@@ -192,7 +190,6 @@ impl<'a> PreparedPersistence<'a> {
             write_batch,
             version,
             transaction,
-            property_definition_changes,
             property_value_changes,
             next_property_value_record_version,
             encoding,
@@ -217,7 +214,6 @@ impl<'a> PreparedPersistence<'a> {
             write_batch,
             version,
             transaction,
-            property_definition_changes,
             property_value_changes,
             next_property_value_record_version,
             encoding,
@@ -231,7 +227,6 @@ impl<'a> PreparedPersistence<'a> {
         db_counters()
             .timers_rare
             .record_elapsed(WorldStateTimerOp::BatchWriterCommit, commit_elapsed);
-        state.property_names.apply(property_definition_changes);
         for change in property_value_changes {
             match change {
                 PropertyValueChainChange::Reset {
@@ -266,7 +261,6 @@ impl<'a> PreparedPersistence<'a> {
             && let Some((slowest_target, slowest_encode_elapsed, slowest_encoded_bytes)) =
                 encoding.slowest
         {
-            let slowest_target = state.property_names.display(&slowest_target);
             warn!(
                 op_count,
                 encoded_bytes = encoding.encoded_bytes,
@@ -325,10 +319,8 @@ mod tests {
         let partition = db
             .keyspace("values", KeyspaceCreateOptions::default)
             .unwrap();
-        let property = ObjAndUUIDHolder::new(&Obj::mk_id(42), Uuid::from_u128(7));
-        let mut names = AHashMap::new();
-        names.insert(property.uuid(), Symbol::mk("before"));
-        let mut state = WriterState::new(names, AHashMap::new(), PROPERTY_VALUE_CHAIN_LIMITS);
+        let property = PropertyKey::new(&Obj::mk_id(42), Uuid::from_u128(7));
+        let mut state = WriterState::new(AHashMap::new(), PROPERTY_VALUE_CHAIN_LIMITS);
         let completed = AtomicU64::new(0);
         let (sender, _receiver) = flume::bounded(1);
         let rollup = RollupEncoder { sender };
@@ -346,8 +338,6 @@ mod tests {
                     },
                 }),
             }],
-            property_definition_changes: vec![PropertyDefinitionChange::Remove(property.uuid())]
-                .into_boxed_slice(),
             encoding: EncodingStats {
                 elapsed: Duration::ZERO,
                 encoded_bytes: record.len(),
@@ -365,7 +355,6 @@ mod tests {
         drop(result);
         assert_eq!(state.next_version, 1);
         assert_eq!(state.next_property_value_record_version, 1);
-        assert!(state.property_names.by_uuid.contains_key(&property.uuid()));
         assert!(state.property_value_chains.is_empty());
         assert_eq!(completed.load(Ordering::Acquire), 0);
         assert!(barrier.try_recv().is_err());
@@ -384,7 +373,6 @@ mod tests {
         assert_eq!(completed.load(Ordering::Acquire), 1);
         assert_eq!(state.next_version, 2);
         assert_eq!(state.next_property_value_record_version, 2);
-        assert!(!state.property_names.by_uuid.contains_key(&property.uuid()));
         assert_eq!(
             state.property_value_chains[&property],
             PropertyValueChain::full(1)

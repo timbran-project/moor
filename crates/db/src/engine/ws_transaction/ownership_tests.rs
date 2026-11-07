@@ -160,7 +160,7 @@ fn ownership_no_op_stays_lazy_and_new_properties_use_the_new_owner() {
     assert!(!tx.has_mutations());
     assert!(
         !tx.object_propflags
-            .has_domain(&ObjAndUUIDHolder::new(&child, uuid))
+            .has_domain(&PropertyKey::new(&child, uuid))
             .unwrap()
     );
     success(tx.commit().unwrap());

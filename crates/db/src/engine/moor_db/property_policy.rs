@@ -16,7 +16,7 @@
 use super::{RelationWorkingSets, WorldStateSnapshot};
 use crate::{
     engine::relation_defs::relation_key_unchanged,
-    model::ObjAndUUIDHolder,
+    model::PropertyKey,
     tx::{OpType, WorkingSet, make_conflict_info},
 };
 use moor_common::model::{ConflictInfo, ConflictType, PropFlag, PropPerms};
@@ -24,8 +24,8 @@ use moor_var::{NOTHING, Symbol};
 
 /// Use the transaction's final permissions; deleting permissions never grants clobber.
 pub(super) fn property_can_clobber(
-    flags: &WorkingSet<ObjAndUUIDHolder, PropPerms>,
-    key: &ObjAndUUIDHolder,
+    flags: &WorkingSet<PropertyKey, PropPerms>,
+    key: &PropertyKey,
 ) -> bool {
     let perms = match flags.tuples_ref().get(key).map(|op| &op.operation) {
         Some(OpType::Insert(perms) | OpType::Update(perms)) => Some(perms),
@@ -132,7 +132,7 @@ impl RelationWorkingSets {
                     && let Some(def) = defs.find(&key.uuid())
                 {
                     if local_perms.is_none() {
-                        let canonical = ObjAndUUIDHolder::new(&def.definer(), key.uuid());
+                        let canonical = PropertyKey::new(&def.definer(), key.uuid());
                         validate!(object_propflags, canonical);
                     }
                     break;

@@ -149,6 +149,8 @@ mod tests {
     #[derive(Debug, Clone, PartialEq, Eq, Hash)]
     struct TestDomain(usize);
 
+    impl moor_db::KeyTarget for TestDomain {}
+
     impl std::fmt::Display for TestDomain {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             write!(f, "TestDomain({})", self.0)

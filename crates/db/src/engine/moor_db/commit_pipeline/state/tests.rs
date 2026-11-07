@@ -14,8 +14,8 @@
 use super::*;
 use crate::config::DatabaseConfig;
 use crate::engine::moor_db::WorldStateTransaction;
-use crate::model::ObjAndUUIDHolder;
-use moor_common::model::{HasUuid, ObjAttrs, ObjFlag, ObjectKind, PropFlag};
+use crate::model::PropertyKey;
+use moor_common::model::{ObjAttrs, ObjFlag, ObjectKind, PropFlag};
 use moor_common::util::BitEnum;
 use moor_var::{NOTHING, Obj, Symbol, v_int};
 
@@ -297,7 +297,7 @@ fn rebase_checks_clobber_policy_lifetime_and_other_writes() {
             prepared
                 .candidate
                 .object_propvalues
-                .index_lookup(&ObjAndUUIDHolder::new(&obj, uuid),)
+                .index_lookup(&PropertyKey::new(&obj, uuid),)
                 .unwrap()
                 .value,
             v_int(1)
@@ -365,12 +365,6 @@ fn rebased_publication_persists_its_version_operations_and_definition_changes() 
     let published = publish(prepared);
     assert_eq!(published.publication_version, checked.version + 1);
     assert_eq!(published.tx_timestamp, timestamp);
-    assert!(matches!(
-        published.definition_changes.as_slice(),
-        [PropertyDefinitionChange::Remove(removed), PropertyDefinitionChange::Upsert(added)]
-            if *removed == old_uuid && added.uuid() == ours_uuid
-                && added.name() == Symbol::mk("ours_prop")
-    ));
     success(published.enqueue_persistence());
     db.wait_for_persistence().unwrap();
     db.stop().unwrap();

@@ -33,7 +33,9 @@ pub use transaction::{RelationTransaction, WorkingSet};
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
-use crate::model::{AnonymousObjectMetadata, EntityMetadataKey, ObjAndUUIDHolder, StringHolder};
+use crate::model::{
+    AnonymousObjectMetadata, EntityMetadataKey, PropertyKey, StringHolder, VerbKey,
+};
 use moor_common::model::{ObjFlag, PropDefs, PropPerms, VerbDefs};
 use moor_common::util::BitEnum;
 use moor_var::{Obj, Var, program::ProgramType};
@@ -53,9 +55,43 @@ use moor_var::{Obj, Var, program::ProgramType};
 /// - `Clone`: For copying keys during operations
 /// - `Debug`: For error messages and conflict reporting
 /// - `Send + Sync + 'static`: For thread-safe, owned storage
-pub trait RelationDomain: Hash + Eq + Clone + Debug + Display + Send + Sync + 'static {}
+pub trait RelationDomain:
+    Hash + Eq + Clone + Debug + Display + KeyTarget + Send + Sync + 'static
+{
+}
 
-impl<T> RelationDomain for T where T: Hash + Eq + Clone + Debug + Display + Send + Sync + 'static {}
+impl<T> RelationDomain for T where
+    T: Hash + Eq + Clone + Debug + Display + KeyTarget + Send + Sync + 'static
+{
+}
+
+/// What a relation key identifies, for conflict reports and storage diagnostics.
+pub trait KeyTarget {
+    /// The entity the key names, if it is one that conflict reports can describe.
+    fn target(&self) -> Option<ConflictTarget> {
+        None
+    }
+}
+
+impl KeyTarget for Obj {
+    fn target(&self) -> Option<ConflictTarget> {
+        Some(ConflictTarget::Object(*self))
+    }
+}
+
+impl KeyTarget for PropertyKey {
+    fn target(&self) -> Option<ConflictTarget> {
+        Some(ConflictTarget::Property {
+            object: self.obj(),
+            uuid: self.uuid(),
+            name: None,
+        })
+    }
+}
+
+impl KeyTarget for VerbKey {}
+
+impl KeyTarget for EntityMetadataKey {}
 
 /// Trait alias for types that can be used as a codomain (value) in a relation.
 ///
@@ -94,7 +130,7 @@ impl_relation_codomain!(
     PropDefs,
     PropPerms,
     AnonymousObjectMetadata,
-    ObjAndUUIDHolder,
+    PropertyKey,
     EntityMetadataKey
 );
 
@@ -121,35 +157,16 @@ pub struct Tx {
 
 pub use moor_common::model::{ConflictInfo, ConflictTarget, ConflictType};
 
-/// Build conflict metadata while retaining structured information for known key types.
+/// Build conflict metadata, with the entity the key names when it is one reports can describe.
 pub(crate) fn make_conflict_info<Domain: RelationDomain>(
     relation_name: moor_var::Symbol,
     domain: &Domain,
     conflict_type: ConflictType,
 ) -> ConflictInfo {
-    use std::any::Any;
-
-    let any_domain = domain as &dyn Any;
-    let relation = relation_name.as_string();
-    let target = if matches!(relation.as_str(), "object_propvalues" | "object_propflags") {
-        any_domain
-            .downcast_ref::<crate::model::ObjAndUUIDHolder>()
-            .map(|holder| ConflictTarget::Property {
-                object: holder.obj(),
-                uuid: holder.uuid(),
-                name: None,
-            })
-    } else {
-        any_domain
-            .downcast_ref::<moor_var::Obj>()
-            .copied()
-            .map(ConflictTarget::Object)
-    };
-
     ConflictInfo {
         relation_name,
         domain_key: format!("{domain}"),
-        target,
+        target: domain.target(),
         conflict_type,
     }
 }

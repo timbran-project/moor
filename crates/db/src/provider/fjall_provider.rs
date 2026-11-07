@@ -50,7 +50,7 @@ use fjall::Slice;
 use moor_common::model::WorldStateTimerOp;
 use moor_var::Var;
 use planus::{ReadAsRoot, WriteAsOffset};
-use std::{any::Any, marker::PhantomData};
+use std::marker::PhantomData;
 
 /// Fjall backing provider used for startup reads and encoding transaction writes.
 #[derive(Clone)]
@@ -208,18 +208,16 @@ where
     fn batch_op_source(&self, domain: &Domain) -> super::batch_writer::BatchOpSource {
         use super::batch_writer::BatchOpSource;
 
-        if matches!(self.relation_name, "object_propvalues" | "object_propflags")
-            && let Some(holder) =
-                (domain as &dyn Any).downcast_ref::<crate::model::ObjAndUUIDHolder>()
-        {
-            return BatchOpSource::Property {
-                relation: self.relation_name,
-                object: holder.obj(),
-                uuid: holder.uuid(),
-            };
+        match domain.target() {
+            Some(moor_common::model::ConflictTarget::Property { object, uuid, .. }) => {
+                BatchOpSource::Property {
+                    relation: self.relation_name,
+                    object,
+                    uuid,
+                }
+            }
+            _ => BatchOpSource::Relation(self.relation_name),
         }
-
-        BatchOpSource::Relation(self.relation_name)
     }
 }
 
@@ -309,7 +307,8 @@ pub(crate) struct FjallCodec;
 // Each type gets its own EncodeFor impl, allowing custom encoding logic
 
 use crate::{
-    AnonymousObjectMetadata, EntityMetadataKey, ObjAndUUIDHolder, StringHolder, provider::Provider,
+    AnonymousObjectMetadata, EntityMetadataKey, PropertyKey, StringHolder, VerbKey,
+    provider::Provider,
 };
 use moor_common::{
     model::{ObjFlag, ObjSet, PropDefs, PropPerms, VerbDefs},
@@ -369,7 +368,8 @@ macro_rules! impl_byteview_wrapper_encode {
 
 // Zerocopy types - direct byte access, no serialization overhead
 impl_zerocopy_encode!(Obj);
-impl_zerocopy_encode!(ObjAndUUIDHolder);
+impl_zerocopy_encode!(PropertyKey);
+impl_zerocopy_encode!(VerbKey);
 impl_zerocopy_encode!(AnonymousObjectMetadata);
 impl_zerocopy_encode!(BitEnum<ObjFlag>);
 

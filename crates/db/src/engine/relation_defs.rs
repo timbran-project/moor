@@ -257,11 +257,12 @@ macro_rules! define_relations {
                                             return Err(info);
                                         }
                                         // For other errors, create a generic conflict info
-                                        return Err($crate::tx::make_conflict_info(
-                                            checker.relation_name(),
-                                            &format!("<unknown>"),
-                                            moor_common::model::ConflictType::ConcurrentWrite,
-                                        ));
+                                        return Err(moor_common::model::ConflictInfo {
+                                            relation_name: checker.relation_name(),
+                                            domain_key: "<unknown>".to_string(),
+                                            target: None,
+                                            conflict_type: moor_common::model::ConflictType::ConcurrentWrite,
+                                        });
                                     }
                                 }
                             )*
@@ -499,7 +500,7 @@ macro_rules! define_relations {
                     (
                         WorldStateSnapshot,
                         ahash::AHashMap<
-                            crate::ObjAndUUIDHolder,
+                            crate::PropertyKey,
                             crate::provider::property_value_store::PropertyValueChain,
                         >,
                     ),
@@ -694,7 +695,7 @@ macro_rules! define_relations {
             /// the resolution caches used during transaction processing.
             pub(crate) struct WorkingSets {
                 pub(crate) owner_change_reads: std::collections::HashSet<moor_var::Obj>,
-                pub(crate) inherited_policy_reads: std::collections::HashSet<crate::model::ObjAndUUIDHolder>,
+                pub(crate) inherited_policy_reads: std::collections::HashSet<crate::model::PropertyKey>,
                 #[allow(dead_code)]
                 pub(crate) tx: Tx,
                 $( pub(crate) $field: WorkingSet<$domain, $codomain>, )*
@@ -742,7 +743,7 @@ macro_rules! define_relations {
             /// separated out to handle ownership during commit processing.
             pub(crate) struct RelationWorkingSets {
                 pub(crate) owner_change_reads: std::collections::HashSet<moor_var::Obj>,
-                pub(crate) inherited_policy_reads: std::collections::HashSet<crate::model::ObjAndUUIDHolder>,
+                pub(crate) inherited_policy_reads: std::collections::HashSet<crate::model::PropertyKey>,
                 $( $field: WorkingSet<$domain, $codomain>, )*
             }
 
@@ -755,7 +756,7 @@ macro_rules! define_relations {
                 /// Invalidates executable program lookups independently of resolution cache fills.
                 pub(crate) verb_program_revision: u64,
                 pub(crate) owner_change_reads: std::collections::HashSet<moor_var::Obj>,
-                pub(crate) inherited_policy_reads: std::collections::HashSet<crate::model::ObjAndUUIDHolder>,
+                pub(crate) inherited_policy_reads: std::collections::HashSet<crate::model::PropertyKey>,
                 #[allow(dead_code)]
                 pub(crate) tx: Tx,
                 /// Database handle used for direct commit processing.
@@ -852,7 +853,7 @@ macro_rules! define_relations {
     // Only property values can opt out of write-conflict rejection.
     (@check_relation object_propvalues, $checker:ident, $ws:ident) => {{
         let flags = &$ws.object_propflags;
-        $checker.check_with_resolver(&mut $ws.object_propvalues, |conflict: &$crate::tx::PotentialConflict<crate::model::ObjAndUUIDHolder, moor_var::Var>| {
+        $checker.check_with_resolver(&mut $ws.object_propvalues, |conflict: &$crate::tx::PotentialConflict<crate::model::PropertyKey, moor_var::Var>| {
             if property_can_clobber(flags, &conflict.domain) {
                 Ok($crate::tx::Resolution::Accept)
             } else {
