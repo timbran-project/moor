@@ -11,579 +11,385 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Direct database list-append workload for Elle consistency testing.
-//! Bypasses the scheduler and tests moor_db directly with concurrent threads.
-//! Outputs EDN format for elle-cli analysis.
+//! Elle list-append workload against `moor_db`, bypassing the scheduler.
+//!
+//! Each transaction is a short sequence of reads and appends over several list properties, run
+//! in one database transaction. Keys rotate: a key takes a bounded number of appends, then a
+//! fresh key replaces it, so lists stay short. The history is written as EDN for elle-cli's
+//! `list-append` model.
 
 use clap::Parser;
 use clap_derive::Parser;
 use edn_format::{Keyword, Value};
-use moor_common::model::{ObjAttrs, ObjectKind, TaskPermissions, WorldStateSource};
-use moor_common::util::BitEnum;
-use moor_db::{Database, TxDB};
-use moor_var::{Obj, Symbol, v_int, v_list};
-use rand::RngExt;
+use moor_common::{
+    model::{CommitResult, TaskPermissions, WorldStateSource},
+    util::BitEnum,
+};
+use moor_db::TxDB;
+use moor_model_checker::elle_common::{self, EdnEvent};
+use moor_var::{Obj, Symbol, Var, v_int, v_list};
+use rand::{Rng, RngExt};
 use std::{
-    collections::BTreeMap,
-    path::{Path, PathBuf},
-    sync::Arc,
+    path::PathBuf,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicI64, Ordering},
+    },
     thread,
     time::{Duration, Instant},
 };
 
 #[derive(Clone, Parser, Debug)]
 struct Args {
-    #[arg(long, help = "Database path", default_value = "test_db")]
-    db_path: PathBuf,
+    #[arg(long, help = "Database path; a temporary directory if not given")]
+    db_path: Option<PathBuf>,
 
     #[arg(
         long,
-        value_name = "num-props",
-        help = "Number of properties to use in the workload",
+        help = "Number of keys open for reads and appends at once",
         default_value = "5"
     )]
-    num_props: usize,
+    num_active_keys: usize,
 
     #[arg(
         long,
-        value_name = "num-concurrent-workloads",
-        help = "Number of concurrent workloads to run",
-        default_value = "20"
+        help = "Appends a key takes before a fresh key replaces it",
+        default_value = "32"
     )]
+    max_writes_per_key: usize,
+
+    #[arg(long, help = "Maximum operations per transaction", default_value = "4")]
+    max_txn_length: usize,
+
+    #[arg(
+        long,
+        help = "Chance that an operation is a read",
+        default_value = "0.5"
+    )]
+    read_fraction: f64,
+
+    #[arg(long, help = "Number of concurrent processes", default_value = "20")]
     num_concurrent_workloads: usize,
 
-    #[arg(
-        long,
-        value_name = "num-workload-iterations",
-        help = "Number of iterations per workload",
-        default_value = "1000"
-    )]
+    #[arg(long, help = "Transactions per process", default_value = "1000")]
     num_workload_iterations: usize,
 
     #[arg(
         long,
-        value_name = "output-file",
-        help = "File to write the workload to",
+        help = "Commit attempts before a transaction is recorded as failed",
+        default_value = "100"
+    )]
+    max_retries: usize,
+
+    #[arg(
+        long,
+        help = "File to write the EDN history to",
         default_value = "workload.edn"
     )]
     output_file: PathBuf,
 }
 
-#[derive(Debug, Clone)]
-enum WorkItem {
-    Append(usize, Vec<(usize, i64)>),
-    Read(usize, Vec<(usize, Vec<i64>)>),
-    AppendEnd(usize, Vec<(usize, i64)>),
-    ReadEnd(usize, Vec<(usize, Vec<i64>)>),
+#[derive(Clone, Copy, Debug)]
+enum MicroOp {
+    Read(usize),
+    Append(usize, i64),
 }
 
-fn setup_database(db: &TxDB, num_props: usize) -> Result<(Obj, Vec<Symbol>), eyre::Error> {
-    let mut loader = db.loader_client()?;
+/// The keys open for operations, and the appends each has been given.
+struct KeyRotation {
+    active: Vec<(usize, usize)>,
+    next_key: usize,
+    max_writes: usize,
+    pool_size: usize,
+}
 
-    // Create test object
-    let obj_attrs = ObjAttrs::default();
-    let obj = loader.create_object(ObjectKind::NextObjid, &obj_attrs)?;
-
-    // Create properties for list-append workload
-    let mut prop_symbols = vec![];
-    for i in 0..num_props {
-        let prop_name = format!("prop_{i}");
-        let prop_sym = Symbol::mk(&prop_name);
-        loader.define_property(
-            &obj,
-            &obj,
-            prop_sym,
-            &obj,
-            Default::default(),
-            Some(v_list(&[])),
-        )?;
-        prop_symbols.push(prop_sym);
-    }
-
-    match loader.commit()? {
-        moor_common::model::CommitResult::Success { .. } => Ok((obj, prop_symbols)),
-        moor_common::model::CommitResult::ConflictRetry { .. } => {
-            Err(eyre::eyre!("Conflict during setup"))
+impl KeyRotation {
+    fn new(num_active: usize, max_writes: usize, pool_size: usize) -> Self {
+        Self {
+            active: (0..num_active).map(|key| (key, 0)).collect(),
+            next_key: num_active,
+            max_writes,
+            pool_size,
         }
     }
+
+    /// Choose an active key, favouring the first slots so a few keys see most of the contention.
+    fn choose(&self, rng: &mut impl Rng) -> usize {
+        let mut slot = 0;
+        while slot + 1 < self.active.len() && rng.random_bool(0.5) {
+            slot += 1;
+        }
+        slot
+    }
+
+    fn read(&self, rng: &mut impl Rng) -> usize {
+        self.active[self.choose(rng)].0
+    }
+
+    /// Choose a key for an append and count it, retiring the key once it is full.
+    fn append(&mut self, rng: &mut impl Rng) -> Result<usize, eyre::Error> {
+        let slot = self.choose(rng);
+        let (key, writes) = &mut self.active[slot];
+        let key = *key;
+        *writes += 1;
+        if *writes >= self.max_writes {
+            if self.next_key >= self.pool_size {
+                return Err(eyre::eyre!("key pool of {} exhausted", self.pool_size));
+            }
+            self.active[slot] = (self.next_key, 0);
+            self.next_key += 1;
+        }
+        Ok(key)
+    }
 }
 
-fn workload_thread(
+struct Workload {
     db: Arc<TxDB>,
     obj: Obj,
-    prop_symbols: Vec<Symbol>,
-    process_id: usize,
-    num_iterations: usize,
-) -> Result<Vec<(Instant, WorkItem)>, eyre::Error> {
-    let mut workload = vec![];
-    let mut counter: i64 = (process_id as i64) * 1_000_000; // Each thread gets its own range
-    let mut total_retries = 0;
-    let mut skipped_ops = 0;
-    let mut rng = rand::rng();
-    let perms = TaskPermissions::new(obj, BitEnum::new());
+    props: Vec<Symbol>,
+    keys: Mutex<KeyRotation>,
+    next_value: AtomicI64,
+    args: Args,
+}
 
-    for iteration in 0..num_iterations {
-        // Print progress every 100 iterations
-        if iteration > 0 && iteration % 100 == 0 {
-            println!(
-                "Thread {process_id} progress: {iteration}/{num_iterations} iterations, {total_retries} total retries, {skipped_ops} skipped"
-            );
-        }
-
-        // Pick random property and operation type once per iteration
-        let prop_idx = rng.random_range(0..prop_symbols.len());
-        let prop_sym = prop_symbols[prop_idx];
-        let is_read = rng.random_bool(0.5);
-
-        // Retry loop for the same operation on conflict (with max retries to avoid infinite loops)
-        let max_retries = 100;
-        let mut retry_count = 0;
-        'retry: loop {
-            if retry_count >= max_retries {
-                // Too many retries, skip this operation
-                skipped_ops += 1;
-                break 'retry;
-            }
-            if retry_count > 0 {
-                total_retries += 1;
-            }
-            retry_count += 1;
-
-            if is_read {
-                // Read workload
-                let start = Instant::now();
-
-                let tx = db.new_world_state()?;
-                let value = tx.retrieve_property(&perms, &obj, prop_sym)?;
-
-                match tx.commit()? {
-                    moor_common::model::CommitResult::Success { .. } => {
-                        let values = if let Some(list) = value.as_list() {
-                            list.iter().filter_map(|v| v.as_integer()).collect()
-                        } else {
-                            vec![]
-                        };
-
-                        workload.push((
-                            start,
-                            WorkItem::Read(process_id, vec![(prop_idx, values.clone())]),
-                        ));
-                        workload.push((
-                            Instant::now(),
-                            WorkItem::ReadEnd(process_id, vec![(prop_idx, values)]),
-                        ));
-                        break 'retry; // Success, move to next iteration
-                    }
-                    moor_common::model::CommitResult::ConflictRetry { .. } => {
-                        // Retry the same read
-                        continue 'retry;
-                    }
-                }
-            } else {
-                // Append workload - use unique counter-based values per thread
-                let start = Instant::now();
-
-                let mut tx = db.new_world_state()?;
-                let value = tx.retrieve_property(&perms, &obj, prop_sym)?;
-
-                // Generate a few unique values from this thread's range
-                let num_values = rng.random_range(1..=10);
-                let mut new_values_to_append = Vec::new();
-                for _ in 0..num_values {
-                    counter += 1;
-                    new_values_to_append.push(counter);
-                }
-
-                // Append to list
-                let new_list = if let Some(list) = value.as_list() {
-                    let mut list_values: Vec<_> = list.iter().collect();
-                    for val in &new_values_to_append {
-                        list_values.push(v_int(*val));
-                    }
-                    v_list(&list_values)
+impl Workload {
+    fn generate(&self, rng: &mut impl Rng) -> Result<Vec<MicroOp>, eyre::Error> {
+        let length = rng.random_range(1..=self.args.max_txn_length);
+        let mut keys = self.keys.lock().unwrap();
+        (0..length)
+            .map(|_| {
+                if rng.random_bool(self.args.read_fraction) {
+                    Ok(MicroOp::Read(keys.read(rng)))
                 } else {
-                    v_list(
-                        &new_values_to_append
-                            .iter()
-                            .map(|v| v_int(*v))
-                            .collect::<Vec<_>>(),
-                    )
-                };
+                    let value = self.next_value.fetch_add(1, Ordering::Relaxed);
+                    Ok(MicroOp::Append(keys.append(rng)?, value))
+                }
+            })
+            .collect()
+    }
 
-                tx.update_property(&perms, &obj, prop_sym, &new_list)?;
-
-                match tx.commit()? {
-                    moor_common::model::CommitResult::Success { .. } => {
-                        workload.push((
-                            start,
-                            WorkItem::Append(
-                                process_id,
-                                new_values_to_append
-                                    .iter()
-                                    .map(|v| (prop_idx, *v))
-                                    .collect(),
-                            ),
-                        ));
-                        workload.push((
-                            Instant::now(),
-                            WorkItem::AppendEnd(
-                                process_id,
-                                new_values_to_append
-                                    .iter()
-                                    .map(|v| (prop_idx, *v))
-                                    .collect(),
-                            ),
-                        ));
-                        break 'retry; // Success, move to next iteration
-                    }
-                    moor_common::model::CommitResult::ConflictRetry { .. } => {
-                        // Retry on conflict with the same values
-                        counter -= num_values as i64;
-                        continue 'retry;
-                    }
+    /// Run the operations in one transaction. Returns the values each read saw, or `None` if the
+    /// commit conflicted.
+    fn attempt(&self, ops: &[MicroOp]) -> Result<Option<Vec<Option<Vec<i64>>>>, eyre::Error> {
+        let perms = TaskPermissions::new(self.obj, BitEnum::new());
+        let mut tx = self.db.new_world_state()?;
+        let mut reads = Vec::with_capacity(ops.len());
+        for op in ops {
+            match *op {
+                MicroOp::Read(key) => {
+                    let value = tx.retrieve_property(&perms, &self.obj, self.props[key])?;
+                    reads.push(Some(list_values(&value)?));
+                }
+                MicroOp::Append(key, value) => {
+                    let current = tx.retrieve_property(&perms, &self.obj, self.props[key])?;
+                    let appended = current
+                        .push(&v_int(value))
+                        .map_err(|error| eyre::eyre!("append to key {key}: {error:?}"))?;
+                    tx.update_property(&perms, &self.obj, self.props[key], &appended)?;
+                    reads.push(None);
                 }
             }
+        }
+        match tx.commit()? {
+            CommitResult::Success { .. } => Ok(Some(reads)),
+            CommitResult::ConflictRetry { .. } => Ok(None),
         }
     }
 
-    println!(
-        "Thread {} completed: {} operations, {} total retries, {} skipped",
-        process_id,
-        workload.len() / 2,
-        total_retries,
-        skipped_ops
-    );
+    fn process(&self, process_id: usize) -> Result<ProcessResult, eyre::Error> {
+        let mut rng = rand::rng();
+        let mut result = ProcessResult::default();
+        for _ in 0..self.args.num_workload_iterations {
+            let ops = self.generate(&mut rng)?;
+            let invoked = Instant::now();
+            result.events.push(EdnEvent::invoke(
+                invoked,
+                process_id,
+                "txn".to_string(),
+                txn_value(&ops, None),
+            ));
 
-    Ok(workload)
+            let mut committed = None;
+            for attempt in 0..self.args.max_retries {
+                if attempt > 0 {
+                    result.retries += 1;
+                }
+                if let Some(reads) = self.attempt(&ops)? {
+                    committed = Some(reads);
+                    break;
+                }
+            }
+
+            let completed = Instant::now();
+            match committed {
+                Some(reads) => {
+                    result.latencies.push(completed - invoked);
+                    result.events.push(EdnEvent::ok(
+                        completed,
+                        process_id,
+                        "txn".to_string(),
+                        txn_value(&ops, Some(&reads)),
+                    ));
+                }
+                None => {
+                    result.failed += 1;
+                    result.events.push(EdnEvent::fail(
+                        completed,
+                        process_id,
+                        "txn".to_string(),
+                        txn_value(&ops, None),
+                    ));
+                }
+            }
+        }
+        Ok(result)
+    }
 }
 
-fn calculate_percentile(sorted_durations: &[Duration], percentile: f64) -> Duration {
-    if sorted_durations.is_empty() {
+#[derive(Default)]
+struct ProcessResult {
+    events: Vec<EdnEvent>,
+    latencies: Vec<Duration>,
+    retries: usize,
+    failed: usize,
+}
+
+fn list_values(value: &Var) -> Result<Vec<i64>, eyre::Error> {
+    let list = value
+        .as_list()
+        .ok_or_else(|| eyre::eyre!("key value is not a list: {value:?}"))?;
+    list.iter()
+        .map(|element| {
+            element
+                .as_integer()
+                .ok_or_else(|| eyre::eyre!("list element is not an integer: {element:?}"))
+        })
+        .collect()
+}
+
+/// The transaction as an EDN vector of micro-operations. Reads carry `nil` until completion.
+fn txn_value(ops: &[MicroOp], reads: Option<&[Option<Vec<i64>>]>) -> Value {
+    let keyword = |name| Value::Keyword(Keyword::from_name(name));
+    Value::Vector(
+        ops.iter()
+            .enumerate()
+            .map(|(index, op)| match *op {
+                MicroOp::Read(key) => {
+                    let seen = reads
+                        .and_then(|reads| reads[index].as_ref())
+                        .map(|values| {
+                            Value::Vector(values.iter().map(|v| Value::Integer(*v)).collect())
+                        })
+                        .unwrap_or(Value::Nil);
+                    Value::Vector(vec![keyword("r"), Value::Integer(key as i64), seen])
+                }
+                MicroOp::Append(key, value) => Value::Vector(vec![
+                    keyword("append"),
+                    Value::Integer(key as i64),
+                    Value::Integer(value),
+                ]),
+            })
+            .collect(),
+    )
+}
+
+fn percentile(sorted: &[Duration], fraction: f64) -> Duration {
+    if sorted.is_empty() {
         return Duration::ZERO;
     }
-    let index = ((sorted_durations.len() as f64 - 1.0) * percentile).round() as usize;
-    sorted_durations[index]
-}
-
-fn print_performance_metrics(workload_results: &[(Instant, WorkItem)], total_duration: Duration) {
-    // Pair up invoke/ok events to calculate operation durations
-    let mut read_durations = Vec::new();
-    let mut append_durations = Vec::new();
-    let mut pending_reads: BTreeMap<(usize, usize), Instant> = BTreeMap::new(); // (process_id, index) -> start_time
-    let mut pending_appends: BTreeMap<(usize, usize), Instant> = BTreeMap::new();
-
-    for (timestamp, item) in workload_results.iter() {
-        match item {
-            WorkItem::Read(process_id, ops) => {
-                let key = (*process_id, ops.len());
-                pending_reads.insert(key, *timestamp);
-            }
-            WorkItem::Append(process_id, ops) => {
-                let key = (*process_id, ops.len());
-                pending_appends.insert(key, *timestamp);
-            }
-            WorkItem::ReadEnd(process_id, ops) => {
-                let key = (*process_id, ops.len());
-                if let Some(start_time) = pending_reads.remove(&key) {
-                    read_durations.push(timestamp.duration_since(start_time));
-                }
-            }
-            WorkItem::AppendEnd(process_id, ops) => {
-                let key = (*process_id, ops.len());
-                if let Some(start_time) = pending_appends.remove(&key) {
-                    append_durations.push(timestamp.duration_since(start_time));
-                }
-            }
-        }
-    }
-
-    // Sort for percentile calculations
-    read_durations.sort();
-    append_durations.sort();
-
-    let total_ops = read_durations.len() + append_durations.len();
-    let throughput = total_ops as f64 / total_duration.as_secs_f64();
-
-    println!("\n════════════════════════════════════════════════════════════");
-    println!("Performance Metrics");
-    println!("════════════════════════════════════════════════════════════");
-    println!("\nOverall:");
-    println!("  Total operations:     {total_ops}");
-    println!(
-        "  Total duration:       {:.2}s",
-        total_duration.as_secs_f64()
-    );
-    println!("  Throughput:           {throughput:.2} ops/sec");
-
-    if !read_durations.is_empty() {
-        let read_mean = read_durations.iter().sum::<Duration>().as_micros() as f64
-            / read_durations.len() as f64;
-        println!("\nRead Operations ({} total):", read_durations.len());
-        println!("  Mean latency:         {:.2}ms", read_mean / 1000.0);
-        println!(
-            "  Median (p50):         {:.2}ms",
-            calculate_percentile(&read_durations, 0.50).as_micros() as f64 / 1000.0
-        );
-        println!(
-            "  p95:                  {:.2}ms",
-            calculate_percentile(&read_durations, 0.95).as_micros() as f64 / 1000.0
-        );
-        println!(
-            "  p99:                  {:.2}ms",
-            calculate_percentile(&read_durations, 0.99).as_micros() as f64 / 1000.0
-        );
-        println!(
-            "  Max:                  {:.2}ms",
-            read_durations.last().unwrap().as_micros() as f64 / 1000.0
-        );
-        println!(
-            "  Min:                  {:.2}ms",
-            read_durations.first().unwrap().as_micros() as f64 / 1000.0
-        );
-    }
-
-    if !append_durations.is_empty() {
-        let append_mean = append_durations.iter().sum::<Duration>().as_micros() as f64
-            / append_durations.len() as f64;
-        println!("\nAppend Operations ({} total):", append_durations.len());
-        println!("  Mean latency:         {:.2}ms", append_mean / 1000.0);
-        println!(
-            "  Median (p50):         {:.2}ms",
-            calculate_percentile(&append_durations, 0.50).as_micros() as f64 / 1000.0
-        );
-        println!(
-            "  p95:                  {:.2}ms",
-            calculate_percentile(&append_durations, 0.95).as_micros() as f64 / 1000.0
-        );
-        println!(
-            "  p99:                  {:.2}ms",
-            calculate_percentile(&append_durations, 0.99).as_micros() as f64 / 1000.0
-        );
-        println!(
-            "  Max:                  {:.2}ms",
-            append_durations.last().unwrap().as_micros() as f64 / 1000.0
-        );
-        println!(
-            "  Min:                  {:.2}ms",
-            append_durations.first().unwrap().as_micros() as f64 / 1000.0
-        );
-    }
-
-    println!("\n════════════════════════════════════════════════════════════\n");
-}
-
-fn write_edn_output(
-    workload_results: &[(Instant, WorkItem)],
-    output_path: &PathBuf,
-) -> Result<(), eyre::Error> {
-    let mut output_document = String::new();
-
-    for (i, workload) in workload_results.iter().enumerate() {
-        let mut map = BTreeMap::new();
-        match &workload.1 {
-            WorkItem::Append(process, appends) => {
-                if appends.is_empty() {
-                    continue;
-                }
-                map.insert(
-                    Value::Keyword(Keyword::from_name("process")),
-                    Value::Integer(*process as i64),
-                );
-                map.insert(
-                    Value::Keyword(Keyword::from_name("index")),
-                    Value::Integer(i as i64),
-                );
-                let mut append_ops = vec![];
-                for (property, value) in appends {
-                    append_ops.push(Value::Vector(vec![
-                        Value::Keyword(Keyword::from_name("append")),
-                        Value::Integer(*property as i64),
-                        Value::Integer(*value),
-                    ]));
-                }
-                map.insert(
-                    Value::Keyword(Keyword::from_name("value")),
-                    Value::Vector(append_ops),
-                );
-                map.insert(
-                    Value::Keyword(Keyword::from_name("type")),
-                    Value::Keyword(Keyword::from_name("invoke")),
-                );
-            }
-            WorkItem::Read(process, reads) => {
-                if reads.is_empty() {
-                    continue;
-                }
-                map.insert(
-                    Value::Keyword(Keyword::from_name("process")),
-                    Value::Integer(*process as i64),
-                );
-                map.insert(
-                    Value::Keyword(Keyword::from_name("index")),
-                    Value::Integer(i as i64),
-                );
-                let mut read_ops = vec![];
-                for (property, values) in reads {
-                    read_ops.push(Value::Vector(vec![
-                        Value::Keyword(Keyword::from_name("r")),
-                        Value::Integer(*property as i64),
-                        Value::Vector(values.iter().map(|v| Value::Integer(*v)).collect()),
-                    ]));
-                }
-                map.insert(
-                    Value::Keyword(Keyword::from_name("value")),
-                    Value::Vector(read_ops),
-                );
-                map.insert(
-                    Value::Keyword(Keyword::from_name("type")),
-                    Value::Keyword(Keyword::from_name("invoke")),
-                );
-            }
-            WorkItem::AppendEnd(process, appends) => {
-                map.insert(
-                    Value::Keyword(Keyword::from_name("index")),
-                    Value::Integer(i as i64),
-                );
-                map.insert(
-                    Value::Keyword(Keyword::from_name("process")),
-                    Value::Integer(*process as i64),
-                );
-                let mut append_ops = vec![];
-                for (property, value) in appends {
-                    append_ops.push(Value::Vector(vec![
-                        Value::Keyword(Keyword::from_name("append")),
-                        Value::Integer(*property as i64),
-                        Value::Integer(*value),
-                    ]));
-                }
-                map.insert(
-                    Value::Keyword(Keyword::from_name("value")),
-                    Value::Vector(append_ops),
-                );
-                map.insert(
-                    Value::Keyword(Keyword::from_name("type")),
-                    Value::Keyword(Keyword::from_name("ok")),
-                );
-            }
-            WorkItem::ReadEnd(process, reads) => {
-                map.insert(
-                    Value::Keyword(Keyword::from_name("index")),
-                    Value::Integer(i as i64),
-                );
-                map.insert(
-                    Value::Keyword(Keyword::from_name("process")),
-                    Value::Integer(*process as i64),
-                );
-                let mut read_ops = vec![];
-                for (property, values) in reads {
-                    read_ops.push(Value::Vector(vec![
-                        Value::Keyword(Keyword::from_name("r")),
-                        Value::Integer(*property as i64),
-                        Value::Vector(values.iter().map(|v| Value::Integer(*v)).collect()),
-                    ]));
-                }
-                map.insert(
-                    Value::Keyword(Keyword::from_name("value")),
-                    Value::Vector(read_ops),
-                );
-                map.insert(
-                    Value::Keyword(Keyword::from_name("type")),
-                    Value::Keyword(Keyword::from_name("ok")),
-                );
-            }
-        }
-        let edn_value = Value::Map(map);
-        output_document.push_str(&format!("{}\n", edn_format::emit_str(&edn_value)));
-    }
-
-    std::fs::write(output_path, output_document)?;
-    Ok(())
+    sorted[((sorted.len() - 1) as f64 * fraction).round() as usize]
 }
 
 fn main() -> Result<(), eyre::Error> {
     color_eyre::install()?;
-    let args: Args = Args::parse();
+    let args = Args::parse();
+    if args.num_active_keys == 0 || args.max_txn_length == 0 || args.max_writes_per_key == 0 {
+        return Err(eyre::eyre!(
+            "--num-active-keys, --max-txn-length and --max-writes-per-key must be at least 1"
+        ));
+    }
 
-    println!("Direct database list-append workload");
-    println!("Configuration:");
-    println!("  Properties: {}", args.num_props);
-    println!("  Concurrent workloads: {}", args.num_concurrent_workloads);
-    println!(
-        "  Iterations per workload: {}",
-        args.num_workload_iterations
-    );
-    println!("  Output file: {}", args.output_file.display());
-    println!();
+    // Enough keys for every append the run can generate.
+    let max_appends =
+        args.num_concurrent_workloads * args.num_workload_iterations * args.max_txn_length;
+    let pool_size = args.num_active_keys + max_appends.div_ceil(args.max_writes_per_key);
 
-    // Create temporary directory for database if using default path
-    let temp_dir = if args.db_path == Path::new("test_db") {
-        Some(tempfile::tempdir()?)
-    } else {
-        None
-    };
-
-    let db_path = if let Some(ref temp_dir) = temp_dir {
-        temp_dir.path().join("test_db")
-    } else {
-        args.db_path.clone()
-    };
-
-    let (db, _) = TxDB::try_open(Some(&db_path), Default::default()).unwrap();
+    let temp_dir = tempfile::tempdir()?;
+    let db_path = args
+        .db_path
+        .clone()
+        .unwrap_or_else(|| temp_dir.path().join("test_db"));
+    let (db, _) = TxDB::try_open(Some(&db_path), Default::default())
+        .map_err(|error| eyre::eyre!("open database at {}: {error}", db_path.display()))?;
     let db = Arc::new(db);
-
-    // Setup database
-    let (obj, prop_symbols) = setup_database(&db, args.num_props)?;
+    let (obj, props) = elle_common::setup_test_database(&db, pool_size, "key", |_| v_list(&[]))?;
 
     println!(
-        "Starting {} concurrent workloads",
-        args.num_concurrent_workloads
+        "list-append: {} processes x {} transactions, up to {} operations each, {} active keys, \
+         {} appends per key, {} keys defined",
+        args.num_concurrent_workloads,
+        args.num_workload_iterations,
+        args.max_txn_length,
+        args.num_active_keys,
+        args.max_writes_per_key,
+        pool_size
     );
 
-    let workload_start = Instant::now();
+    let workload = Arc::new(Workload {
+        db,
+        obj,
+        props,
+        keys: Mutex::new(KeyRotation::new(
+            args.num_active_keys,
+            args.max_writes_per_key,
+            pool_size,
+        )),
+        next_value: AtomicI64::new(1),
+        args: args.clone(),
+    });
 
-    // Spawn workload threads
-    let mut handles = vec![];
-    for process_id in 0..args.num_concurrent_workloads {
-        let db = db.clone();
-        let prop_symbols = prop_symbols.clone();
-        let num_iterations = args.num_workload_iterations;
-
-        let handle = thread::spawn(move || {
-            workload_thread(db, obj, prop_symbols, process_id, num_iterations)
-        });
-        handles.push(handle);
-    }
-
-    // Collect results
-    println!("\nWaiting for threads to complete...");
-    let mut workload_results = vec![];
-    let mut completed = 0;
+    let started = Instant::now();
+    let handles: Vec<_> = (0..args.num_concurrent_workloads)
+        .map(|process_id| {
+            let workload = workload.clone();
+            thread::spawn(move || workload.process(process_id))
+        })
+        .collect();
+    let mut events = Vec::new();
+    let mut latencies = Vec::new();
+    let (mut retries, mut failed) = (0, 0);
     for handle in handles {
-        let result = handle.join().unwrap()?;
-        workload_results.extend(result);
-        completed += 1;
-        if completed % 5 == 0 {
-            println!(
-                "Collected results from {}/{} threads",
-                completed, args.num_concurrent_workloads
-            );
-        }
+        let result = handle
+            .join()
+            .map_err(|_| eyre::eyre!("workload thread panicked"))??;
+        events.extend(result.events);
+        latencies.extend(result.latencies);
+        retries += result.retries;
+        failed += result.failed;
     }
+    let elapsed = started.elapsed();
 
-    let total_duration = workload_start.elapsed();
+    events.sort_by_key(|event| event.timestamp);
+    elle_common::write_edn_history(&events, &args.output_file)?;
 
-    // Sort by timestamp
-    workload_results.sort_by_key(|a| a.0);
-
-    println!("Collected {} operations", workload_results.len());
-
-    // Print performance metrics
-    print_performance_metrics(&workload_results, total_duration);
-
-    // Write EDN output
-    write_edn_output(&workload_results, &args.output_file)?;
-
-    println!("Wrote workload to {}", args.output_file.display());
-
+    latencies.sort();
+    println!(
+        "{} committed, {failed} failed, {retries} retries in {:.2}s ({:.0} txn/s)",
+        latencies.len(),
+        elapsed.as_secs_f64(),
+        latencies.len() as f64 / elapsed.as_secs_f64()
+    );
+    println!(
+        "latency p50 {:?}, p95 {:?}, p99 {:?}, max {:?}",
+        percentile(&latencies, 0.50),
+        percentile(&latencies, 0.95),
+        percentile(&latencies, 0.99),
+        latencies.last().copied().unwrap_or_default()
+    );
+    println!(
+        "wrote {} events to {}",
+        events.len(),
+        args.output_file.display()
+    );
     Ok(())
 }

@@ -22,7 +22,7 @@ defaults:
 
 jobs:
   consistency:
-    name: Serializable histories
+    name: Isolation histories
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -64,9 +64,9 @@ jobs:
         run: |
           mkdir -p test-output/elle-graphs
           target/debug/list-append \
-            --num-props 3 \
-            --num-concurrent-workloads 4 \
-            --num-workload-iterations 1000 \
+            --num-active-keys 10 \
+            --num-concurrent-workloads 16 \
+            --num-workload-iterations 2000 \
             --output-file test-output/list-append.edn
 
       - name: Check list-append history
@@ -74,7 +74,7 @@ jobs:
           elle_jar=$(find /tmp/elle-cli/target -maxdepth 1 -name '*-standalone.jar' -print -quit)
           java -jar "$elle_jar" \
             -m list-append \
-            -c serializable \
+            -c snapshot-isolation \
             --directory test-output/elle-graphs \
             --plot-format svg \
             --cycle-search-timeout 5000 \

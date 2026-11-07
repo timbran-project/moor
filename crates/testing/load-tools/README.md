@@ -13,89 +13,74 @@ Downstream uses:
 
 Tools for testing the consistency and performance of the moor transaction system.
 
-## tx-list-append
+## list-append
 
-A workload generator that exercises Jepsen/Elle `list-append` operations against the scheduler to
-verify serializability guarantees.
+A workload generator for Jepsen/Elle's `list-append` model. It runs against `moor_db` directly,
+without the scheduler or VM, and checks the database's snapshot isolation.
 
 ### What it does
 
-- Creates multiple concurrent tasks that randomly read and append to list properties
-- Records all operations in EDN format compatible with
-  [elle-cli](https://github.com/ligurio/elle-cli)
-- Can be used to detect consistency anomalies like write cycles, read skew, and anti-dependency
-  violations
+- Runs concurrent processes. Each issues transactions of one to `--max-txn-length` operations, each
+  a read of a list property or an append of a unique integer to one. A transaction's operations run
+  in one database transaction.
+- Rotates keys: a key takes `--max-writes-per-key` appends, then a fresh key replaces it, so lists
+  stay short. Keys are chosen with a skew, so the first few active keys see most of the contention.
+- Retries a transaction on a commit conflict, up to `--max-retries` attempts. A transaction that
+  never commits is recorded as `:fail`.
+- Writes the history as EDN for [elle-cli](https://github.com/ligurio/elle-cli): an `:invoke` with
+  `nil` reads when a transaction starts, and an `:ok` with the values read when it commits.
 
 ### Usage
 
-#### Local Testing with Docker
+#### Running directly
 
-The easiest way to run the full test including Elle verification:
+```bash
+cargo run --bin list-append -- \
+    --num-active-keys 10 \
+    --num-concurrent-workloads 16 \
+    --num-workload-iterations 2000 \
+    --output-file workload.edn
+```
+
+Then check with elle-cli. CI builds it from a pinned commit (`ELLE_CLI_COMMIT` in
+`.github/workflows/elle.yml`) and runs it on Java 21:
+
+```bash
+java -jar elle-cli-*-standalone.jar -m list-append -c snapshot-isolation workload.edn
+```
+
+#### With Docker
 
 ```bash
 # From the workspace root
 docker build -f Dockerfile.elle -t moor-elle-test .
 docker run moor-elle-test
+docker run -e NUM_ACTIVE_KEYS=5 -e NUM_CONCURRENT=8 -e NUM_ITERATIONS=500 moor-elle-test
 ```
 
-You can customize the workload parameters:
-
-```bash
-docker run -e NUM_PROPS=10 -e NUM_CONCURRENT=20 -e NUM_ITERATIONS=50 moor-elle-test
-```
-
-To extract the workload file and results:
-
-```bash
-docker run --name elle-test moor-elle-test
-docker cp elle-test:/output/workload.edn ./
-docker cp elle-test:/output/elle-result.txt ./
-docker rm elle-test
-```
-
-#### Running directly
-
-```bash
-cargo run --bin moor-model-checker -- \
-    --num-props 5 \
-    --num-concurrent-workloads 10 \
-    --num-workload-iterations 20 \
-    --output-file workload.edn
-```
-
-Then check with elle-cli:
-
-```bash
-java -jar elle-cli-*-standalone.jar --model list-append workload.edn
-```
+`run-elle-test.sh` builds the image, runs it, and copies the history and Elle's output to
+`elle-results/`. Set `CONSISTENCY_MODEL` to check another model.
 
 ### Parameters
 
-- `--num-props`: Number of list properties to use (default: 5)
-- `--num-concurrent-workloads`: Number of concurrent task streams (default: 20)
-- `--num-workload-iterations`: Number of operations per task stream (default: 20)
-- `--output-file`: Where to write the EDN workload (default: workload.edn)
+- `--num-active-keys`: Keys open for operations at once (default: 5)
+- `--max-writes-per-key`: Appends a key takes before it is replaced (default: 32)
+- `--max-txn-length`: Maximum operations per transaction (default: 4)
+- `--read-fraction`: Chance that an operation is a read (default: 0.5)
+- `--num-concurrent-workloads`: Concurrent processes (default: 20)
+- `--num-workload-iterations`: Transactions per process (default: 1000)
+- `--max-retries`: Commit attempts before a transaction fails (default: 100)
+- `--output-file`: Where to write the EDN history (default: workload.edn)
 - `--db-path`: Database directory (default: temporary)
-- `--debug`: Enable debug logging
-
-### How it works
-
-1. Creates a test database with a wizard player object
-2. Defines `num-props` list properties on the player object
-3. Creates two MOO verbs:
-   - `write_workload`: Reads current list values, generates unique random integers, appends them
-   - `read_workload`: Reads current list values
-4. Spawns `num-concurrent-workloads` concurrent tasks
-5. Each task performs `num-workload-executions` random read or write operations
-6. Records all operations with timestamps in EDN format
-7. Elle analyzes the history for consistency violations
 
 ### Expected Result
 
-For a correct serializable implementation, elle-cli should output:
+The database provides snapshot isolation, so elle-cli with `-c snapshot-isolation` should output:
 
 ```
 workload.edn	true
 ```
 
-Any other result indicates a consistency bug in the transaction system.
+Any other result indicates a consistency bug in the transaction system. Checked with
+`-c serializable`, the history usually fails with `G2-item` (write skew). Snapshot isolation allows
+write skew, so that failure is expected.

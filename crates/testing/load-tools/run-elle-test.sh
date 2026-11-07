@@ -26,14 +26,14 @@ echo "════════════════════════�
 echo ""
 
 # Parse arguments for test parameters
-NUM_PROPS="${NUM_PROPS:-3}"
-NUM_CONCURRENT="${NUM_CONCURRENT:-20}"
-NUM_ITERATIONS="${NUM_ITERATIONS:-1000}"
+NUM_ACTIVE_KEYS="${NUM_ACTIVE_KEYS:-10}"
+NUM_CONCURRENT="${NUM_CONCURRENT:-16}"
+NUM_ITERATIONS="${NUM_ITERATIONS:-2000}"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --num-props)
-            NUM_PROPS="$2"
+        --num-active-keys)
+            NUM_ACTIVE_KEYS="$2"
             shift 2
             ;;
         --num-concurrent)
@@ -50,7 +50,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 [--num-props N] [--num-concurrent N] [--num-iterations N] [--output-dir DIR]"
+            echo "Usage: $0 [--num-active-keys N] [--num-concurrent N] [--num-iterations N] [--output-dir DIR]"
             exit 1
             ;;
     esac
@@ -62,7 +62,7 @@ RUN_OUTPUT_DIR="$OUTPUT_DIR/run-$TIMESTAMP"
 mkdir -p "$RUN_OUTPUT_DIR"
 
 echo "Test Configuration:"
-echo "  Properties: $NUM_PROPS"
+echo "  Active keys: $NUM_ACTIVE_KEYS"
 echo "  Concurrent workloads: $NUM_CONCURRENT"
 echo "  Iterations per workload: $NUM_ITERATIONS"
 echo "  Output directory: $RUN_OUTPUT_DIR"
@@ -86,7 +86,7 @@ CONTAINER_NAME="elle-test-$TIMESTAMP"
 
 # Run and capture exit code
 if docker run --name "$CONTAINER_NAME" \
-    -e NUM_PROPS="$NUM_PROPS" \
+    -e NUM_ACTIVE_KEYS="$NUM_ACTIVE_KEYS" \
     -e NUM_CONCURRENT="$NUM_CONCURRENT" \
     -e NUM_ITERATIONS="$NUM_ITERATIONS" \
     moor-elle-test; then
@@ -119,7 +119,7 @@ Timestamp: $TIMESTAMP
 Result: $TEST_RESULT
 
 Configuration:
-  Properties: $NUM_PROPS
+  Active keys: $NUM_ACTIVE_KEYS
   Concurrent workloads: $NUM_CONCURRENT
   Iterations per workload: $NUM_ITERATIONS
 
