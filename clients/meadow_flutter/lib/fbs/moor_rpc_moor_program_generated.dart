@@ -183,6 +183,50 @@ class _StoredScatterLabelUnionTypeIdReader
       );
 }
 
+class DeclarationKind {
+  final int value;
+  const DeclarationKind._(this.value);
+
+  factory DeclarationKind.fromValue(int value) {
+    final result = values[value];
+    if (result == null) {
+      throw StateError(
+        'Invalid value $value for bit flag enum DeclarationKind',
+      );
+    }
+    return result;
+  }
+
+  static DeclarationKind? _createOrNull(int? value) =>
+      value == null ? null : DeclarationKind.fromValue(value);
+
+  static const int minValue = 0;
+  static const int maxValue = 1;
+  static bool containsValue(int value) => values.containsKey(value);
+
+  static const DeclarationKind Let = DeclarationKind._(0);
+  static const DeclarationKind Const = DeclarationKind._(1);
+  static const Map<int, DeclarationKind> values = {0: Let, 1: Const};
+
+  static const fb.Reader<DeclarationKind> reader = _DeclarationKindReader();
+
+  @override
+  String toString() {
+    return 'DeclarationKind{value: $value}';
+  }
+}
+
+class _DeclarationKindReader extends fb.Reader<DeclarationKind> {
+  const _DeclarationKindReader();
+
+  @override
+  int get size => 1;
+
+  @override
+  DeclarationKind read(fb.BufferContext bc, int offset) =>
+      DeclarationKind.fromValue(const fb.Uint8Reader().read(bc, offset));
+}
+
 class StoredProgramLanguageTypeId {
   final int value;
   const StoredProgramLanguageTypeId._(this.value);
@@ -201,7 +245,7 @@ class StoredProgramLanguageTypeId {
       value == null ? null : StoredProgramLanguageTypeId.fromValue(value);
 
   static const int minValue = 0;
-  static const int maxValue = 1;
+  static const int maxValue = 2;
   static bool containsValue(int value) => values.containsKey(value);
 
   static const StoredProgramLanguageTypeId NONE = StoredProgramLanguageTypeId._(
@@ -209,9 +253,12 @@ class StoredProgramLanguageTypeId {
   );
   static const StoredProgramLanguageTypeId StoredMooRProgram =
       StoredProgramLanguageTypeId._(1);
+  static const StoredProgramLanguageTypeId StoredNativeProgram =
+      StoredProgramLanguageTypeId._(2);
   static const Map<int, StoredProgramLanguageTypeId> values = {
     0: NONE,
     1: StoredMooRProgram,
+    2: StoredNativeProgram,
   };
 
   static const fb.Reader<StoredProgramLanguageTypeId> reader =
@@ -1996,6 +2043,253 @@ class ForkVectorObjectBuilder extends fb.ObjectBuilder {
   }
 }
 
+class DeclarationSite {
+  DeclarationSite._(this._bc, this._bcOffset);
+
+  static const fb.Reader<DeclarationSite> reader = _DeclarationSiteReader();
+
+  final fb.BufferContext _bc;
+  final int _bcOffset;
+
+  int get offset => const fb.Uint64Reader().read(_bc, _bcOffset + 0);
+  DeclarationKind get kind => DeclarationKind.fromValue(
+    const fb.Uint8Reader().read(_bc, _bcOffset + 8),
+  );
+  bool get hasInitializer => const fb.BoolReader().read(_bc, _bcOffset + 9);
+
+  @override
+  String toString() {
+    return 'DeclarationSite{offset: ${offset}, kind: ${kind}, hasInitializer: ${hasInitializer}}';
+  }
+}
+
+class _DeclarationSiteReader extends fb.StructReader<DeclarationSite> {
+  const _DeclarationSiteReader();
+
+  @override
+  int get size => 16;
+
+  @override
+  DeclarationSite createObject(fb.BufferContext bc, int offset) =>
+      DeclarationSite._(bc, offset);
+}
+
+class DeclarationSiteBuilder {
+  DeclarationSiteBuilder(this.fbBuilder);
+
+  final fb.Builder fbBuilder;
+
+  int finish(int offset, DeclarationKind kind, bool hasInitializer) {
+    fbBuilder.pad(6);
+    fbBuilder.putBool(hasInitializer);
+    fbBuilder.putUint8(kind.value);
+    fbBuilder.putUint64(offset);
+    return fbBuilder.offset;
+  }
+}
+
+class DeclarationSiteObjectBuilder extends fb.ObjectBuilder {
+  final int _offset;
+  final DeclarationKind _kind;
+  final bool _hasInitializer;
+
+  DeclarationSiteObjectBuilder({
+    required int offset,
+    required DeclarationKind kind,
+    required bool hasInitializer,
+  }) : _offset = offset,
+       _kind = kind,
+       _hasInitializer = hasInitializer;
+
+  /// Finish building, and store into the [fbBuilder].
+  @override
+  int finish(fb.Builder fbBuilder) {
+    fbBuilder.pad(6);
+    fbBuilder.putBool(_hasInitializer);
+    fbBuilder.putUint8(_kind.value);
+    fbBuilder.putUint64(_offset);
+    return fbBuilder.offset;
+  }
+
+  /// Convenience method to serialize to byte list.
+  @override
+  Uint8List toBytes([String? fileIdentifier]) {
+    final fbBuilder = fb.Builder(deduplicateTables: false);
+    fbBuilder.finish(finish(fbBuilder), fileIdentifier);
+    return fbBuilder.buffer;
+  }
+}
+
+class DeclarationSites {
+  DeclarationSites._(this._bc, this._bcOffset);
+  factory DeclarationSites(List<int> bytes) {
+    final rootRef = fb.BufferContext.fromBytes(bytes);
+    return reader.read(rootRef, 0);
+  }
+
+  static const fb.Reader<DeclarationSites> reader = _DeclarationSitesReader();
+
+  final fb.BufferContext _bc;
+  final int _bcOffset;
+
+  List<DeclarationSite>? get sites => const fb.ListReader<DeclarationSite>(
+    DeclarationSite.reader,
+  ).vTableGetNullable(_bc, _bcOffset, 4);
+
+  @override
+  String toString() {
+    return 'DeclarationSites{sites: ${sites}}';
+  }
+}
+
+class _DeclarationSitesReader extends fb.TableReader<DeclarationSites> {
+  const _DeclarationSitesReader();
+
+  @override
+  DeclarationSites createObject(fb.BufferContext bc, int offset) =>
+      DeclarationSites._(bc, offset);
+}
+
+class DeclarationSitesBuilder {
+  DeclarationSitesBuilder(this.fbBuilder);
+
+  final fb.Builder fbBuilder;
+
+  void begin() {
+    fbBuilder.startTable(1);
+  }
+
+  int addSitesOffset(int? offset) {
+    fbBuilder.addOffset(0, offset);
+    return fbBuilder.offset;
+  }
+
+  int finish() {
+    return fbBuilder.endTable();
+  }
+}
+
+class DeclarationSitesObjectBuilder extends fb.ObjectBuilder {
+  final List<DeclarationSiteObjectBuilder>? _sites;
+
+  DeclarationSitesObjectBuilder({
+    List<DeclarationSiteObjectBuilder>? sites,
+  }) : _sites = sites;
+
+  /// Finish building, and store into the [fbBuilder].
+  @override
+  int finish(fb.Builder fbBuilder) {
+    final int? sitesOffset = _sites == null
+        ? null
+        : fbBuilder.writeListOfStructs(_sites!);
+    fbBuilder.startTable(1);
+    fbBuilder.addOffset(0, sitesOffset);
+    return fbBuilder.endTable();
+  }
+
+  /// Convenience method to serialize to byte list.
+  @override
+  Uint8List toBytes([String? fileIdentifier]) {
+    final fbBuilder = fb.Builder(deduplicateTables: false);
+    fbBuilder.finish(finish(fbBuilder), fileIdentifier);
+    return fbBuilder.buffer;
+  }
+}
+
+class SourceDeclarations {
+  SourceDeclarations._(this._bc, this._bcOffset);
+  factory SourceDeclarations(List<int> bytes) {
+    final rootRef = fb.BufferContext.fromBytes(bytes);
+    return reader.read(rootRef, 0);
+  }
+
+  static const fb.Reader<SourceDeclarations> reader =
+      _SourceDeclarationsReader();
+
+  final fb.BufferContext _bc;
+  final int _bcOffset;
+
+  List<DeclarationSite>? get main => const fb.ListReader<DeclarationSite>(
+    DeclarationSite.reader,
+  ).vTableGetNullable(_bc, _bcOffset, 4);
+  List<DeclarationSites>? get forks => const fb.ListReader<DeclarationSites>(
+    DeclarationSites.reader,
+  ).vTableGetNullable(_bc, _bcOffset, 6);
+
+  @override
+  String toString() {
+    return 'SourceDeclarations{main: ${main}, forks: ${forks}}';
+  }
+}
+
+class _SourceDeclarationsReader extends fb.TableReader<SourceDeclarations> {
+  const _SourceDeclarationsReader();
+
+  @override
+  SourceDeclarations createObject(fb.BufferContext bc, int offset) =>
+      SourceDeclarations._(bc, offset);
+}
+
+class SourceDeclarationsBuilder {
+  SourceDeclarationsBuilder(this.fbBuilder);
+
+  final fb.Builder fbBuilder;
+
+  void begin() {
+    fbBuilder.startTable(2);
+  }
+
+  int addMainOffset(int? offset) {
+    fbBuilder.addOffset(0, offset);
+    return fbBuilder.offset;
+  }
+
+  int addForksOffset(int? offset) {
+    fbBuilder.addOffset(1, offset);
+    return fbBuilder.offset;
+  }
+
+  int finish() {
+    return fbBuilder.endTable();
+  }
+}
+
+class SourceDeclarationsObjectBuilder extends fb.ObjectBuilder {
+  final List<DeclarationSiteObjectBuilder>? _main;
+  final List<DeclarationSitesObjectBuilder>? _forks;
+
+  SourceDeclarationsObjectBuilder({
+    List<DeclarationSiteObjectBuilder>? main,
+    List<DeclarationSitesObjectBuilder>? forks,
+  }) : _main = main,
+       _forks = forks;
+
+  /// Finish building, and store into the [fbBuilder].
+  @override
+  int finish(fb.Builder fbBuilder) {
+    final int? mainOffset = _main == null
+        ? null
+        : fbBuilder.writeListOfStructs(_main!);
+    final int? forksOffset = _forks == null
+        ? null
+        : fbBuilder.writeList(
+            _forks!.map((b) => b.getOrCreateOffset(fbBuilder)).toList(),
+          );
+    fbBuilder.startTable(2);
+    fbBuilder.addOffset(0, mainOffset);
+    fbBuilder.addOffset(1, forksOffset);
+    return fbBuilder.endTable();
+  }
+
+  /// Convenience method to serialize to byte list.
+  @override
+  Uint8List toBytes([String? fileIdentifier]) {
+    final fbBuilder = fb.Builder(deduplicateTables: false);
+    fbBuilder.finish(finish(fbBuilder), fileIdentifier);
+    return fbBuilder.buffer;
+  }
+}
+
 class StoredMooRprogram {
   StoredMooRprogram._(this._bc, this._bcOffset);
   factory StoredMooRprogram(List<int> bytes) {
@@ -2070,10 +2364,14 @@ class StoredMooRprogram {
   List<int>? get forkMaxScopeDepths => const fb.ListReader<int>(
     fb.Uint64Reader(),
   ).vTableGetNullable(_bc, _bcOffset, 42);
+  SourceDeclarations? get sourceDeclarations =>
+      SourceDeclarations.reader.vTableGetNullable(_bc, _bcOffset, 44);
+  int get lambdaEntryScopeCount =>
+      const fb.Uint16Reader().vTableGet(_bc, _bcOffset, 46, 0);
 
   @override
   String toString() {
-    return 'StoredMooRprogram{version: ${version}, builtinSignature: ${builtinSignature}, mainVector: ${mainVector}, forkVectors: ${forkVectors}, literals: ${literals}, jumpLabels: ${jumpLabels}, varNames: ${varNames}, scatterTables: ${scatterTables}, forSequenceOperands: ${forSequenceOperands}, forRangeOperands: ${forRangeOperands}, rangeComprehensions: ${rangeComprehensions}, listComprehensions: ${listComprehensions}, errorOperandsFull: ${errorOperandsFull}, lambdaPrograms: ${lambdaPrograms}, lineNumberSpans: ${lineNumberSpans}, forkLineNumberSpans: ${forkLineNumberSpans}, mainMaxStack: ${mainMaxStack}, forkMaxStacks: ${forkMaxStacks}, mainMaxScopeDepth: ${mainMaxScopeDepth}, forkMaxScopeDepths: ${forkMaxScopeDepths}}';
+    return 'StoredMooRprogram{version: ${version}, builtinSignature: ${builtinSignature}, mainVector: ${mainVector}, forkVectors: ${forkVectors}, literals: ${literals}, jumpLabels: ${jumpLabels}, varNames: ${varNames}, scatterTables: ${scatterTables}, forSequenceOperands: ${forSequenceOperands}, forRangeOperands: ${forRangeOperands}, rangeComprehensions: ${rangeComprehensions}, listComprehensions: ${listComprehensions}, errorOperandsFull: ${errorOperandsFull}, lambdaPrograms: ${lambdaPrograms}, lineNumberSpans: ${lineNumberSpans}, forkLineNumberSpans: ${forkLineNumberSpans}, mainMaxStack: ${mainMaxStack}, forkMaxStacks: ${forkMaxStacks}, mainMaxScopeDepth: ${mainMaxScopeDepth}, forkMaxScopeDepths: ${forkMaxScopeDepths}, sourceDeclarations: ${sourceDeclarations}, lambdaEntryScopeCount: ${lambdaEntryScopeCount}}';
   }
 }
 
@@ -2091,7 +2389,7 @@ class StoredMooRprogramBuilder {
   final fb.Builder fbBuilder;
 
   void begin() {
-    fbBuilder.startTable(20);
+    fbBuilder.startTable(22);
   }
 
   int addVersion(int? version) {
@@ -2194,6 +2492,16 @@ class StoredMooRprogramBuilder {
     return fbBuilder.offset;
   }
 
+  int addSourceDeclarationsOffset(int? offset) {
+    fbBuilder.addOffset(20, offset);
+    return fbBuilder.offset;
+  }
+
+  int addLambdaEntryScopeCount(int? lambdaEntryScopeCount) {
+    fbBuilder.addUint16(21, lambdaEntryScopeCount);
+    return fbBuilder.offset;
+  }
+
   int finish() {
     return fbBuilder.endTable();
   }
@@ -2220,6 +2528,8 @@ class StoredMooRprogramObjectBuilder extends fb.ObjectBuilder {
   final List<int>? _forkMaxStacks;
   final int? _mainMaxScopeDepth;
   final List<int>? _forkMaxScopeDepths;
+  final SourceDeclarationsObjectBuilder? _sourceDeclarations;
+  final int? _lambdaEntryScopeCount;
 
   StoredMooRprogramObjectBuilder({
     int? version,
@@ -2242,6 +2552,8 @@ class StoredMooRprogramObjectBuilder extends fb.ObjectBuilder {
     List<int>? forkMaxStacks,
     int? mainMaxScopeDepth,
     List<int>? forkMaxScopeDepths,
+    SourceDeclarationsObjectBuilder? sourceDeclarations,
+    int? lambdaEntryScopeCount,
   }) : _version = version,
        _builtinSignature = builtinSignature,
        _mainVector = mainVector,
@@ -2261,7 +2573,9 @@ class StoredMooRprogramObjectBuilder extends fb.ObjectBuilder {
        _mainMaxStack = mainMaxStack,
        _forkMaxStacks = forkMaxStacks,
        _mainMaxScopeDepth = mainMaxScopeDepth,
-       _forkMaxScopeDepths = forkMaxScopeDepths;
+       _forkMaxScopeDepths = forkMaxScopeDepths,
+       _sourceDeclarations = sourceDeclarations,
+       _lambdaEntryScopeCount = lambdaEntryScopeCount;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -2352,7 +2666,9 @@ class StoredMooRprogramObjectBuilder extends fb.ObjectBuilder {
     final int? forkMaxScopeDepthsOffset = _forkMaxScopeDepths == null
         ? null
         : fbBuilder.writeListUint64(_forkMaxScopeDepths!);
-    fbBuilder.startTable(20);
+    final int? sourceDeclarationsOffset = _sourceDeclarations
+        ?.getOrCreateOffset(fbBuilder);
+    fbBuilder.startTable(22);
     fbBuilder.addUint16(0, _version);
     fbBuilder.addUint64(1, _builtinSignature);
     fbBuilder.addOffset(2, mainVectorOffset);
@@ -2373,6 +2689,98 @@ class StoredMooRprogramObjectBuilder extends fb.ObjectBuilder {
     fbBuilder.addOffset(17, forkMaxStacksOffset);
     fbBuilder.addUint64(18, _mainMaxScopeDepth);
     fbBuilder.addOffset(19, forkMaxScopeDepthsOffset);
+    fbBuilder.addOffset(20, sourceDeclarationsOffset);
+    fbBuilder.addUint16(21, _lambdaEntryScopeCount);
+    return fbBuilder.endTable();
+  }
+
+  /// Convenience method to serialize to byte list.
+  @override
+  Uint8List toBytes([String? fileIdentifier]) {
+    final fbBuilder = fb.Builder(deduplicateTables: false);
+    fbBuilder.finish(finish(fbBuilder), fileIdentifier);
+    return fbBuilder.buffer;
+  }
+}
+
+class StoredNativeProgram {
+  StoredNativeProgram._(this._bc, this._bcOffset);
+  factory StoredNativeProgram(List<int> bytes) {
+    final rootRef = fb.BufferContext.fromBytes(bytes);
+    return reader.read(rootRef, 0);
+  }
+
+  static const fb.Reader<StoredNativeProgram> reader =
+      _StoredNativeProgramReader();
+
+  final fb.BufferContext _bc;
+  final int _bcOffset;
+
+  String? get $library =>
+      const fb.StringReader().vTableGetNullable(_bc, _bcOffset, 4);
+  String? get function =>
+      const fb.StringReader().vTableGetNullable(_bc, _bcOffset, 6);
+
+  @override
+  String toString() {
+    return 'StoredNativeProgram{\$library: ${$library}, function: ${function}}';
+  }
+}
+
+class _StoredNativeProgramReader extends fb.TableReader<StoredNativeProgram> {
+  const _StoredNativeProgramReader();
+
+  @override
+  StoredNativeProgram createObject(fb.BufferContext bc, int offset) =>
+      StoredNativeProgram._(bc, offset);
+}
+
+class StoredNativeProgramBuilder {
+  StoredNativeProgramBuilder(this.fbBuilder);
+
+  final fb.Builder fbBuilder;
+
+  void begin() {
+    fbBuilder.startTable(2);
+  }
+
+  int addLibraryOffset(int? offset) {
+    fbBuilder.addOffset(0, offset);
+    return fbBuilder.offset;
+  }
+
+  int addFunctionOffset(int? offset) {
+    fbBuilder.addOffset(1, offset);
+    return fbBuilder.offset;
+  }
+
+  int finish() {
+    return fbBuilder.endTable();
+  }
+}
+
+class StoredNativeProgramObjectBuilder extends fb.ObjectBuilder {
+  final String? _$library;
+  final String? _function;
+
+  StoredNativeProgramObjectBuilder({
+    String? $library,
+    String? function,
+  }) : _$library = $library,
+       _function = function;
+
+  /// Finish building, and store into the [fbBuilder].
+  @override
+  int finish(fb.Builder fbBuilder) {
+    final int? $libraryOffset = _$library == null
+        ? null
+        : fbBuilder.writeString(_$library!);
+    final int? functionOffset = _function == null
+        ? null
+        : fbBuilder.writeString(_function!);
+    fbBuilder.startTable(2);
+    fbBuilder.addOffset(0, $libraryOffset);
+    fbBuilder.addOffset(1, functionOffset);
     return fbBuilder.endTable();
   }
 
@@ -2405,6 +2813,8 @@ class StoredProgram {
     switch (languageType?.value) {
       case 1:
         return StoredMooRprogram.reader.vTableGetNullable(_bc, _bcOffset, 6);
+      case 2:
+        return StoredNativeProgram.reader.vTableGetNullable(_bc, _bcOffset, 6);
       default:
         return null;
     }
