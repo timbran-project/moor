@@ -57,10 +57,14 @@ fn unproven_public_handoffs_cannot_suspend_or_publish_effects() {
             assert!(!lc.task_q.active.contains_key(&41));
             assert!(lc.task_q.suspended.get(41).is_none());
             assert!(!scheduler.handle_task_exists(41));
+            // Without the boundary, nothing proves the commit, so its effects are dropped.
             assert!(lc.task_q.drain_messages(42).is_empty());
             assert_eq!(
                 recv.try_recv(),
-                Ok((41, TaskOutcome::aborted(AbortReason::Cancelled, Kept::Yes)))
+                Ok((
+                    41,
+                    TaskOutcome::aborted(AbortReason::Cancelled, Kept::Unknown)
+                ))
             );
             drop(boundary);
         }

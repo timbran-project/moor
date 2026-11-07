@@ -87,12 +87,12 @@ fn timed_suspension_publishes_effects_after_session_commit() {
 }
 
 #[test]
-fn timed_suspension_session_failure_does_not_publish_effects() {
+fn timed_suspension_session_failure_publishes_effects() {
     check_timed_suspension_effects(true, false);
 }
 
 #[test]
-fn timed_suspension_cancellation_does_not_publish_effects() {
+fn timed_suspension_cancellation_after_commit_publishes_effects() {
     check_timed_suspension_effects(false, true);
 }
 
@@ -153,10 +153,10 @@ fn check_timed_suspension_effects(fail_commit: bool, cancel: bool) {
     assert!(!lc.task_q.active.contains_key(&task_id));
     let (_, result) = recv.recv().unwrap();
     if fail_commit || cancel {
-        assert!(lc.task_q.drain_messages(target_id).is_empty());
+        // The world-state commit at the suspend boundary stands, so its effects are published.
+        assert_eq!(lc.task_q.drain_messages(target_id), vec![v_int(17)]);
         assert!(lc.task_q.suspended.get(task_id).is_none());
         assert!(!scheduler.handle_task_exists(task_id));
-        // The world-state commit at the suspend boundary stands either way.
         if fail_commit {
             assert!(matches!(
                 result,

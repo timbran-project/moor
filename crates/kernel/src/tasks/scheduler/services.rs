@@ -439,16 +439,9 @@ impl Scheduler {
                 let remaining = lc.task_q.active.len();
                 let task_ids = lc.task_q.active.keys().copied().collect::<Vec<_>>();
                 for task_id in task_ids {
-                    lc.discard_task_effects(task_id);
-                    lc.task_q.remove_message_queue(task_id);
-                    let Some(mut task) = lc.task_q.active.remove(&task_id) else {
-                        continue;
-                    };
-                    lc.task_q.suspended.enqueue_dependents_for(task_id);
-                    lc.task_q.send_task_result_direct(
-                        task.registration,
-                        task.result_sender.take(),
-                        // The detached task may still commit.
+                    // The detached task may still commit.
+                    lc.finish_task(
+                        task_id,
                         TaskOutcome::aborted(AbortReason::Cancelled, Kept::Unknown),
                     );
                 }

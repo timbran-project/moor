@@ -13,10 +13,17 @@
 
 //! Pending effects belong to the active transaction attempt. Removing that attempt
 //! drops unpublished effects. Publication consumes them before a new attempt starts.
+//!
+//! When a task ends, its outcome decides its effects: they are published if its last
+//! transaction committed (`Kept::Yes`), and dropped otherwise. Output delivery is separate, so a
+//! failed session commit loses output but not effects.
 
 use super::lifecycle::TaskLifecycle;
-use crate::tasks::schedule_q::{PendingCreate, ScheduleId};
-use moor_common::tasks::TaskId;
+use crate::tasks::{
+    registry::RunningTaskPhase,
+    schedule_q::{PendingCreate, ScheduleId},
+};
+use moor_common::tasks::{Kept, TaskId, TaskOutcome};
 use moor_var::Var;
 
 /// A schedule mutation a task has asked for but not yet committed. Flushed to
@@ -100,5 +107,32 @@ impl TaskLifecycle {
         if let Some(task) = self.task_q.active.get_mut(&task_id) {
             task.effects = PendingTaskEffects::default();
         }
+    }
+
+    /// End an active task with `outcome`, settling its effects and message queue first.
+    pub(crate) fn finish_task(&mut self, task_id: TaskId, outcome: TaskOutcome) {
+        self.settle_ending_task(task_id, outcome.kept);
+        self.task_q.send_task_result(task_id, outcome);
+    }
+
+    /// End an active task with the outcome its completion reserved.
+    pub(crate) fn finish_reserved_task(&mut self, task_id: TaskId) {
+        if let Some(RunningTaskPhase::Completing(outcome)) =
+            self.task_q.active.get(&task_id).map(|task| &task.phase)
+        {
+            let kept = outcome.kept;
+            self.settle_ending_task(task_id, kept);
+        }
+        self.task_q.send_reserved_task_result(task_id);
+    }
+
+    /// Publish an ending task's effects if its last transaction committed. Removing the task
+    /// drops them otherwise. Its inbound message queue goes after publication, so a message it
+    /// sent itself does not outlive it.
+    fn settle_ending_task(&mut self, task_id: TaskId, kept: Kept) {
+        if kept == Kept::Yes {
+            self.publish_task_effects(task_id);
+        }
+        self.task_q.remove_message_queue(task_id);
     }
 }

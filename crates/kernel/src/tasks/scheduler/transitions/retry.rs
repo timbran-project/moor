@@ -78,9 +78,8 @@ impl Scheduler {
 
         if lc.state != SchedulerState::Running {
             debug!(task_id, "Discarding transaction retry during shutdown");
-            lc.task_q.remove_message_queue(task_id);
             if lc.task_q.active.contains_key(&task_id) {
-                lc.task_q.send_task_result(
+                lc.finish_task(
                     task_id,
                     TaskOutcome::aborted(AbortReason::Cancelled, Kept::No),
                 );

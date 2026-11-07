@@ -332,7 +332,7 @@ impl Scheduler {
         let Ok(()) = task.session.log_event(player, event) else {
             warn!("Could not log event; aborting task");
             // The task is still running; its transaction has not committed.
-            return lc.task_q.send_task_result(
+            return lc.finish_task(
                 task_id,
                 TaskOutcome::aborted(
                     AbortReason::Internal("could not log an event".to_string()),

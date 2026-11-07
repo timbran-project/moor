@@ -66,7 +66,7 @@ impl TaskCompletion {
 
     pub(in crate::tasks::scheduler) fn finish(self, lc: &mut TaskLifecycle) {
         if self.is_current(lc) {
-            lc.task_q.send_reserved_task_result(self.dispatch.task_id());
+            lc.finish_reserved_task(self.dispatch.task_id());
         }
     }
 }
@@ -105,7 +105,8 @@ impl Scheduler {
             completion
         };
 
-        // Session commit (potential I/O) outside the lock.
+        // Session commit (potential I/O) outside the lock. The world-state commit stands either
+        // way, so the task still completes and keeps its effects.
         if let Err(error) = completion.session.commit() {
             error!(
                 task_id,
@@ -113,22 +114,12 @@ impl Scheduler {
                 ?error,
                 "Session commit failed after world-state commit; output may be lost"
             );
-            let mut lc = self.lifecycle.lock();
-            if !completion.is_current(&lc) {
-                return;
-            }
-            // The world-state commit stands, so the task is still reported as completed.
-            lc.discard_task_effects(task_id);
-            completion.finish(&mut lc);
-            return lc.settle_schedule_firings();
         }
 
         let mut lc = self.lifecycle.lock();
         if !completion.is_current(&lc) {
             return;
         }
-        lc.publish_task_effects(task_id);
-        lc.task_q.remove_message_queue(task_id);
         completion.finish(&mut lc);
         lc.settle_schedule_firings();
     }
@@ -214,26 +205,19 @@ impl Scheduler {
             completion
         };
 
-        let session_result = completion.session.commit();
+        if let Err(error) = completion.session.commit() {
+            error!(
+                task_id,
+                boundary = "transaction renewal",
+                ?error,
+                "Session commit failed after world-state commit; output may be lost"
+            );
+        }
         let mut lc = self.lifecycle.lock();
         if !completion.is_current(&lc) {
             return;
         }
-        // The database commit already succeeded. Preserve publication even if session commit fails.
-        lc.publish_task_effects(task_id);
-        lc.task_q.remove_message_queue(task_id);
-        match session_result {
-            Ok(()) => completion.finish(&mut lc),
-            Err(error) => {
-                error!(
-                    task_id,
-                    boundary = "transaction renewal",
-                    ?error,
-                    "Session commit failed after world-state commit; output may be lost"
-                );
-                completion.finish(&mut lc);
-            }
-        }
+        completion.finish(&mut lc);
     }
 
     pub(crate) fn handle_task_abort_limits_reached_for_dispatch(
@@ -262,7 +246,6 @@ impl Scheduler {
                 return;
             }
             let Some(task) = lc.task_q.active.get_mut(&task_id) else {
-                lc.discard_task_effects(task_id);
                 lc.task_q.remove_message_queue(task_id);
                 warn!(task_id, "Task not found for abort");
                 return;
@@ -280,19 +263,13 @@ impl Scheduler {
             };
             let player = task.player;
 
-            match disposition {
-                TaskLimitDisposition::Commit {
-                    mutations_made,
-                    timestamp,
-                } => {
-                    if mutations_made {
-                        lc.last_mutation_timestamp = Some(timestamp);
-                    }
-                    lc.publish_task_effects(task_id);
-                }
-                TaskLimitDisposition::Rollback => lc.discard_task_effects(task_id),
+            if let TaskLimitDisposition::Commit {
+                mutations_made: true,
+                timestamp,
+            } = disposition
+            {
+                lc.last_mutation_timestamp = Some(timestamp);
             }
-            lc.task_q.remove_message_queue(task_id);
             (completion, player)
         };
 
@@ -456,14 +433,11 @@ impl Scheduler {
             completion
         };
 
-        // Exception policy publishes after the session commit attempt, including session failure.
         let _ = completion.session.commit();
         let mut lc = self.lifecycle.lock();
         if !completion.is_current(&lc) {
             return;
         }
-        lc.publish_task_effects(task_id);
-        lc.task_q.remove_message_queue(task_id);
         completion.finish(&mut lc);
         lc.settle_schedule_firings();
     }
@@ -490,8 +464,6 @@ impl Scheduler {
             ) else {
                 return;
             };
-            lc.discard_task_effects(task_id);
-            lc.task_q.remove_message_queue(task_id);
             completion
         };
 
