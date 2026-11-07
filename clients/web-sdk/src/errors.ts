@@ -11,13 +11,11 @@
 // You should have received a copy of the GNU Lesser General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-import { ErrorCode } from "@moor/schema/generated/moor-common/error-code";
 import { CompilationError } from "@moor/schema/generated/moor-rpc/compilation-error";
 import { Failure } from "@moor/schema/generated/moor-rpc/failure";
 import { ReplyResult } from "@moor/schema/generated/moor-rpc/reply-result";
 import { unionToReplyResultUnion } from "@moor/schema/generated/moor-rpc/reply-result-union";
 import { SchedulerErrorUnion, unionToSchedulerErrorUnion } from "@moor/schema/generated/moor-rpc/scheduler-error-union";
-import { TaskAbortedException } from "@moor/schema/generated/moor-rpc/task-aborted-exception";
 
 import { formatCompileError } from "./compile-errors.js";
 
@@ -52,46 +50,6 @@ export function extractFailureError(replyResult: ReplyResult, context: string): 
             const compileError = compilationError.error();
             if (compileError) {
                 throw new Error(`${context} failed: ${formatCompileError(compileError)}`);
-            }
-        }
-
-        if (schedulerErrorType === SchedulerErrorUnion.TaskAbortedException && errorUnion) {
-            const taskException = errorUnion as TaskAbortedException;
-            const exception = taskException.exception();
-
-            if (exception) {
-                const error = exception.error();
-                if (error) {
-                    const errType = error.errType();
-                    const customMsg = error.msg();
-
-                    const errorMessages: Record<number, string> = {
-                        [ErrorCode.E_NONE]: "No error",
-                        [ErrorCode.E_TYPE]: "Type mismatch",
-                        [ErrorCode.E_DIV]: "Division by zero",
-                        [ErrorCode.E_PERM]: "Permission denied",
-                        [ErrorCode.E_PROPNF]: "Property not found",
-                        [ErrorCode.E_VERBNF]: "Verb not found",
-                        [ErrorCode.E_VARNF]: "Variable not found",
-                        [ErrorCode.E_INVIND]: "Invalid indirection",
-                        [ErrorCode.E_RECMOVE]: "Recursive move",
-                        [ErrorCode.E_MAXREC]: "Too many verb calls",
-                        [ErrorCode.E_RANGE]: "Range error",
-                        [ErrorCode.E_ARGS]: "Incorrect number of arguments",
-                        [ErrorCode.E_NACC]: "Move refused by destination",
-                        [ErrorCode.E_INVARG]: "Invalid argument",
-                        [ErrorCode.E_QUOTA]: "Resource limit exceeded",
-                        [ErrorCode.E_FLOAT]: "Floating-point arithmetic error",
-                        [ErrorCode.E_FILE]: "File error",
-                        [ErrorCode.E_EXEC]: "Execution error",
-                        [ErrorCode.E_INTRPT]: "Interruption",
-                    };
-
-                    const errorName = ErrorCode[errType] || `Error ${errType}`;
-                    const friendlyMsg = errorMessages[errType] || "Unknown error";
-                    const fullMsg = customMsg || friendlyMsg;
-                    throw new Error(`${context} failed: ${errorName} (${fullMsg})`);
-                }
             }
         }
     }

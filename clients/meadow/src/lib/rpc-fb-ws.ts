@@ -12,16 +12,15 @@
 //
 
 import { NarrativeEventMessage } from "@moor/schema/generated/moor-rpc/narrative-event-message";
-import { SchedulerError } from "@moor/schema/generated/moor-rpc/scheduler-error";
-import { SchedulerErrorUnion } from "@moor/schema/generated/moor-rpc/scheduler-error-union";
+import { TaskOutcome } from "@moor/schema/generated/moor-rpc/task-outcome";
 import {
     decodeCredentialsUpdatedEvent,
     decodePlayerSwitchedEvent,
     dispatchClientEvent,
     parseWsNarrativeEventMessage,
     PlayerIdentityUpdate,
-    schedulerErrorToNarrative,
     SessionCredentialsUpdate,
+    taskOutcomeToNarrative,
     type WsDataEvent,
 } from "@moor/web-sdk";
 import type { MutableRefObject } from "react";
@@ -42,17 +41,15 @@ function narrativeEventIdHex(narrative: NarrativeEventMessage): string | undefin
     return bytes?.length === 16 ? Array.from(bytes, b => b.toString(16).padStart(2, "0")).join("") : undefined;
 }
 
-function handleTaskError(
-    schedulerError: SchedulerError,
+function handleTaskOutcome(
+    outcome: TaskOutcome,
     onNarrativeMessage?: NarrativeMessageHandler,
 ): void {
-    const errorNarrative = schedulerErrorToNarrative(schedulerError);
-    if (errorNarrative && onNarrativeMessage) {
-        const fullMessage = errorNarrative.description
-            ? `${errorNarrative.message}\n${errorNarrative.description.join("\n")}`
-            : errorNarrative.message;
+    // Completed and suspended tasks, and exceptions (whose traceback arrives separately), say nothing.
+    const narrative = taskOutcomeToNarrative(outcome);
+    if (narrative && onNarrativeMessage) {
         onNarrativeMessage(
-            fullMessage,
+            narrative.message,
             new Date().toISOString(),
             "text/traceback",
             false,
@@ -62,11 +59,7 @@ function handleTaskError(
             undefined,
             undefined,
         );
-        return;
     }
-
-    const errorType = schedulerError.errorType();
-    console.warn(`[WS] Unhandled task error type: ${SchedulerErrorUnion[errorType]}`, schedulerError);
 }
 
 export interface ClientEventHandlers {
@@ -212,17 +205,14 @@ export function handleClientEventFlatBuffer(bytes: Uint8Array, handlers: ClientE
                     onInputMetadata(metadata);
                 }
             },
-            onTaskErrorEvent: (taskError) => {
+            onTaskOutcomeEvent: (taskOutcome) => {
                 handlers.onTaskComplete?.();
-                const error = taskError.error();
-                if (!error) {
-                    console.error("[WS] Missing scheduler error");
+                const outcome = taskOutcome.outcome();
+                if (!outcome) {
+                    console.error("[WS] Missing task outcome");
                     return;
                 }
-                handleTaskError(error, onNarrativeMessage);
-            },
-            onTaskSuccessEvent: () => {
-                handlers.onTaskComplete?.();
+                handleTaskOutcome(outcome, onNarrativeMessage);
             },
             onCredentialsUpdatedEvent: (credentials) => {
                 const update = decodeCredentialsUpdatedEvent(credentials);

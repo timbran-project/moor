@@ -12,21 +12,22 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 import { ErrorCode } from "@moor/schema/generated/moor-common/error-code";
-import { SchedulerErrorUnion } from "@moor/schema/generated/moor-rpc/scheduler-error-union";
-import { TaskAbortedException } from "@moor/schema/generated/moor-rpc/task-aborted-exception";
+import { TaskEnding } from "@moor/schema/generated/moor-rpc/task-ending";
 import {
     buildWsAttach,
     bytesFromWebSocketMessage,
+    compilationFailureFromBody,
     decodeCredentialsUpdatedEvent,
     dispatchClientEvent,
     formatCompileError,
+    formatCompileErrorDescription,
     handleWebSocketControlFrame,
     MoorVar,
     parseClientReplyUnion,
     parseEvalResultVar,
     parseVerbProgramCompileOutcome,
     parseWsNarrativeEventMessage,
-    schedulerErrorToNarrative,
+    taskOutcomeToNarrative,
 } from "@moor/web-sdk";
 import { VerbCallFailure } from "@moor/web-sdk/verb";
 import WebSocket from "ws";
@@ -217,12 +218,28 @@ export class MoorWebClient {
         signal?: AbortSignal,
     ): Promise<{ js: unknown; literal: string }> {
         const body = evalBody(expression);
-        const response = await this.authorizedRequest(character, `/v1/eval?timeout_ms=${this.taskDeadlineMs}`, {
-            method: "POST",
-            headers: { Accept: "application/x-flatbuffers", "Content-Type": "text/plain" },
-            body,
-            signal,
-        });
+        const response = await this.authorizedRequest(
+            character,
+            `/v1/eval?timeout_ms=${this.taskDeadlineMs}`,
+            {
+                method: "POST",
+                headers: { Accept: "application/x-flatbuffers", "Content-Type": "text/plain" },
+                body,
+                signal,
+            },
+            [422],
+            "application/json",
+        );
+
+        if (response.status === 422) {
+            // Code that does not compile: no task ran. Say what went wrong and where.
+            const body: unknown = await response.json();
+            const compileError = compilationFailureFromBody(body);
+            const detail = compileError
+                ? formatCompileErrorDescription(compileError)
+                : (body as { error?: unknown } | null)?.error;
+            throw new Error(["Eval: Compilation failed.", detail].filter(Boolean).join(" "));
+        }
 
         const bytes = new Uint8Array(await response.arrayBuffer());
         try {
@@ -230,17 +247,13 @@ export class MoorWebClient {
             return { js: decoded.toJS(), literal: decoded.toLiteral() };
         } catch (error) {
             if (error instanceof VerbCallFailure) {
-                const scheduler = error.failure.error();
-                if (scheduler?.errorType() === SchedulerErrorUnion.TaskAbortedException) {
-                    const aborted = scheduler.error(new TaskAbortedException()) as TaskAbortedException;
-                    const detail = aborted.exception()?.error();
-                    if (detail) error.message = `Eval: ${ErrorCode[detail.errType()]} (${detail.msg() ?? ""})`;
-                } else if (scheduler) {
-                    // Compile errors, limits and the rest: say what went wrong and where.
-                    const narrative = schedulerErrorToNarrative(scheduler);
-                    if (narrative) {
-                        error.message = ["Eval:", narrative.message, ...(narrative.description ?? [])].join(" ");
-                    }
+                const detail = error.exception()?.error();
+                if (detail) {
+                    error.message = `Eval: ${ErrorCode[detail.errType()]} (${detail.msg() ?? ""})`;
+                } else {
+                    // Limits, cancellation and the rest: say what went wrong.
+                    const narrative = taskOutcomeToNarrative(error.outcome);
+                    if (narrative) error.message = `Eval: ${narrative.message}`;
                 }
             }
             throw error;
@@ -292,16 +305,15 @@ export class MoorWebClient {
                                     }
                                 }
                             },
-                            onTaskErrorEvent: event => {
-                                const error = event.error();
-                                const narrative = error ? schedulerErrorToNarrative(error) : null;
+                            onTaskOutcomeEvent: event => {
+                                const outcome = event.outcome();
+                                const narrative = outcome ? taskOutcomeToNarrative(outcome) : null;
                                 if (narrative) {
                                     lines.push(narrative.message);
                                 }
-                                finish(true);
+                                const ending = outcome?.endingType();
+                                finish(ending !== TaskEnding.TaskCompleted && ending !== TaskEnding.TaskSuspended);
                             },
-                            onTaskSuccessEvent: () =>
-                                finish(false),
                             onRequestInputEvent: () =>
                                 finish(true, "Command requires interactive input; use a MOO client."),
                         }),
@@ -339,12 +351,13 @@ export class MoorWebClient {
         return reply ?? data;
     }
 
-    /** A request as the character. Statuses in `diagnostic` with a FlatBuffers body are returned. */
+    /** A request as the character. Statuses in `diagnostic` with a `diagnosticType` body are returned. */
     private async authorizedRequest(
         character: CharacterRef,
         path: string,
         init: RequestInit,
         diagnostic: number[] = [],
+        diagnosticType = "application/x-flatbuffers",
     ): Promise<Response> {
         const session = await this.ensureSession(character);
         const { moo } = this.findCharacter(character);
@@ -358,7 +371,7 @@ export class MoorWebClient {
         }
         if (
             diagnostic.includes(response.status)
-            && response.headers.get("content-type")?.startsWith("application/x-flatbuffers")
+            && response.headers.get("content-type")?.startsWith(diagnosticType)
         ) return response;
         return ensureOk(response, path);
     }

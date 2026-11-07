@@ -14,6 +14,7 @@
 // MOO code evaluation panel - executes MOO code and displays results
 
 import Editor, { Monaco } from "@monaco-editor/react";
+import { MoorApiError } from "@moor/web-sdk";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useMediaQuery } from "../hooks/useMediaQuery";
@@ -234,12 +235,10 @@ export const EvalPanel: React.FC<EvalPanelProps> = ({
             setEvalAnnouncement(`Evaluation complete. Result: ${resultPreview}`);
         } catch (err) {
             const errorMsg = err instanceof Error ? err.message : String(err);
-            // Try to extract span information from error message if available
-            // Parse error format: "Eval failed: Parse error at line 2, col 4: message (span info in debug output)"
-            const parseErrorMatch = errorMsg.match(/Parse error at line (\d+), col (\d+)/);
-
-            const line = parseErrorMatch ? parseInt(parseErrorMatch[1], 10) : undefined;
-            const col = parseErrorMatch ? parseInt(parseErrorMatch[2], 10) : undefined;
+            // Code that does not compile comes back with the compiler's position.
+            const compileError = err instanceof MoorApiError ? err.compileError : undefined;
+            const line = compileError?.line;
+            const col = compileError?.column;
 
             setError({
                 message: errorMsg,

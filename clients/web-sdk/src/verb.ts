@@ -11,12 +11,16 @@
 // You should have received a copy of the GNU Lesser General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-import { CompileError } from "@moor/schema/generated/moor-common/compile-error";
-import { InvocationError } from "@moor/schema/generated/moor-rpc/invocation-error";
-import { unionToInvocationOutcome } from "@moor/schema/generated/moor-rpc/invocation-outcome";
+import type { CompileError } from "@moor/schema/generated/moor-common/compile-error";
+import type { Exception } from "@moor/schema/generated/moor-common/exception";
+import { AbortReason } from "@moor/schema/generated/moor-rpc/abort-reason";
+import { AbortedException } from "@moor/schema/generated/moor-rpc/aborted-exception";
 import { InvocationResponse } from "@moor/schema/generated/moor-rpc/invocation-response";
-import { InvocationSuccess } from "@moor/schema/generated/moor-rpc/invocation-success";
-import { SchedulerErrorUnion } from "@moor/schema/generated/moor-rpc/scheduler-error-union";
+import { Kept } from "@moor/schema/generated/moor-rpc/kept";
+import { TaskAborted } from "@moor/schema/generated/moor-rpc/task-aborted";
+import { TaskCompleted } from "@moor/schema/generated/moor-rpc/task-completed";
+import { TaskEnding } from "@moor/schema/generated/moor-rpc/task-ending";
+import { TaskOutcome } from "@moor/schema/generated/moor-rpc/task-outcome";
 import { VerbCompilationError } from "@moor/schema/generated/moor-rpc/verb-compilation-error";
 import {
     unionToVerbProgramErrorUnion,
@@ -35,23 +39,16 @@ function replyTypeName(value: unknown): string {
     return value?.constructor?.name ?? typeof value;
 }
 
-export function parseVerbCallUnionFromBytes(
-    bytes: Uint8Array,
-    context: string,
-): InvocationSuccess | InvocationError {
-    const verbCallResponse = parseVerbCallResponseFromBytes(bytes);
-    return parseVerbCallUnionFromResponse(verbCallResponse, context);
+export function parseVerbCallOutcomeFromBytes(bytes: Uint8Array, context: string): TaskOutcome {
+    return parseVerbCallOutcomeFromResponse(parseVerbCallResponseFromBytes(bytes), context);
 }
 
 export function parseVerbCallResponseFromBytes(bytes: Uint8Array): InvocationResponse {
     return InvocationResponse.getRootAsInvocationResponse(new flatbuffers.ByteBuffer(bytes));
 }
 
-export function parseVerbCallUnionFromReply(
-    replyUnion: unknown,
-    context: string,
-): InvocationSuccess | InvocationError {
-    return parseVerbCallUnionFromResponse(parseVerbCallResponseFromReply(replyUnion, context), context);
+export function parseVerbCallOutcomeFromReply(replyUnion: unknown, context: string): TaskOutcome {
+    return parseVerbCallOutcomeFromResponse(parseVerbCallResponseFromReply(replyUnion, context), context);
 }
 
 export function parseVerbCallResponseFromReply(replyUnion: unknown, context: string): InvocationResponse {
@@ -61,19 +58,47 @@ export function parseVerbCallResponseFromReply(replyUnion: unknown, context: str
     return replyUnion;
 }
 
-export interface ParsedVerbCallSuccess {
-    response: InvocationResponse;
-    success: InvocationSuccess;
+/** The reason an aborted task ended, or null when the task did not abort. */
+export function taskOutcomeAbortReason(outcome: TaskOutcome): TaskAborted | null {
+    if (outcome.endingType() !== TaskEnding.TaskAborted) {
+        return null;
+    }
+    return outcome.ending(new TaskAborted()) as TaskAborted | null;
 }
 
+/** The uncaught exception that aborted the task, when one did. */
+export function taskOutcomeException(outcome: TaskOutcome): Exception | null {
+    const aborted = taskOutcomeAbortReason(outcome);
+    if (aborted?.reasonType() !== AbortReason.AbortedException) {
+        return null;
+    }
+    const reason = aborted.reason(new AbortedException()) as AbortedException | null;
+    return reason?.exception() ?? null;
+}
+
+export interface ParsedVerbCallSuccess {
+    response: InvocationResponse;
+    success: TaskCompleted;
+}
+
+/** A verb call whose task did not complete. `kept` says whether its changes were committed. */
 export class VerbCallFailure extends Error {
     constructor(
         message: string,
         readonly response: InvocationResponse,
-        readonly failure: InvocationError,
+        readonly outcome: TaskOutcome,
     ) {
         super(message);
         this.name = "VerbCallFailure";
+    }
+
+    get kept(): Kept {
+        return this.outcome.kept();
+    }
+
+    /** The uncaught exception that aborted the task, when one did. */
+    exception(): Exception | null {
+        return taskOutcomeException(this.outcome);
     }
 }
 
@@ -82,7 +107,7 @@ export function parseVerbCallSuccessFromBytes(
     context: string,
 ): ParsedVerbCallSuccess {
     const response = parseVerbCallResponseFromBytes(bytes);
-    return ensureVerbCallSuccess(response, parseVerbCallUnionFromResponse(response, context), context);
+    return ensureVerbCallSuccess(response, parseVerbCallOutcomeFromResponse(response, context), context);
 }
 
 export function parseVerbCallSuccessFromReply(
@@ -90,46 +115,35 @@ export function parseVerbCallSuccessFromReply(
     context: string,
 ): ParsedVerbCallSuccess {
     const response = parseVerbCallResponseFromReply(replyUnion, context);
-    return ensureVerbCallSuccess(response, parseVerbCallUnionFromResponse(response, context), context);
+    return ensureVerbCallSuccess(response, parseVerbCallOutcomeFromResponse(response, context), context);
 }
 
-function parseVerbCallUnionFromResponse(
+function parseVerbCallOutcomeFromResponse(
     verbCallResponse: InvocationResponse,
     context: string,
-): InvocationSuccess | InvocationError {
-    const outcomeType = verbCallResponse.outcomeType();
-    const responseUnion = unionToInvocationOutcome(
-        outcomeType,
-        (obj) => verbCallResponse.outcome(obj),
-    );
-
-    if (!responseUnion) {
+): TaskOutcome {
+    const outcome = verbCallResponse.outcome();
+    if (!outcome) {
         throw new Error(`${context}: failed to parse verb call response`);
     }
-    if (!(responseUnion instanceof InvocationSuccess) && !(responseUnion instanceof InvocationError)) {
-        throw new Error(`${context}: unexpected verb call response union`);
-    }
-    return responseUnion;
+    return outcome;
 }
 
 function ensureVerbCallSuccess(
     response: InvocationResponse,
-    responseUnion: InvocationSuccess | InvocationError,
+    outcome: TaskOutcome,
     context: string,
 ): ParsedVerbCallSuccess {
-    if (responseUnion instanceof InvocationError) {
-        const schedulerError = responseUnion.error();
-        if (schedulerError) {
-            const errorType = schedulerError.errorType();
-            throw new VerbCallFailure(
-                `${context}: ${SchedulerErrorUnion[errorType] ?? "unknown error"}`,
-                response,
-                responseUnion,
-            );
+    const endingType = outcome.endingType();
+    if (endingType === TaskEnding.TaskCompleted) {
+        const success = outcome.ending(new TaskCompleted()) as TaskCompleted | null;
+        if (success) {
+            return { response, success };
         }
-        throw new VerbCallFailure(`${context}: unknown error`, response, responseUnion);
     }
-    return { response, success: responseUnion };
+    const aborted = taskOutcomeAbortReason(outcome);
+    const ending = aborted ? AbortReason[aborted.reasonType()] : TaskEnding[endingType];
+    throw new VerbCallFailure(`${context}: ${ending ?? "unknown error"}`, response, outcome);
 }
 
 export function parseVerbProgramUnionFromReply(

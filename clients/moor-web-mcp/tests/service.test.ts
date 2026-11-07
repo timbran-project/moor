@@ -19,17 +19,15 @@ import { Symbol as MoorSymbol } from "@moor/schema/generated/moor-common/symbol"
 import { ClientEvent } from "@moor/schema/generated/moor-rpc/client-event";
 import { ClientEventUnion } from "@moor/schema/generated/moor-rpc/client-event-union";
 import { ClientSuccess } from "@moor/schema/generated/moor-rpc/client-success";
-import { CompilationError } from "@moor/schema/generated/moor-rpc/compilation-error";
 import { DaemonToClientReply } from "@moor/schema/generated/moor-rpc/daemon-to-client-reply";
 import { DaemonToClientReplyUnion } from "@moor/schema/generated/moor-rpc/daemon-to-client-reply-union";
-import { InvocationError } from "@moor/schema/generated/moor-rpc/invocation-error";
-import { InvocationOutcome } from "@moor/schema/generated/moor-rpc/invocation-outcome";
-import { InvocationResponse } from "@moor/schema/generated/moor-rpc/invocation-response";
+import { Kept } from "@moor/schema/generated/moor-rpc/kept";
 import { ReplyResult } from "@moor/schema/generated/moor-rpc/reply-result";
 import { ReplyResultUnion } from "@moor/schema/generated/moor-rpc/reply-result-union";
-import { SchedulerError } from "@moor/schema/generated/moor-rpc/scheduler-error";
-import { SchedulerErrorUnion } from "@moor/schema/generated/moor-rpc/scheduler-error-union";
-import { TaskSuccessEvent } from "@moor/schema/generated/moor-rpc/task-success-event";
+import { TaskCompleted } from "@moor/schema/generated/moor-rpc/task-completed";
+import { TaskEnding } from "@moor/schema/generated/moor-rpc/task-ending";
+import { TaskOutcome } from "@moor/schema/generated/moor-rpc/task-outcome";
+import { TaskOutcomeEvent } from "@moor/schema/generated/moor-rpc/task-outcome-event";
 import { VerbCompilationError } from "@moor/schema/generated/moor-rpc/verb-compilation-error";
 import { VerbProgramError } from "@moor/schema/generated/moor-rpc/verb-program-error";
 import { VerbProgramErrorUnion } from "@moor/schema/generated/moor-rpc/verb-program-error-union";
@@ -52,11 +50,13 @@ const actor = { mooId: "test", playerId: "builder" };
 function completed() {
     const b = new Builder();
     const value = Var.createVar(b, VarUnion.VarInt, VarInt.createVarInt(b, 1n));
-    TaskSuccessEvent.startTaskSuccessEvent(b);
-    TaskSuccessEvent.addTaskId(b, 1n);
-    TaskSuccessEvent.addResult(b, value);
-    const success = TaskSuccessEvent.endTaskSuccessEvent(b);
-    b.finish(ClientEvent.createClientEvent(b, ClientEventUnion.TaskSuccessEvent, success, 0n));
+    const ending = TaskCompleted.createTaskCompleted(b, value);
+    const outcome = TaskOutcome.createTaskOutcome(b, Kept.Yes, TaskEnding.TaskCompleted, ending);
+    TaskOutcomeEvent.startTaskOutcomeEvent(b);
+    TaskOutcomeEvent.addTaskId(b, 1n);
+    TaskOutcomeEvent.addOutcome(b, outcome);
+    const event = TaskOutcomeEvent.endTaskOutcomeEvent(b);
+    b.finish(ClientEvent.createClientEvent(b, ClientEventUnion.TaskOutcomeEvent, event, 0n));
     return b.asUint8Array();
 }
 
@@ -71,16 +71,12 @@ function duplicateVariableError(b: Builder): number {
     return CompileError.createCompileError(b, CompileErrorUnion.DuplicateVariable, detail);
 }
 
-/** The daemon's answer to an eval of code with that duplicate variable. */
-function duplicateVariable() {
-    const b = new Builder();
-    const compilation = CompilationError.createCompilationError(b, duplicateVariableError(b));
-    const scheduler = SchedulerError.createSchedulerError(b, SchedulerErrorUnion.CompilationError, compilation);
-    const failure = InvocationError.createInvocationError(b, scheduler);
-    const output = InvocationResponse.createOutputVector(b, []);
-    b.finish(InvocationResponse.createInvocationResponse(b, InvocationOutcome.InvocationError, failure, output));
-    return b.asUint8Array();
-}
+/** The web host's answer to an eval of code with that duplicate variable: no task ran. */
+const duplicateVariable = JSON.stringify({
+    code: "compilation_error",
+    error: "Duplicate variable in scope @ 2/47: b",
+    compile_error: { DuplicateVariable: [{ line_col: [2, 47] }, "b"] },
+});
 
 /** The web host's answer to programming a verb with that duplicate variable. */
 function programFailure() {
@@ -132,8 +128,8 @@ async function host(t: TestContext, timeoutMs = 1000, password = "test") {
             res.end(JSON.stringify({ result: { Failure: { error: "Permission denied" } } }));
         } else if (url.pathname === "/v1/eval") {
             evals.push(url.searchParams.get("timeout_ms") ?? "none");
-            res.setHeader("Content-Type", "application/x-flatbuffers");
-            res.end(duplicateVariable());
+            res.writeHead(422, { "Content-Type": "application/json" });
+            res.end(duplicateVariable);
         } else if (url.pathname.startsWith("/v1/verbs/")) {
             res.writeHead(422, { "Content-Type": "application/x-flatbuffers" });
             res.end(programFailure());

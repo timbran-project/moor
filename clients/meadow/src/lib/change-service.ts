@@ -11,8 +11,6 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 
 import { ErrorCode } from "@moor/schema/generated/moor-common/error-code";
-import { SchedulerErrorUnion } from "@moor/schema/generated/moor-rpc/scheduler-error-union";
-import { TaskAbortedException } from "@moor/schema/generated/moor-rpc/task-aborted-exception";
 import {
     buildStructuredArgs,
     jsObjectRefToCurie,
@@ -132,15 +130,11 @@ function decodePackage(name: string, value: unknown): ChangePackage {
 /** Retain the service's explanation when the RPC task raises an exception. */
 export function changeServiceFailure(failure: unknown): Error {
     if (failure instanceof VerbCallFailure) {
-        const scheduler = failure.failure.error();
-        if (scheduler?.errorType() === SchedulerErrorUnion.TaskAbortedException) {
-            const exception = scheduler.error(new TaskAbortedException()) as TaskAbortedException | null;
-            const error = exception?.exception()?.error();
-            if (error) {
-                return new Error(error.msg() || ErrorCode[error.errType()] || "Service request failed.", {
-                    cause: failure,
-                });
-            }
+        const error = failure.exception()?.error();
+        if (error) {
+            return new Error(error.msg() || ErrorCode[error.errType()] || "Service request failed.", {
+                cause: failure,
+            });
         }
     }
     return failure instanceof Error ? failure : new Error("Service request failed.");
