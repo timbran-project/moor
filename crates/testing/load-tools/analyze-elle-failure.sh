@@ -46,8 +46,9 @@ echo ""
 # Create directory for Elle output artifacts (cycle graphs, etc.)
 mkdir -p /tmp/elle-output
 
-java -jar /opt/elle-cli/target/elle-cli-0.1.9-standalone.jar \
+java -jar "${ELLE_CLI_JAR:-/opt/elle-cli/elle-cli.jar}" \
     --model list-append \
+    --consistency-models "${CONSISTENCY_MODEL:-snapshot-isolation}" \
     --directory /tmp/elle-output \
     --plot-format svg \
     --cycle-search-timeout 5000 \

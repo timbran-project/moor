@@ -9,30 +9,28 @@ COPY . /build
 RUN cargo build --release --bin list-append
 RUN cargo build --release --bin rw-register
 
-# Runtime stage with JVM for elle-cli
-FROM debian:bookworm-slim
+# Runtime stage with JVM for elle-cli. CI checks with Java 21 and elle-cli at the same commit.
+FROM eclipse-temurin:21-jdk-noble
 
-# Install Java and dependencies
+ARG ELLE_CLI_COMMIT=65fafcfa939cced8b7d279db1b2a666929885e65
+
+# Install Leiningen and dependencies
 RUN apt-get update && \
     apt-get install -y \
-    openjdk-17-jdk-headless \
-    wget \
     git \
-    curl \
     graphviz \
+    leiningen \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Leiningen
-RUN wget https://raw.githubusercontent.com/technomancy/leiningen/stable/bin/lein && \
-    chmod +x lein && \
-    mv lein /usr/local/bin/ && \
-    lein version
-
-# Clone and build elle-cli
-RUN git clone https://github.com/ligurio/elle-cli.git /opt/elle-cli && \
+# Fetch and build elle-cli at the pinned commit
+RUN git init /opt/elle-cli && \
     cd /opt/elle-cli && \
+    git remote add origin https://github.com/ligurio/elle-cli.git && \
+    git fetch --depth 1 origin "$ELLE_CLI_COMMIT" && \
+    git checkout --detach FETCH_HEAD && \
     lein deps && \
-    lein uberjar
+    lein uberjar && \
+    ln -s "$(find target -maxdepth 1 -name '*-standalone.jar' -print -quit)" /opt/elle-cli/elle-cli.jar
 
 # Copy the built binaries from builder stage
 COPY --from=builder /build/target/release/list-append /usr/local/bin/
@@ -56,16 +54,15 @@ CMD if [ "${MODEL}" = "rw-register" ]; then \
         --num-concurrent-workloads ${NUM_CONCURRENT:-10} \
         --num-workload-iterations ${NUM_ITERATIONS:-1000} \
         --output-file /output/workload.edn && \
-      cd /opt/elle-cli && \
-      java -jar target/elle-cli-0.1.9-standalone.jar \
+      java -jar /opt/elle-cli/elle-cli.jar \
         -m rw-register \
         -c serializable \
         /output/workload.edn; \
     else \
-      moor-model-checker \
-        --num-props ${NUM_PROPS:-3} \
-        --num-concurrent-workloads ${NUM_CONCURRENT:-10} \
-        --num-workload-iterations ${NUM_ITERATIONS:-1000} \
+      list-append \
+        --num-active-keys ${NUM_ACTIVE_KEYS:-10} \
+        --num-concurrent-workloads ${NUM_CONCURRENT:-16} \
+        --num-workload-iterations ${NUM_ITERATIONS:-2000} \
         --output-file /output/workload.edn && \
       analyze-elle-failure.sh /output/workload.edn; \
     fi
