@@ -81,6 +81,24 @@ jobs:
             test-output/list-append.edn | tee test-output/elle-list-append-result.txt
           grep -Eq '[[:space:]]true$' test-output/elle-list-append-result.txt
 
+      - name: Run list-append workload through the scheduler
+        run: |
+          target/debug/list-append \
+            --target scheduler \
+            --num-active-keys 10 \
+            --num-concurrent-workloads 16 \
+            --num-workload-iterations 500 \
+            --output-file test-output/list-append-scheduler.edn
+
+      - name: Check list-append scheduler history
+        run: |
+          elle_jar=$(find /tmp/elle-cli/target -maxdepth 1 -name '*-standalone.jar' -print -quit)
+          java -jar "$elle_jar" \
+            -m list-append \
+            -c snapshot-isolation \
+            test-output/list-append-scheduler.edn | tee test-output/elle-list-append-scheduler-result.txt
+          grep -Eq '[[:space:]]true$' test-output/elle-list-append-scheduler-result.txt
+
       - name: Upload Elle histories and results
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

@@ -46,6 +46,7 @@ WORKDIR /output
 # Default command: run the list-append workload and check it with Elle.
 # Direct database access - no scheduler overhead
 CMD list-append \
+      --target ${TARGET:-db} \
       --num-active-keys ${NUM_ACTIVE_KEYS:-10} \
       --num-concurrent-workloads ${NUM_CONCURRENT:-16} \
       --num-workload-iterations ${NUM_ITERATIONS:-2000} \

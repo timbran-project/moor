@@ -15,8 +15,14 @@ Tools for testing the consistency and performance of the moor transaction system
 
 ## list-append
 
-A workload generator for Jepsen/Elle's `list-append` model. It runs against `moor_db` directly,
-without the scheduler or VM, and checks the database's snapshot isolation.
+A workload generator for Jepsen/Elle's `list-append` model, for checking snapshot isolation.
+`--target` chooses what runs each transaction:
+
+- `db` (default): one `moor_db` transaction, without the scheduler or VM. The workload retries
+  commit conflicts itself.
+- `scheduler`: one MOO eval task on an in-process scheduler, as a wizard. The scheduler retries
+  commit conflicts by rerunning the task, up to its own retry limit; a task that aborts is recorded
+  as `:fail`. This also covers the VM's property access and the scheduler's retry path.
 
 ### What it does
 
@@ -25,8 +31,8 @@ without the scheduler or VM, and checks the database's snapshot isolation.
   in one database transaction.
 - Rotates keys: a key takes `--max-writes-per-key` appends, then a fresh key replaces it, so lists
   stay short. Keys are chosen with a skew, so the first few active keys see most of the contention.
-- Retries a transaction on a commit conflict, up to `--max-retries` attempts. A transaction that
-  never commits is recorded as `:fail`.
+- With `--target db`, retries a transaction on a commit conflict, up to `--max-retries` attempts. A
+  transaction that never commits is recorded as `:fail`.
 - Writes the history as EDN for [elle-cli](https://github.com/ligurio/elle-cli): an `:invoke` with
   `nil` reads when a transaction starts, and an `:ok` with the values read when it commits.
 
@@ -56,6 +62,7 @@ java -jar elle-cli-*-standalone.jar -m list-append -c snapshot-isolation workloa
 docker build -f Dockerfile.elle -t moor-elle-test .
 docker run moor-elle-test
 docker run -e NUM_ACTIVE_KEYS=5 -e NUM_CONCURRENT=8 -e NUM_ITERATIONS=500 moor-elle-test
+docker run -e TARGET=scheduler -e NUM_ITERATIONS=500 moor-elle-test
 ```
 
 `run-elle-test.sh` builds the image, runs it, and copies the history and Elle's output to
@@ -63,13 +70,14 @@ docker run -e NUM_ACTIVE_KEYS=5 -e NUM_CONCURRENT=8 -e NUM_ITERATIONS=500 moor-e
 
 ### Parameters
 
+- `--target`: What runs each transaction: `db` or `scheduler` (default: db)
 - `--num-active-keys`: Keys open for operations at once (default: 5)
 - `--max-writes-per-key`: Appends a key takes before it is replaced (default: 32)
 - `--max-txn-length`: Maximum operations per transaction (default: 4)
 - `--read-fraction`: Chance that an operation is a read (default: 0.5)
 - `--num-concurrent-workloads`: Concurrent processes (default: 20)
 - `--num-workload-iterations`: Transactions per process (default: 1000)
-- `--max-retries`: Commit attempts before a transaction fails (default: 100)
+- `--max-retries`: Commit attempts before a `db`-target transaction fails (default: 100)
 - `--output-file`: Where to write the EDN history (default: workload.edn)
 - `--db-path`: Database directory (default: temporary)
 
