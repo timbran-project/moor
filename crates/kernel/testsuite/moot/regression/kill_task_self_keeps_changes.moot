@@ -1,0 +1,7 @@
+// A task that kills itself keeps its changes, as in LambdaMOO.
+@wizard
+; add_property($system, "kill_self_marker", 0, {$wizard_player, "rwc"});
+; fork (0) $kill_self_marker = 1; kill_task(task_id()); $kill_self_marker = 2; endfork return 1;
+1
+; suspend(0.1); return $kill_self_marker;
+1

@@ -44,8 +44,10 @@ pub enum VMHostResponse {
     AbortLimit(AbortLimitReason),
     /// Tell the task that execution has completed, and the task is successful.
     CompleteSuccess(Var),
-    /// The VM aborted. (FinallyReason::Abort in MOO VM)
+    /// The task killed itself with `kill_task(task_id())`. (FinallyReason::Abort in MOO VM)
     CompleteAbort,
+    /// The VM stopped without completing.
+    Stopped,
     /// The VM threw an exception. (FinallyReason::Uncaught in MOO VM)
     CompleteException(Box<Exception>),
     /// Finish the task with a DB rollback. Second argument is whether to commit the session.

@@ -14,6 +14,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.0 series (`main`) branch
 
+- A task that kills itself with `kill_task(task_id())` now keeps the changes it made, as in
+  LambdaMOO. They were rolled back before. Killing a suspended task, or one running in another
+  thread, is unchanged.
 - `mootop` shows, live, which verbs, builtins and tasks are using a running server's CPU, and can
   record a session and print a report from it later. Its other views show what the daemon's own
   metrics mean: an overview with warnings, the scheduler, the database, and RPC queues and call

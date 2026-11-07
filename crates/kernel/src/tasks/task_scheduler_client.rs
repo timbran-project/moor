@@ -142,6 +142,12 @@ impl TaskSchedulerClient {
         })
     }
 
+    pub fn killed(&self) {
+        if let Some(dispatch) = &self.dispatch {
+            self.scheduler.handle_task_killed_for_dispatch(dispatch);
+        }
+    }
+
     pub fn abort_cancelled(&self) {
         if let Some(dispatch) = &self.dispatch {
             self.scheduler

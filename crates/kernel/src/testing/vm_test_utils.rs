@@ -207,7 +207,7 @@ fn execute_fork(
             VMHostResponse::CompleteSuccess(v) => {
                 return Ok(v);
             }
-            VMHostResponse::CompleteAbort => {
+            VMHostResponse::CompleteAbort | VMHostResponse::Stopped => {
                 panic!("Fork task aborted");
             }
             VMHostResponse::Suspend(_) => {
@@ -290,7 +290,7 @@ where
             VMHostResponse::CompleteSuccess(v) => {
                 return Ok(Ok(v));
             }
-            VMHostResponse::CompleteAbort => {
+            VMHostResponse::CompleteAbort | VMHostResponse::Stopped => {
                 panic!("Unexpected abort");
             }
             VMHostResponse::Suspend(_) => {

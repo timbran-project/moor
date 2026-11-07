@@ -173,7 +173,7 @@ fn execute(
             VMHostResponse::SuspendNeedInput(_) => {
                 panic!("Unexpected suspend need input");
             }
-            VMHostResponse::CompleteAbort => {
+            VMHostResponse::CompleteAbort | VMHostResponse::Stopped => {
                 panic!("Unexpected abort");
             }
             VMHostResponse::RollbackRetry => {
