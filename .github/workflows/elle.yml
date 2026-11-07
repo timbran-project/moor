@@ -30,9 +30,10 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install system dependencies
+        timeout-minutes: 5
         run: |
           sudo apt-get update
-          sudo apt-get install --yes clang-16 libclang-16-dev swig python3-dev cmake libsodium-dev pkg-config libssl-dev default-jre-headless leiningen graphviz
+          sudo apt-get install --yes clang-16 libclang-16-dev swig python3-dev cmake libsodium-dev pkg-config libssl-dev graphviz
 
       - name: Install Java 21
         uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5
@@ -45,7 +46,20 @@ jobs:
           rustup toolchain install 1.98.1 --profile minimal
           rustup default 1.98.1
 
+      - name: Restore elle-cli
+        id: elle-cli-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: /tmp/elle-cli/target/elle-cli-standalone.jar
+          key: elle-cli-${{ env.ELLE_CLI_COMMIT }}-java21
+
+      - name: Install Leiningen
+        if: steps.elle-cli-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 5
+        run: sudo apt-get install --yes leiningen
+
       - name: Build elle-cli
+        if: steps.elle-cli-cache.outputs.cache-hit != 'true'
         run: |
           git init /tmp/elle-cli
           git -C /tmp/elle-cli remote add origin https://github.com/ligurio/elle-cli.git
@@ -55,7 +69,9 @@ jobs:
           lein deps
           lein uberjar
           popd
-          find /tmp/elle-cli/target -maxdepth 1 -name '*-standalone.jar' -print -quit | grep -q .
+          built=$(find /tmp/elle-cli/target -maxdepth 1 -name '*-standalone.jar' -print -quit)
+          test -n "$built"
+          mv "$built" /tmp/elle-cli/target/elle-cli-standalone.jar
 
       - name: Build workload generator
         run: cargo build --package moor-model-checker --bin list-append
@@ -71,7 +87,7 @@ jobs:
 
       - name: Check list-append history
         run: |
-          elle_jar=$(find /tmp/elle-cli/target -maxdepth 1 -name '*-standalone.jar' -print -quit)
+          elle_jar=/tmp/elle-cli/target/elle-cli-standalone.jar
           java -jar "$elle_jar" \
             -m list-append \
             -c snapshot-isolation \
@@ -92,7 +108,7 @@ jobs:
 
       - name: Check list-append scheduler history
         run: |
-          elle_jar=$(find /tmp/elle-cli/target -maxdepth 1 -name '*-standalone.jar' -print -quit)
+          elle_jar=/tmp/elle-cli/target/elle-cli-standalone.jar
           java -jar "$elle_jar" \
             -m list-append \
             -c snapshot-isolation \
