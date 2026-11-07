@@ -22,10 +22,6 @@ path = "src/lib.rs"
 name = "list-append"
 path = "src/elle-list-append.rs"
 
-[[bin]]
-name = "rw-register"
-path = "src/elle-rw-register.rs"
-
 # Note: this model currently fails with 0.1.9 of elle, but elle also fails for their reference files for it, too...
 [[bin]]
 name = "bank"
