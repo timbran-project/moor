@@ -16,14 +16,17 @@ enhancements.
 
 > **Which version should I use?**
 >
-> Use the stable [`1.0.2` release](https://github.com/timbran-project/moor/releases/tag/1.0.2), the
-> `v1.0-release` branch, or the published
-> [`ghcr.io/timbran-project/moor:1.0.2`](https://github.com/orgs/timbran-project/packages/container/package/moor)
-> image and Debian packages for running worlds and evaluating mooR. `main` tracks `2.0.0-dev` and
-> contains active next-version development work.
+> Use the `v2.0-release` branch. mooR 2.0 is in code freeze ahead of its release, which is planned
+> for the coming days or weeks. Cowbell, LambdaCore and the Meadow clients work against it. Please
+> report bugs against `v2.0-release`.
 >
-> Exception: Cowbell currently tracks `main` and requires post-1.0 runtime/compiler features. Use
-> `main` if you want to build and run Cowbell through the bundled setup scripts.
+> ```bash
+> git clone -b v2.0-release https://github.com/timbran-project/moor.git
+> ```
+>
+> 2.0 has no release packages or container images yet; build it from the branch, as the
+> [Quick Start](#quick-start) scripts do. The 1.0 series (`1.0.2` and `v1.0-release`) is no longer
+> supported. `main` is where development after 2.0 happens.
 >
 > See the [Status](#status) section below for the branch policy.
 
@@ -97,22 +100,22 @@ To see a live running instance, visit our demonstrator community at
 
 ## Status
 
-mooR [`1.0.2`](https://github.com/timbran-project/moor/releases/tag/1.0.2) is the current stable
-release. The core runtime and database formats are stable for the 1.0 series. It successfully runs
-databases imported from LambdaMOO with real-world workloads and has passed extensive stress and
-performance testing.
+mooR 2.0 is in code freeze on the `v2.0-release` branch, and a formal `2.0.0` release will follow in
+the coming days or weeks. Until then the branch takes bug fixes only. mooR runs databases imported
+from LambdaMOO with real-world workloads and has passed extensive stress and performance testing.
 
 **Branch policy**:
 
-- `v1.0-release` branch: stable `1.0` release line for bug fixes, stability work, and patch releases
-- `main` branch: `2.0.0-dev` feature development
-- Bug fixes land on `main` first, then are cherry-picked to `v1.0-release` when safe
-- Stable release tags, packages, and published images are cut from `v1.0-release`
-- Database formats and APIs are stable on the 1.0 release branch
+- `v2.0-release` branch: the 2.0 release line, for bug fixes, stability work, and releases. Database
+  formats, network APIs and MOO language behaviour are frozen.
+- `main` branch: `2.1.0-dev`, development after 2.0. Changes there stay cautious for now.
+- Bug fixes land on `main` first, then are cherry-picked to `v2.0-release` when safe
+- Release tags, packages, and published images for 2.0 are cut from `v2.0-release`
+- `v1.0-release` and the `1.0.x` releases are no longer supported
 
 **Repository**: The primary mooR repository is
 [github.com/timbran-project/moor](https://github.com/timbran-project/moor). File issues and submit
-pull requests on GitHub. GitHub hosts the stable `1.0.0` through `1.0.2` releases and their package
+pull requests on GitHub. GitHub hosts the `1.0.0` through `1.0.2` releases and their package
 artifacts. Codeberg retains the repository history from before the migration, but new development
 takes place on GitHub.
 
@@ -130,7 +133,7 @@ configuration.
 
 Choose one of the bundled, pre-configured cores to explore:
 
-- **Cowbell** (Modern core with web-native features; requires mooR `main`):
+- **Cowbell** (Modern core with web-native features):
   ```bash
   ./scripts/start-moor-cowbell.sh
   ```
@@ -304,10 +307,9 @@ mooR offers several opportunities for contribution. For detailed contribution gu
 ## Bug Reports
 
 Found a bug or have a feature request? Please file an issue on our
-[GitHub issue tracker](https://github.com/timbran-project/moor/issues). Bug reports from `main` are
-welcome, but if you're running a world or evaluating mooR for stability, use the
-[`1.0.2` release](https://github.com/timbran-project/moor/releases/tag/1.0.2) or the `v1.0-release`
-branch.
+[GitHub issue tracker](https://github.com/timbran-project/moor/issues). Please report bugs against
+the `v2.0-release` branch, and say which commit you are running. Reports from `main` are welcome
+too. The 1.0 series is no longer supported.
 
 When reporting bugs, please include:
 
