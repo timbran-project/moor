@@ -59,6 +59,7 @@ where
 /// define_relations! {
 ///     field_name => DomainType, CodomainType,      // Normal relation (primary index only)
 ///     field_name == DomainType, CodomainType,      // Bidirectional secondary indexed relation
+///     field_name => DomainType, CodomainType [ProviderType], // Stored by ProviderType
 ///     // ... more relations
 /// }
 /// ```
@@ -66,7 +67,8 @@ where
 /// # Generated Code
 ///
 /// For each relation `field_name: Domain => Codomain`, the macro generates:
-/// - A field in the `Relations` struct of type `Relation<Domain, Codomain, FjallProvider<Domain, Codomain>>`
+/// - A field in the `Relations` struct of type `Relation<Domain, Codomain, Provider>`, where
+///   `Provider` is the bracketed provider type, or `FjallProvider<Domain, Codomain>` if none is given
 /// - A field in the `RelationCheckers` struct for commit checking
 /// - A field in the `WorkingSets` struct for transaction working sets
 /// - A field in the `WorldStateTransaction` struct for relation transactions
@@ -103,10 +105,10 @@ where
 /// hundreds of lines of repetitive code that would otherwise need to be maintained
 /// manually.
 ///
-/// # Type Aliases
+/// # Providers
 ///
-/// The macro uses `R<Domain, Codomain>` as a type alias for
-/// `Relation<Domain, Codomain, FjallProvider<Domain, Codomain>`.
+/// A relation's provider stores its tuples. The provider type must implement
+/// `Provider<Domain, Codomain>` and have `new(relation_name, keyspace)` and `partition()`.
 ///
 /// # Dependencies
 ///
@@ -134,20 +136,22 @@ macro_rules! define_relations {
         $provider.encode_working_set($working_set)
     };
 
+    // The provider a relation declares in brackets, or `FjallProvider` by default.
+    (@provider_type [$provider:ty], $domain:ty, $codomain:ty) => { $provider };
+    (@provider_type [], $domain:ty, $codomain:ty) => { FjallProvider<$domain, $codomain> };
+
     // Entry point: parse all items
     (
         $(
-            $field:ident $arrow:tt $domain:ty, $codomain:ty
+            $field:ident $arrow:tt $domain:ty, $codomain:ty $([$provider:ty])?
         ),* $(,)?
     ) => {
-        define_relations!(@process [ $( ($field, $domain, $codomain, $arrow) ),* ]);
+        define_relations!(@process [ $( ($field, $domain, $codomain, $arrow, [$($provider)?]) ),* ]);
     };
 
     // Main processing rule
-    (@process [ $( ($field:ident, $domain:ty, $codomain:ty, $arrow:tt) ),* ]) => {
+    (@process [ $( ($field:ident, $domain:ty, $codomain:ty, $arrow:tt, $provider:tt) ),* ]) => {
         pastey::paste! {
-            /// Type alias for Relations to reduce verbosity in macro.
-            type R<Domain, Codomain> = Relation<Domain, Codomain, FjallProvider<Domain, Codomain>>;
 
             /// Stable identifier for a persisted database relation.
             #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -181,7 +185,7 @@ macro_rules! define_relations {
             /// This struct groups all relations together and provides convenience
             /// methods for operations that need to be performed across all relations.
             pub(crate) struct Relations {
-                $( $field: R<$domain, $codomain>, )*
+                $( $field: Relation<$domain, $codomain, define_relations!(@provider_type $provider, $domain, $codomain)>, )*
             }
 
             /// What one transaction's relations borrow their indexes and sources from.
@@ -196,7 +200,7 @@ macro_rules! define_relations {
             /// This struct holds the checking state for all relations during the
             /// commit process, allowing batch operations across all relations.
             pub(crate) struct RelationCheckers {
-                $( $field: Option<CheckRelation<$domain, $codomain, FjallProvider<$domain, $codomain>>>, )*
+                $( $field: Option<CheckRelation<$domain, $codomain, define_relations!(@provider_type $provider, $domain, $codomain)>>, )*
             }
 
             #[derive(Clone)]
@@ -469,7 +473,7 @@ macro_rules! define_relations {
                             })?;
 
                         // Create the provider for this relation keyspace.
-                        let [<$field _provider>] = FjallProvider::new(
+                        let [<$field _provider>] = <define_relations!(@provider_type $provider, $domain, $codomain)>::new(
                             stringify!($field),
                             [<$field _partition>],
                         );
@@ -757,7 +761,7 @@ macro_rules! define_relations {
                 /// Database handle used for direct commit processing.
                 pub(crate) db: std::sync::Arc<dyn TransactionContext>,
                 /// Relation transactions for each defined relation
-                $( pub(crate) $field: RelationTransaction<$domain, $codomain, FjallProvider<$domain, $codomain>, TransactionRelations>, )*
+                $( pub(crate) $field: RelationTransaction<$domain, $codomain, define_relations!(@provider_type $provider, $domain, $codomain), TransactionRelations>, )*
                 /// Array of sequence counters for object ID generation
                 pub(crate) sequences: Arc<crate::engine::moor_db::SequenceState>,
                 /// Local fork of the verb resolution cache
@@ -773,7 +777,7 @@ macro_rules! define_relations {
             /// A mutation view cannot perform cached resolution while its caches are borrowed.
             pub(crate) struct WorldStateEdit<'a> {
                 // Generate the whole relation view, including relations without cached readers.
-                $( #[allow(dead_code)] pub(crate) $field: &'a mut RelationTransaction<$domain, $codomain, FjallProvider<$domain, $codomain>, TransactionRelations>, )*
+                $( #[allow(dead_code)] pub(crate) $field: &'a mut RelationTransaction<$domain, $codomain, define_relations!(@provider_type $provider, $domain, $codomain), TransactionRelations>, )*
                 _invalidation: crate::engine::ws_transaction::edit::EditInvalidation<'a>,
             }
 

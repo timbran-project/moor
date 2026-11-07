@@ -377,6 +377,41 @@ where
         crate::tx::make_conflict_info(self.relation_name, domain, conflict_type)
     }
 
+    /// The backing source's version of a tuple this transaction's index does not hold.
+    ///
+    /// The backing source keeps only the newest version. If that is newer than this
+    /// transaction's snapshot, the version the snapshot saw, or its absence, is no longer known,
+    /// so the read is a conflict and the transaction must retry on a newer snapshot.
+    fn backing_get(&self, domain: &Domain) -> Result<Option<(Timestamp, Codomain)>, Error> {
+        let Some((ts, value)) = self.backing_source.get(domain)? else {
+            return Ok(None);
+        };
+        if ts > self.visible_ts() {
+            return Err(Error::Conflict(
+                self.make_conflict_info(domain, ConflictType::ConcurrentWrite),
+            ));
+        }
+        Ok(Some((ts, value)))
+    }
+
+    /// Scan the backing source, with the same rule as `backing_get` for each row whose domain
+    /// the index does not hold. The index's own version of a domain is the snapshot's, so a
+    /// newer row for it is not a conflict; callers take that domain from the index.
+    fn backing_scan<F>(&self, predicate: &F) -> Result<Vec<(Timestamp, Domain, Codomain)>, Error>
+    where
+        F: Fn(&Domain, &Codomain) -> bool,
+    {
+        let rows = self.backing_source.scan(predicate)?;
+        if let Some((_, domain, _)) = rows.iter().find(|(ts, domain, _)| {
+            *ts > self.visible_ts() && self.index.master_entries.index_lookup(domain).is_none()
+        }) {
+            return Err(Error::Conflict(
+                self.make_conflict_info(domain, ConflictType::ConcurrentWrite),
+            ));
+        }
+        Ok(rows)
+    }
+
     pub fn insert(&mut self, domain: Domain, value: Codomain) -> Result<(), Error> {
         let visible_ts = self.visible_ts();
         let write_ts = self.write_ts();
@@ -391,9 +426,7 @@ where
             // If provider is fully loaded, a miss in master_entries means it does not exist.
             if !self.index.provider_fully_loaded {
                 // Not in the index, check the backing source.
-                if let Some((read_ts, _)) = self.backing_source.get(&domain)?
-                    && read_ts <= visible_ts
-                {
+                if self.backing_get(&domain)?.is_some() {
                     return Err(Error::Duplicate);
                 }
             }
@@ -440,9 +473,7 @@ where
         // If provider is fully loaded, a miss in master_entries means it does not exist.
         if !self.index.provider_fully_loaded {
             // Not in the index, check the backing source.
-            if let Some((read_ts, _)) = self.backing_source.get(&domain)?
-                && read_ts <= visible_ts
-            {
+            if self.backing_get(&domain)?.is_some() {
                 return Err(Error::Duplicate);
             }
         }
@@ -545,19 +576,10 @@ where
         }
 
         // Provider not fully loaded - check the backing source
-        let Some((read_ts, backing_value)) = self.backing_source.get(domain)? else {
+        let Some((read_ts, backing_value)) = self.backing_get(domain)? else {
             // Not in the backing source, we can't update it.
             return Ok(None);
         };
-
-        // If the timestamp is greater than our own, we won't be able to update it when we actually
-        // commit, so we may as well mark it as a conflict *now*.
-        // (Let's just hope the "upper layers" try to do the right thing here)
-        if read_ts > visible_ts {
-            return Err(Error::Conflict(
-                self.make_conflict_info(domain, ConflictType::ConcurrentWrite),
-            ));
-        }
 
         // Put in operations log
         // Copy into the local cache, but with updated value.
@@ -638,8 +660,7 @@ where
 
         // If provider not fully loaded, check backing source for existing data
         if !self.index.provider_fully_loaded
-            && let Some((read_ts, backing_value)) = self.backing_source.get(&domain)?
-            && read_ts <= visible_ts
+            && let Some((read_ts, backing_value)) = self.backing_get(&domain)?
         {
             // Existing entry in backing - do update via local operation
             self.index.local_operations.insert(
@@ -731,8 +752,7 @@ where
         }
 
         if !self.index.provider_fully_loaded
-            && let Some((read_ts, backing_value)) = self.backing_source.get(&domain)?
-            && read_ts <= self.visible_ts()
+            && let Some((read_ts, backing_value)) = self.backing_get(&domain)?
         {
             if let Some(new_value) = f(Some(&backing_value)) {
                 self.index.local_operations.insert(
@@ -790,10 +810,7 @@ where
             return Ok(false);
         }
 
-        Ok(matches!(
-            self.backing_source.get(domain)?,
-            Some((ts, _)) if ts <= self.visible_ts()
-        ))
+        Ok(self.backing_get(domain)?.is_some())
     }
 
     /// Bulk check existence of multiple domains efficiently
@@ -830,9 +847,7 @@ where
             }
 
             // Provider not fully loaded - check backing source
-            if let Some((ts, _)) = self.backing_source.get(&domain)?
-                && ts <= self.visible_ts()
-            {
+            if self.backing_get(&domain)?.is_some() {
                 valid_domains.insert(domain.clone());
             }
         }
@@ -840,16 +855,16 @@ where
         Ok(valid_domains)
     }
 
-    pub fn get_by_codomain(&self, codomain: &Codomain) -> Vec<Domain> {
+    pub fn get_by_codomain(&self, codomain: &Codomain) -> Result<Vec<Domain>, Error> {
         let mut results = Vec::new();
-        self.for_each_by_codomain(codomain, |domain| results.push(domain.clone()));
-        results
+        self.for_each_by_codomain(codomain, |domain| results.push(domain.clone()))?;
+        Ok(results)
     }
 
     /// Visit each domain that maps to the given codomain in this transaction's view.
     /// Applies local operation overlays over the base index without materializing
     /// the base reverse-lookup vector.
-    pub fn for_each_by_codomain<F>(&self, codomain: &Codomain, mut f: F)
+    pub fn for_each_by_codomain<F>(&self, codomain: &Codomain, mut f: F) -> Result<(), Error>
     where
         F: FnMut(&Domain),
     {
@@ -863,45 +878,38 @@ where
                     }
                 });
         } else {
-            self.for_each_unloaded_by_codomain(codomain, &mut f);
+            self.for_each_unloaded_by_codomain(codomain, &mut f)?;
         }
 
         if self.index.local_operations.is_empty() {
-            return;
+            return Ok(());
         }
 
         self.index
             .local_operations
             .for_each_by_codomain(codomain, f);
+        Ok(())
     }
 
     /// The base half of `for_each_by_codomain` while the master entries hold only part of the
     /// provider's rows: the provider's rows with that codomain, unless the master entries hold a
     /// newer value for the domain, then the master entries' own matches.
-    fn for_each_unloaded_by_codomain<F>(&self, codomain: &Codomain, f: &mut F)
+    fn for_each_unloaded_by_codomain<F>(&self, codomain: &Codomain, f: &mut F) -> Result<(), Error>
     where
         F: FnMut(&Domain),
     {
         let mut seen = HashSet::new();
-        match self.backing_source.scan(&|_, value| value == codomain) {
-            Ok(rows) => {
-                for (ts, domain, _) in rows {
-                    let superseded = self
-                        .index
-                        .master_entries
-                        .index_lookup(&domain)
-                        .is_some_and(|entry| entry.value != *codomain);
-                    if ts <= self.visible_ts()
-                        && !superseded
-                        && !self.index.local_operations.contains_key(&domain)
-                        && seen.insert(domain.clone())
-                    {
-                        f(&domain);
-                    }
-                }
-            }
-            Err(error) => {
-                tracing::error!(?error, "Unable to scan a relation's provider by codomain");
+        for (_, domain, _) in self.backing_scan(&|_, value| value == codomain)? {
+            let superseded = self
+                .index
+                .master_entries
+                .index_lookup(&domain)
+                .is_some_and(|entry| entry.value != *codomain);
+            if !superseded
+                && !self.index.local_operations.contains_key(&domain)
+                && seen.insert(domain.clone())
+            {
+                f(&domain);
             }
         }
         self.index
@@ -912,6 +920,7 @@ where
                     f(domain);
                 }
             });
+        Ok(())
     }
 
     pub fn get(&self, domain: &Domain) -> Result<Option<Codomain>, Error> {
@@ -925,10 +934,7 @@ where
                 return Ok(None);
             }
 
-            return match self.backing_source.get(domain)? {
-                Some((read_ts, value)) if read_ts <= self.visible_ts() => Ok(Some(value)),
-                _ => Ok(None),
-            };
+            return Ok(self.backing_get(domain)?.map(|(_, value)| value));
         }
 
         if let Some(op) = self.index.local_operations.get(domain) {
@@ -948,10 +954,7 @@ where
             return Ok(None);
         }
 
-        match self.backing_source.get(domain)? {
-            Some((read_ts, value)) if read_ts <= self.visible_ts() => Ok(Some(value)),
-            _ => Ok(None),
-        }
+        Ok(self.backing_get(domain)?.map(|(_, value)| value))
     }
 
     /// Invoke `f` with the tuple value for `domain` if one is visible to this transaction.
@@ -972,10 +975,7 @@ where
                 return Ok(None);
             }
 
-            return match self.backing_source.get(domain)? {
-                Some((read_ts, value)) if read_ts <= self.visible_ts() => Ok(Some(f(&value))),
-                _ => Ok(None),
-            };
+            return Ok(self.backing_get(domain)?.map(|(_, value)| f(&value)));
         }
 
         if let Some(op) = self.index.local_operations.get(domain) {
@@ -995,14 +995,10 @@ where
             return Ok(None);
         }
 
-        match self.backing_source.get(domain)? {
-            Some((read_ts, value)) if read_ts <= self.visible_ts() => Ok(Some(f(&value))),
-            _ => Ok(None),
-        }
+        Ok(self.backing_get(domain)?.map(|(_, value)| f(&value)))
     }
 
     pub fn delete(&mut self, domain: &Domain) -> Result<Option<Codomain>, Error> {
-        let visible_ts = self.visible_ts();
         let write_ts = self.write_ts();
 
         // This is like update, but we're removing.
@@ -1055,15 +1051,10 @@ where
         }
 
         // Provider not fully loaded - check the backing source
-        let Some((read_ts, backing_value)) = self.backing_source.get(domain)? else {
+        let Some((read_ts, backing_value)) = self.backing_get(domain)? else {
             // Not in the backing source, we can't update it.
             return Ok(None);
         };
-
-        // Pretend we didn't see it, it's too new.
-        if read_ts > visible_ts {
-            return Ok(None);
-        }
 
         // It's there upstream, so log a delete for it in the operations log as something we need
         // to do.
@@ -1098,25 +1089,17 @@ where
             }
         } else {
             // Need to hit the backing source to get data not yet loaded into master entries
-            let backing_results: HashMap<_, _> = self
-                .backing_source
-                .scan(predicate)?
-                .iter()
-                .filter_map(|(ts, domain, value)| {
-                    if *ts <= self.visible_ts() && predicate(domain, value) {
-                        return Some((domain.clone(), value.clone()));
-                    }
-                    None
-                })
-                .collect();
-            results.extend(backing_results);
-
-            // Also merge in the master entries from the index
-            for (domain, entry) in self.index.master_entries.iter() {
-                if !results.contains_key(domain)
-                    && entry.ts <= self.visible_ts()
-                    && predicate(domain, &entry.value)
+            // The backing source can lag the master entries, so a domain the master entries
+            // hold is taken from them, never from the backing source.
+            for (_, domain, value) in self.backing_scan(predicate)? {
+                if self.index.master_entries.index_lookup(&domain).is_none()
+                    && predicate(&domain, &value)
                 {
+                    results.insert(domain, value);
+                }
+            }
+            for (domain, entry) in self.index.master_entries.iter() {
+                if entry.ts <= self.visible_ts() && predicate(domain, &entry.value) {
                     results.insert(domain.clone(), entry.value.clone());
                 }
             }
@@ -1206,9 +1189,7 @@ where
             }
 
             // Provider not fully loaded - check backing source as fallback
-            if let Some((ts, value)) = self.backing_source.get(domain)?
-                && ts <= self.visible_ts()
-            {
+            if let Some((_, value)) = self.backing_get(domain)? {
                 results.insert(domain.clone(), value);
             }
         }
@@ -1219,9 +1200,10 @@ where
     /// Helper method to fully load all data from the provider into the master index
     fn fully_load_from_provider(&mut self) -> Result<(), Error> {
         // Scan all data from the provider that's visible to this transaction
-        let provider_data = self.backing_source.scan(&|_domain, _codomain| true)?;
+        // The backing source can lag the master entries, so it fills in only missing domains.
+        let provider_data = self.backing_scan(&|_domain, _codomain| true)?;
         for (ts, domain, codomain) in provider_data {
-            if ts <= self.visible_ts() {
+            if self.index.master_entries.index_lookup(&domain).is_none() {
                 self.index.master_entries.insert_entry(ts, domain, codomain);
             }
         }
