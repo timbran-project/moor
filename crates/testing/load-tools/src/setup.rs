@@ -14,16 +14,13 @@
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 #[cfg_attr(coverage_nightly, coverage(off))]
 use eyre::{anyhow, bail};
-use moor_common::model::ObjectRef;
+use moor_common::{model::ObjectRef, tasks::TaskEnding};
 use moor_runtime_api::{
     AuthToken, CLIENT_BROADCAST_TOPIC, ClientToken, auth_token_from_ref, mk_client_pong_msg,
     mk_connection_establish_msg, mk_eval_msg, mk_login_command_msg, mk_program_msg, mk_verbs_msg,
-    read_reply_result,
+    read_reply_result, task_outcome_from_ref,
 };
-use moor_schema::{
-    convert::{obj_from_ref, var_from_flatbuffer_ref},
-    rpc as moor_rpc,
-};
+use moor_schema::{convert::obj_from_ref, rpc as moor_rpc};
 use moor_var::{Obj, SYSTEM_OBJECT, Symbol, Var};
 use moor_zmq_client::{
     ListenersClient, ListenersMessage,
@@ -443,47 +440,28 @@ pub async fn listen_responses(
             match msg {
                 Ok(event_msg) => {
                     let event = event_msg.event().expect("Failed to parse event");
-                    match event.event().expect("Missing event union") {
-                        moor_rpc::ClientEventUnionRef::TaskSuccessEvent(task_success) => {
-                            let tid = task_success.task_id().expect("Missing task_id") as usize;
-                            let value_ref = task_success.result().expect("Missing result");
-                            let v =
-                                var_from_flatbuffer_ref(value_ref).expect("Failed to decode value");
+                    if let moor_rpc::ClientEventUnionRef::TaskOutcomeEvent(task_outcome) =
+                        event.event().expect("Missing event union")
+                    {
+                        let tid = task_outcome.task_id().expect("Missing task_id") as usize;
+                        let outcome_ref = task_outcome.outcome().expect("Missing outcome");
+                        let outcome = task_outcome_from_ref(outcome_ref)
+                            .expect("Failed to decode task outcome");
+                        let result = match outcome.ending {
+                            TaskEnding::Suspended => continue,
+                            TaskEnding::Completed(v) => Ok(v),
+                            _ => Err(anyhow!("Task error: {:?}", outcome)),
+                        };
 
-                            let mut tasks = event_listen_task_results.lock().await;
-                            if let Some((_, notify)) = tasks.get(&tid) {
-                                let notify = notify.clone();
-                                tasks.insert(tid, (Ok(v), notify.clone()));
-                                notify.notify_one();
-                            } else {
-                                // Task not found in pending tasks, create new entry
-                                tasks.insert(tid, (Ok(v), Arc::new(Notify::new())));
-                            }
+                        let mut tasks = event_listen_task_results.lock().await;
+                        if let Some((_, notify)) = tasks.get(&tid) {
+                            let notify = notify.clone();
+                            tasks.insert(tid, (result, notify.clone()));
+                            notify.notify_one();
+                        } else {
+                            // Task not found in pending tasks, create new entry
+                            tasks.insert(tid, (result, Arc::new(Notify::new())));
                         }
-                        moor_rpc::ClientEventUnionRef::TaskErrorEvent(task_error) => {
-                            let tid = task_error.task_id().expect("Missing task_id") as usize;
-                            let error = task_error.error().expect("Missing error");
-
-                            let mut tasks = event_listen_task_results.lock().await;
-                            if let Some((_, notify)) = tasks.get(&tid) {
-                                let notify = notify.clone();
-                                tasks.insert(
-                                    tid,
-                                    (Err(anyhow!("Task error: {:?}", error)), notify.clone()),
-                                );
-                                notify.notify_one();
-                            } else {
-                                // Task not found in pending tasks, create new entry
-                                tasks.insert(
-                                    tid,
-                                    (
-                                        Err(anyhow!("Task error: {:?}", error)),
-                                        Arc::new(Notify::new()),
-                                    ),
-                                );
-                            }
-                        }
-                        _ => {}
                     }
                 }
                 Err(e) => {

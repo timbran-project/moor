@@ -17,7 +17,6 @@
 use crate::tasks::{scheduler::lifecycle::TaskLifecycle, task_control::CommittedBoundary};
 use crate::{
     tasks::{
-        TaskNotification,
         registry::{RunningTaskPhase, WakeCondition},
         scheduler::{Scheduler, SchedulerState},
         storage_compaction::compaction_failure_to_var,
@@ -28,11 +27,7 @@ use crate::{
 };
 use moor_common::tasks::{Session, SessionError};
 use moor_common::{
-    tasks::{
-        SchedulerError,
-        SchedulerError::{TaskAbortedCancelled, TaskAbortedError},
-        TaskId,
-    },
+    tasks::{AbortReason, Kept, SchedulerError, TaskId, TaskOutcome},
     util::Deadline,
 };
 use moor_db::DatabaseRelation;
@@ -110,8 +105,10 @@ impl SuspensionTransition {
         self.task.control.request_cancel();
         lc.discard_task_effects(task_id);
         lc.task_q.remove_message_queue(task_id);
-        lc.task_q
-            .send_task_result(task_id, Err(TaskAbortedCancelled));
+        lc.task_q.send_task_result(
+            task_id,
+            TaskOutcome::aborted(AbortReason::Cancelled, Kept::Yes),
+        );
         false
     }
 
@@ -124,15 +121,28 @@ impl SuspensionTransition {
         );
         if self.is_current(lc) {
             lc.discard_task_effects(task_id);
-            lc.task_q.send_task_result(task_id, Err(TaskAbortedError));
+            lc.task_q.send_task_result(
+                task_id,
+                TaskOutcome::aborted(
+                    AbortReason::Internal(
+                        "could not commit the session when suspending".to_string(),
+                    ),
+                    Kept::Yes,
+                ),
+            );
         }
     }
 
     fn input_failed(self, lc: &mut TaskLifecycle) {
         // Keep input delivery policy separate from session-commit failure policy.
         if self.is_current(lc) {
-            lc.task_q
-                .send_task_result(self.task.task_id, Err(TaskAbortedError));
+            lc.task_q.send_task_result(
+                self.task.task_id,
+                TaskOutcome::aborted(
+                    AbortReason::Internal("could not request input".to_string()),
+                    Kept::Yes,
+                ),
+            );
         }
     }
 
@@ -143,8 +153,10 @@ impl SuspensionTransition {
         let task_id = self.task.task_id;
         if !self.boundary.is_some_and(CommittedBoundary::finish) {
             lc.task_q.remove_message_queue(task_id);
-            lc.task_q
-                .send_task_result(task_id, Err(TaskAbortedCancelled));
+            lc.task_q.send_task_result(
+                task_id,
+                TaskOutcome::aborted(AbortReason::Cancelled, Kept::Yes),
+            );
             return None;
         }
         lc.publish_task_effects(task_id);
@@ -192,7 +204,13 @@ impl Scheduler {
                 // If no workers are configured, abort the task.
                 let Some(workers_sender) = self.worker_request_send.as_ref() else {
                     warn!("No workers configured for scheduler; aborting task");
-                    return lc.task_q.send_task_result(task_id, Err(TaskAbortedError));
+                    return lc.task_q.send_task_result(
+                        task_id,
+                        TaskOutcome::aborted(
+                            AbortReason::Internal("no workers are configured".to_string()),
+                            Kept::Yes,
+                        ),
+                    );
                 };
 
                 if let Err(e) = workers_sender.send(WorkerRequest::Request {
@@ -203,7 +221,13 @@ impl Scheduler {
                     timeout,
                 }) {
                     error!(?e, "Could not send worker request; aborting task");
-                    return lc.task_q.send_task_result(task_id, Err(TaskAbortedError));
+                    return lc.task_q.send_task_result(
+                        task_id,
+                        TaskOutcome::aborted(
+                            AbortReason::Internal("could not send the worker request".to_string()),
+                            Kept::Yes,
+                        ),
+                    );
                 }
 
                 WakeCondition::Worker(worker_request_id)
@@ -275,7 +299,7 @@ impl Scheduler {
                 .get(&task_id)
                 .and_then(|tc| tc.result_sender.as_ref())
         {
-            let _ = sender.send((task_id, Ok(TaskNotification::Suspended)));
+            let _ = sender.send((task_id, TaskOutcome::suspended()));
         }
 
         let needs_timer_wake = matches!(

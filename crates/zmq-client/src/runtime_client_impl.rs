@@ -37,7 +37,7 @@ use moor_runtime_api::{
     mk_request_current_presentations_msg, mk_request_history_msg, mk_request_metrics_msg,
     mk_request_sys_prop_msg, mk_requested_input_msg, mk_resolve_msg, mk_retrieve_msg,
     mk_set_client_attribute_msg, mk_set_event_log_pubkey_msg, mk_update_property_msg, mk_verbs_msg,
-    read_reply_result, rpc_message_error_from_ref, scheduler_error_from_ref, uuid_fb,
+    read_reply_result, rpc_message_error_from_ref, task_outcome_from_ref, uuid_fb,
     verb_program_error_from_ref,
 };
 use moor_schema::{convert, rpc as moor_rpc};
@@ -646,16 +646,6 @@ fn decode_client_reply_ref(
             ClientReply::TaskSubmitted { task_id }
         }
         U::InputThanks(_) => ClientReply::InputThanks,
-        U::EvalResult(er) => {
-            let result = er
-                .result()
-                .map_err(|e| RpcError::CouldNotDecode(format!("Missing eval result: {e}")))
-                .and_then(|r| {
-                    var_from_ref(r)
-                        .map_err(|e| RpcError::CouldNotDecode(format!("Invalid eval result: {e}")))
-                })?;
-            ClientReply::EvalResult { result }
-        }
         U::ThanksPong(tp) => {
             let timestamp = tp.timestamp().unwrap_or(0);
             ClientReply::ThanksPong { timestamp }
@@ -925,78 +915,17 @@ fn decode_client_reply_ref(
             ClientReply::ListObjectsReply { objects }
         }
         U::PropertyUpdated(_) => ClientReply::PropertyUpdated,
-        U::SystemHandlerResponseReply(shr) => {
-            let response = shr.response().map_err(|e| {
-                RpcError::CouldNotDecode(format!("Missing system handler response: {e}"))
-            })?;
-            let response = match response {
-                moor_rpc::SystemHandlerResponseUnionRef::SystemHandlerSuccess(s) => {
-                    let result = s
-                        .result()
-                        .map_err(|e| RpcError::CouldNotDecode(format!("Missing result: {e}")))
-                        .and_then(|r| {
-                            var_from_ref(r).map_err(|e| {
-                                RpcError::CouldNotDecode(format!("Invalid result: {e}"))
-                            })
-                        })?;
-                    api::SystemHandlerResponse::Success { result }
-                }
-                moor_rpc::SystemHandlerResponseUnionRef::SystemHandlerError(e) => {
-                    let error = e
-                        .error()
-                        .map_err(|e| {
-                            RpcError::CouldNotDecode(format!("Missing scheduler error: {e}"))
-                        })
-                        .and_then(|r| {
-                            scheduler_error_from_ref(r).map_err(|e| {
-                                RpcError::CouldNotDecode(format!("Invalid scheduler error: {e}"))
-                            })
-                        })?;
-                    api::SystemHandlerResponse::Error { error }
-                }
-            };
-            // A daemon from before this field sends no output.
-            let output = match shr.output().map_err(|e| {
-                RpcError::CouldNotDecode(format!("Invalid system handler output: {e}"))
-            })? {
-                Some(output) => decode_output(output)?,
-                None => vec![],
-            };
-            ClientReply::SystemHandlerResponseReply { response, output }
-        }
         U::InvocationResponse(response) => {
             let output = decode_output(response.output().map_err(|e| {
                 RpcError::CouldNotDecode(format!("Missing invocation output: {e}"))
             })?)?;
-            let outcome = response.outcome().map_err(|e| {
-                RpcError::CouldNotDecode(format!("Missing invocation outcome: {e}"))
-            })?;
-            let outcome = match outcome {
-                moor_rpc::InvocationOutcomeRef::InvocationSuccess(s) => {
-                    let result = s
-                        .result()
-                        .map_err(|e| RpcError::CouldNotDecode(format!("Missing result: {e}")))
-                        .and_then(|r| {
-                            var_from_ref(r).map_err(|e| {
-                                RpcError::CouldNotDecode(format!("Invalid result: {e}"))
-                            })
-                        })?;
-                    api::InvocationOutcome::Success { result }
-                }
-                moor_rpc::InvocationOutcomeRef::InvocationError(e) => {
-                    let error = e
-                        .error()
-                        .map_err(|e| {
-                            RpcError::CouldNotDecode(format!("Missing scheduler error: {e}"))
-                        })
-                        .and_then(|r| {
-                            scheduler_error_from_ref(r).map_err(|e| {
-                                RpcError::CouldNotDecode(format!("Invalid scheduler error: {e}"))
-                            })
-                        })?;
-                    api::InvocationOutcome::Error { error }
-                }
-            };
+            let outcome = response
+                .outcome()
+                .map_err(|e| RpcError::CouldNotDecode(format!("Missing invocation outcome: {e}")))
+                .and_then(|outcome| {
+                    task_outcome_from_ref(outcome)
+                        .map_err(|e| RpcError::CouldNotDecode(format!("Invalid task outcome: {e}")))
+                })?;
             let response = api::InvocationResponse { outcome, output };
             ClientReply::InvocationResponse { response }
         }
@@ -1535,9 +1464,9 @@ fn encode_batch_action(action: api::BatchAction) -> moor_rpc::WorldStateActionUn
 
 #[cfg(test)]
 mod tests {
-    use moor_common::tasks::{Event, NarrativeEvent, SchedulerError};
+    use moor_common::tasks::{AbortReason, Event, Kept, NarrativeEvent, TaskOutcome};
     use moor_runtime_api::{
-        api::{ClientReply, InvocationOutcome, InvocationResponse},
+        api::{ClientReply, InvocationResponse},
         api_codec::encode_client_success_bytes,
     };
     use moor_var::{Obj, v_obj, v_str};
@@ -1599,108 +1528,48 @@ mod tests {
         assert_eq!(decoded.latest_sequence, 43);
     }
 
-    #[test]
-    fn failed_verb_call_round_trip_preserves_output() {
-        let output = NarrativeEvent::notify(
-            v_obj(Obj::mk_id(7)),
-            v_str("before failure"),
-            None,
-            false,
-            false,
-            None,
-        );
+    fn invocation_round_trip(outcome: TaskOutcome, note: &str) -> InvocationResponse {
+        let output =
+            NarrativeEvent::notify(v_obj(Obj::mk_id(7)), v_str(note), None, false, false, None);
         let bytes = encode_client_success_bytes(ClientReply::InvocationResponse {
             response: InvocationResponse {
-                outcome: InvocationOutcome::Error {
-                    error: SchedulerError::TaskAbortedCancelled,
-                },
+                outcome,
                 output: vec![output],
             },
         })
         .expect("Failed to encode invocation response");
-
         let ClientReply::InvocationResponse { response } =
             decode_client_reply_bytes(&bytes).expect("Failed to decode invocation response")
         else {
             panic!("Expected an invocation response");
         };
         assert!(matches!(
-            response.outcome,
-            InvocationOutcome::Error {
-                error: SchedulerError::TaskAbortedCancelled
-            }
-        ));
-        assert!(matches!(
             response.output.as_slice(),
-            [event] if matches!(event.event(), Event::Notify { value, .. } if value.as_string() == Some("before failure"))
+            [event] if matches!(event.event(), Event::Notify { value, .. } if value.as_string() == Some(note))
         ));
+        response
     }
 
     #[test]
-    fn system_handler_round_trip_preserves_output() {
-        use moor_runtime_api::api::SystemHandlerResponse;
-        let output = NarrativeEvent::notify(
-            v_obj(Obj::mk_id(7)),
-            v_str("welcome"),
-            None,
-            false,
-            false,
-            None,
+    fn completed_invocation_round_trip_preserves_outcome_and_output() {
+        let outcome = TaskOutcome::completed(v_str("ok"));
+        assert_eq!(
+            invocation_round_trip(outcome.clone(), "welcome").outcome,
+            outcome
         );
-        let bytes = encode_client_success_bytes(ClientReply::SystemHandlerResponseReply {
-            response: SystemHandlerResponse::Success {
-                result: v_str("ok"),
-            },
-            output: vec![output],
-        })
-        .expect("Failed to encode system handler response");
-
-        let ClientReply::SystemHandlerResponseReply { response, output } =
-            decode_client_reply_bytes(&bytes).expect("Failed to decode system handler response")
-        else {
-            panic!("Expected a system handler response");
-        };
-        assert!(matches!(
-            response,
-            SystemHandlerResponse::Success { result } if result == v_str("ok")
-        ));
-        assert!(matches!(
-            output.as_slice(),
-            [event] if matches!(event.event(), Event::Notify { value, .. } if value.as_string() == Some("welcome"))
-        ));
     }
 
-    /// A daemon from before the output field replies without it.
     #[test]
-    fn system_handler_reply_without_output_decodes_empty() {
-        use super::moor_rpc;
-        use moor_runtime_api::api::SystemHandlerResponse;
-        let result = moor_schema::convert::var_to_flatbuffer(&v_str("ok")).unwrap();
-        let reply = moor_rpc::ReplyResult {
-            result: moor_rpc::ReplyResultUnion::ClientSuccess(Box::new(moor_rpc::ClientSuccess {
-                reply: Box::new(moor_rpc::DaemonToClientReply {
-                    reply: moor_rpc::DaemonToClientReplyUnion::SystemHandlerResponseReply(
-                        Box::new(moor_rpc::SystemHandlerResponseReply {
-                            response: moor_rpc::SystemHandlerResponseUnion::SystemHandlerSuccess(
-                                Box::new(moor_rpc::SystemHandlerSuccess {
-                                    result: Box::new(result),
-                                }),
-                            ),
-                            output: None,
-                        }),
-                    ),
-                }),
-            })),
-        };
-        let mut builder = planus::Builder::new();
-        let bytes = builder.finish(&reply, None).to_vec();
-
-        let ClientReply::SystemHandlerResponseReply { response, output } =
-            decode_client_reply_bytes(&bytes).expect("Failed to decode system handler response")
-        else {
-            panic!("Expected a system handler response");
-        };
-        assert!(matches!(response, SystemHandlerResponse::Success { .. }));
-        assert!(output.is_empty());
+    fn aborted_invocation_round_trip_preserves_kept_and_output() {
+        for outcome in [
+            TaskOutcome::aborted(AbortReason::Cancelled, Kept::No),
+            TaskOutcome::aborted(AbortReason::Killed, Kept::Yes),
+            TaskOutcome::result_lost(Kept::Unknown),
+        ] {
+            assert_eq!(
+                invocation_round_trip(outcome.clone(), "before failure").outcome,
+                outcome
+            );
+        }
     }
 }

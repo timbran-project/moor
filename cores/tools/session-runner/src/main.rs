@@ -27,14 +27,14 @@ mod session;
 use eyre::{Result, eyre};
 use moor_common::model::ObjectRef;
 use moor_common::tasks::{
-    CommandError, Event, Exception, NarrativeEvent, NoopSystemControl, SchedulerError, Session,
-    SessionError, SessionFactory,
+    AbortReason, CommandError, Event, Exception, NarrativeEvent, NoopSystemControl, SchedulerError,
+    Session, SessionError, SessionFactory, TaskEnding,
 };
 use moor_db::{Database, DatabaseConfig, TxDB};
 use moor_kernel::SchedulerClient;
 use moor_kernel::config::{Config, FeaturesConfig};
 use moor_kernel::tasks::scheduler::Scheduler;
-use moor_kernel::tasks::{NoopTasksDb, TaskHandle, TaskNotification};
+use moor_kernel::tasks::{NoopTasksDb, TaskHandle};
 use moor_moot::MootRunner;
 use moor_objdef::{ObjDefLoaderOptions, ObjDefSet, ObjectDefinitionLoader};
 use moor_var::{
@@ -148,31 +148,32 @@ impl MockMootRunner {
                 .receiver()
                 .recv_timeout(std::time::Duration::from_millis(50))
             {
-                Ok((_, Ok(TaskNotification::Suspended))) => continue,
-                Ok((_, Ok(TaskNotification::Result(value)))) => return Ok(value),
-                Ok((
-                    _,
-                    Err(SchedulerError::TaskAbortedException(Exception {
-                        error, backtrace, ..
-                    })),
-                )) => {
-                    if exception_as_value {
-                        return Ok(error.into());
+                Ok((_, outcome)) => match outcome.ending {
+                    TaskEnding::Suspended => continue,
+                    TaskEnding::Completed(value) => return Ok(value),
+                    TaskEnding::Aborted(AbortReason::Exception(Exception {
+                        error,
+                        backtrace,
+                        ..
+                    })) => {
+                        if exception_as_value {
+                            return Ok(error.into());
+                        }
+                        return Err(eyre!("command task aborted: {error:?}; {backtrace:?}"));
                     }
-                    return Err(eyre!("command task aborted: {error:?}; {backtrace:?}"));
-                }
-                Ok((
-                    _,
-                    Err(SchedulerError::CommandExecutionError(CommandError::NoCommandMatch)),
-                )) => {
-                    return Ok(E_VERBNF.msg("No command match").into());
-                }
-                Ok((_, Err(SchedulerError::TaskAbortedCancelled))) => {
-                    // Editor `@abort` and `kill_task` cancel the task on purpose; scenarios
-                    // assert the cancellation output. Report it as a false result.
-                    return Ok(v_bool(false));
-                }
-                Ok((_, Err(err))) => return Err(eyre!("task failed: {err}")),
+                    TaskEnding::Aborted(AbortReason::CommandFailed(
+                        CommandError::NoCommandMatch,
+                    )) => {
+                        return Ok(E_VERBNF.msg("No command match").into());
+                    }
+                    TaskEnding::Aborted(AbortReason::Cancelled) => {
+                        // Editor `@abort` and `kill_task` cancel the task on purpose; scenarios
+                        // assert the cancellation output. Report it as a false result.
+                        return Ok(v_bool(false));
+                    }
+                    TaskEnding::Aborted(reason) => return Err(eyre!("task failed: {reason}")),
+                    TaskEnding::ResultLost => return Err(eyre!("task failed: {outcome:?}")),
+                },
                 Err(flume::RecvTimeoutError::Timeout) => self.pump_input()?,
                 Err(err) => return Err(eyre!("task channel closed: {err}")),
             }
@@ -618,9 +619,11 @@ impl SessionRunner for MockMootRunner {
                 .receiver()
                 .recv_timeout(std::time::Duration::from_millis(50))
             {
-                Ok((_, Ok(TaskNotification::Result(_)))) => break,
-                Ok((_, Ok(TaskNotification::Suspended))) => continue,
-                Ok((_, Err(err))) => return Err(eyre!("system hook {verb} failed: {err:?}")),
+                Ok((_, outcome)) => match outcome.ending {
+                    TaskEnding::Completed(_) => break,
+                    TaskEnding::Suspended => continue,
+                    _ => return Err(eyre!("system hook {verb} failed: {outcome:?}")),
+                },
                 Err(flume::RecvTimeoutError::Timeout) => self.pump_input()?,
                 Err(err) => return Err(eyre!("system hook {verb} timed out: {err}")),
             }

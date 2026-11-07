@@ -19,7 +19,9 @@ use crate::tasks::{
     task::Task,
     task_control::TaskControl,
 };
-use moor_common::tasks::{NoopSystemControl, Session, SessionError, SessionFactory, TaskId};
+use moor_common::tasks::{
+    NoopSystemControl, Session, SessionError, SessionFactory, TaskId, TaskOutcome,
+};
 use moor_db::{DatabaseConfig, TxDB};
 use moor_var::{List, Obj, SYSTEM_OBJECT, Symbol, v_int, v_str};
 use std::time::SystemTime;
@@ -279,7 +281,9 @@ fn restored_firing_is_relinked_to_its_schedule() {
         assert_eq!(lc.next_task_id, task_id + 1, "no second firing was started");
 
         // The restored task's result settles the one-shot.
-        lc.task_q.settled_results.push((task_id, Ok(v_str("done"))));
+        lc.task_q
+            .settled_results
+            .push((task_id, TaskOutcome::completed(v_str("done"))));
         lc.settle_schedule_firings();
         let entry = lc.schedule_q.info(schedule_id).unwrap();
         assert_eq!(entry.retired, Some(RetireReason::OneShotDone));

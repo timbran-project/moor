@@ -14,8 +14,11 @@
 //! Exercise driver departures with the donor cores' actual system hooks.
 
 use crate::testing::{MockTransport, test_env};
-use moor_common::{model::ObjectRef, tasks::SessionFactory};
-use moor_kernel::{config::FeaturesConfig, tasks::TaskNotification};
+use moor_common::{
+    model::ObjectRef,
+    tasks::{SessionFactory, TaskEnding, TaskOutcome},
+};
+use moor_kernel::config::FeaturesConfig;
 use moor_runtime_api::{
     ClientToken,
     api::{ClientReply, ClientRequest},
@@ -70,9 +73,21 @@ fn exercise(core: &str) {
                 .recv_timeout(Duration::from_secs(10))
                 .expect("eval timed out")
             {
-                (_, Ok(TaskNotification::Result(value))) => break value,
-                (_, Ok(TaskNotification::Suspended)) => continue,
-                (_, Err(error)) => panic!("{core}: {error:?}"),
+                (
+                    _,
+                    TaskOutcome {
+                        ending: TaskEnding::Completed(value),
+                        ..
+                    },
+                ) => break value,
+                (
+                    _,
+                    TaskOutcome {
+                        ending: TaskEnding::Suspended,
+                        ..
+                    },
+                ) => continue,
+                (_, outcome) => panic!("{core}: {outcome:?}"),
             }
         }
     };

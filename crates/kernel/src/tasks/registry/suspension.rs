@@ -18,7 +18,7 @@ use super::active::{LiveTaskRegistration, LiveTaskRegistry};
 use super::persistence::SAVE_PASS_INTERVAL;
 use super::{persistence::MESSAGE_OR_TIMER_SAVE_DELAY, task_writer::TaskWriter};
 use crate::tasks::{
-    TaskDescription, TaskNotification, TaskStart, TasksDb,
+    TaskDescription, TaskStart, TasksDb,
     scheduler::ResumeAction,
     task::{Task, TaskState},
 };
@@ -30,7 +30,7 @@ use hierarchical_hash_wheel_timer::wheels::{
     quad_wheel::{PruneDecision, QuadWheelWithOverflow},
 };
 use moor_common::{
-    tasks::{SchedulerError, Session, TaskId},
+    tasks::{Session, TaskId},
     util::{Deadline, Instant, Timestamp},
 };
 use moor_var::{Obj, Var};
@@ -67,7 +67,7 @@ pub struct SuspendedTask {
     pub wake_condition: WakeCondition,
     pub task: Box<Task>,
     pub session: Arc<dyn Session>,
-    pub result_sender: Option<Sender<(TaskId, Result<TaskNotification, SchedulerError>)>>,
+    pub result_sender: Option<Sender<crate::tasks::TaskResult>>,
     /// Generation stamp matching the `TimerEntry` that belongs to this suspension.
     /// Stale timer entries from prior suspensions will carry a different value.
     pub timer_generation: u64,
@@ -94,7 +94,7 @@ impl SuspendedTask {
         wake_condition: WakeCondition,
         task: Box<Task>,
         session: Arc<dyn Session>,
-        result_sender: Option<Sender<(TaskId, Result<TaskNotification, SchedulerError>)>>,
+        result_sender: Option<Sender<crate::tasks::TaskResult>>,
     ) -> Self {
         Self {
             enqueued_at: Timestamp::now(),
@@ -435,7 +435,7 @@ impl SuspensionQ {
         wake_condition: WakeCondition,
         task: Box<Task>,
         session: Arc<dyn Session>,
-        result_sender: Option<Sender<(TaskId, Result<TaskNotification, SchedulerError>)>>,
+        result_sender: Option<Sender<crate::tasks::TaskResult>>,
         registration: LiveTaskRegistration,
     ) {
         let input_player = task.player();
@@ -453,7 +453,7 @@ impl SuspensionQ {
         input_player: Obj,
         task: Box<Task>,
         session: Arc<dyn Session>,
-        result_sender: Option<Sender<(TaskId, Result<TaskNotification, SchedulerError>)>>,
+        result_sender: Option<Sender<crate::tasks::TaskResult>>,
         registration: LiveTaskRegistration,
     ) {
         self.insert_task(

@@ -23,7 +23,7 @@ use moor_common::{
         TaskPermissions, WorldState, WorldStateError, WorldStateSource,
         loader::{LoaderInterface, SnapshotInterface},
     },
-    tasks::{NoopClientSession, SchedulerError, TaskId},
+    tasks::{NoopClientSession, SchedulerError, TaskId, TaskOutcome},
 };
 use moor_db::{Database, GCInterface, SnapshotCallback};
 use moor_var::{E_INVARG, SYSTEM_OBJECT, v_err, v_int};
@@ -225,7 +225,8 @@ fn completing_dispatch_rejects_new_message_and_renewal_requests() {
         .active
         .get_mut(&SOURCE)
         .unwrap()
-        .phase = crate::tasks::registry::RunningTaskPhase::Completing(Ok(v_int(0)));
+        .phase =
+        crate::tasks::registry::RunningTaskPhase::Completing(TaskOutcome::completed(v_int(0)));
     assert_eq!(
         current.task_send(
             TARGET,

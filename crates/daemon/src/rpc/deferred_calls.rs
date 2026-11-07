@@ -35,15 +35,9 @@ use fast_telemetry::{
     MetricVisitor,
 };
 use flume::{Receiver, Sender};
-use moor_common::tasks::{SchedulerError, TaskId};
-use moor_kernel::{
-    SchedulerClient,
-    tasks::{AbortTaskOutcome, TaskNotification},
-};
-use moor_runtime_api::{
-    RpcMessageError,
-    api::{ClientReply, InvocationOutcome, InvocationResponse},
-};
+use moor_common::tasks::{AbortReason, Kept, SchedulerError, TaskEnding, TaskId, TaskOutcome};
+use moor_kernel::{SchedulerClient, tasks::AbortTaskOutcome};
+use moor_runtime_api::api::{ClientReply, InvocationResponse};
 use tracing::{debug, error, warn};
 
 use super::output_capture_session::CaptureAccumulator;
@@ -54,7 +48,6 @@ const SWEEP_INTERVAL: Duration = Duration::from_millis(50);
 /// The shortest wait for the scheduler to answer an abort, even for a call already out of time.
 const MIN_ABORT_WAIT: Duration = Duration::from_millis(100);
 
-type TaskResult = Result<TaskNotification, SchedulerError>;
 type FinishJob = Box<dyn FnOnce() + Send>;
 
 /// Builds and delivers a call's reply from how it ended. It runs on the finish thread, so it must
@@ -81,10 +74,25 @@ enum Phase {
 /// How a call ended.
 #[derive(Debug)]
 pub(crate) enum Finish {
-    Result(TaskResult),
-    TimedOut,
-    Failed(SchedulerError),
-    ResultLost,
+    /// The task reported this outcome.
+    Outcome(TaskOutcome),
+    /// The call's deadline passed, and cancelling the task won, so it did not commit.
+    DeadlinePassed,
+    /// The task's result will not arrive. `Kept` is what is known about its last transaction.
+    ResultLost(Kept),
+}
+
+impl Finish {
+    /// The outcome to report for a call with this deadline.
+    pub(crate) fn into_outcome(self, deadline: Duration) -> TaskOutcome {
+        match self {
+            Finish::Outcome(outcome) => outcome,
+            Finish::DeadlinePassed => {
+                TaskOutcome::aborted(AbortReason::Deadline(deadline), Kept::No)
+            }
+            Finish::ResultLost(kept) => TaskOutcome::result_lost(kept),
+        }
+    }
 }
 
 struct DeferredCall {
@@ -270,9 +278,10 @@ impl DeferredCalls {
     }
 
     /// Report a message from the task's result channel.
-    pub(crate) fn task_result(&self, task_id: TaskId, result: TaskResult) {
-        if !matches!(result, Ok(TaskNotification::Suspended)) {
-            self.finish(task_id, Finish::Result(result));
+    pub(crate) fn task_result(&self, task_id: TaskId, outcome: TaskOutcome) {
+        // A suspended task is still running; its call waits for the task's final outcome.
+        if outcome.ending != TaskEnding::Suspended {
+            self.finish(task_id, Finish::Outcome(outcome));
         }
     }
 
@@ -289,7 +298,7 @@ impl DeferredCalls {
                 return;
             }
         }
-        self.finish(task_id, Finish::ResultLost);
+        self.finish(task_id, Finish::ResultLost(Kept::Unknown));
     }
 
     /// End a call, if nothing has yet. The reply is built on the finish thread: captured output and
@@ -336,12 +345,13 @@ impl DeferredCalls {
     fn abort_answered(&self, due: &DueCall, answer: Result<AbortTaskOutcome, SchedulerError>) {
         let task_id = due.task_id;
         match answer {
-            Ok(AbortTaskOutcome::Cancelled) => self.finish(task_id, Finish::TimedOut),
-            // The task is finishing, or has finished and the monitor may be holding its result, so
-            // that result is what the caller gets. Only a closed channel means there isn't one.
+            Ok(AbortTaskOutcome::Cancelled) => self.finish(task_id, Finish::DeadlinePassed),
+            // The task has committed, and is finishing or has finished; the monitor may be holding
+            // its result, so that result is what the caller gets. Only a closed channel means
+            // there isn't one.
             Ok(AbortTaskOutcome::Completing) => {
                 if self.wait_for_result(task_id) {
-                    self.finish(task_id, Finish::ResultLost);
+                    self.finish(task_id, Finish::ResultLost(Kept::Yes));
                 }
             }
             Ok(AbortTaskOutcome::NotFound) => {
@@ -350,10 +360,7 @@ impl DeferredCalls {
                         task_id,
                         "Scheduler could not determine captured task outcome"
                     );
-                    self.finish(
-                        task_id,
-                        Finish::Failed(SchedulerError::TaskNotFound(task_id)),
-                    );
+                    self.finish(task_id, Finish::ResultLost(Kept::Unknown));
                 }
             }
             Err(error) => {
@@ -362,7 +369,7 @@ impl DeferredCalls {
                     ?error,
                     "Captured task cancellation was not acknowledged"
                 );
-                self.finish(task_id, Finish::Failed(error));
+                self.finish(task_id, Finish::ResultLost(Kept::Unknown));
             }
         }
     }
@@ -412,102 +419,45 @@ pub(crate) fn deadline_instants(deadline: Duration) -> (Instant, Instant) {
     (expires_at - cancellation_reserve, expires_at)
 }
 
-/// Finish a captured invocation by replying with its result and committed output.
+/// Finish a captured invocation by replying with its outcome and committed output.
 pub(crate) fn capture_on_finish(
     deadline: Duration,
     output: Option<Arc<CaptureAccumulator>>,
-    to_reply: fn(InvocationResponse) -> ClientReply,
     sink: ClientReplySink,
 ) -> OnFinish {
     Box::new(move |finish| {
-        let take_output = || {
-            output
-                .as_ref()
-                .map(|output| output.take())
-                .unwrap_or_default()
-                .into_iter()
-                .map(|(_, event)| *event)
-                .collect::<Vec<_>>()
-        };
-        let response = match finish {
-            Finish::Result(result) => capture_result_response(result, take_output),
-            Finish::TimedOut => capture_timeout_response(deadline, take_output()),
-            Finish::Failed(error) => InvocationResponse {
-                outcome: InvocationOutcome::Error { error },
-                output: take_output(),
-            },
-            Finish::ResultLost => {
-                sink(Err(result_lost_error()));
-                return;
-            }
-        };
-        sink(Ok(to_reply(response)));
+        let output = output
+            .as_ref()
+            .map(|output| output.take())
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(_, event)| *event)
+            .collect();
+        sink(Ok(invocation_reply(InvocationResponse {
+            outcome: finish.into_outcome(deadline),
+            output,
+        })));
     })
 }
 
-/// Finish a call that replies with its task's value, or with the task's error.
-pub(crate) fn task_on_finish(
-    deadline: Duration,
-    to_reply: impl FnOnce(moor_var::Var) -> Result<ClientReply, RpcMessageError> + Send + 'static,
-    sink: ClientReplySink,
-) -> OnFinish {
+/// Finish a call whose task's output went to the caller's connection, by replying with its outcome.
+pub(crate) fn task_on_finish(deadline: Duration, sink: ClientReplySink) -> OnFinish {
     Box::new(move |finish| {
-        sink(match finish {
-            Finish::Result(Ok(TaskNotification::Result(result))) => to_reply(result),
-            Finish::Result(Ok(TaskNotification::Suspended)) => {
-                Err(RpcMessageError::TaskError(SchedulerError::TaskAbortedError))
-            }
-            Finish::Result(Err(error)) | Finish::Failed(error) => {
-                Err(RpcMessageError::TaskError(error))
-            }
-            Finish::TimedOut => Err(RpcMessageError::TaskError(
-                SchedulerError::TaskAbortedLimit(moor_common::tasks::AbortLimitReason::Time(
-                    deadline,
-                )),
-            )),
-            Finish::ResultLost => Err(result_lost_error()),
-        });
+        sink(Ok(invocation_reply(InvocationResponse {
+            outcome: finish.into_outcome(deadline),
+            output: vec![],
+        })));
     })
 }
 
-fn result_lost_error() -> RpcMessageError {
-    RpcMessageError::InternalError("Task ended without a result".to_string())
-}
-
-pub(crate) fn capture_timeout_response(
-    deadline: Duration,
-    output: Vec<moor_common::tasks::NarrativeEvent>,
-) -> InvocationResponse {
-    InvocationResponse {
-        outcome: InvocationOutcome::Error {
-            error: SchedulerError::TaskAbortedLimit(moor_common::tasks::AbortLimitReason::Time(
-                deadline,
-            )),
-        },
-        output,
-    }
-}
-
-pub(crate) fn capture_result_response(
-    result: TaskResult,
-    take_output: impl FnOnce() -> Vec<moor_common::tasks::NarrativeEvent>,
-) -> InvocationResponse {
-    let outcome = match result {
-        Ok(TaskNotification::Result(result)) => InvocationOutcome::Success { result },
-        Ok(TaskNotification::Suspended) => InvocationOutcome::Error {
-            error: SchedulerError::TaskAbortedError,
-        },
-        Err(error) => InvocationOutcome::Error { error },
-    };
-    InvocationResponse {
-        outcome,
-        output: take_output(),
-    }
+pub(crate) fn invocation_reply(response: InvocationResponse) -> ClientReply {
+    ClientReply::InvocationResponse { response }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use moor_runtime_api::RpcMessageError;
     use moor_var::v_int;
 
     type Replies = flume::Receiver<Result<ClientReply, RpcMessageError>>;
@@ -518,10 +468,6 @@ mod tests {
     }
 
     const TASK: TaskId = 7;
-
-    fn invocation_reply(response: InvocationResponse) -> ClientReply {
-        ClientReply::InvocationResponse { response }
-    }
 
     fn harness() -> Harness {
         let calls = DeferredCalls::new(10, 2, 2);
@@ -534,7 +480,6 @@ mod tests {
             on_finish: capture_on_finish(
                 Duration::from_secs(1),
                 None,
-                invocation_reply,
                 Box::new(move |reply| {
                     reply_send.send(reply).unwrap();
                 }),
@@ -565,7 +510,7 @@ mod tests {
             reply
         }
 
-        fn outcome(&self) -> InvocationOutcome {
+        fn outcome(&self) -> TaskOutcome {
             match self.only_reply() {
                 Ok(ClientReply::InvocationResponse { response }) => response.outcome,
                 other => panic!("unexpected reply: {other:?}"),
@@ -578,26 +523,21 @@ mod tests {
         let harness = harness();
         harness
             .calls
-            .task_result(TASK, Ok(TaskNotification::Result(v_int(1))));
+            .task_result(TASK, TaskOutcome::completed(v_int(1)));
         harness
             .calls
-            .task_result(TASK, Ok(TaskNotification::Result(v_int(2))));
+            .task_result(TASK, TaskOutcome::completed(v_int(2)));
         harness.calls.result_channel_closed(TASK);
         harness
             .calls
             .abort_answered(&harness.due(), Ok(AbortTaskOutcome::Cancelled));
-        assert!(matches!(
-            harness.outcome(),
-            InvocationOutcome::Success { result } if result == v_int(1)
-        ));
+        assert_eq!(harness.outcome(), TaskOutcome::completed(v_int(1)));
     }
 
     #[test]
     fn suspending_does_not_end_the_call() {
         let harness = harness();
-        harness
-            .calls
-            .task_result(TASK, Ok(TaskNotification::Suspended));
+        harness.calls.task_result(TASK, TaskOutcome::suspended());
         harness.run_finish_jobs();
         assert!(harness.replies.try_recv().is_err());
     }
@@ -606,7 +546,7 @@ mod tests {
     fn a_closed_channel_with_no_abort_reports_a_lost_result() {
         let harness = harness();
         harness.calls.result_channel_closed(TASK);
-        assert!(harness.only_reply().is_err());
+        assert_eq!(harness.outcome(), TaskOutcome::result_lost(Kept::Unknown));
     }
 
     #[test]
@@ -624,12 +564,10 @@ mod tests {
         harness
             .calls
             .abort_answered(&harness.due(), Ok(AbortTaskOutcome::Cancelled));
-        assert!(matches!(
+        assert_eq!(
             harness.outcome(),
-            InvocationOutcome::Error {
-                error: SchedulerError::TaskAbortedLimit(_)
-            }
-        ));
+            TaskOutcome::aborted(AbortReason::Deadline(Duration::from_secs(1)), Kept::No)
+        );
     }
 
     #[test]
@@ -644,11 +582,8 @@ mod tests {
 
         harness
             .calls
-            .task_result(TASK, Ok(TaskNotification::Result(v_int(3))));
-        assert!(matches!(
-            harness.outcome(),
-            InvocationOutcome::Success { result } if result == v_int(3)
-        ));
+            .task_result(TASK, TaskOutcome::completed(v_int(3)));
+        assert_eq!(harness.outcome(), TaskOutcome::completed(v_int(3)));
     }
 
     /// The monitor takes a result off the channel before reporting it, so the abort can find
@@ -665,38 +600,30 @@ mod tests {
 
         harness
             .calls
-            .task_result(TASK, Ok(TaskNotification::Result(v_int(42))));
-        assert!(matches!(
-            harness.outcome(),
-            InvocationOutcome::Success { result } if result == v_int(42)
-        ));
+            .task_result(TASK, TaskOutcome::completed(v_int(42)));
+        assert_eq!(harness.outcome(), TaskOutcome::completed(v_int(42)));
     }
 
     #[test]
-    fn nothing_to_cancel_and_a_closed_channel_is_an_error() {
+    fn nothing_to_cancel_and_a_closed_channel_is_a_lost_result() {
         let harness = harness();
         harness.calls.take_due_calls(Instant::now());
         harness.calls.result_channel_closed(TASK);
         harness
             .calls
             .abort_answered(&harness.due(), Ok(AbortTaskOutcome::NotFound));
-        assert!(matches!(
-            harness.outcome(),
-            InvocationOutcome::Error {
-                error: SchedulerError::TaskNotFound(TASK)
-            }
-        ));
+        assert_eq!(harness.outcome(), TaskOutcome::result_lost(Kept::Unknown));
     }
 
     #[test]
-    fn nothing_to_cancel_then_the_channel_closing_is_an_error() {
+    fn nothing_to_cancel_then_the_channel_closing_is_a_lost_result() {
         let harness = harness();
         harness.calls.take_due_calls(Instant::now());
         harness
             .calls
             .abort_answered(&harness.due(), Ok(AbortTaskOutcome::NotFound));
         harness.calls.result_channel_closed(TASK);
-        assert!(harness.only_reply().is_err());
+        assert_eq!(harness.outcome(), TaskOutcome::result_lost(Kept::Unknown));
     }
 
     #[test]
@@ -707,22 +634,18 @@ mod tests {
         harness
             .calls
             .abort_answered(&harness.due(), Ok(AbortTaskOutcome::Completing));
-        assert!(harness.only_reply().is_err());
+        // The task had committed.
+        assert_eq!(harness.outcome(), TaskOutcome::result_lost(Kept::Yes));
     }
 
     #[test]
-    fn a_failed_abort_reports_the_error() {
+    fn a_failed_abort_reports_a_lost_result() {
         let harness = harness();
         harness.calls.take_due_calls(Instant::now());
         harness
             .calls
             .abort_answered(&harness.due(), Err(SchedulerError::SchedulerNotResponding));
-        assert!(matches!(
-            harness.outcome(),
-            InvocationOutcome::Error {
-                error: SchedulerError::SchedulerNotResponding
-            }
-        ));
+        assert_eq!(harness.outcome(), TaskOutcome::result_lost(Kept::Unknown));
     }
 
     #[test]
@@ -737,7 +660,7 @@ mod tests {
             "the harness's call holds one"
         );
 
-        calls.task_result(TASK, Ok(TaskNotification::Result(v_int(1))));
+        calls.task_result(TASK, TaskOutcome::completed(v_int(1)));
         assert!(
             calls.try_reserve(CallPool::Authenticated).is_none(),
             "the reply has not been sent"
@@ -774,32 +697,29 @@ mod tests {
             let (send, receive) = flume::unbounded();
             let on_finish = task_on_finish(
                 Duration::from_secs(1),
-                |result| Ok(ClientReply::EvalResult { result }),
                 Box::new(move |reply| send.send(reply).unwrap()),
             );
             on_finish(finish);
-            receive.try_recv().unwrap()
+            match receive.try_recv().unwrap() {
+                Ok(ClientReply::InvocationResponse { response }) => {
+                    assert!(response.output.is_empty());
+                    response.outcome
+                }
+                other => panic!("unexpected reply: {other:?}"),
+            }
         };
-        assert!(matches!(
-            finish(Finish::Result(Ok(TaskNotification::Result(v_int(1))))),
-            Ok(ClientReply::EvalResult { .. })
-        ));
-        assert!(matches!(
-            finish(Finish::TimedOut),
-            Err(RpcMessageError::TaskError(
-                SchedulerError::TaskAbortedLimit(_)
-            ))
-        ));
-        assert!(matches!(
-            finish(Finish::Failed(SchedulerError::SchedulerNotResponding)),
-            Err(RpcMessageError::TaskError(
-                SchedulerError::SchedulerNotResponding
-            ))
-        ));
-        assert!(matches!(
-            finish(Finish::ResultLost),
-            Err(RpcMessageError::InternalError(_))
-        ));
+        assert_eq!(
+            finish(Finish::Outcome(TaskOutcome::completed(v_int(1)))),
+            TaskOutcome::completed(v_int(1))
+        );
+        assert_eq!(
+            finish(Finish::DeadlinePassed),
+            TaskOutcome::aborted(AbortReason::Deadline(Duration::from_secs(1)), Kept::No)
+        );
+        assert_eq!(
+            finish(Finish::ResultLost(Kept::Unknown)),
+            TaskOutcome::result_lost(Kept::Unknown)
+        );
     }
 
     #[test]

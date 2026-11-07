@@ -74,11 +74,6 @@ union SchedulerErrorUnion {
     CouldNotStartTask,
     CompilationError,
     CommandExecutionError,
-    TaskAbortedLimit,
-    TaskAbortedError,
-    TaskAbortedVerbNotFound,
-    TaskAbortedException,
-    TaskAbortedCancelled,
     VerbProgramFailed,
     PropertyRetrievalFailed,
     VerbRetrievalFailed,
@@ -110,23 +105,108 @@ table CommandExecutionError {
     error: CommandError (required);
 }
 
-table TaskAbortedLimit {
+// ============================================================================
+// Task Outcomes
+// ============================================================================
+
+// Whether a task's last transaction committed. Unknown is the default, so a missing value is never
+// read as committed.
+enum Kept: uint8 {
+    Unknown = 0,
+    Yes = 1,
+    No = 2
+}
+
+union AbortReason {
+    AbortedLimit,
+    AbortedException,
+    AbortedVerbNotFound,
+    AbortedCommandFailed,
+    AbortedCancelled,
+    AbortedKilled,
+    AbortedRolledBack,
+    AbortedConflictRetriesExhausted,
+    AbortedDeadline,
+    AbortedInternal
+}
+
+// The task hit a tick, time or captured-output limit.
+table AbortedLimit {
     limit: AbortLimit (required);
 }
 
-table TaskAbortedError {
-}
-
-table TaskAbortedException {
+// The task raised an error nothing caught.
+table AbortedException {
     exception: MoorCommon.Exception (required);
 }
 
-table TaskAbortedVerbNotFound {
+// A verb call found no verb.
+table AbortedVerbNotFound {
     where: MoorVar.Var (required);
     what: MoorCommon.Symbol (required);
 }
 
-table TaskAbortedCancelled {
+// A command task matched no command.
+table AbortedCommandFailed {
+    error: CommandError (required);
+}
+
+// Another task, or the server, cancelled the task.
+table AbortedCancelled {
+}
+
+// The task killed itself with kill_task(task_id()).
+table AbortedKilled {
+}
+
+// The task called rollback().
+table AbortedRolledBack {
+}
+
+// The task's commit conflicted on every attempt the server allows.
+table AbortedConflictRetriesExhausted {
+}
+
+// The call that started the task passed its deadline, and the task was cancelled.
+table AbortedDeadline {
+    deadline_nanos: uint64;
+}
+
+// The server could not finish the task.
+table AbortedInternal {
+    message: string (required);
+}
+
+union TaskEnding {
+    TaskCompleted,
+    TaskSuspended,
+    TaskAborted,
+    TaskResultLost
+}
+
+// The task returned this value.
+table TaskCompleted {
+    result: MoorVar.Var (required);
+}
+
+// The task suspended or is waiting for input, and continues in the background.
+table TaskSuspended {
+}
+
+// The task stopped before returning.
+table TaskAborted {
+    reason: AbortReason (required);
+}
+
+// The task ended, but its result did not reach the daemon.
+table TaskResultLost {
+}
+
+// How a task ended, and whether its last transaction committed. Changes committed earlier, when
+// the task suspended, forked or read input, stand either way.
+table TaskOutcome {
+    kept: Kept;
+    ending: TaskEnding (required);
 }
 
 table VerbProgramFailed {
@@ -1009,7 +1089,6 @@ union DaemonToClientReplyUnion {
     SysPropValue,
     TaskSubmitted,
     InputThanks,
-    EvalResult,
     ThanksPong,
     VerbsReply,
     PropertiesReply,
@@ -1026,7 +1105,6 @@ union DaemonToClientReplyUnion {
     EventLogHistoryDeleted,
     ListObjectsReply,
     PropertyUpdated,
-    SystemHandlerResponseReply,
     InvocationResponse,
     BatchWorldStateReply,
     ClientEvents,
@@ -1064,10 +1142,6 @@ table TaskSubmitted {
 }
 
 table InputThanks {
-}
-
-table EvalResult {
-    result: MoorVar.Var (required);
 }
 
 table ThanksPong {
@@ -1154,41 +1228,11 @@ table ListObjectsReply {
 table PropertyUpdated {
 }
 
-union SystemHandlerResponseUnion {
-    SystemHandlerSuccess,
-    SystemHandlerError
-}
-
-table SystemHandlerSuccess {
-    result: MoorVar.Var (required);
-}
-
-table SystemHandlerError {
-    error: SchedulerError (required);
-}
-
-table SystemHandlerResponseReply {
-    response: SystemHandlerResponseUnion (required);
-    // Narrative events the handler addressed to its caller, in the order they were committed.
-    // The host delivers them; the daemon does not publish them.
-    output: [MoorCommon.NarrativeEvent];
-}
-
-union InvocationOutcome {
-    InvocationSuccess,
-    InvocationError
-}
-
-table InvocationSuccess {
-    result: MoorVar.Var (required);
-}
-
-table InvocationError {
-    error: SchedulerError (required);
-}
-
+// The reply to a call that ran a task: eval, verb invocation, captured command, system handler.
 table InvocationResponse {
-    outcome: InvocationOutcome (required);
+    outcome: TaskOutcome (required);
+    // Narrative events the task addressed to its caller, in the order they were committed, when
+    // the call captured output. Empty when output went to the caller's connection.
     output: [MoorCommon.NarrativeEvent] (required);
 }
 
@@ -1205,9 +1249,7 @@ union ClientEventUnion {
     RequestInputEvent,
     SystemMessageEvent,
     DisconnectEvent,
-    TaskErrorEvent,
-    TaskSuccessEvent,
-    TaskSuspendedEvent,
+    TaskOutcomeEvent,
     PlayerSwitchedEvent,
     SetConnectionOptionEvent,
     CredentialsUpdatedEvent,
@@ -1237,18 +1279,10 @@ table SystemMessageEvent {
 table DisconnectEvent {
 }
 
-table TaskErrorEvent {
+// A task the client submitted ended or suspended.
+table TaskOutcomeEvent {
     task_id: uint64;
-    error: SchedulerError (required);
-}
-
-table TaskSuccessEvent {
-    task_id: uint64;
-    result: MoorVar.Var (required);
-}
-
-table TaskSuspendedEvent {
-    task_id: uint64;
+    outcome: TaskOutcome (required);
 }
 
 table PlayerSwitchedEvent {
@@ -1412,7 +1446,7 @@ enum RpcMessageErrorCode: uint8 {
     LoginTaskFailed = 4,
     CreateSessionFailed = 5,
     PermissionDenied = 6,
-    TaskError = 7,
+    Rejected = 7,
     EntityRetrievalError = 8,
     InternalError = 9,
     EventStreamExpired = 10,
@@ -1422,7 +1456,7 @@ enum RpcMessageErrorCode: uint8 {
 table RpcMessageError {
     error_code: RpcMessageErrorCode;
     message: string;
-    scheduler_error: SchedulerError;  // Optional, for TaskError variant
+    scheduler_error: SchedulerError;  // Optional, for Rejected: why no task ran
 }
 
 union MessageTypeUnion {

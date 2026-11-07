@@ -30,7 +30,7 @@ use crate::{
     extract_symbol, extract_symbol_rpc, extract_uuid_rpc, extract_var, extract_var_rpc,
     mk_client_attribute_set_reply, mk_daemon_to_host_ack, mk_disconnected_reply,
     mk_new_connection_reply, mk_presentation_dismissed_reply, mk_thanks_pong_reply, obj_fb,
-    scheduler_error_from_ref, scheduler_error_to_flatbuffer_struct, symbol_fb, uuid_fb,
+    symbol_fb, task_outcome_from_ref, task_outcome_to_flatbuffer_struct, uuid_fb,
     var_to_flatbuffer_rpc, verb_program_error_to_flatbuffer_struct,
 };
 use moor_common::{
@@ -233,23 +233,12 @@ pub fn encode_client_event(
         ClientEvent::Disconnect => {
             moor_rpc::ClientEventUnion::DisconnectEvent(Box::new(moor_rpc::DisconnectEvent {}))
         }
-        ClientEvent::TaskError { task_id, error } => {
-            let error = scheduler_error_to_flatbuffer_struct(error)
+        ClientEvent::TaskOutcome { task_id, outcome } => {
+            let outcome = task_outcome_to_flatbuffer_struct(outcome)
                 .map_err(|e| RpcMessageError::InternalError(e.to_string()))?;
-            moor_rpc::ClientEventUnion::TaskErrorEvent(Box::new(moor_rpc::TaskErrorEvent {
+            moor_rpc::ClientEventUnion::TaskOutcomeEvent(Box::new(moor_rpc::TaskOutcomeEvent {
                 task_id: *task_id,
-                error: Box::new(error),
-            }))
-        }
-        ClientEvent::TaskSuccess { task_id, result } => {
-            moor_rpc::ClientEventUnion::TaskSuccessEvent(Box::new(moor_rpc::TaskSuccessEvent {
-                task_id: *task_id,
-                result: Box::new(var_to_flatbuffer_rpc(result)?),
-            }))
-        }
-        ClientEvent::TaskSuspended { task_id } => {
-            moor_rpc::ClientEventUnion::TaskSuspendedEvent(Box::new(moor_rpc::TaskSuspendedEvent {
-                task_id: *task_id,
+                outcome: Box::new(outcome),
             }))
         }
         ClientEvent::PlayerSwitched {
@@ -413,31 +402,17 @@ pub fn decode_client_event_ref(
             Ok(ClientEvent::SystemMessage { player, message })
         }
         moor_rpc::ClientEventUnionRef::DisconnectEvent(_) => Ok(ClientEvent::Disconnect),
-        moor_rpc::ClientEventUnionRef::TaskErrorEvent(task_error) => {
-            let task_id = task_error.task_id().map_err(|e| {
-                RpcError::CouldNotDecode(format!("Missing task error task_id: {e}"))
+        moor_rpc::ClientEventUnionRef::TaskOutcomeEvent(task_outcome) => {
+            let task_id = task_outcome.task_id().map_err(|e| {
+                RpcError::CouldNotDecode(format!("Missing task outcome task_id: {e}"))
             })?;
-            let error_ref = task_error
-                .error()
-                .map_err(|e| RpcError::CouldNotDecode(format!("Missing task error: {e}")))?;
-            let error = scheduler_error_from_ref(error_ref).map_err(|e| {
-                RpcError::CouldNotDecode(format!("Failed to decode scheduler error: {e}"))
+            let outcome_ref = task_outcome
+                .outcome()
+                .map_err(|e| RpcError::CouldNotDecode(format!("Missing task outcome: {e}")))?;
+            let outcome = task_outcome_from_ref(outcome_ref).map_err(|e| {
+                RpcError::CouldNotDecode(format!("Failed to decode task outcome: {e}"))
             })?;
-            Ok(ClientEvent::TaskError { task_id, error })
-        }
-        moor_rpc::ClientEventUnionRef::TaskSuccessEvent(task_success) => {
-            let task_id = task_success.task_id().map_err(|e| {
-                RpcError::CouldNotDecode(format!("Missing task success task_id: {e}"))
-            })?;
-            let result = extract_var(&task_success, "result", |t| t.result())
-                .map_err(RpcError::CouldNotDecode)?;
-            Ok(ClientEvent::TaskSuccess { task_id, result })
-        }
-        moor_rpc::ClientEventUnionRef::TaskSuspendedEvent(task_suspended) => {
-            let task_id = task_suspended.task_id().map_err(|e| {
-                RpcError::CouldNotDecode(format!("Missing task suspended task_id: {e}"))
-            })?;
-            Ok(ClientEvent::TaskSuspended { task_id })
+            Ok(ClientEvent::TaskOutcome { task_id, outcome })
         }
         moor_rpc::ClientEventUnionRef::PlayerSwitchedEvent(switch) => {
             let new_player = extract_obj(&switch, "new_player", |s| s.new_player())
@@ -1467,14 +1442,6 @@ pub fn encode_client_reply(
         ClientReply::InputThanks => moor_rpc::DaemonToClientReply {
             reply: U::InputThanks(Box::new(moor_rpc::InputThanks {})),
         },
-        ClientReply::EvalResult { result } => {
-            let result_fb = var_to_flatbuffer_rpc(&result)?;
-            moor_rpc::DaemonToClientReply {
-                reply: U::EvalResult(Box::new(moor_rpc::EvalResult {
-                    result: Box::new(result_fb),
-                })),
-            }
-        }
         ClientReply::ThanksPong { timestamp } => mk_thanks_pong_reply(timestamp),
         ClientReply::EventStream(state) => moor_rpc::DaemonToClientReply {
             reply: U::EventStreamState(Box::new(moor_rpc::EventStreamState {
@@ -1771,42 +1738,6 @@ pub fn encode_client_reply(
         ClientReply::PropertyUpdated => moor_rpc::DaemonToClientReply {
             reply: U::PropertyUpdated(Box::new(moor_rpc::PropertyUpdated {})),
         },
-        ClientReply::SystemHandlerResponseReply { response, output } => {
-            let output_fb = encode_narrative_events(output)?;
-            let response_fb = match response {
-                api::SystemHandlerResponse::Success { result } => {
-                    let result_fb = convert::var_to_flatbuffer(&result).map_err(|e| {
-                        RpcMessageError::InternalError(format!("Failed to encode result: {e}"))
-                    })?;
-                    moor_rpc::SystemHandlerResponseUnion::SystemHandlerSuccess(Box::new(
-                        moor_rpc::SystemHandlerSuccess {
-                            result: Box::new(result_fb),
-                        },
-                    ))
-                }
-                api::SystemHandlerResponse::Error { error } => {
-                    let scheduler_error_fb =
-                        scheduler_error_to_flatbuffer_struct(&error).map_err(|e| {
-                            RpcMessageError::InternalError(format!(
-                                "Failed to encode scheduler error: {e}"
-                            ))
-                        })?;
-                    moor_rpc::SystemHandlerResponseUnion::SystemHandlerError(Box::new(
-                        moor_rpc::SystemHandlerError {
-                            error: Box::new(scheduler_error_fb),
-                        },
-                    ))
-                }
-            };
-            moor_rpc::DaemonToClientReply {
-                reply: U::SystemHandlerResponseReply(Box::new(
-                    moor_rpc::SystemHandlerResponseReply {
-                        response: response_fb,
-                        output: Some(output_fb),
-                    },
-                )),
-            }
-        }
         ClientReply::InvocationResponse { response } => moor_rpc::DaemonToClientReply {
             reply: U::InvocationResponse(Box::new(encode_invocation_response(response)?)),
         },
@@ -1822,34 +1753,19 @@ pub fn encode_client_reply(
     Ok(reply)
 }
 
-/// Encode a captured invocation's outcome without the reply envelope around it.
+/// Encode a task-running call's outcome without the reply envelope around it.
 ///
 /// HTTP invocation endpoints answer with a bare `InvocationResponse`.
 pub fn encode_invocation_response(
     response: api::InvocationResponse,
 ) -> Result<moor_rpc::InvocationResponse, RpcMessageError> {
-    let output_fb = encode_narrative_events(response.output)?;
-    let response_fb = match response.outcome {
-        api::InvocationOutcome::Success { result } => {
-            let result_fb = convert::var_to_flatbuffer(&result).map_err(|e| {
-                RpcMessageError::InternalError(format!("Failed to encode result: {e}"))
-            })?;
-            moor_rpc::InvocationOutcome::InvocationSuccess(Box::new(moor_rpc::InvocationSuccess {
-                result: Box::new(result_fb),
-            }))
-        }
-        api::InvocationOutcome::Error { error } => {
-            let scheduler_error_fb = scheduler_error_to_flatbuffer_struct(&error).map_err(|e| {
-                RpcMessageError::InternalError(format!("Failed to encode scheduler error: {e}"))
-            })?;
-            moor_rpc::InvocationOutcome::InvocationError(Box::new(moor_rpc::InvocationError {
-                error: Box::new(scheduler_error_fb),
-            }))
-        }
-    };
+    let output = encode_narrative_events(response.output)?;
+    let outcome = task_outcome_to_flatbuffer_struct(&response.outcome).map_err(|e| {
+        RpcMessageError::InternalError(format!("Failed to encode task outcome: {e}"))
+    })?;
     Ok(moor_rpc::InvocationResponse {
-        outcome: response_fb,
-        output: output_fb,
+        outcome: Box::new(outcome),
+        output,
     })
 }
 

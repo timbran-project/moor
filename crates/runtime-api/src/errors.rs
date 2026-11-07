@@ -13,15 +13,16 @@
 
 use moor_common::{
     model::WorldStateError,
-    tasks::{AbortLimitReason, CommandError, SchedulerError, VerbProgramError, WorkerError},
+    tasks::{
+        AbortLimitReason, CommandError, Exception, SchedulerError, VerbProgramError, WorkerError,
+    },
 };
-use moor_schema::convert::{symbol_from_ref, var_from_ref};
+use moor_schema::convert::symbol_from_ref;
 use moor_schema::{
     common,
     convert::{
         compilation_error_from_ref, compilation_error_to_flatbuffer_struct,
-        error_to_flatbuffer_struct, exception_from_ref, uuid_from_ref, var_to_flatbuffer,
-        world_state_error_from_ref,
+        error_to_flatbuffer_struct, uuid_from_ref, var_to_flatbuffer, world_state_error_from_ref,
     },
     fb_read, rpc,
 };
@@ -312,44 +313,6 @@ pub fn scheduler_error_from_ref(
             let command_error = command_error_from_ref(fb_read!(cmd_error, error))?;
             Ok(SchedulerError::CommandExecutionError(command_error))
         }
-        rpc::SchedulerErrorUnionRef::TaskAbortedLimit(task_aborted) => {
-            let limit_ref = fb_read!(task_aborted, limit);
-            let reason_enum = fb_read!(limit_ref, reason);
-            let abort_reason = match reason_enum {
-                rpc::AbortLimitReason::Ticks => {
-                    let ticks = fb_read!(limit_ref, ticks) as usize;
-                    AbortLimitReason::Ticks(ticks)
-                }
-                rpc::AbortLimitReason::Time => {
-                    let time_nanos = fb_read!(limit_ref, time_nanos);
-                    AbortLimitReason::Time(Duration::from_nanos(time_nanos))
-                }
-                rpc::AbortLimitReason::OutputBytes => {
-                    let output_bytes = fb_read!(limit_ref, output_bytes) as usize;
-                    AbortLimitReason::OutputBytes(output_bytes)
-                }
-                rpc::AbortLimitReason::OutputEvents => {
-                    let output_events = fb_read!(limit_ref, output_events) as usize;
-                    AbortLimitReason::OutputEvents(output_events)
-                }
-            };
-            Ok(SchedulerError::TaskAbortedLimit(abort_reason))
-        }
-        rpc::SchedulerErrorUnionRef::TaskAbortedError(_) => Ok(SchedulerError::TaskAbortedError),
-        rpc::SchedulerErrorUnionRef::TaskAbortedVerbNotFound(verbnf) => {
-            let where_ = var_from_ref(fb_read!(verbnf, where_))
-                .map_err(|e| format!("Failed to decode verb `where`: {e}"))?;
-            let what = symbol_from_ref(fb_read!(verbnf, what))
-                .map_err(|e| format!("Failed to decode verb `what`: {e}"))?;
-            Ok(SchedulerError::TaskAbortedVerbNotFound(where_, what))
-        }
-        rpc::SchedulerErrorUnionRef::TaskAbortedException(task_aborted) => {
-            let exception = exception_from_ref(fb_read!(task_aborted, exception))?;
-            Ok(SchedulerError::TaskAbortedException(exception))
-        }
-        rpc::SchedulerErrorUnionRef::TaskAbortedCancelled(_) => {
-            Ok(SchedulerError::TaskAbortedCancelled)
-        }
         rpc::SchedulerErrorUnionRef::VerbProgramFailed(verb_failed) => {
             let verb_error = verb_program_error_from_ref(fb_read!(verb_failed, error))?;
             Ok(SchedulerError::VerbProgramFailed(verb_error))
@@ -404,7 +367,7 @@ pub fn rpc_message_error_from_ref(
         rpc::RpcMessageErrorCode::LoginTaskFailed => Ok(RpcMessageError::LoginTaskFailed(message)),
         rpc::RpcMessageErrorCode::CreateSessionFailed => Ok(RpcMessageError::CreateSessionFailed),
         rpc::RpcMessageErrorCode::PermissionDenied => Ok(RpcMessageError::PermissionDenied),
-        rpc::RpcMessageErrorCode::TaskError => Ok(RpcMessageError::TaskError(
+        rpc::RpcMessageErrorCode::Rejected => Ok(RpcMessageError::Rejected(
             scheduler_error_from_rpc_error(error_ref)?,
         )),
         rpc::RpcMessageErrorCode::EntityRetrievalError => {
@@ -416,8 +379,80 @@ pub fn rpc_message_error_from_ref(
     }
 }
 
+/// Convert from FlatBuffer AbortLimitRef to AbortLimitReason
+pub fn abort_limit_from_ref(limit_ref: rpc::AbortLimitRef<'_>) -> Result<AbortLimitReason, String> {
+    Ok(match fb_read!(limit_ref, reason) {
+        rpc::AbortLimitReason::Ticks => {
+            AbortLimitReason::Ticks(fb_read!(limit_ref, ticks) as usize)
+        }
+        rpc::AbortLimitReason::Time => {
+            AbortLimitReason::Time(Duration::from_nanos(fb_read!(limit_ref, time_nanos)))
+        }
+        rpc::AbortLimitReason::OutputBytes => {
+            AbortLimitReason::OutputBytes(fb_read!(limit_ref, output_bytes) as usize)
+        }
+        rpc::AbortLimitReason::OutputEvents => {
+            AbortLimitReason::OutputEvents(fb_read!(limit_ref, output_events) as usize)
+        }
+    })
+}
+
+/// Convert AbortLimitReason to FlatBuffer struct
+pub fn abort_limit_to_flatbuffer_struct(reason: &AbortLimitReason) -> rpc::AbortLimit {
+    let mut limit = rpc::AbortLimit {
+        reason: rpc::AbortLimitReason::Ticks,
+        ticks: 0,
+        time_nanos: 0,
+        output_bytes: 0,
+        output_events: 0,
+    };
+    match reason {
+        AbortLimitReason::Ticks(ticks) => limit.ticks = *ticks as u64,
+        AbortLimitReason::Time(time) => {
+            limit.reason = rpc::AbortLimitReason::Time;
+            limit.time_nanos = time.as_nanos() as u64;
+        }
+        AbortLimitReason::OutputBytes(bytes) => {
+            limit.reason = rpc::AbortLimitReason::OutputBytes;
+            limit.output_bytes = *bytes as u64;
+        }
+        AbortLimitReason::OutputEvents(events) => {
+            limit.reason = rpc::AbortLimitReason::OutputEvents;
+            limit.output_events = *events as u64;
+        }
+    }
+    limit
+}
+
+/// Convert Exception to FlatBuffer struct
+pub fn exception_to_flatbuffer_struct(
+    exception: &Exception,
+) -> Result<rpc::Exception, moor_var::EncodingError> {
+    let encode = |v: &moor_var::Var, what: &str| {
+        var_to_flatbuffer(v).map_err(|e| {
+            moor_var::EncodingError::CouldNotEncode(format!("Failed to encode {what}: {e}"))
+        })
+    };
+    let error = error_to_flatbuffer_struct(&exception.error).map_err(|e| {
+        moor_var::EncodingError::CouldNotEncode(format!("Failed to encode exception error: {e}"))
+    })?;
+    Ok(rpc::Exception {
+        error: Box::new(error),
+        stack: exception
+            .stack
+            .iter()
+            .map(|v| encode(v, "stack item"))
+            .collect::<Result<_, _>>()?,
+        backtrace: exception
+            .backtrace
+            .iter()
+            .map(|v| encode(v, "backtrace item"))
+            .collect::<Result<_, _>>()?,
+    })
+}
+
 /// Convert from FlatBuffer CommandErrorRef to CommandError
-fn command_error_from_ref(error_ref: rpc::CommandErrorRef<'_>) -> Result<CommandError, String> {
+pub fn command_error_from_ref(error_ref: rpc::CommandErrorRef<'_>) -> Result<CommandError, String> {
     match fb_read!(error_ref, error) {
         rpc::CommandErrorUnionRef::CouldNotParseCommand(_) => {
             Ok(CommandError::CouldNotParseCommand)
@@ -507,101 +542,6 @@ pub fn scheduler_error_to_flatbuffer_struct(
             rpc::SchedulerErrorUnion::CommandExecutionError(Box::new(rpc::CommandExecutionError {
                 error: Box::new(cmd_error),
             }))
-        }
-        SchedulerError::TaskAbortedLimit(abort_reason) => {
-            let (reason_enum, ticks, time_nanos, output_bytes, output_events) = match abort_reason {
-                AbortLimitReason::Ticks(t) => {
-                    (rpc::AbortLimitReason::Ticks, *t as u64, 0u64, 0u64, 0u64)
-                }
-                AbortLimitReason::Time(d) => (
-                    rpc::AbortLimitReason::Time,
-                    0u64,
-                    d.as_nanos() as u64,
-                    0u64,
-                    0u64,
-                ),
-                AbortLimitReason::OutputBytes(bytes) => (
-                    rpc::AbortLimitReason::OutputBytes,
-                    0u64,
-                    0u64,
-                    *bytes as u64,
-                    0u64,
-                ),
-                AbortLimitReason::OutputEvents(events) => (
-                    rpc::AbortLimitReason::OutputEvents,
-                    0u64,
-                    0u64,
-                    0u64,
-                    *events as u64,
-                ),
-            };
-            rpc::SchedulerErrorUnion::TaskAbortedLimit(Box::new(rpc::TaskAbortedLimit {
-                limit: Box::new(rpc::AbortLimit {
-                    reason: reason_enum,
-                    ticks,
-                    time_nanos,
-                    output_bytes,
-                    output_events,
-                }),
-            }))
-        }
-        SchedulerError::TaskAbortedError => {
-            rpc::SchedulerErrorUnion::TaskAbortedError(Box::new(rpc::TaskAbortedError {}))
-        }
-        SchedulerError::TaskAbortedException(exception) => {
-            // Serialize the exception
-            let error_bytes = error_to_flatbuffer_struct(&exception.error).map_err(|e| {
-                moor_var::EncodingError::CouldNotEncode(format!(
-                    "Failed to encode exception error: {e}"
-                ))
-            })?;
-            let stack_fb: Result<Vec<_>, _> = exception
-                .stack
-                .iter()
-                .map(|v| {
-                    var_to_flatbuffer(v).map_err(|e| {
-                        moor_var::EncodingError::CouldNotEncode(format!(
-                            "Failed to encode stack item: {e}"
-                        ))
-                    })
-                })
-                .collect();
-            let backtrace_fb: Result<Vec<_>, _> = exception
-                .backtrace
-                .iter()
-                .map(|v| {
-                    var_to_flatbuffer(v).map_err(|e| {
-                        moor_var::EncodingError::CouldNotEncode(format!(
-                            "Failed to encode backtrace item: {e}"
-                        ))
-                    })
-                })
-                .collect();
-
-            rpc::SchedulerErrorUnion::TaskAbortedException(Box::new(rpc::TaskAbortedException {
-                exception: Box::new(rpc::Exception {
-                    error: Box::new(error_bytes),
-                    stack: stack_fb?,
-                    backtrace: backtrace_fb?,
-                }),
-            }))
-        }
-        SchedulerError::TaskAbortedCancelled => {
-            rpc::SchedulerErrorUnion::TaskAbortedCancelled(Box::new(rpc::TaskAbortedCancelled {}))
-        }
-        SchedulerError::TaskAbortedVerbNotFound(who, what) => {
-            let where_ = var_to_flatbuffer(who);
-            let where_ = where_.map_err(|e| {
-                moor_var::EncodingError::CouldNotEncode(format!(
-                    "Failed to encode verbnf `where`: {e}"
-                ))
-            })?;
-            rpc::SchedulerErrorUnion::TaskAbortedVerbNotFound(Box::new(
-                rpc::TaskAbortedVerbNotFound {
-                    where_: Box::new(where_),
-                    what: symbol_fb(what),
-                },
-            ))
         }
         SchedulerError::VerbProgramFailed(verb_error) => {
             let verb_error_fb = verb_program_error_to_flatbuffer_struct(verb_error)

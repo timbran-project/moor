@@ -358,7 +358,7 @@ mod tests {
         ] {
             let (response, _) = update(
                 "7",
-                Some(Err(RpcError::Daemon(RpcMessageError::TaskError(error)))),
+                Some(Err(RpcError::Daemon(RpcMessageError::Rejected(error)))),
                 "application/x-flatbuffers",
             )
             .await;

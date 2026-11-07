@@ -16,7 +16,7 @@ use crate::tasks::{
     scheduler::test_support::{insert_active_task, scheduler},
     task_scheduler_client::TaskSchedulerClient,
 };
-use moor_common::tasks::MockClientSession;
+use moor_common::tasks::{AbortReason, Kept, MockClientSession, TaskOutcome};
 use moor_var::{SYSTEM_OBJECT, v_int};
 
 fn handoff(scheduler: &Scheduler, task: Box<Task>, input: bool, client: bool) {
@@ -58,10 +58,10 @@ fn unproven_public_handoffs_cannot_suspend_or_publish_effects() {
             assert!(lc.task_q.suspended.get(41).is_none());
             assert!(!scheduler.handle_task_exists(41));
             assert!(lc.task_q.drain_messages(42).is_empty());
-            assert!(matches!(
+            assert_eq!(
                 recv.try_recv(),
-                Ok((41, Err(TaskAbortedCancelled)))
-            ));
+                Ok((41, TaskOutcome::aborted(AbortReason::Cancelled, Kept::Yes)))
+            );
             drop(boundary);
         }
     }

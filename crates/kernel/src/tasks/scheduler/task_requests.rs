@@ -35,10 +35,8 @@ use crate::{
 use moor_common::{
     model::{TaskPermissions, WorldState},
     tasks::{
-        AbortLimitReason, EventLogPurgeResult, EventLogStats, ListenerInfo, NarrativeEvent,
-        SchedulerError,
-        SchedulerError::{TaskAbortedError, TaskAbortedLimit},
-        SessionError, TaskId,
+        AbortLimitReason, AbortReason, EventLogPurgeResult, EventLogStats, Kept, ListenerInfo,
+        NarrativeEvent, SchedulerError, SessionError, TaskId, TaskOutcome,
     },
 };
 use moor_objdef::{collect_index_names, collect_object, dump_object};
@@ -298,16 +296,16 @@ impl Scheduler {
             return;
         };
         warn!(?error, "Could not notify player; cancelling task");
-        let scheduler_error = match error {
+        let reason = match error {
             SessionError::OutputEventLimitExceeded(limit) => {
-                TaskAbortedLimit(AbortLimitReason::OutputEvents(limit))
+                AbortReason::Limit(AbortLimitReason::OutputEvents(limit))
             }
             SessionError::OutputByteLimitExceeded(limit) => {
-                TaskAbortedLimit(AbortLimitReason::OutputBytes(limit))
+                AbortReason::Limit(AbortLimitReason::OutputBytes(limit))
             }
-            _ => TaskAbortedError,
+            error => AbortReason::Internal(format!("could not notify the player: {error}")),
         };
-        task.abort_error = Some(scheduler_error);
+        task.abort_error = Some(reason);
         task.control.request_cancel();
     }
 
@@ -333,7 +331,14 @@ impl Scheduler {
         };
         let Ok(()) = task.session.log_event(player, event) else {
             warn!("Could not log event; aborting task");
-            return lc.task_q.send_task_result(task_id, Err(TaskAbortedError));
+            // The task is still running; its transaction has not committed.
+            return lc.task_q.send_task_result(
+                task_id,
+                TaskOutcome::aborted(
+                    AbortReason::Internal("could not log an event".to_string()),
+                    Kept::No,
+                ),
+            );
         };
     }
 

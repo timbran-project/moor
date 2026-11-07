@@ -21,6 +21,7 @@ use clap_derive::Parser;
 use futures::{StreamExt, stream::FuturesUnordered};
 use moor_common::{
     model::{CommitResult, ObjAttrs, ObjFlag, ObjectKind, ObjectRef, VerbArgsSpec, VerbFlag},
+    tasks::{TaskEnding, TaskOutcome},
     threading::{ThreadClass, pin_current_thread_to_class},
     util::BitEnum,
 };
@@ -28,7 +29,7 @@ use moor_compiler::compile;
 use moor_db::{Database, TxDB};
 use moor_kernel::{
     config::{Config, FeaturesConfig},
-    tasks::{NoopTasksDb, TaskNotification, scheduler::Scheduler},
+    tasks::{NoopTasksDb, scheduler::Scheduler},
 };
 use moor_model_checker::{DirectSession, DirectSessionFactory, NoopSystemControl};
 use moor_var::{List, NOTHING, Obj, Symbol, program::ProgramType, v_empty_str, v_int};
@@ -195,7 +196,7 @@ async fn main() -> Result<(), eyre::Error> {
         task_futures.push(async move {
             loop {
                 match receiver.recv_async().await {
-                    Ok((_task_id, Ok(TaskNotification::Suspended))) => {
+                    Ok((_task_id, outcome)) if outcome.ending == TaskEnding::Suspended => {
                         // Ignore intermediate suspension notifications
                         continue;
                     }
@@ -209,7 +210,13 @@ async fn main() -> Result<(), eyre::Error> {
     let mut completed = 0;
     while let Some(result) = task_futures.next().await {
         match result {
-            Ok((_, Ok(TaskNotification::Result(result)))) => {
+            Ok((
+                _,
+                TaskOutcome {
+                    ending: TaskEnding::Completed(result),
+                    ..
+                },
+            )) => {
                 let result_int = result
                     .as_integer()
                     .ok_or_else(|| eyre::eyre!("Expected integer result"))?;
@@ -221,14 +228,11 @@ async fn main() -> Result<(), eyre::Error> {
                 }
                 completed += 1;
             }
-            Ok((_, Err(e))) => {
-                return Err(eyre::eyre!("Task failed: {:?}", e));
+            Ok((_, outcome)) => {
+                return Err(eyre::eyre!("Task failed: {:?}", outcome));
             }
             Err(e) => {
                 return Err(eyre::eyre!("Failed to receive task result: {:?}", e));
-            }
-            _ => {
-                return Err(eyre::eyre!("Unexpected task result type"));
             }
         }
     }

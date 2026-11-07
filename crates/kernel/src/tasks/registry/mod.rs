@@ -24,7 +24,7 @@ use ahash::AHasher;
 use fast_telemetry::{ExportMetrics, Gauge, LabelEnum, LabeledGauge, MetricVisitor};
 use moor_common::{
     model::TaskPermissions,
-    tasks::{SchedulerError, TaskId},
+    tasks::{TaskId, TaskOutcome},
     util::Timestamp,
 };
 use moor_var::{E_INVARG, E_PERM, ErrorCode, Obj, Var};
@@ -88,7 +88,7 @@ pub struct TaskQ {
     /// Terminal results delivered since the last drain, for the scheduler to
     /// settle native-schedule firings against. Every terminal path funnels
     /// through `send_task_result_direct`, so recording there catches them all.
-    pub(crate) settled_results: Vec<(TaskId, Result<Var, SchedulerError>)>,
+    pub(crate) settled_results: Vec<(TaskId, TaskOutcome)>,
 }
 
 impl TaskQ {

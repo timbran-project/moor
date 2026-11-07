@@ -88,12 +88,12 @@ fn read_uses_task_player_when_authority_differs() {
             break input_request_id;
         }
         if let Ok((_, result)) = handle.receiver().try_recv() {
-            match result {
-                Ok(TaskNotification::Suspended) => {}
-                Ok(TaskNotification::Result(value)) => {
+            match result.ending {
+                TaskEnding::Suspended => {}
+                TaskEnding::Completed(value) => {
                     panic!("read task returned before requesting input: {value:?}")
                 }
-                Err(error) => panic!("read task aborted before requesting input: {error:?}"),
+                _ => panic!("read task ended before requesting input: {result:?}"),
             }
         }
         assert!(Instant::now() < deadline, "input request timed out");
@@ -138,12 +138,12 @@ fn read_can_target_another_player_with_wizard_authority() {
             break input_request_id;
         }
         if let Ok((_, result)) = handle.receiver().try_recv() {
-            match result {
-                Ok(TaskNotification::Suspended) => {}
-                Ok(TaskNotification::Result(value)) => {
+            match result.ending {
+                TaskEnding::Suspended => {}
+                TaskEnding::Completed(value) => {
                     panic!("read task returned before requesting input: {value:?}")
                 }
-                Err(error) => panic!("read task aborted before requesting input: {error:?}"),
+                _ => panic!("read task ended before requesting input: {result:?}"),
             }
         }
         assert!(Instant::now() < deadline, "input request timed out");

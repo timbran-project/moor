@@ -28,8 +28,8 @@ use moor_common::{
         loader::{LoaderInterface, SnapshotInterface},
     },
     tasks::{
-        ConnectionDetails, NarrativeEvent, NoopClientSession, NoopSystemControl, SchedulerError,
-        Session, SessionError,
+        AbortReason, ConnectionDetails, Kept, NarrativeEvent, NoopClientSession, NoopSystemControl,
+        SchedulerError, Session, SessionError, TaskEnding, TaskOutcome,
     },
 };
 use moor_db::{Database, DatabaseConfig, GCInterface, SnapshotCallback, TxDB};
@@ -42,6 +42,17 @@ use std::{
     time::{Duration, SystemTime},
 };
 use uuid::Uuid;
+
+/// The outcome of a wakeup that failed before its task reached a worker.
+fn is_failed_wakeup(outcome: &TaskOutcome) -> bool {
+    matches!(
+        outcome,
+        TaskOutcome {
+            kept: Kept::No,
+            ending: TaskEnding::Aborted(AbortReason::Internal(_)),
+        }
+    )
+}
 
 struct FailingDatabase {
     calls: AtomicUsize,
@@ -202,7 +213,7 @@ fn check_failed_wakeup(failure: Failure) {
     assert_eq!(lc.task_q.mailbox_len(10), 0);
     assert!(matches!(
         recv.try_recv(),
-        Ok((10, Err(SchedulerError::CouldNotStartTask)))
+        Ok((10, outcome)) if is_failed_wakeup(&outcome)
     ));
     assert!(matches!(
         recv.try_recv(),
@@ -216,7 +227,7 @@ fn check_failed_wakeup(failure: Failure) {
     assert!(scheduler.handle_task_exists(11));
     assert!(matches!(
         lc.task_q.settled_results.as_slice(),
-        [(10, Err(SchedulerError::CouldNotStartTask))]
+        [(10, outcome)] if is_failed_wakeup(outcome)
     ));
 
     lc.settle_schedule_firings();
@@ -361,7 +372,7 @@ fn immediate_wakes_wait_for_admission() {
         assert_eq!(database.calls.load(Ordering::Relaxed), 1);
         assert!(matches!(
             results.try_recv(),
-            Ok((71, Err(SchedulerError::CouldNotStartTask)))
+            Ok((71, outcome)) if is_failed_wakeup(&outcome)
         ));
         assert!(!scheduler.handle_task_exists(71));
     }
@@ -397,7 +408,7 @@ fn expired_retry_uses_retry_session_preparation() {
     );
     assert!(matches!(
         results.try_recv(),
-        Ok((71, Err(SchedulerError::CouldNotStartTask)))
+        Ok((71, outcome)) if is_failed_wakeup(&outcome)
     ));
     assert!(!scheduler.handle_task_exists(71));
 }
@@ -465,10 +476,7 @@ struct BlockedWake {
     scheduler: Scheduler,
     database: Arc<FailingDatabase>,
     request: Uuid,
-    results: flume::Receiver<(
-        usize,
-        Result<crate::tasks::TaskNotification, SchedulerError>,
-    )>,
+    results: flume::Receiver<(usize, TaskOutcome)>,
 }
 
 impl BlockedWake {
@@ -528,7 +536,7 @@ fn check_direct_wake_admission(source: WakeSource) {
     assert_eq!(test.database.calls.load(Ordering::Relaxed), 1);
     assert!(matches!(
         test.results.try_recv(),
-        Ok((71, Err(SchedulerError::CouldNotStartTask)))
+        Ok((71, outcome)) if is_failed_wakeup(&outcome)
     ));
     assert!(!test.scheduler.handle_task_exists(71));
 }
@@ -600,7 +608,7 @@ fn duplicate_responses_cannot_replace_a_deferred_resume() {
         assert_eq!(test.database.calls.load(Ordering::Relaxed), 1);
         assert!(matches!(
             test.results.try_recv(),
-            Ok((71, Err(SchedulerError::CouldNotStartTask)))
+            Ok((71, outcome)) if is_failed_wakeup(&outcome)
         ));
         assert!(test.results.try_recv().is_err());
     }
@@ -625,10 +633,10 @@ fn shutdown_settles_deferred_responses_without_dispatch() {
             .deliver_message(71, v_int(7));
         test.scheduler.stop(None).unwrap();
         assert_eq!(test.database.calls.load(Ordering::Relaxed), 0);
-        assert!(matches!(
+        assert_eq!(
             test.results.try_recv(),
-            Ok((71, Err(SchedulerError::TaskAbortedCancelled)))
-        ));
+            Ok((71, TaskOutcome::aborted(AbortReason::Cancelled, Kept::Yes)))
+        );
         assert!(!test.scheduler.handle_task_exists(71));
         let mut lc = test.scheduler.lifecycle.lock();
         assert!(lc.task_q.suspended.get(71).is_none());
@@ -696,10 +704,10 @@ fn direct_wakes_cannot_dispatch_after_shutdown() {
                 _ => source.deliver(&test.scheduler, test.request),
             }
             assert_eq!(test.database.calls.load(Ordering::Relaxed), 0);
-            assert!(matches!(
+            assert_eq!(
                 test.results.try_recv(),
-                Ok((71, Err(SchedulerError::TaskAbortedCancelled)))
-            ));
+                Ok((71, TaskOutcome::aborted(AbortReason::Cancelled, Kept::Yes)))
+            );
             assert!(!test.scheduler.handle_task_exists(71));
         }
     }
@@ -707,7 +715,7 @@ fn direct_wakes_cannot_dispatch_after_shutdown() {
 
 #[test]
 fn deferred_returns_and_errors_reach_the_vm() {
-    use crate::tasks::{TaskNotification, scheduler::gc::GcPhase};
+    use crate::tasks::scheduler::gc::GcPhase;
     use moor_common::model::{ObjFlag, ObjectKind, TaskPermissions};
     use moor_var::{E_PERM, NOTHING, v_err};
     for (action, expected) in [
@@ -745,10 +753,10 @@ fn deferred_returns_and_errors_reach_the_vm() {
                 Arc::new(NoopClientSession::new()),
             )
             .unwrap();
-        assert!(matches!(
+        assert_eq!(
             handle.1.recv_timeout(Duration::from_secs(5)).unwrap().1,
-            Ok(TaskNotification::Suspended)
-        ));
+            TaskOutcome::suspended()
+        );
         {
             let mut lc = scheduler.lifecycle.lock();
             lc.gc_phase = GcPhase::Sweeping(1);
@@ -767,10 +775,10 @@ fn deferred_returns_and_errors_reach_the_vm() {
         assert!(handle.1.try_recv().is_err());
         scheduler.lifecycle.lock().gc_phase = GcPhase::Idle;
         scheduler.drain_immediate_wakes();
-        match handle.1.recv_timeout(Duration::from_secs(5)).unwrap().1 {
-            Ok(TaskNotification::Result(value)) => assert_eq!(value, expected),
-            other => panic!("unexpected result: {other:?}"),
-        }
+        assert_eq!(
+            handle.1.recv_timeout(Duration::from_secs(5)).unwrap().1,
+            TaskOutcome::completed(expected)
+        );
         scheduler.stop(None).unwrap();
     }
 }

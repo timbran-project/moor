@@ -30,6 +30,7 @@ use moor_common::{
     model::{
         CommitResult, ObjAttrs, ObjFlag, ObjectKind, ObjectRef, PropFlag, VerbArgsSpec, VerbFlag,
     },
+    tasks::{TaskEnding, TaskOutcome},
     threading::{ThreadClass, pin_current_thread_to_class},
     util::BitEnum,
 };
@@ -38,7 +39,7 @@ use moor_db::{Database, TxDB};
 use moor_kernel::{
     SchedulerClient,
     config::{Config, FeaturesConfig},
-    tasks::{NoopTasksDb, TaskNotification, scheduler::Scheduler},
+    tasks::{NoopTasksDb, scheduler::Scheduler},
 };
 use moor_model_checker::bench_common::{calculate_percentiles, clear_screen, setup_db_path};
 use moor_model_checker::{DirectSession, DirectSessionFactory, NoopSystemControl};
@@ -345,23 +346,26 @@ async fn workload(
         let receiver = task_handle.into_receiver();
         let result = loop {
             match receiver.recv_async().await {
-                Ok((_task_id, Ok(TaskNotification::Suspended))) => continue,
+                Ok((_task_id, outcome)) if outcome.ending == TaskEnding::Suspended => continue,
                 other => break other,
             }
         };
 
         match result {
-            Ok((_, Ok(TaskNotification::Result(_)))) => {
+            Ok((
+                _,
+                TaskOutcome {
+                    ending: TaskEnding::Completed(_),
+                    ..
+                },
+            )) => {
                 task_latencies.push(task_start.elapsed());
             }
-            Ok((_, Err(e))) => {
-                return Err(eyre::eyre!("Task failed: {:?}", e));
+            Ok((_, outcome)) => {
+                return Err(eyre::eyre!("Task failed: {:?}", outcome));
             }
             Err(e) => {
                 return Err(eyre::eyre!("Failed to receive task result: {:?}", e));
-            }
-            _ => {
-                return Err(eyre::eyre!("Unexpected task result type"));
             }
         }
     }
@@ -396,23 +400,26 @@ async fn continuous_workload(
         let receiver = task_handle.into_receiver();
         let result = loop {
             match receiver.recv_async().await {
-                Ok((_task_id, Ok(TaskNotification::Suspended))) => continue,
+                Ok((_task_id, outcome)) if outcome.ending == TaskEnding::Suspended => continue,
                 other => break other,
             }
         };
 
         match result {
-            Ok((_, Ok(TaskNotification::Result(_)))) => {
+            Ok((
+                _,
+                TaskOutcome {
+                    ending: TaskEnding::Completed(_),
+                    ..
+                },
+            )) => {
                 task_latencies.push(task_start.elapsed());
             }
-            Ok((_, Err(e))) => {
-                return Err(eyre::eyre!("Task failed: {:?}", e));
+            Ok((_, outcome)) => {
+                return Err(eyre::eyre!("Task failed: {:?}", outcome));
             }
             Err(e) => {
                 return Err(eyre::eyre!("Failed to receive task result: {:?}", e));
-            }
-            _ => {
-                return Err(eyre::eyre!("Unexpected task result type"));
             }
         }
     }

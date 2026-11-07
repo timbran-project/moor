@@ -23,7 +23,7 @@ use crate::{
 use moor_common::{
     model::{ConflictInfo, TaskPermissions, WorldState},
     tasks::{
-        AbortLimitReason, CommandError, EventLogPurgeResult, EventLogStats, Exception,
+        AbortLimitReason, AbortReason, CommandError, EventLogPurgeResult, EventLogStats, Exception,
         ListenerInfo, NarrativeEvent, SchedulerError, TaskId,
     },
 };
@@ -149,9 +149,18 @@ impl TaskSchedulerClient {
     }
 
     pub fn abort_cancelled(&self) {
+        self.abort_without_commit(AbortReason::Cancelled);
+    }
+
+    /// The task called `rollback()`.
+    pub fn rolled_back(&self) {
+        self.abort_without_commit(AbortReason::RolledBack);
+    }
+
+    fn abort_without_commit(&self, reason: AbortReason) {
         if let Some(dispatch) = &self.dispatch {
             self.scheduler
-                .handle_task_abort_cancelled_for_dispatch(dispatch);
+                .handle_task_abort_cancelled_for_dispatch(dispatch, reason);
         }
     }
 

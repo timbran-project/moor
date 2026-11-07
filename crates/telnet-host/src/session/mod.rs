@@ -41,7 +41,10 @@ use futures_util::{
 use moor_common::util::TokenBucket;
 use moor_common::{
     model::{CompileError, ObjectRef},
-    tasks::{AbortLimitReason, CommandError, Event, SchedulerError, VerbProgramError},
+    tasks::{
+        AbortLimitReason, AbortReason, CommandError, Event, SchedulerError, TaskEnding,
+        TaskOutcome, VerbProgramError,
+    },
     util::parse_into_words,
 };
 use moor_runtime_api::{
@@ -503,9 +506,9 @@ impl TelnetConnection {
                 warn!(client_id = %self.client_id, %error, "RPC failed; keeping the session");
                 self.send_line(SERVER_BUSY_MESSAGE).await
             }
-            moor_runtime_api::RpcError::Daemon(moor_runtime_api::RpcMessageError::TaskError(
+            moor_runtime_api::RpcError::Daemon(moor_runtime_api::RpcMessageError::Rejected(
                 error,
-            )) => self.handle_task_error(error).await,
+            )) => self.handle_rejection(error).await,
             moor_runtime_api::RpcError::Daemon(
                 moor_runtime_api::RpcMessageError::PermissionDenied,
             ) => self.send_line("Permission denied.").await,
@@ -1034,13 +1037,8 @@ impl TelnetConnection {
                             self.write.close().await?;
                             bail!("Disconnect before login");
                         }
-                        ClientEvent::TaskError { error, .. } => {
-                            self.handle_task_error(error).await?;
-                        }
-                        ClientEvent::TaskSuccess { .. } |
-                        ClientEvent::TaskSuspended { .. } => {
-                            trace!("TaskSuccess")
-                            // We don't need to do anything with successes.
+                        ClientEvent::TaskOutcome { outcome, .. } => {
+                            self.handle_task_outcome(outcome).await?;
                         }
                         ClientEvent::PlayerSwitched { new_player, new_auth_token, .. } => {
                             info!("Switching player from {:?} to {} during authorization for client {}", self.player_object, new_player, self.client_id);
@@ -1600,7 +1598,7 @@ impl TelnetConnection {
                     .with_context(|| "Unable to close connection")?;
                 Ok(None)
             }
-            ClientEvent::TaskError { task_id, error } => {
+            ClientEvent::TaskOutcome { task_id, outcome } => {
                 let ti = task_id as usize;
                 if let Some(pending_event) = self.pending_task.take()
                     && pending_event.task_id != ti
@@ -1609,32 +1607,11 @@ impl TelnetConnection {
                         "Inbound task response {ti} does not belong to the event we submitted and are expecting {pending_event:?}"
                     );
                 }
-                self.handle_task_error(error).await?;
-                // Send suffix after task error
-                self.send_output_suffix().await?;
-                Ok(None)
-            }
-            ClientEvent::TaskSuccess { task_id, .. } => {
-                let ti = task_id as usize;
-                if let Some(pending_event) = self.pending_task.take()
-                    && pending_event.task_id != ti
-                {
-                    error!(
-                        "Inbound task response {ti} does not belong to the event we submitted and are expecting {pending_event:?}"
-                    );
-                }
-                // Send suffix after task success
-                self.send_output_suffix().await?;
-                Ok(None)
-            }
-            ClientEvent::TaskSuspended { task_id } => {
-                let ti = task_id as usize;
-                if let Some(pending_event) = self.pending_task.take()
-                    && pending_event.task_id != ti
-                {
-                    error!(
-                        "Inbound task response {ti} does not belong to the event we submitted and are expecting {pending_event:?}"
-                    );
+                // A suspended task's output continues later, so its suffix waits too.
+                let ended = outcome.ending != TaskEnding::Suspended;
+                self.handle_task_outcome(outcome).await?;
+                if ended {
+                    self.send_output_suffix().await?;
                 }
                 Ok(None)
             }
@@ -1862,24 +1839,26 @@ impl TelnetConnection {
         Ok(())
     }
 
-    async fn handle_task_error(&mut self, task_error: SchedulerError) -> Result<(), eyre::Error> {
-        match task_error {
-            SchedulerError::CommandExecutionError(CommandError::CouldNotParseCommand) => {
-                self.send_line("I couldn't understand that.").await?;
-                self.flush().await?;
+    async fn send_command_error(&mut self, error: &CommandError) -> Result<(), eyre::Error> {
+        let line = match error {
+            CommandError::NoObjectMatch => "I don't see that here.",
+            CommandError::PermissionDenied => "You can't do that.",
+            CommandError::CouldNotParseCommand | CommandError::NoCommandMatch => {
+                "I couldn't understand that."
             }
-            SchedulerError::CommandExecutionError(CommandError::NoObjectMatch) => {
-                self.send_line("I don't see that here.").await?;
-                self.flush().await?;
+            CommandError::DatabaseError(error) => {
+                warn!(?error, "Command failed on a database error");
+                return Ok(());
             }
-            SchedulerError::CommandExecutionError(CommandError::NoCommandMatch) => {
-                self.send_line("I couldn't understand that.").await?;
-                self.flush().await?;
-            }
-            SchedulerError::CommandExecutionError(CommandError::PermissionDenied) => {
-                self.send_line("You can't do that.").await?;
-                self.flush().await?;
-            }
+        };
+        self.send_line(line).await?;
+        self.flush().await
+    }
+
+    /// Tell the player why the daemon refused their request.
+    async fn handle_rejection(&mut self, error: SchedulerError) -> Result<(), eyre::Error> {
+        match error {
+            SchedulerError::CommandExecutionError(error) => self.send_command_error(&error).await?,
             SchedulerError::VerbProgramFailed(VerbProgramError::CompilationError(
                 compile_error,
             )) => {
@@ -1892,32 +1871,47 @@ impl TelnetConnection {
                 self.send_line("That object does not have that verb definition.")
                     .await?;
             }
-            SchedulerError::TaskAbortedLimit(AbortLimitReason::Ticks(_)) => {
+            _ => {
+                warn!(?error, "Unhandled request rejection");
+            }
+        }
+        Ok(())
+    }
+
+    /// Tell the player how a task they started ended, if it did not complete.
+    async fn handle_task_outcome(&mut self, outcome: TaskOutcome) -> Result<(), eyre::Error> {
+        let reason = match outcome.ending {
+            TaskEnding::Completed(_) | TaskEnding::Suspended => return Ok(()),
+            TaskEnding::ResultLost => return self.send_line("Task aborted").await,
+            TaskEnding::Aborted(reason) => reason,
+        };
+        match reason {
+            AbortReason::CommandFailed(error) => self.send_command_error(&error).await?,
+            AbortReason::Exception(e) => {
+                self.send_line(&format!("Task exception: {e}")).await?;
+            }
+            AbortReason::VerbNotFound(..) => {
+                warn!(%reason, "Task found no verb");
+            }
+            AbortReason::Limit(AbortLimitReason::Ticks(_)) => {
                 self.send_line("Task ran out of ticks").await?;
             }
-            SchedulerError::TaskAbortedLimit(AbortLimitReason::Time(_)) => {
+            AbortReason::Limit(AbortLimitReason::Time(_)) | AbortReason::Deadline(_) => {
                 self.send_line("Task ran out of seconds").await?;
             }
-            SchedulerError::TaskAbortedLimit(AbortLimitReason::OutputEvents(_)) => {
+            AbortReason::Limit(AbortLimitReason::OutputEvents(_)) => {
                 self.send_line("Task produced too many captured output events")
                     .await?;
             }
-            SchedulerError::TaskAbortedLimit(AbortLimitReason::OutputBytes(_)) => {
+            AbortReason::Limit(AbortLimitReason::OutputBytes(_)) => {
                 self.send_line("Task produced too much captured output")
                     .await?;
             }
-            SchedulerError::TaskAbortedError => {
-                self.send_line("Task aborted").await?;
-            }
-            SchedulerError::TaskAbortedException(e) => {
-                // This should not really be happening here... but?
-                self.send_line(&format!("Task exception: {e}")).await?;
-            }
-            SchedulerError::TaskAbortedCancelled => {
+            AbortReason::Cancelled | AbortReason::Killed | AbortReason::RolledBack => {
                 self.send_line("Task cancelled").await?;
             }
-            _ => {
-                warn!(?task_error, "Unhandled unexpected task error");
+            AbortReason::ConflictRetriesExhausted | AbortReason::Internal(_) => {
+                self.send_line("Task aborted").await?;
             }
         }
         Ok(())

@@ -91,6 +91,8 @@ pub(super) enum TerminalCompletion {
     Cancelled,
     /// The task killed itself and committed.
     Killed,
+    /// The task called `rollback()`.
+    RolledBack,
     RenewalFailed,
     Limit(TaskLimitInfo),
 }
@@ -116,6 +118,7 @@ impl TerminalRequest {
             TerminalCompletion::CommandError(error) => client.command_error(error),
             TerminalCompletion::Cancelled => client.abort_cancelled(),
             TerminalCompletion::Killed => client.killed(),
+            TerminalCompletion::RolledBack => client.rolled_back(),
             TerminalCompletion::RenewalFailed => client.abort_transaction_renewal_failed(),
             TerminalCompletion::Limit(info) => client.abort_limits_reached(info),
         }

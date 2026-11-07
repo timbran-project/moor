@@ -14,15 +14,12 @@
 use crate::tasks::scheduler::*;
 use crate::{
     tasks::{
-        AbortTaskOutcome, TaskNotification,
+        AbortTaskOutcome,
         registry::{RunningTaskPhase, WakeCondition},
     },
     vm::TaskSuspend,
 };
-use moor_common::tasks::{
-    NoopClientSession,
-    SchedulerError::{TaskAbortedCancelled, TaskAbortedError},
-};
+use moor_common::tasks::{AbortReason, Kept, NoopClientSession, TaskEnding, TaskOutcome};
 use moor_var::{SYSTEM_OBJECT, v_int};
 use std::sync::Barrier;
 
@@ -159,13 +156,24 @@ fn check_timed_suspension_effects(fail_commit: bool, cancel: bool) {
         assert!(lc.task_q.drain_messages(target_id).is_empty());
         assert!(lc.task_q.suspended.get(task_id).is_none());
         assert!(!scheduler.handle_task_exists(task_id));
-        assert!(
-            matches!(result, Err(TaskAbortedError)) && fail_commit
-                || matches!(result, Err(TaskAbortedCancelled)) && cancel
-        );
+        // The world-state commit at the suspend boundary stands either way.
+        if fail_commit {
+            assert!(matches!(
+                result,
+                TaskOutcome {
+                    kept: Kept::Yes,
+                    ending: TaskEnding::Aborted(AbortReason::Internal(_)),
+                }
+            ));
+        } else {
+            assert_eq!(
+                result,
+                TaskOutcome::aborted(AbortReason::Cancelled, Kept::Yes)
+            );
+        }
     } else {
         assert_eq!(lc.task_q.drain_messages(target_id), vec![v_int(17)]);
-        assert!(matches!(result, Ok(TaskNotification::Suspended)));
+        assert_eq!(result, TaskOutcome::suspended());
         let suspended = lc.task_q.suspended.get(task_id).unwrap();
         assert!(matches!(suspended.wake_condition, WakeCondition::Time(_)));
         assert!(scheduler.handle_task_exists(task_id));

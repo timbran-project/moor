@@ -13,16 +13,14 @@
 
 //! Active task metadata and lock-free membership. The lifecycle mutex protects metadata.
 
-use crate::tasks::{
-    TaskNotification, TaskStart, task_control::TaskControl, task_telemetry::TaskRunBaseline,
-};
+use crate::tasks::{TaskStart, task_control::TaskControl, task_telemetry::TaskRunBaseline};
 use ahash::AHasher;
 use flume::Sender;
 use moor_common::{
-    tasks::{SchedulerError, Session, TaskId},
+    tasks::{AbortReason, Session, TaskId, TaskOutcome},
     util::Instant,
 };
-use moor_var::{Obj, Var};
+use moor_var::Obj;
 use papaya::HashMap as PapayaHashMap;
 use std::{
     hash::BuildHasherDefault,
@@ -128,7 +126,7 @@ pub(crate) enum RunningTaskPhase {
     /// The VM may still be executing.
     Running,
     /// The VM has yielded and its session is finalizing before terminal result delivery.
-    Completing(Result<Var, SchedulerError>),
+    Completing(TaskOutcome),
     /// The VM has yielded and its session is committing before suspension.
     Suspending,
     /// The VM has yielded and its input request is being registered.
@@ -158,7 +156,7 @@ pub(crate) struct RunningTask {
     pub(crate) session: Arc<dyn Session>,
     /// An error requested by a scheduler-side operation. The worker observes cancellation,
     /// rolls back, and reports this error instead of a generic cancellation.
-    pub(crate) abort_error: Option<SchedulerError>,
+    pub(crate) abort_error: Option<AbortReason>,
     /// A mailbox to deliver the result of the task to a waiting party with a subscription, if any.
-    pub(crate) result_sender: Option<Sender<(TaskId, Result<TaskNotification, SchedulerError>)>>,
+    pub(crate) result_sender: Option<Sender<crate::tasks::TaskResult>>,
 }

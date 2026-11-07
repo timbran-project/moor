@@ -56,7 +56,7 @@ use moor_var::{List, Obj, Symbol, Var};
 pub use crate::tasks::tasks_db::{NoopTasksDb, TasksDb, TasksDbError};
 use crate::vm::Fork;
 use fast_telemetry::{DeriveLabel, ExportMetrics, LabeledSampledTimer};
-use moor_common::tasks::{Exception, SchedulerError, TaskId};
+use moor_common::tasks::{Exception, SchedulerError, TaskId, TaskOutcome};
 use moor_common::util::hot_stride;
 
 /// Shared sink for batch world state task results.
@@ -111,21 +111,11 @@ pub fn sched_counters() -> &'static SchedulerPerfCounters {
     SCHED_COUNTERS_TLS.with(|c| *c)
 }
 
-/// Just a handle to a task, with a receiver for the result.
-pub struct TaskHandle(
-    TaskId,
-    Receiver<(TaskId, Result<TaskNotification, SchedulerError>)>,
-);
+/// What a task's handle receives: the task's outcome, tagged with its id.
+pub type TaskResult = (TaskId, TaskOutcome);
 
-// Results from a task which are either a value or a notification that the underlying task handle
-// was replaced at the whim of the scheduler.
-#[derive(Debug)]
-pub enum TaskNotification {
-    /// Task is completed, and here are its results.
-    Result(Var),
-    /// Task has transitioned into a suspended/background state.
-    Suspended,
-}
+/// Just a handle to a task, with a receiver for its outcome.
+pub struct TaskHandle(TaskId, Receiver<TaskResult>);
 
 /// Atomic result of asking the scheduler to cancel a task.
 #[derive(Debug)]
@@ -152,19 +142,16 @@ impl TaskHandle {
     }
 
     /// Dissolve the handle into a receiver for the result.
-    pub fn into_receiver(self) -> Receiver<(TaskId, Result<TaskNotification, SchedulerError>)> {
+    pub fn into_receiver(self) -> Receiver<TaskResult> {
         self.1
     }
 
-    pub fn receiver(&self) -> &Receiver<(TaskId, Result<TaskNotification, SchedulerError>)> {
+    pub fn receiver(&self) -> &Receiver<TaskResult> {
         &self.1
     }
 
     /// Create a new TaskHandle (for testing/mocking purposes)
-    pub fn new_mock(
-        task_id: TaskId,
-        receiver: Receiver<(TaskId, Result<TaskNotification, SchedulerError>)>,
-    ) -> Self {
+    pub fn new_mock(task_id: TaskId, receiver: Receiver<TaskResult>) -> Self {
         Self(task_id, receiver)
     }
 }

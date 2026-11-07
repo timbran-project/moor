@@ -20,8 +20,8 @@ use axum::{
     http::{HeaderMap, Method, StatusCode, Uri},
     response::{IntoResponse, Response},
 };
-use moor_common::tasks::{AbortLimitReason, SchedulerError};
-use moor_runtime_api::api::{ClientReply, ClientRequest, SystemHandlerResponse};
+use moor_common::tasks::{AbortLimitReason, AbortReason, SchedulerError, TaskEnding, TaskOutcome};
+use moor_runtime_api::api::{ClientReply, ClientRequest};
 use moor_runtime_api::{RpcError, RpcMessageError};
 use moor_var::{List, SYSTEM_OBJECT, Var, Variant};
 use std::time::Duration;
@@ -186,6 +186,9 @@ pub async fn web_hook_handler(
             debug!("Daemon refused a web hook as busy");
             return StatusCode::SERVICE_UNAVAILABLE.into_response();
         }
+        Err(RpcError::Daemon(RpcMessageError::Rejected(error))) => {
+            return handle_system_handler_rejection(error);
+        }
         Err(e) => {
             error!("RPC call failed for web hook: {:?}", e);
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
@@ -194,8 +197,8 @@ pub async fn web_hook_handler(
 
     let response = match reply {
         // A webhook has no connection to show narrative output on.
-        ClientReply::SystemHandlerResponseReply { response, .. } => {
-            handle_system_handler_response(response)
+        ClientReply::InvocationResponse { response } => {
+            handle_system_handler_outcome(response.outcome)
         }
         _ => internal_server_error("Unexpected daemon to client reply for web hook"),
     };
@@ -205,35 +208,59 @@ pub async fn web_hook_handler(
     response
 }
 
-/// Handle system handler response
-fn handle_system_handler_response(response: SystemHandlerResponse) -> Response {
-    match response {
-        SystemHandlerResponse::Success { result } => match handle_webhook_result(&result) {
-            Ok(response) => {
-                debug!("Webhook task completed successfully");
-                response
-            }
-            Err(e) => {
-                error!("Failed to handle webhook result: {}", e);
-                StatusCode::INTERNAL_SERVER_ERROR.into_response()
-            }
-        },
-        SystemHandlerResponse::Error { error } => handle_system_handler_error(error),
-    }
+/// The response for a web hook whose handler task ran.
+fn handle_system_handler_outcome(outcome: TaskOutcome) -> Response {
+    let reason = match outcome.ending {
+        TaskEnding::Completed(result) => {
+            return match handle_webhook_result(&result) {
+                Ok(response) => {
+                    debug!("Webhook task completed successfully");
+                    response
+                }
+                Err(e) => {
+                    error!("Failed to handle webhook result: {}", e);
+                    StatusCode::INTERNAL_SERVER_ERROR.into_response()
+                }
+            };
+        }
+        TaskEnding::Aborted(reason) => reason,
+        ending @ (TaskEnding::Suspended | TaskEnding::ResultLost) => {
+            error!(?ending, "Web hook task gave no result");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+    let status_code = match &reason {
+        AbortReason::Limit(AbortLimitReason::Time(_)) | AbortReason::Deadline(_) => {
+            StatusCode::REQUEST_TIMEOUT
+        }
+        AbortReason::VerbNotFound(..) => {
+            debug!(%reason, "Web hook handler not found - returning 404");
+            StatusCode::NOT_FOUND
+        }
+        AbortReason::Limit(_) | AbortReason::Cancelled | AbortReason::Killed => {
+            debug!(%reason, "Web hook task stopped");
+            StatusCode::SERVICE_UNAVAILABLE
+        }
+        AbortReason::CommandFailed(_) => {
+            debug!(%reason, "Web hook command failed");
+            StatusCode::BAD_REQUEST
+        }
+        _ => {
+            error!(%reason, "Web hook task failed");
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
+    };
+    status_code.into_response()
 }
 
-/// Handle system handler error
-fn handle_system_handler_error(scheduler_error: SchedulerError) -> Response {
+/// The response for a web hook the daemon refused to run.
+fn handle_system_handler_rejection(scheduler_error: SchedulerError) -> Response {
     let status_code = match &scheduler_error {
-        SchedulerError::TaskAbortedLimit(AbortLimitReason::Time(_)) => StatusCode::REQUEST_TIMEOUT,
-        SchedulerError::TaskAbortedVerbNotFound(_, _)
-        | SchedulerError::ObjectResolutionFailed(_) => {
+        SchedulerError::ObjectResolutionFailed(_) => {
             debug!("Resource not found - returning 404: {:?}", scheduler_error);
             StatusCode::NOT_FOUND
         }
-        SchedulerError::TaskAbortedLimit(_)
-        | SchedulerError::TaskAbortedCancelled
-        | SchedulerError::SchedulerNotResponding
+        SchedulerError::SchedulerNotResponding
         | SchedulerError::CouldNotStartTask
         | SchedulerError::GarbageCollectionFailed(_) => {
             debug!("Service unavailable error: {:?}", scheduler_error);
@@ -355,10 +382,15 @@ mod tests {
 
     #[test]
     fn a_system_handler_deadline_returns_request_timeout() {
-        let response = handle_system_handler_error(SchedulerError::TaskAbortedLimit(
-            AbortLimitReason::Time(Duration::from_secs(30)),
-        ));
-
-        assert_eq!(response.status(), StatusCode::REQUEST_TIMEOUT);
+        for reason in [
+            AbortReason::Limit(AbortLimitReason::Time(Duration::from_secs(30))),
+            AbortReason::Deadline(Duration::from_secs(30)),
+        ] {
+            let response = handle_system_handler_outcome(TaskOutcome::aborted(
+                reason,
+                moor_common::tasks::Kept::No,
+            ));
+            assert_eq!(response.status(), StatusCode::REQUEST_TIMEOUT);
+        }
     }
 }

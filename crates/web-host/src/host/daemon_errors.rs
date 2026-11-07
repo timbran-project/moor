@@ -62,6 +62,22 @@ impl IntoResponse for ErrorReply {
 /// The response for a failed daemon request. Server errors carry a generic message; their
 /// detail goes only to the log.
 pub(crate) fn daemon_error_response(error: &RpcError) -> Response {
+    // Code that does not compile is the caller's error, and its diagnostics are part of the reply.
+    if let RpcError::Daemon(RpcMessageError::Rejected(SchedulerError::CompilationError(
+        compile_error,
+    ))) = error
+    {
+        debug!(?compile_error, "Daemon refused code that does not compile");
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            axum::Json(serde_json::json!({
+                "code": "compilation_error",
+                "error": compile_error.to_string(),
+                "compile_error": compile_error,
+            })),
+        )
+            .into_response();
+    }
     let (status, code, message) = classify(error);
     if status.is_server_error() {
         error!(?error, %status, "Daemon request failed");
@@ -86,7 +102,7 @@ fn classify(error: &RpcError) -> (StatusCode, &'static str, String) {
         RpcError::Daemon(RpcMessageError::InvalidRequest(message)) => {
             (StatusCode::BAD_REQUEST, "invalid_request", message.clone())
         }
-        RpcError::Daemon(RpcMessageError::TaskError(scheduler_error)) => {
+        RpcError::Daemon(RpcMessageError::Rejected(scheduler_error)) => {
             classify_scheduler_error(scheduler_error)
         }
         RpcError::Daemon(RpcMessageError::ServerBusy) => (
@@ -130,7 +146,6 @@ fn classify_scheduler_error(error: &SchedulerError) -> (StatusCode, &'static str
             "permission_denied",
             "Permission denied".to_string(),
         ),
-        TaskAbortedVerbNotFound(..) => (StatusCode::NOT_FOUND, "verb_not_found", error.to_string()),
         SchedulerNotResponding | CouldNotStartTask => (
             StatusCode::SERVICE_UNAVAILABLE,
             "daemon_unavailable",
@@ -175,7 +190,22 @@ mod tests {
     }
 
     fn task(error: SchedulerError) -> RpcError {
-        RpcError::Daemon(RpcMessageError::TaskError(error))
+        RpcError::Daemon(RpcMessageError::Rejected(error))
+    }
+
+    #[tokio::test]
+    async fn code_that_does_not_compile_is_unprocessable_with_its_diagnostics() {
+        let compile_error = moor_compiler::compile("return (;", Default::default()).unwrap_err();
+        let (status, body) = body(daemon_error_response(&task(
+            SchedulerError::CompilationError(compile_error.clone()),
+        )))
+        .await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(body["code"], "compilation_error");
+        assert_eq!(
+            body["compile_error"],
+            serde_json::to_value(&compile_error).unwrap()
+        );
     }
 
     #[tokio::test]

@@ -23,9 +23,9 @@ fn test_command_no_match() {
         .unwrap();
     let err = wait_result(&handle).unwrap_err();
     assert!(
-        matches!(
-            err,
-            SchedulerError::CommandExecutionError(CommandError::NoCommandMatch)
+        err == TaskOutcome::aborted(
+            AbortReason::CommandFailed(CommandError::NoCommandMatch),
+            Kept::No
         ),
         "Expected NoCommandMatch, got {err:?}"
     );
@@ -84,9 +84,9 @@ fn test_command_do_command_false_no_match() {
         .unwrap();
     let err = wait_result(&handle).unwrap_err();
     assert!(
-        matches!(
-            err,
-            SchedulerError::CommandExecutionError(CommandError::NoCommandMatch)
+        err == TaskOutcome::aborted(
+            AbortReason::CommandFailed(CommandError::NoCommandMatch),
+            Kept::No
         ),
         "Expected NoCommandMatch, got {err:?}"
     );

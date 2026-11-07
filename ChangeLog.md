@@ -14,6 +14,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.0 series (`main`) branch
 
+- Every reply for a task that ran (eval, verb calls, captured commands, web hooks, and the task
+  events a connected client receives) now carries the task's outcome: how it ended (completed,
+  suspended, aborted and why, or result lost) and whether its last transaction was kept. As in
+  LambdaMOO, a task that ends in an uncaught error or runs out of ticks keeps its changes, which
+  replies used to report only as an error. A call cut off at its deadline now says so instead of
+  looking like the task's own time limit, and a task whose result is lost after committing is
+  reported as kept rather than as an internal error. An error reply now always means no task ran.
+- The HTTP API answers code that does not compile with status 422 and code `compilation_error`, with
+  the compiler's diagnostics in `compile_error`, instead of status 200.
+- Hosts and the daemon must run the same version: their RPC messages changed.
 - A task that kills itself with `kill_task(task_id())` now keeps the changes it made, as in
   LambdaMOO. They were rolled back before. Killing a suspended task, or one running in another
   thread, is unchanged.

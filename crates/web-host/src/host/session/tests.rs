@@ -190,9 +190,9 @@ impl Harness {
         self.events
             .send(ClientEventMessage {
                 sequence: self.sequence,
-                event: ClientEvent::TaskSuccess {
+                event: ClientEvent::TaskOutcome {
                     task_id,
-                    result: v_int(0),
+                    outcome: moor_common::tasks::TaskOutcome::completed(v_int(0)),
                 },
             })
             .unwrap();

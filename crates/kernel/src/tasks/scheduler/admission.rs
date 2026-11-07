@@ -19,7 +19,7 @@
 
 use super::{ResumeAction, Scheduler, SchedulerState, lifecycle::TaskLifecycle};
 use crate::tasks::{
-    SchedulerOp, ServerOptions, TaskHandle, TaskNotification, TaskStart,
+    SchedulerOp, ServerOptions, TaskHandle, TaskStart,
     registry::{LiveTaskRegistration, WakeCondition},
     sched_counters,
     task::Task,
@@ -48,7 +48,7 @@ enum TaskSubmission {
         handle: TaskHandle,
         task: Box<Task>,
         session: Arc<dyn Session>,
-        result_sender: Option<Sender<(TaskId, Result<TaskNotification, SchedulerError>)>>,
+        result_sender: Option<Sender<crate::tasks::TaskResult>>,
     },
 }
 

@@ -831,13 +831,13 @@ impl RpcTransport {
                         Some("Permission denied".to_string()),
                         None,
                     ),
-                    RpcMessageError::TaskError(scheduler_error) => {
+                    RpcMessageError::Rejected(scheduler_error) => {
                         let scheduler_error_fb =
                             scheduler_error_to_flatbuffer_struct(scheduler_error)
                                 .ok()
                                 .map(Box::new);
                         (
-                            moor_rpc::RpcMessageErrorCode::TaskError,
+                            moor_rpc::RpcMessageErrorCode::Rejected,
                             None,
                             scheduler_error_fb,
                         )
@@ -934,13 +934,13 @@ impl RpcTransport {
                         Some("Permission denied".to_string()),
                         None,
                     ),
-                    RpcMessageError::TaskError(scheduler_error) => {
+                    RpcMessageError::Rejected(scheduler_error) => {
                         let scheduler_error_fb =
                             scheduler_error_to_flatbuffer_struct(scheduler_error)
                                 .ok()
                                 .map(Box::new);
                         (
-                            moor_rpc::RpcMessageErrorCode::TaskError,
+                            moor_rpc::RpcMessageErrorCode::Rejected,
                             None,
                             scheduler_error_fb,
                         )

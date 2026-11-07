@@ -358,10 +358,20 @@ fn verb_program_response(reply: ClientReply, format: ResponseFormat) -> Response
 mod tests {
     use super::*;
     use crate::host::handlers::invocation_response;
-    use moor_common::tasks::{NarrativeEvent, SchedulerError};
-    use moor_runtime_api::api::{ClientReply, InvocationOutcome, InvocationResponse};
+    use moor_common::tasks::{AbortReason, Kept, NarrativeEvent, TaskOutcome};
+    use moor_runtime_api::api::{ClientReply, InvocationResponse};
+    use moor_runtime_api::task_outcome_from_ref;
     use moor_schema::rpc as moor_rpc;
     use moor_var::{Obj, v_int, v_obj, v_str};
+
+    /// Decode an encoded response's outcome, as a client would.
+    fn decode_outcome(encoded: &moor_rpc::InvocationResponse) -> TaskOutcome {
+        use planus::ReadAsRoot;
+        let mut builder = planus::Builder::new();
+        let bytes = builder.finish(encoded, None);
+        let response = moor_rpc::InvocationResponseRef::read_as_root(bytes).unwrap();
+        task_outcome_from_ref(response.outcome().unwrap()).unwrap()
+    }
 
     #[tokio::test]
     async fn programming_failures_keep_diagnostics_with_error_statuses() {
@@ -455,16 +465,13 @@ mod tests {
         );
         let reply = ClientReply::InvocationResponse {
             response: InvocationResponse {
-                outcome: InvocationOutcome::Success { result: v_int(7) },
+                outcome: TaskOutcome::completed(v_int(7)),
                 output: vec![event],
             },
         };
 
         let encoded = invocation_response(reply).expect("Should encode the response");
-        let moor_rpc::InvocationOutcome::InvocationSuccess(success) = encoded.outcome else {
-            panic!("Expected a success response");
-        };
-        assert_eq!(var_from_flatbuffer(*success.result).unwrap(), v_int(7));
+        assert_eq!(decode_outcome(&encoded), TaskOutcome::completed(v_int(7)));
         assert_eq!(encoded.output.len(), 1);
         let moor_schema::common::EventUnion::NotifyEvent(notify) = &encoded.output[0].event.event
         else {
@@ -477,12 +484,11 @@ mod tests {
     }
 
     #[test]
-    fn a_task_error_is_encoded_as_an_invocation_error() {
+    fn an_aborted_task_is_encoded_with_its_outcome() {
+        let outcome = TaskOutcome::aborted(AbortReason::Cancelled, Kept::No);
         let reply = ClientReply::InvocationResponse {
             response: InvocationResponse {
-                outcome: InvocationOutcome::Error {
-                    error: SchedulerError::TaskAbortedCancelled,
-                },
+                outcome: outcome.clone(),
                 output: vec![NarrativeEvent::notify(
                     v_obj(Obj::mk_id(1)),
                     v_str("before failure"),
@@ -495,13 +501,7 @@ mod tests {
         };
 
         let encoded = invocation_response(reply).expect("Should encode the response");
-        let moor_rpc::InvocationOutcome::InvocationError(error) = encoded.outcome else {
-            panic!("Expected an invocation error");
-        };
-        assert!(matches!(
-            error.error.error,
-            moor_rpc::SchedulerErrorUnion::TaskAbortedCancelled(_)
-        ));
+        assert_eq!(decode_outcome(&encoded), outcome);
         assert_eq!(encoded.output.len(), 1);
         let moor_schema::common::EventUnion::NotifyEvent(notify) = &encoded.output[0].event.event
         else {

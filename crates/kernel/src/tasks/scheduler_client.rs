@@ -882,14 +882,17 @@ mod tests {
     use super::*;
     use crate::{
         config::{Config, FeaturesConfig},
-        tasks::{NoopTasksDb, TaskHandle, TaskNotification, scheduler::Scheduler},
+        tasks::{NoopTasksDb, TaskHandle, scheduler::Scheduler},
     };
     use moor_common::{
         model::{
             ObjFlag, ObjectKind, TaskPermissions, WorldState, WorldStateError, WorldStateSource,
             loader::{LoaderInterface, SnapshotInterface},
         },
-        tasks::{NoopClientSession, NoopSystemControl, SessionError, SessionFactory},
+        tasks::{
+            NoopClientSession, NoopSystemControl, SessionError, SessionFactory, TaskEnding,
+            TaskOutcome,
+        },
         util::BitEnum,
     };
     use moor_db::{
@@ -1086,16 +1089,16 @@ mod tests {
         (client, threads, started_recv, release_send)
     }
 
-    fn wait_for_task(handle: &TaskHandle) -> Result<Var, SchedulerError> {
+    fn wait_for_task(handle: &TaskHandle) -> Result<Var, TaskOutcome> {
         loop {
-            match handle
+            let (_, outcome) = handle
                 .receiver()
                 .recv_timeout(Duration::from_secs(2))
-                .expect("task result timed out")
-            {
-                (_, Ok(TaskNotification::Result(value))) => return Ok(value),
-                (_, Ok(TaskNotification::Suspended)) => {}
-                (_, Err(error)) => return Err(error),
+                .expect("task result timed out");
+            match outcome.ending {
+                TaskEnding::Completed(value) => return Ok(value),
+                TaskEnding::Suspended => {}
+                _ => return Err(outcome),
             }
         }
     }

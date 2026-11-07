@@ -27,7 +27,7 @@ use crate::tasks::{
         prepare_storage_compaction,
     },
 };
-use moor_common::tasks::{SchedulerError, SchedulerError::TaskAbortedCancelled, TaskId};
+use moor_common::tasks::{AbortReason, Kept, SchedulerError, TaskId, TaskOutcome};
 use moor_db::DatabaseRelation;
 use moor_var::v_bool_int;
 use tracing::{debug, error};
@@ -56,7 +56,8 @@ impl Scheduler {
             lc.task_q.send_task_result_direct(
                 suspended.registration,
                 suspended.record.result_sender,
-                Err(TaskAbortedCancelled),
+                // The task committed when it suspended.
+                TaskOutcome::aborted(AbortReason::Cancelled, Kept::Yes),
             );
             return;
         }
@@ -107,7 +108,8 @@ impl Scheduler {
             lc.task_q.send_task_result_direct(
                 suspended.registration,
                 suspended.record.result_sender,
-                Err(TaskAbortedCancelled),
+                // The task committed when it suspended.
+                TaskOutcome::aborted(AbortReason::Cancelled, Kept::Yes),
             );
             return;
         }

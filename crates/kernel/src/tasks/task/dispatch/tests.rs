@@ -16,7 +16,7 @@ use crate::{
     config::Config,
     task_context::TaskGuard,
     tasks::{
-        NoopTasksDb, TaskNotification,
+        NoopTasksDb, TaskResult,
         registry::{RunningTask, RunningTaskPhase},
         scheduler::{Scheduler, lifecycle::SchedulerState},
         task_control::TaskControl,
@@ -24,7 +24,10 @@ use crate::{
 };
 use moor_common::{
     model::{ObjFlag, ObjectKind, TaskPermissions, VerbArgsSpec, VerbFlag, WorldStateSource},
-    tasks::{CommandError, NoopClientSession, NoopSystemControl, SchedulerError, TaskId},
+    tasks::{
+        AbortReason, CommandError, Kept, NoopClientSession, NoopSystemControl, TaskEnding, TaskId,
+        TaskOutcome,
+    },
     util::{BitEnum, Instant},
 };
 use moor_compiler::{CompileOptions, compile};
@@ -40,7 +43,7 @@ struct DispatchTest {
     task: Box<Task>,
     client: TaskSchedulerClient,
     session: Arc<dyn Session>,
-    results: flume::Receiver<(TaskId, Result<TaskNotification, SchedulerError>)>,
+    results: flume::Receiver<TaskResult>,
 }
 
 fn dispatch_test(unreadable_handler: bool) -> DispatchTest {
@@ -150,12 +153,16 @@ fn dispatch_test(unreadable_handler: bool) -> DispatchTest {
 
 fn assert_command_failure(
     scheduler: &Scheduler,
-    results: &flume::Receiver<(TaskId, Result<TaskNotification, SchedulerError>)>,
+    results: &flume::Receiver<TaskResult>,
 ) -> CommandError {
     let (_, result) = results
         .try_recv()
         .expect("dispatch error must settle the task");
-    let Err(SchedulerError::CommandExecutionError(error)) = result else {
+    let TaskOutcome {
+        kept: Kept::No,
+        ending: TaskEnding::Aborted(AbortReason::CommandFailed(error)),
+    } = result
+    else {
         panic!("expected command error, got {result:?}");
     };
     assert!(!scheduler.handle_task_exists(TASK_ID));
@@ -171,10 +178,7 @@ fn assert_command_failure(
     error
 }
 
-fn assert_pending(
-    scheduler: &Scheduler,
-    results: &flume::Receiver<(TaskId, Result<TaskNotification, SchedulerError>)>,
-) {
+fn assert_pending(scheduler: &Scheduler, results: &flume::Receiver<TaskResult>) {
     assert!(
         results.try_recv().is_err(),
         "handler must not deliver a result"
@@ -190,7 +194,7 @@ fn finish_terminal(
     outcome: ExecutionOutcome,
     client: &TaskSchedulerClient,
     scheduler: &Scheduler,
-    results: &flume::Receiver<(TaskId, Result<TaskNotification, SchedulerError>)>,
+    results: &flume::Receiver<TaskResult>,
 ) {
     assert_pending(scheduler, results);
     let ExecutionOutcome::Finish(request) = outcome else {
@@ -222,10 +226,10 @@ fn missing_pending_exception_settles_the_task() {
     test.task.pending_exception = None;
     let outcome = test.task.dispatch_success(v_int(0), test.session.as_ref());
     finish_terminal(outcome, &test.client, &test.scheduler, &test.results);
-    assert!(matches!(
+    assert_eq!(
         test.results.try_recv().unwrap().1,
-        Err(SchedulerError::TaskAbortedCancelled)
-    ));
+        TaskOutcome::aborted(AbortReason::Cancelled, Kept::No)
+    );
     assert!(!test.scheduler.handle_task_exists(TASK_ID));
     assert!(
         !test
@@ -271,8 +275,9 @@ fn terminal_success_waits_for_handoff_and_wins_late_cancellation() {
         crate::tasks::task_control::CancelResult::Completing
     );
     finish_terminal(outcome, &test.client, &test.scheduler, &test.results);
-    assert!(
-        matches!(test.results.try_recv().unwrap().1, Ok(TaskNotification::Result(value)) if value == v_int(42))
+    assert_eq!(
+        test.results.try_recv().unwrap().1,
+        TaskOutcome::completed(v_int(42))
     );
     assert!(!test.scheduler.handle_task_exists(TASK_ID));
     assert!(test.results.try_recv().is_err());
@@ -288,10 +293,10 @@ fn cancellation_before_commit_returns_a_terminal_request() {
         "cancelled transaction was rolled back"
     );
     finish_terminal(outcome, &test.client, &test.scheduler, &test.results);
-    assert!(matches!(
+    assert_eq!(
         test.results.try_recv().unwrap().1,
-        Err(SchedulerError::TaskAbortedCancelled)
-    ));
+        TaskOutcome::aborted(AbortReason::Cancelled, Kept::No)
+    );
 }
 
 #[test]
@@ -319,10 +324,7 @@ fn suspension_transfers_registration_only_when_consumed() {
     assert!(lc.task_q.suspended.get(TASK_ID).is_some());
     drop(lc);
     assert!(test.scheduler.handle_task_exists(TASK_ID));
-    assert!(matches!(
-        test.results.try_recv().unwrap().1,
-        Ok(TaskNotification::Suspended)
-    ));
+    assert_eq!(test.results.try_recv().unwrap().1, TaskOutcome::suspended());
 }
 
 #[test]
@@ -351,10 +353,10 @@ fn cancellation_between_boundary_and_handoff_prevents_suspension() {
             .get(TASK_ID)
             .is_none()
     );
-    assert!(matches!(
+    assert_eq!(
         test.results.try_recv().unwrap().1,
-        Err(SchedulerError::TaskAbortedCancelled)
-    ));
+        TaskOutcome::aborted(AbortReason::Cancelled, Kept::Yes)
+    );
 }
 
 #[test]

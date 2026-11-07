@@ -22,9 +22,19 @@ PASETO v4.public token obtained from `/auth/connect` or `/auth/create`. Some end
 **Errors** — When the daemon refuses a request, the response has the status that fits why and a JSON
 body `{"code": "...", "error": "..."}`, even when FlatBuffers were requested. Codes include
 `unauthorized` (401), `invalid_request` and `invalid_value` (400), `permission_denied` (403),
-`object_not_found`, `verb_not_found` and `property_not_found` (404), and `daemon_unavailable` (503).
-A server error (500) has code `internal_error` and a generic message. Errors raised by MOO code that
-runs are not HTTP errors: they are returned inside `InvocationError` with status 200.
+`object_not_found`, `verb_not_found` and `property_not_found` (404), `compilation_error` (422, with
+the compiler's diagnostics in `compile_error`), and `daemon_unavailable` (503). A server error (500)
+has code `internal_error` and a generic message. An error status means no task ran. Once a task
+runs, how it ended is not an HTTP error: the response has status 200 and an `InvocationResponse`
+whose `outcome` is a `TaskOutcome`.
+
+**Task outcomes** — A `TaskOutcome` has an `ending` and a `kept` field. The ending is
+`TaskCompleted` (with the task's value), `TaskSuspended`, `TaskAborted` (with an `AbortReason`: a
+limit, an uncaught exception, verb not found, command failed, cancelled, killed, rolled back,
+conflict retries exhausted, the call's deadline, or an internal error), or `TaskResultLost`. `kept`
+says whether the task's last transaction committed: `Yes`, `No` or `Unknown`. As in LambdaMOO, a
+task that ends in an uncaught error or runs out of ticks keeps its changes, so an aborted task can
+have `kept: Yes`.
 
 **FlatBuffers note** — FlatBuffer request/response bodies are opaque binary blobs whose schemas are
 defined in the `moor-schema` crate. This spec documents their logical content in prose; the wire
@@ -607,25 +617,24 @@ The daemon processes the command in this order:
 1. If `#0:do_command` exists, the daemon calls it first.
 2. If `#0:do_command` returns a true value, the task succeeds with that value.
 3. If the verb is absent or returns false, the daemon uses the normal command parser.
-4. If the parser rejects the input, the outcome is `InvocationError` with
-   `CommandExecutionError(CouldNotParseCommand)`.
+4. If the parser rejects the input, the task aborts with
+   `AbortedCommandFailed(CouldNotParseCommand)`.
 5. If no command verb matches and the player has a location, the daemon calls `:huh` there.
-6. If the player has no location or `:huh` does not exist, the outcome is `InvocationError` with
-   `CommandExecutionError(NoCommandMatch)`.
+6. If the player has no location or `:huh` does not exist, the task aborts with
+   `AbortedCommandFailed(NoCommandMatch)`.
 
 Any invoked verb can return a value or raise an error. This includes `#0:do_command`, the selected
 command verb, and `:huh`. The result becomes the invocation outcome. The protocol does not create an
 "I do not understand" message. If `:huh` creates this message, it is ordinary narrative output.
 
-Permission and database errors use the corresponding `CommandExecutionError` variant. Deadline,
-cancellation, and verb execution errors use their normal scheduler-error variants. All these task
-errors appear inside `InvocationError`.
+Permission and database errors use the corresponding `AbortedCommandFailed` variant. Deadlines,
+cancellation and uncaught errors use their own `AbortReason` variants. All of these appear in the
+`TaskOutcome`.
 
 A valid HTTP request receives status 200 after the task finishes. HTTP status 200 does not mean that
-the MOO task succeeded. The `InvocationResponse.outcome` field identifies `InvocationSuccess` or
-`InvocationError`. Task errors remain inside `InvocationError`. The `output` field contains
-committed root-task output for both outcomes. It can contain output committed before a later task
-error.
+the MOO task succeeded. `InvocationResponse.outcome` says how the task ended and whether its changes
+were kept. The `output` field contains committed root-task output for every outcome. It can contain
+output committed before the task aborted.
 
 HTTP status 400 means that the HTTP request is invalid. This includes an invalid timeout or a body
 that is not valid UTF-8. A MOO parse error is a completed task response with HTTP status 200.
@@ -634,9 +643,9 @@ Requires: `X-Moor-Auth-Token`
 
 **Parameters**
 
-| Name         | In    | Type             | Required | Description                                                                                                                                                                                                                  |
-| ------------ | ----- | ---------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `timeout_ms` | query | integer (uint64) | No       | Deadline in milliseconds. Omit it or use zero for the daemon maximum. A positive value above the daemon maximum returns 400. A task timeout returns `InvocationError(TaskAbortedLimit)` with HTTP status 200. (default: `0`) |
+| Name         | In    | Type             | Required | Description                                                                                                                                                                                                                                                                                                          |
+| ------------ | ----- | ---------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `timeout_ms` | query | integer (uint64) | No       | Deadline in milliseconds. Omit it or use zero for the daemon maximum. A positive value above the daemon maximum returns 400. A task still running at the deadline is cancelled, and the response has status 200 and outcome `AbortedDeadline` with `kept: No`, unless the task had already committed. (default: `0`) |
 
 **Request body** (required)
 
@@ -649,8 +658,8 @@ Requires: `X-Moor-Auth-Token`
 
 **Responses**
 
-- **200**: Completed command invocation. `InvocationResponse.outcome` identifies task success or
-  error. The HTTP status remains 200 for a completed `InvocationError` response.
+- **200**: Completed command invocation. `InvocationResponse.outcome` says how the task ended. The
+  HTTP status remains 200 when the task aborted.
   - Content-Type: `application/x-flatbuffers`
   - Content-Type: `application/json`
 - **400**: Invalid timeout, or the request body is not valid UTF-8
@@ -671,17 +680,17 @@ Server-side MOO expression evaluation
 **Evaluate a MOO expression**
 
 The daemon evaluates a MOO expression as the authenticated player. The request creates no daemon
-connection. The response contains the result or error and committed root-task output. Code that does
-not compile returns `InvocationError(CompilationError)` with HTTP status 200; the compile error
-gives the position and the problem.
+connection. The response contains the task's outcome and committed root-task output. Code that does
+not compile runs no task and returns status 422 with code `compilation_error`; the body's
+`compile_error` gives the position and the problem.
 
 Requires: `X-Moor-Auth-Token`
 
 **Parameters**
 
-| Name         | In    | Type             | Required | Description                                                                                                                                                                                                                  |
-| ------------ | ----- | ---------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `timeout_ms` | query | integer (uint64) | No       | Deadline in milliseconds. Omit it or use zero for the daemon maximum. A positive value above the daemon maximum returns 400. A task timeout returns `InvocationError(TaskAbortedLimit)` with HTTP status 200. (default: `0`) |
+| Name         | In    | Type             | Required | Description                                                                                                                                                                                                                                                                                                          |
+| ------------ | ----- | ---------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `timeout_ms` | query | integer (uint64) | No       | Deadline in milliseconds. Omit it or use zero for the daemon maximum. A positive value above the daemon maximum returns 400. A task still running at the deadline is cancelled, and the response has status 200 and outcome `AbortedDeadline` with `kept: No`, unless the task had already committed. (default: `0`) |
 
 **Request body** (required)
 
@@ -694,12 +703,15 @@ Requires: `X-Moor-Auth-Token`
 
 **Responses**
 
-- **200**: Evaluation result or task error with committed narrative output
+- **200**: The task's outcome, with committed narrative output
   - Content-Type: `application/x-flatbuffers`
   - Content-Type: `application/json`
 - **400**: Invalid timeout
 - **401**: Missing or invalid auth token
 - **406**: Accept header does not include `application/x-flatbuffers` or `application/json`
+- **422**: The code does not compile, so no task ran. The JSON body has code `compilation_error`, an
+  `error` message, and `compile_error` with the compiler's diagnostics.
+  - Content-Type: `application/json`
 - **500**: Internal server error
 - **503**: Daemon is unreachable
 
@@ -822,11 +834,11 @@ Requires: `X-Moor-Auth-Token`
 
 **Parameters**
 
-| Name         | In    | Type             | Required | Description                                                                                                                                                                                                                  |
-| ------------ | ----- | ---------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `object`     | path  | string           | Yes      | Object reference in CURIE form (e.g. `moor:1` or `moor:system`)                                                                                                                                                              |
-| `name`       | path  | string           | Yes      | Verb name                                                                                                                                                                                                                    |
-| `timeout_ms` | query | integer (uint64) | No       | Deadline in milliseconds. Omit it or use zero for the daemon maximum. A positive value above the daemon maximum returns 400. A task timeout returns `InvocationError(TaskAbortedLimit)` with HTTP status 200. (default: `0`) |
+| Name         | In    | Type             | Required | Description                                                                                                                                                                                                                                                                                                          |
+| ------------ | ----- | ---------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `object`     | path  | string           | Yes      | Object reference in CURIE form (e.g. `moor:1` or `moor:system`)                                                                                                                                                                                                                                                      |
+| `name`       | path  | string           | Yes      | Verb name                                                                                                                                                                                                                                                                                                            |
+| `timeout_ms` | query | integer (uint64) | No       | Deadline in milliseconds. Omit it or use zero for the daemon maximum. A positive value above the daemon maximum returns 400. A task still running at the deadline is cancelled, and the response has status 200 and outcome `AbortedDeadline` with `kept: No`, unless the task had already committed. (default: `0`) |
 
 **Request body** (required)
 

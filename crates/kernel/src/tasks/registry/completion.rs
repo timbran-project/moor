@@ -19,18 +19,12 @@
 //! resolves a continuation whose dispatch preparation failed before a worker could own it.
 
 use super::{LiveTaskRegistration, RunningTaskPhase, TaskQ};
-use crate::tasks::TaskNotification;
 use flume::Sender;
-use moor_common::tasks::{SchedulerError, TaskId};
-use moor_var::Var;
+use moor_common::tasks::{AbortReason, Kept, TaskId, TaskOutcome};
 use tracing::warn;
 
 impl TaskQ {
-    pub(crate) fn send_task_result(
-        &mut self,
-        task_id: TaskId,
-        result: Result<Var, SchedulerError>,
-    ) {
+    pub(crate) fn send_task_result(&mut self, task_id: TaskId, result: TaskOutcome) {
         let Some(mut task_control) = self.active.remove(&task_id) else {
             warn!(task_id, "Task not found for notification, ignoring");
             return;
@@ -64,8 +58,8 @@ impl TaskQ {
     pub(crate) fn send_task_result_direct(
         &mut self,
         registration: LiveTaskRegistration,
-        result_sender: Option<Sender<(TaskId, Result<TaskNotification, SchedulerError>)>>,
-        result: Result<Var, SchedulerError>,
+        result_sender: Option<Sender<crate::tasks::TaskResult>>,
+        result: TaskOutcome,
     ) {
         let task_id = registration.task_id();
         drop(registration);
@@ -77,7 +71,6 @@ impl TaskQ {
             );
             return;
         };
-        let result = result.map(|v| TaskNotification::Result(v.clone()));
         result_sender.send((task_id, result)).ok();
     }
 
@@ -86,7 +79,7 @@ impl TaskQ {
     pub(in crate::tasks) fn finish_failed_wakeup(
         &mut self,
         registration: LiveTaskRegistration,
-        result_sender: Option<Sender<(TaskId, Result<TaskNotification, SchedulerError>)>>,
+        result_sender: Option<Sender<crate::tasks::TaskResult>>,
     ) {
         let task_id = registration.task_id();
         self.remove_message_queue(task_id);
@@ -94,7 +87,10 @@ impl TaskQ {
         self.send_task_result_direct(
             registration,
             result_sender,
-            Err(SchedulerError::CouldNotStartTask),
+            TaskOutcome::aborted(
+                AbortReason::Internal("the task could not be resumed".to_string()),
+                Kept::No,
+            ),
         );
     }
 }

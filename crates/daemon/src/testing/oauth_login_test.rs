@@ -17,14 +17,14 @@ use super::{
     MockTransport,
     test_env::{self, TestEnvironment},
 };
-use moor_common::{model::ObjectRef, tasks::NoopClientSession};
-use moor_kernel::{
-    config::FeaturesConfig,
-    tasks::{TaskHandle, TaskNotification},
+use moor_common::{
+    model::ObjectRef,
+    tasks::{AbortReason, NoopClientSession, TaskEnding, TaskOutcome},
 };
+use moor_kernel::{config::FeaturesConfig, tasks::TaskHandle};
 use moor_runtime_api::{
     AuthToken, ClientToken, RpcMessageError,
-    api::{ClientEvent, ClientReply, ClientRequest, InvocationMode, InvocationOutcome},
+    api::{ClientEvent, ClientReply, ClientRequest, InvocationMode},
     mk_verified_oauth_login_msg,
 };
 use moor_schema::{convert::obj_from_flatbuffer_struct, rpc as fb};
@@ -135,9 +135,21 @@ fn wait(task: TaskHandle) -> Var {
             .recv_timeout(Duration::from_secs(20))
             .expect("task timeout")
         {
-            (_, Ok(TaskNotification::Result(value))) => return value,
-            (_, Ok(TaskNotification::Suspended)) => continue,
-            (_, Err(error)) => panic!("{error:?}"),
+            (
+                _,
+                TaskOutcome {
+                    ending: TaskEnding::Completed(value),
+                    ..
+                },
+            ) => return value,
+            (
+                _,
+                TaskOutcome {
+                    ending: TaskEnding::Suspended,
+                    ..
+                },
+            ) => continue,
+            (_, outcome) => panic!("{outcome:?}"),
         }
     }
 }
@@ -228,7 +240,7 @@ fn exercise(core: &str) {
             )
             .unwrap();
         assert!(
-            matches!(reply, ClientReply::InvocationResponse { response } if matches!(response.outcome, InvocationOutcome::Error { .. })),
+            matches!(reply, ClientReply::InvocationResponse { response } if matches!(response.outcome.ending, TaskEnding::Aborted(AbortReason::Exception(_)))),
             "direct {verb} must fail"
         );
     }
@@ -261,8 +273,8 @@ fn exercise(core: &str) {
     let deadline = std::time::Instant::now() + Duration::from_secs(5);
     loop {
         let events = fixture.env.transport.get_client_events();
-        assert!(!events.iter().any(|(id, event)| *id == connected_id && matches!(event, ClientEvent::TaskSuccess { task_id: completed, .. } if *completed == task_id)));
-        if events.iter().any(|(id, event)| *id == connected_id && matches!(event, ClientEvent::TaskError { task_id: completed, .. } if *completed == task_id)) { break; }
+        assert!(!events.iter().any(|(id, event)| *id == connected_id && matches!(event, ClientEvent::TaskOutcome { task_id: completed, outcome } if *completed == task_id && matches!(outcome.ending, TaskEnding::Completed(_)))));
+        if events.iter().any(|(id, event)| *id == connected_id && matches!(event, ClientEvent::TaskOutcome { task_id: completed, outcome } if *completed == task_id && matches!(outcome.ending, TaskEnding::Aborted(AbortReason::Exception(_))))) { break; }
         assert!(std::time::Instant::now() < deadline, "no denial event");
         std::thread::sleep(Duration::from_millis(10));
     }
@@ -488,7 +500,7 @@ fn exercise(core: &str) {
         },
     );
     assert!(
-        !matches!(reply, Ok(ClientReply::InvocationResponse { response }) if matches!(response.outcome, InvocationOutcome::Success { .. }))
+        !matches!(reply, Ok(ClientReply::InvocationResponse { response }) if matches!(response.outcome.ending, TaskEnding::Completed(_)))
     );
     assert!(matches!(
         fixture.login(true, &["connect", "OAuthTarget", "correct-password"]),
