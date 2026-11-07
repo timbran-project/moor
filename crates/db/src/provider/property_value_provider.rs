@@ -16,9 +16,10 @@
 //! A property's records are keyed by the property and a record version. The chain is one full
 //! record, followed by list-append records. Reads rebuild the value from the whole chain. The
 //! batch writer owns the chains and allocates record versions, so this provider does not write.
+//! Seeding rebuilds every chain, and keeps the chains for the batch writer to continue from.
 
 use super::{
-    Provider,
+    Provider, RelationStorage,
     batch_writer::{BatchOp, BatchOpSource, BatchOpType},
     property_value_store::{
         PROPERTY_VALUE_CHAIN_LIMITS, PropertyValueChain, PropertyValueScan,
@@ -28,22 +29,21 @@ use super::{
 };
 use crate::{
     PropertyKey, db_counters,
-    tx::{Error, HashRelationIndex, RelationIndex, Timestamp, WorkingSet},
+    tx::{Error, RelationIndex, Timestamp, WorkingSet},
 };
 use ahash::AHashMap;
 use moor_common::model::WorldStateTimerOp;
 use moor_var::Var;
+use std::sync::{Arc, Mutex};
 
-pub(crate) type SeededPropertyValueIndex = (
-    Box<dyn RelationIndex<PropertyKey, Var>>,
-    Timestamp,
-    AHashMap<PropertyKey, PropertyValueChain>,
-);
+type PropertyValueChains = AHashMap<PropertyKey, PropertyValueChain>;
 
 #[derive(Clone)]
 pub(crate) struct PropertyValueProvider {
     relation_name: &'static str,
     fjall_keyspace: fjall::Keyspace,
+    /// The chains the last seed rebuilt, until the batch writer takes them.
+    seeded_chains: Arc<Mutex<PropertyValueChains>>,
 }
 
 impl PropertyValueProvider {
@@ -51,19 +51,27 @@ impl PropertyValueProvider {
         Self {
             relation_name,
             fjall_keyspace,
+            seeded_chains: Arc::default(),
         }
+    }
+
+    /// Take the chains the last seed rebuilt, for the batch writer to continue from.
+    pub(crate) fn take_seeded_chains(&self) -> PropertyValueChains {
+        std::mem::take(&mut self.seeded_chains.lock().unwrap())
     }
 
     pub fn partition(&self) -> &fjall::Keyspace {
         &self.fjall_keyspace
     }
+}
 
+impl RelationStorage<PropertyKey, Var> for PropertyValueProvider {
     /// Consume a published working set into record-chain operations for the batch writer.
-    pub(crate) fn encode_property_value_working_set(
+    fn encode_working_set(
         &self,
         working_set: WorkingSet<PropertyKey, Var>,
-    ) -> Vec<BatchOp> {
-        prepare_property_value_working_set(working_set)
+    ) -> Result<Vec<BatchOp>, Error> {
+        Ok(prepare_property_value_working_set(working_set)
             .into_iter()
             .map(|prepared| {
                 let object = prepared.property.obj();
@@ -78,28 +86,7 @@ impl PropertyValueProvider {
                     },
                 }
             })
-            .collect()
-    }
-
-    /// Rebuild every property value, along with the chain state the batch writer continues from.
-    pub(crate) fn seeded_property_value_index(&self) -> Result<SeededPropertyValueIndex, Error> {
-        let mut index = HashRelationIndex::new();
-        let mut chains = AHashMap::new();
-        let mut max_timestamp = Timestamp(0);
-        for entry in PropertyValueScan::new(self.fjall_keyspace.iter(), PROPERTY_VALUE_CHAIN_LIMITS)
-        {
-            let (property, reconstructed) =
-                entry.map_err(|error| Error::RetrievalFailure(error.to_string()))?;
-            max_timestamp = max_timestamp.max(reconstructed.logical_timestamp);
-            chains.insert(property.clone(), reconstructed.chain);
-            index.insert_entry(
-                reconstructed.logical_timestamp,
-                property,
-                reconstructed.value,
-            );
-        }
-        index.set_provider_fully_loaded(true);
-        Ok((Box::new(index), max_timestamp, chains))
+            .collect())
     }
 }
 
@@ -159,5 +146,25 @@ impl Provider<PropertyKey, Var> for PropertyValueProvider {
 
     fn stop(&self) -> Result<(), Error> {
         Ok(())
+    }
+
+    /// Rebuild every property value, and keep the chains for the batch writer.
+    fn seed(&self, index: &mut dyn RelationIndex<PropertyKey, Var>) -> Result<Timestamp, Error> {
+        let mut chains = PropertyValueChains::new();
+        let mut max_timestamp = Timestamp(0);
+        for entry in PropertyValueScan::new(self.fjall_keyspace.iter(), PROPERTY_VALUE_CHAIN_LIMITS)
+        {
+            let (property, reconstructed) =
+                entry.map_err(|error| Error::RetrievalFailure(error.to_string()))?;
+            max_timestamp = max_timestamp.max(reconstructed.logical_timestamp);
+            chains.insert(property.clone(), reconstructed.chain);
+            index.insert_entry(
+                reconstructed.logical_timestamp,
+                property,
+                reconstructed.value,
+            );
+        }
+        *self.seeded_chains.lock().unwrap() = chains;
+        Ok(max_timestamp)
     }
 }
