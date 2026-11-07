@@ -179,7 +179,7 @@ fn execute_to_completion(
             VMHostResponse::DispatchFork(_) => panic!("Unexpected fork"),
             VMHostResponse::Suspend(_) => panic!("Unexpected suspend"),
             VMHostResponse::SuspendNeedInput(_) => panic!("Unexpected suspend need input"),
-            VMHostResponse::CompleteAbort => panic!("Unexpected abort"),
+            VMHostResponse::CompleteAbort | VMHostResponse::Stopped => panic!("Unexpected abort"),
             VMHostResponse::RollbackRetry => panic!("Unexpected rollback retry"),
             VMHostResponse::CompleteRollback(_) => panic!("Unexpected complete rollback"),
         }

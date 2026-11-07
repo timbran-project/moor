@@ -122,6 +122,51 @@ impl Scheduler {
         completion.finish(&mut self.lifecycle.lock());
     }
 
+    /// The task killed itself with `kill_task(task_id())` and has committed. LambdaMOO keeps a
+    /// self-killed task's changes, so its session output and task effects are published like a
+    /// committed task's. The result is still `TaskAbortedCancelled`.
+    pub(crate) fn handle_task_killed_for_dispatch(&self, dispatch: &TaskDispatch) {
+        let task_id = dispatch.task_id();
+        let perfc = sched_counters();
+        let _t = perfc.timers.start(SchedulerOp::TaskAbortCancelled);
+        let completion = {
+            let mut lc = self.lifecycle.lock();
+            if !lc.task_q.is_current_dispatch(dispatch) {
+                return;
+            }
+            let task = lc
+                .task_q
+                .active
+                .get_mut(&task_id)
+                .expect("checked current attempt");
+            let Some(completion) =
+                TaskCompletion::reserve(task_id, task, Err(TaskAbortedCancelled))
+            else {
+                return;
+            };
+            if let Err(send_error) = completion.session.send_system_msg(task.player, "Aborted.") {
+                warn!("Could not send abort message to player: {send_error:?}");
+            }
+            completion
+        };
+
+        if let Err(error) = completion.session.commit() {
+            warn!(
+                task_id,
+                ?error,
+                "Session commit failed after a killed task committed; output may be lost"
+            );
+        }
+        let mut lc = self.lifecycle.lock();
+        if !completion.is_current(&lc) {
+            return;
+        }
+        lc.publish_task_effects(task_id);
+        lc.task_q.remove_message_queue(task_id);
+        completion.finish(&mut lc);
+        lc.settle_schedule_firings();
+    }
+
     pub(crate) fn handle_task_abort_panicked_for_dispatch(
         &self,
         dispatch: &TaskDispatch,

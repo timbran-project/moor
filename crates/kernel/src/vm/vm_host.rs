@@ -532,7 +532,7 @@ impl VmHost {
         // We're not running and we didn't get a completion response from the VM - we must have been
         // asked to stop by the scheduler.
         warn!(task_id, "VM host stopped by task");
-        VMHostResponse::CompleteAbort
+        VMHostResponse::Stopped
     }
 
     pub(crate) fn run_interpreter(

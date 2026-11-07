@@ -84,7 +84,8 @@ impl Task {
             VMHostResponse::ContinueOk => ExecutionOutcome::Continue(self),
 
             VMHostResponse::CompleteSuccess(result) => self.dispatch_success(result, session),
-            VMHostResponse::CompleteAbort => self.dispatch_abort(),
+            VMHostResponse::CompleteAbort => self.dispatch_kill(session),
+            VMHostResponse::Stopped => self.dispatch_stopped(),
             VMHostResponse::CompleteException(exception) => {
                 self.dispatch_exception(exception, session)
             }
@@ -273,7 +274,21 @@ impl Task {
         })
     }
 
-    fn dispatch_abort(mut self: Box<Self>) -> ExecutionOutcome {
+    /// The task killed itself. As in LambdaMOO, its changes are kept: the transaction commits,
+    /// and the task then ends as aborted.
+    fn dispatch_kill(mut self: Box<Self>, session: &dyn Session) -> ExecutionOutcome {
+        let commit_result = match self.commit_terminal_transaction(session) {
+            Ok(result) => result,
+            Err(failure) => return self.commit_failure_outcome(failure),
+        };
+        if let CommitResult::ConflictRetry { conflict_info } = commit_result {
+            return self.conflict_outcome(session, "task kill", conflict_info);
+        }
+        self.vm_host.stop();
+        self.terminal_outcome(TerminalCompletion::Killed)
+    }
+
+    fn dispatch_stopped(mut self: Box<Self>) -> ExecutionOutcome {
         error!(task_id = self.task_id, "Task aborted");
 
         if matches!(

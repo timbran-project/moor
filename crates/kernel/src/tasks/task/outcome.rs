@@ -89,6 +89,8 @@ pub(super) enum TerminalCompletion {
     CommitRejected(Box<Exception>),
     CommandError(CommandError),
     Cancelled,
+    /// The task killed itself and committed.
+    Killed,
     RenewalFailed,
     Limit(TaskLimitInfo),
 }
@@ -113,6 +115,7 @@ impl TerminalRequest {
             TerminalCompletion::CommitRejected(exception) => client.commit_rejected(exception),
             TerminalCompletion::CommandError(error) => client.command_error(error),
             TerminalCompletion::Cancelled => client.abort_cancelled(),
+            TerminalCompletion::Killed => client.killed(),
             TerminalCompletion::RenewalFailed => client.abort_transaction_renewal_failed(),
             TerminalCompletion::Limit(info) => client.abort_limits_reached(info),
         }
