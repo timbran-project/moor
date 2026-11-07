@@ -88,11 +88,7 @@ jobs:
           fi
 
           major=${TAG%%.*}
-          if [[ "$major" == "1" ]]; then
-              release_branch=v1.0-release
-          else
-              release_branch=main
-          fi
+          release_branch="v${major}.0-release"
           git fetch --no-tags origin \
               "+refs/heads/${release_branch}:refs/remotes/origin/${release_branch}"
           if ! git merge-base --is-ancestor "$checkout_commit" "origin/${release_branch}"; then
