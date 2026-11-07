@@ -17,7 +17,7 @@
 
 use super::super::lifecycle::TaskLifecycle;
 use crate::tasks::registry::{RunningTask, RunningTaskPhase, TaskDispatch};
-use moor_common::tasks::{SchedulerError, Session, TaskId};
+use moor_common::tasks::{AbortReason, Kept, Session, TaskId, TaskOutcome};
 use moor_var::Var;
 use std::sync::Arc;
 
@@ -26,12 +26,7 @@ use crate::tasks::{
     scheduler::Scheduler,
     task_scheduler_client::{TaskLimitDisposition, TaskLimitInfo},
 };
-use moor_common::tasks::{
-    AbortLimitReason, CommandError, Event, Exception, NarrativeEvent,
-    SchedulerError::{
-        CommandExecutionError, TaskAbortedError, TaskAbortedException, TaskAbortedLimit,
-    },
-};
+use moor_common::tasks::{AbortLimitReason, CommandError, Event, Exception, NarrativeEvent};
 use moor_compiler::to_literal;
 use moor_var::{List, SYSTEM_OBJECT, Symbol, v_empty_str, v_obj, v_str};
 use std::{sync::LazyLock, time::SystemTime};
@@ -48,7 +43,7 @@ impl TaskCompletion {
     pub(in crate::tasks::scheduler) fn reserve(
         task_id: TaskId,
         task: &mut RunningTask,
-        result: Result<Var, SchedulerError>,
+        result: TaskOutcome,
     ) -> Option<Self> {
         if task.phase != RunningTaskPhase::Running {
             return None;
@@ -67,22 +62,6 @@ impl TaskCompletion {
                 .active
                 .get(&self.dispatch.task_id())
                 .is_some_and(|task| matches!(task.phase, RunningTaskPhase::Completing(_)))
-    }
-
-    /// Session failure can replace the reserved outcome without exposing its storage to callers.
-    pub(in crate::tasks::scheduler) fn finish_with_result(
-        self,
-        lc: &mut TaskLifecycle,
-        result: Result<Var, SchedulerError>,
-    ) {
-        if self.is_current(lc) {
-            lc.task_q
-                .active
-                .get_mut(&self.dispatch.task_id())
-                .expect("checked current completion")
-                .phase = RunningTaskPhase::Completing(result);
-            self.finish(lc);
-        }
     }
 
     pub(in crate::tasks::scheduler) fn finish(self, lc: &mut TaskLifecycle) {
@@ -115,7 +94,9 @@ impl Scheduler {
                 warn!(task_id, "Task not found for success");
                 return;
             };
-            let Some(completion) = TaskCompletion::reserve(task_id, task, Ok(value)) else {
+            let Some(completion) =
+                TaskCompletion::reserve(task_id, task, TaskOutcome::completed(value))
+            else {
                 return;
             };
             if mutations_made {
@@ -136,8 +117,9 @@ impl Scheduler {
             if !completion.is_current(&lc) {
                 return;
             }
+            // The world-state commit stands, so the task is still reported as completed.
             lc.discard_task_effects(task_id);
-            completion.finish_with_result(&mut lc, Err(TaskAbortedError));
+            completion.finish(&mut lc);
             return lc.settle_schedule_firings();
         }
 
@@ -170,7 +152,7 @@ impl Scheduler {
         if let Some(completion) = TaskCompletion::reserve(
             task_id,
             task,
-            Err(SchedulerError::TaskAbortedVerbNotFound(who, what)),
+            TaskOutcome::aborted(AbortReason::VerbNotFound(who, what), Kept::No),
         ) {
             completion.finish(&mut lc);
         }
@@ -192,9 +174,11 @@ impl Scheduler {
             .active
             .get_mut(&task_id)
             .expect("checked current attempt");
-        if let Some(completion) =
-            TaskCompletion::reserve(task_id, task, Err(CommandExecutionError(error)))
-        {
+        if let Some(completion) = TaskCompletion::reserve(
+            task_id,
+            task,
+            TaskOutcome::aborted(AbortReason::CommandFailed(error), Kept::No),
+        ) {
             completion.finish(&mut lc);
         }
     }
@@ -214,9 +198,17 @@ impl Scheduler {
                 .active
                 .get_mut(&task_id)
                 .expect("checked current attempt");
-            let Some(completion) =
-                TaskCompletion::reserve(task_id, task, Err(SchedulerError::CouldNotStartTask))
-            else {
+            // The task committed at its boundary, then could not begin its next transaction.
+            let Some(completion) = TaskCompletion::reserve(
+                task_id,
+                task,
+                TaskOutcome::aborted(
+                    AbortReason::Internal(
+                        "could not begin a transaction after committing".to_string(),
+                    ),
+                    Kept::Yes,
+                ),
+            ) else {
                 return;
             };
             completion
@@ -239,7 +231,7 @@ impl Scheduler {
                     ?error,
                     "Session commit failed after world-state commit; output may be lost"
                 );
-                completion.finish_with_result(&mut lc, Err(TaskAbortedError));
+                completion.finish(&mut lc);
             }
         }
     }
@@ -275,9 +267,15 @@ impl Scheduler {
                 warn!(task_id, "Task not found for abort");
                 return;
             };
-            let Some(completion) =
-                TaskCompletion::reserve(task_id, task, Err(TaskAbortedLimit(limit_reason)))
-            else {
+            let kept = match disposition {
+                TaskLimitDisposition::Commit { .. } => Kept::Yes,
+                TaskLimitDisposition::Rollback => Kept::No,
+            };
+            let Some(completion) = TaskCompletion::reserve(
+                task_id,
+                task,
+                TaskOutcome::aborted(AbortReason::Limit(limit_reason), kept),
+            ) else {
                 return;
             };
             let player = task.player;
@@ -437,7 +435,10 @@ impl Scheduler {
             let Some(completion) = TaskCompletion::reserve(
                 task_id,
                 task,
-                Err(TaskAbortedException(exception.as_ref().clone())),
+                TaskOutcome::aborted(
+                    AbortReason::Exception(exception.as_ref().clone()),
+                    Kept::Yes,
+                ),
             ) else {
                 return;
             };
@@ -485,7 +486,7 @@ impl Scheduler {
             let Some(completion) = TaskCompletion::reserve(
                 task_id,
                 task,
-                Err(TaskAbortedException(exception.as_ref().clone())),
+                TaskOutcome::aborted(AbortReason::Exception(exception.as_ref().clone()), Kept::No),
             ) else {
                 return;
             };

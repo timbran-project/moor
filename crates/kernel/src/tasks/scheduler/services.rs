@@ -18,7 +18,7 @@ use super::{Scheduler, SchedulerClientRequest, SchedulerState};
 use crate::tasks::{DEFAULT_COMPACT_INTERVAL_SECONDS, workers::WorkerResponse};
 use flume::{Receiver, RecvTimeoutError};
 use moor_common::{
-    tasks::{SchedulerError, SchedulerError::TaskAbortedCancelled, SessionFactory},
+    tasks::{AbortReason, Kept, SchedulerError, SessionFactory, TaskOutcome},
     threading::{set_current_thread_background_priority, spawn_perf},
 };
 use parking_lot::{Condvar, Mutex};
@@ -448,7 +448,8 @@ impl Scheduler {
                     lc.task_q.send_task_result_direct(
                         task.registration,
                         task.result_sender.take(),
-                        Err(TaskAbortedCancelled),
+                        // The detached task may still commit.
+                        TaskOutcome::aborted(AbortReason::Cancelled, Kept::Unknown),
                     );
                 }
                 warn!(

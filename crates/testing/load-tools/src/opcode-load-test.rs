@@ -27,6 +27,7 @@ use clap_derive::Parser;
 use moor_common::model::ObjectRef;
 use moor_common::{
     model::{CommitResult, ObjAttrs, ObjFlag, ObjectKind, PropFlag, VerbArgsSpec, VerbFlag},
+    tasks::{TaskEnding, TaskOutcome},
     threading::{ThreadClass, pin_current_thread_to_class},
     util::BitEnum,
 };
@@ -35,7 +36,7 @@ use moor_db::{Database, TxDB};
 use moor_kernel::{
     SchedulerClient,
     config::{Config, FeaturesConfig},
-    tasks::{NoopTasksDb, TaskNotification, scheduler::Scheduler},
+    tasks::{NoopTasksDb, scheduler::Scheduler},
 };
 use moor_model_checker::bench_common::{clear_screen, setup_db_path};
 use moor_model_checker::{DirectSession, DirectSessionFactory, NoopSystemControl};
@@ -249,7 +250,13 @@ async fn run_workload(
         let receiver = task_handle.into_receiver();
         loop {
             match receiver.recv_async().await {
-                Ok((_, Ok(TaskNotification::Result(result)))) => {
+                Ok((
+                    _,
+                    TaskOutcome {
+                        ending: TaskEnding::Completed(result),
+                        ..
+                    },
+                )) => {
                     if let Variant::Int(actual) = result.variant() {
                         if let Some(val) = first_value {
                             if actual != val {
@@ -283,8 +290,8 @@ async fn run_workload(
                     }
                     break;
                 }
-                Ok((_, Ok(TaskNotification::Suspended))) => continue,
-                Ok((_, Err(e))) => return Err(eyre::eyre!("Warm-up task failed: {:?}", e)),
+                Ok((_, outcome)) if outcome.ending == TaskEnding::Suspended => continue,
+                Ok((_, outcome)) => return Err(eyre::eyre!("Warm-up task failed: {:?}", outcome)),
                 Err(e) => return Err(eyre::eyre!("Failed to receive warm-up result: {:?}", e)),
             }
         }
@@ -333,7 +340,13 @@ async fn run_workload(
         let receiver = task_handle.into_receiver();
         loop {
             match receiver.recv_async().await {
-                Ok((_, Ok(TaskNotification::Result(result)))) => {
+                Ok((
+                    _,
+                    TaskOutcome {
+                        ending: TaskEnding::Completed(result),
+                        ..
+                    },
+                )) => {
                     if let Variant::Int(actual) = result.variant() {
                         if actual != expected {
                             value_errors += 1;
@@ -352,8 +365,8 @@ async fn run_workload(
                     }
                     break;
                 }
-                Ok((_, Ok(TaskNotification::Suspended))) => continue,
-                Ok((_, Err(e))) => return Err(eyre::eyre!("Task failed: {:?}", e)),
+                Ok((_, outcome)) if outcome.ending == TaskEnding::Suspended => continue,
+                Ok((_, outcome)) => return Err(eyre::eyre!("Task failed: {:?}", outcome)),
                 Err(e) => return Err(eyre::eyre!("Failed to receive result: {:?}", e)),
             }
         }

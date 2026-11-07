@@ -19,12 +19,9 @@ use super::{
 };
 use moor_common::{
     model::{ObjectRef, WorldStateError},
-    tasks::{CommandError, NoopClientSession, SchedulerError},
+    tasks::{CommandError, NoopClientSession, SchedulerError, TaskEnding, TaskOutcome},
 };
-use moor_kernel::{
-    config::FeaturesConfig,
-    tasks::{TaskHandle, TaskNotification},
-};
+use moor_kernel::{config::FeaturesConfig, tasks::TaskHandle};
 use moor_runtime_api::{
     AuthToken, MOOR_AUTH_TOKEN_FOOTER, RpcMessageError,
     api::{ClientReply, ClientRequest},
@@ -91,9 +88,21 @@ fn wait(task: TaskHandle) -> Var {
             .recv_timeout(Duration::from_secs(20))
             .expect("task timeout")
         {
-            (_, Ok(TaskNotification::Result(value))) => return value,
-            (_, Ok(TaskNotification::Suspended)) => continue,
-            (_, Err(error)) => panic!("{error:?}"),
+            (
+                _,
+                TaskOutcome {
+                    ending: TaskEnding::Completed(value),
+                    ..
+                },
+            ) => return value,
+            (
+                _,
+                TaskOutcome {
+                    ending: TaskEnding::Suspended,
+                    ..
+                },
+            ) => continue,
+            (_, outcome) => panic!("{outcome:?}"),
         }
     }
 }
@@ -133,7 +142,7 @@ fn exercise(core: &str) {
     };
     assert!(matches!(
         update("payload"),
-        Err(RpcMessageError::TaskError(
+        Err(RpcMessageError::Rejected(
             SchedulerError::PropertyRetrievalFailed(WorldStateError::PropertyPermissionDenied)
         ))
     ));
@@ -148,14 +157,14 @@ fn exercise(core: &str) {
     assert_eq!(fixture.eval(&format!("return {target}.payload;")), v_int(8));
     assert!(matches!(
         update("missing"),
-        Err(RpcMessageError::TaskError(
+        Err(RpcMessageError::Rejected(
             SchedulerError::PropertyRetrievalFailed(WorldStateError::PropertyNotFound(..))
         ))
     ));
     fixture.eval(&format!("recycle({target}); return 1;"));
     assert!(matches!(
         update("payload"),
-        Err(RpcMessageError::TaskError(
+        Err(RpcMessageError::Rejected(
             SchedulerError::CommandExecutionError(CommandError::NoObjectMatch)
         ))
     ));

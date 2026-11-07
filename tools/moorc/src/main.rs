@@ -24,7 +24,7 @@ use eyre::{bail, eyre};
 use moor_common::{
     build,
     model::{CompileError, Named, ObjectRef, PropFlag, TaskPermissions, ValSet, WorldStateSource},
-    tasks::{NoopSystemControl, SchedulerError, SessionFactory},
+    tasks::{AbortReason, NoopSystemControl, SessionFactory, TaskEnding},
     util::BitEnum,
 };
 use moor_compiler::emit_compile_error;
@@ -32,7 +32,7 @@ use moor_db::{Database, DatabaseConfig, TxDB};
 use moor_kernel::{
     SchedulerClient,
     config::{Config, FeaturesConfig, RuntimeConfig},
-    tasks::{NoopTasksDb, TaskNotification, scheduler::Scheduler},
+    tasks::{NoopTasksDb, scheduler::Scheduler},
 };
 use moor_moot::MootOptions;
 use moor_objdef::{
@@ -750,35 +750,34 @@ fn main() -> Result<(), eyre::Report> {
                         continue 'outer;
                     }
                 };
-                match result {
-                    (_, Ok(TaskNotification::Result(rv))) => break rv,
-                    (_, Ok(TaskNotification::Suspended)) => continue,
-                    (_, Err(e)) => match e {
-                        SchedulerError::TaskAbortedException(e) => {
-                            let failure = format!("aborted: {}", e.error);
-                            error!("Test {test_name} {failure}");
-                            for l in e.backtrace {
-                                let Some(s) = l.as_string() else {
-                                    continue;
-                                };
-                                error!("{s}");
-                            }
-                            test_failures.push(TestFailure {
-                                test: test_name,
-                                failure,
-                            });
-                            continue 'outer;
+                let (_, outcome) = result;
+                match outcome.ending {
+                    TaskEnding::Completed(rv) => break rv,
+                    TaskEnding::Suspended => continue,
+                    TaskEnding::Aborted(AbortReason::Exception(e)) => {
+                        let failure = format!("aborted: {}", e.error);
+                        error!("Test {test_name} {failure}");
+                        for l in e.backtrace {
+                            let Some(s) = l.as_string() else {
+                                continue;
+                            };
+                            error!("{s}");
                         }
-                        _ => {
-                            let failure = format!("failed: {e:?}");
-                            error!("Test {test_name} {failure}");
-                            test_failures.push(TestFailure {
-                                test: test_name,
-                                failure,
-                            });
-                            continue 'outer;
-                        }
-                    },
+                        test_failures.push(TestFailure {
+                            test: test_name,
+                            failure,
+                        });
+                        continue 'outer;
+                    }
+                    _ => {
+                        let failure = format!("failed: {outcome:?}");
+                        error!("Test {test_name} {failure}");
+                        test_failures.push(TestFailure {
+                            test: test_name,
+                            failure,
+                        });
+                        continue 'outer;
+                    }
                 }
             };
             // Result must be non-Error

@@ -18,7 +18,7 @@
 //! on each callback. Handoffs carrying a Task or CommittedBoundary already carry their identity.
 
 use crate::tasks::scheduler::Scheduler;
-use moor_common::tasks::{CommandError, Exception, TaskId};
+use moor_common::tasks::{AbortReason, CommandError, Exception, TaskId};
 use moor_var::{Symbol, Var};
 use std::backtrace::Backtrace;
 
@@ -27,7 +27,7 @@ impl Scheduler {
         let Some(dispatch) = self.capture_task_dispatch(task_id) else {
             return;
         };
-        self.handle_task_abort_cancelled_for_dispatch(&dispatch);
+        self.handle_task_abort_cancelled_for_dispatch(&dispatch, AbortReason::Cancelled);
     }
 
     pub fn handle_task_abort_panicked(

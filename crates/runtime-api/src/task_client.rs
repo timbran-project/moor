@@ -30,24 +30,13 @@ use crate::{
     },
 };
 use moor_common::model::ObjectRef;
-use moor_common::tasks::{NarrativeEvent, SchedulerError};
+use moor_common::tasks::{NarrativeEvent, TaskOutcome};
 use moor_var::{Obj, Symbol, Var};
 use tokio::sync::{broadcast, oneshot};
 use tracing::{debug, error, trace, warn};
 use uuid::Uuid;
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(60);
-
-/// Result of a completed task.
-#[derive(Debug)]
-pub enum TaskResult {
-    /// Task completed successfully with a return value.
-    Success(Var),
-    /// Task failed with a scheduler error.
-    Error(SchedulerError),
-    /// Task suspended (went to background). The task_id is included for reference.
-    Suspended(u64),
-}
 
 /// Session-level events from the daemon that are not correlated to a specific task.
 ///
@@ -102,7 +91,7 @@ pub enum TaskClientError {
     AttachFailed(String),
 }
 
-type WaiterMap = Mutex<HashMap<u64, oneshot::Sender<TaskResult>>>;
+type WaiterMap = Mutex<HashMap<u64, oneshot::Sender<TaskOutcome>>>;
 
 /// High-level async client for calling verbs on a moor daemon.
 ///
@@ -266,7 +255,7 @@ impl TaskClient {
         object: &ObjectRef,
         verb_name: &Symbol,
         args: Vec<&Var>,
-    ) -> Result<TaskResult, TaskClientError> {
+    ) -> Result<TaskOutcome, TaskClientError> {
         self.invoke_verb_with_timeout(object, verb_name, args, self.default_timeout)
             .await
     }
@@ -278,7 +267,7 @@ impl TaskClient {
         verb_name: &Symbol,
         args: Vec<&Var>,
         timeout_duration: Duration,
-    ) -> Result<TaskResult, TaskClientError> {
+    ) -> Result<TaskOutcome, TaskClientError> {
         let args = args.into_iter().cloned().collect();
         let reply = self
             .rpc
@@ -398,22 +387,10 @@ async fn dispatcher_loop(
         match event_msg.event {
             ClientEvent::EventsAvailable => break,
             // ----- Task-correlated events → resolve waiters -----
-            ClientEvent::TaskSuccess { task_id, result } => {
+            ClientEvent::TaskOutcome { task_id, outcome } => {
                 let sender = waiters.lock().unwrap().remove(&task_id);
                 if let Some(sender) = sender {
-                    let _ = sender.send(TaskResult::Success(result));
-                }
-            }
-            ClientEvent::TaskError { task_id, error } => {
-                let sender = waiters.lock().unwrap().remove(&task_id);
-                if let Some(sender) = sender {
-                    let _ = sender.send(TaskResult::Error(error));
-                }
-            }
-            ClientEvent::TaskSuspended { task_id } => {
-                let sender = waiters.lock().unwrap().remove(&task_id);
-                if let Some(sender) = sender {
-                    let _ = sender.send(TaskResult::Suspended(task_id));
+                    let _ = sender.send(outcome);
                 }
             }
 
@@ -474,6 +451,7 @@ async fn dispatcher_loop(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use moor_common::tasks::{AbortReason, Kept};
     use moor_var::v_int;
 
     struct TestSubscription {
@@ -524,9 +502,9 @@ mod tests {
         let handle = tokio::spawn(dispatcher_loop(sub, waiters.clone(), session_tx));
         send_test_event(
             &event_tx,
-            ClientEvent::TaskSuccess {
+            ClientEvent::TaskOutcome {
                 task_id,
-                result: v_int(42),
+                outcome: TaskOutcome::completed(v_int(42)),
             },
         )
         .await;
@@ -536,10 +514,7 @@ mod tests {
             .expect("timeout")
             .expect("channel");
 
-        match result {
-            TaskResult::Success(v) => assert_eq!(v, v_int(42)),
-            other => panic!("expected success, got: {:?}", other),
-        }
+        assert_eq!(result, TaskOutcome::completed(v_int(42)));
 
         handle.abort();
     }
@@ -556,12 +531,12 @@ mod tests {
 
         let handle = tokio::spawn(dispatcher_loop(sub, waiters.clone(), session_tx));
 
-        let sched_err = SchedulerError::TaskAbortedError;
+        let aborted = TaskOutcome::aborted(AbortReason::ConflictRetriesExhausted, Kept::No);
         send_test_event(
             &event_tx,
-            ClientEvent::TaskError {
+            ClientEvent::TaskOutcome {
                 task_id,
-                error: sched_err,
+                outcome: aborted.clone(),
             },
         )
         .await;
@@ -571,16 +546,7 @@ mod tests {
             .expect("timeout")
             .expect("channel");
 
-        match result {
-            TaskResult::Error(e) => {
-                assert!(
-                    matches!(e, SchedulerError::TaskAbortedError),
-                    "expected TaskAbortedError, got: {:?}",
-                    e
-                );
-            }
-            other => panic!("expected error, got: {:?}", other),
-        }
+        assert_eq!(result, aborted);
 
         handle.abort();
     }
@@ -600,9 +566,9 @@ mod tests {
 
         send_test_event(
             &event_tx,
-            ClientEvent::TaskSuccess {
+            ClientEvent::TaskOutcome {
                 task_id: task_id_unmatched,
-                result: v_int(0),
+                outcome: TaskOutcome::completed(v_int(0)),
             },
         )
         .await;
@@ -615,9 +581,9 @@ mod tests {
 
         send_test_event(
             &event_tx,
-            ClientEvent::TaskSuccess {
+            ClientEvent::TaskOutcome {
                 task_id: task_id_registered,
-                result: v_int(7),
+                outcome: TaskOutcome::completed(v_int(7)),
             },
         )
         .await;
@@ -627,10 +593,7 @@ mod tests {
             .expect("timeout")
             .expect("channel");
 
-        match result {
-            TaskResult::Success(v) => assert_eq!(v, v_int(7)),
-            other => panic!("expected success, got: {:?}", other),
-        }
+        assert_eq!(result, TaskOutcome::completed(v_int(7)));
 
         handle.abort();
     }

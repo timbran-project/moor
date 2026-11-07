@@ -251,7 +251,7 @@ impl Database for SequencedGateDatabase {
 /// slack).
 fn run_with_conflict_schedule(
     conflicts_per_boundary: &[u32],
-) -> (Result<Var, SchedulerError>, Vec<Duration>) {
+) -> (Result<Var, TaskOutcome>, Vec<Duration>) {
     run_boundaries_with_conflict_schedule("", "return 7;", conflicts_per_boundary)
 }
 
@@ -260,7 +260,7 @@ fn run_boundaries_with_conflict_schedule(
     boundary_prefix: &str,
     epilogue: &str,
     conflicts_per_boundary: &[u32],
-) -> (Result<Var, SchedulerError>, Vec<Duration>) {
+) -> (Result<Var, TaskOutcome>, Vec<Duration>) {
     let verb = Symbol::mk("conflict_schedule");
     let mut program = String::new();
     for _ in conflicts_per_boundary {
@@ -412,7 +412,7 @@ fn retries_reset_after_successful_boundary() {
 /// `max_task_retries` (10 by default), never aborts: the limit bounds
 /// consecutive retries against one piece of work, not lifetime retries
 /// of a long-lived task. Before the fix in `refresh_retry_state`, this
-/// task would abort with `TaskAbortedError` on its 10th lifetime
+/// task would abort on its 10th lifetime
 /// conflict even though no boundary ever saw more than one.
 #[test]
 fn one_retry_per_boundary_never_aborts() {
@@ -447,8 +447,11 @@ fn schedule_creation_is_discarded_on_rollback() {
             Arc::new(FeaturesConfig::default()),
         )
         .unwrap();
-    // rollback() ends the task without a normal result.
-    let _ = wait_result(&handle);
+    // rollback() ends the task without a normal result, and nothing since commit() is kept.
+    assert_eq!(
+        wait_result(&handle),
+        Err(TaskOutcome::aborted(AbortReason::RolledBack, Kept::No))
+    );
     let lc = scheduler.client.scheduler_for_test().lifecycle.lock();
     assert!(
         lc.schedule_q.all_ids().is_empty(),
@@ -477,8 +480,15 @@ fn test_suspend_zero_transaction_renewal_failure_aborts_cleanly() {
         )
         .unwrap();
 
+    // suspend(0) committed before the replacement transaction failed.
     let error = wait_result(&handle).unwrap_err();
-    assert_eq!(error, SchedulerError::CouldNotStartTask);
+    assert!(matches!(
+        error,
+        TaskOutcome {
+            kept: Kept::Yes,
+            ending: TaskEnding::Aborted(AbortReason::Internal(_)),
+        }
+    ));
 }
 
 #[test]

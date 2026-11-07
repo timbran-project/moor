@@ -442,7 +442,7 @@ impl Task {
             session.commit().expect("Could not commit session");
         }
         self.vm_host.stop();
-        self.terminal_outcome(TerminalCompletion::Cancelled)
+        self.terminal_outcome(TerminalCompletion::RolledBack)
     }
 
     fn dispatch_limit(

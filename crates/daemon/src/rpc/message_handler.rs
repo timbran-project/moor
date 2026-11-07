@@ -40,9 +40,11 @@ use crate::{
     event_log::EventLogOps,
     tasks::task_monitor::TaskMonitor,
 };
+#[cfg(test)]
+use moor_common::tasks::TaskEnding;
 use moor_common::tasks::{Event, NarrativeEvent, SessionError};
 #[cfg(test)]
-use moor_kernel::tasks::{TaskHandle, TaskNotification};
+use moor_kernel::tasks::TaskHandle;
 use moor_kernel::{SchedulerClient, config::Config};
 use std::sync::{OnceLock, Weak};
 
@@ -474,13 +476,13 @@ impl MessageHandler for RpcMessageHandler {
             let deadline = Instant::now() + Duration::from_secs(5);
             loop {
                 let remaining = deadline.saturating_duration_since(Instant::now());
-                let notification = task.receiver().recv_timeout(remaining).map_err(|_| {
+                let (_, outcome) = task.receiver().recv_timeout(remaining).map_err(|_| {
                     eyre::eyre!("disconnect hook task did not finish within 5 seconds")
                 })?;
-                match notification {
-                    (_, Ok(TaskNotification::Suspended)) => continue,
-                    (_, Ok(TaskNotification::Result(_))) => break,
-                    (_, Err(error)) => eyre::bail!("disconnect hook task failed: {error:?}"),
+                match outcome.ending {
+                    TaskEnding::Suspended => continue,
+                    TaskEnding::Completed(_) => break,
+                    _ => eyre::bail!("disconnect hook task failed: {outcome:?}"),
                 }
             }
         }

@@ -22,7 +22,7 @@ use crate::{
 };
 use moor_common::tasks::{
     ConnectionDetails, EventLogPurgeResult, EventLogStats, ListenerInfo, NarrativeEvent, Session,
-    SessionError, SystemControl, TaskId, WorkerInfo,
+    SessionError, SystemControl, TaskId, TaskOutcome, WorkerInfo,
 };
 use moor_var::{
     Error, Obj, SYSTEM_OBJECT, Symbol, Var, program::labels::Offset, v_int, v_obj, v_str,
@@ -288,7 +288,7 @@ fn stale_session_requests_cannot_use_replacement_sessions_or_hosts() {
 #[test]
 fn finalizing_dispatch_cannot_start_new_session_operations() {
     for phase in [
-        RunningTaskPhase::Completing(Ok(v_int(0))),
+        RunningTaskPhase::Completing(TaskOutcome::completed(v_int(0))),
         RunningTaskPhase::Suspending,
         RunningTaskPhase::RequestingInput,
     ] {

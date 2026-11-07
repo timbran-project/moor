@@ -15,28 +15,35 @@
 
 use std::{sync::Arc, time::Duration};
 
-use moor_common::tasks::{CommandError, SchedulerError};
+use moor_common::tasks::{AbortReason, CommandError, SchedulerError, TaskEnding, TaskOutcome};
 use moor_var::{E_VERBNF, Obj, SYSTEM_OBJECT, Symbol, Var};
 
 use crate::{
     config::FeaturesConfig,
-    tasks::{TaskHandle, TaskNotification, scheduler_client::SchedulerClient},
+    tasks::{TaskHandle, scheduler_client::SchedulerClient},
 };
-use moor_common::tasks::{
-    Exception,
-    SchedulerError::{CommandExecutionError, TaskAbortedException},
-    Session,
-};
+use moor_common::tasks::{Exception, Session};
 
 pub type ExecResult = Result<Var, Exception>;
 
-fn execute<F>(fun: F) -> Result<Var, SchedulerError>
+/// Why a test task produced no value.
+#[derive(Debug, Clone, PartialEq, thiserror::Error)]
+pub enum TaskFailure {
+    /// The scheduler refused the request, so no task ran.
+    #[error("request rejected: {0}")]
+    Rejected(#[from] SchedulerError),
+    /// The task ran and ended without completing.
+    #[error("task ended without completing: {0:?}")]
+    Ended(TaskOutcome),
+}
+
+fn execute<F>(fun: F) -> Result<Var, TaskFailure>
 where
     F: FnOnce() -> Result<TaskHandle, SchedulerError>,
 {
     let task_handle = fun()?;
     loop {
-        match task_handle
+        let (_, outcome) = task_handle
             .receiver()
             .recv_timeout(Duration::from_secs(5))
             .inspect_err(|e| {
@@ -45,17 +52,19 @@ where
                     task_handle.task_id(),
                 )
             })
-            .unwrap()
-        {
-            // Some errors can be represented as a MOO `Var`; translate those to a `Var`, so that
-            // `moot` tests can match against them.
-            (_, Err(TaskAbortedException(Exception { error, .. }))) => return Ok(error.into()),
-            (_, Err(CommandExecutionError(CommandError::NoCommandMatch))) => {
+            .unwrap();
+        match outcome.ending {
+            TaskEnding::Completed(var) => return Ok(var),
+            TaskEnding::Suspended => continue,
+            // Some endings can be represented as a MOO `Var`; translate those to a `Var`, so
+            // that `moot` tests can match against them.
+            TaskEnding::Aborted(AbortReason::Exception(Exception { error, .. })) => {
+                return Ok(error.into());
+            }
+            TaskEnding::Aborted(AbortReason::CommandFailed(CommandError::NoCommandMatch)) => {
                 return Ok(E_VERBNF.msg("No command match").into());
             }
-            (_, Err(err)) => return Err(err),
-            (_, Ok(TaskNotification::Result(var))) => return Ok(var),
-            (_, Ok(TaskNotification::Suspended)) => continue,
+            _ => return Err(TaskFailure::Ended(outcome)),
         }
     }
 }
@@ -65,7 +74,7 @@ pub fn call_command(
     session: Arc<dyn Session>,
     player: &Obj,
     command: &str,
-) -> Result<Var, SchedulerError> {
+) -> Result<Var, TaskFailure> {
     execute(|| scheduler.submit_command_task(&SYSTEM_OBJECT, player, command, session))
 }
 
@@ -74,7 +83,7 @@ pub fn call_eval(
     session: Arc<dyn Session>,
     player: &Obj,
     code: String,
-) -> Result<Var, SchedulerError> {
+) -> Result<Var, TaskFailure> {
     call_eval_with_features(
         scheduler,
         session,
@@ -90,7 +99,7 @@ pub fn call_eval_with_features(
     player: &Obj,
     code: String,
     features: Arc<FeaturesConfig>,
-) -> Result<Var, SchedulerError> {
+) -> Result<Var, TaskFailure> {
     call_eval_with_env_and_features(scheduler, session, player, code, None, features)
 }
 
@@ -100,7 +109,7 @@ pub fn call_eval_with_env(
     player: &Obj,
     code: String,
     initial_env: Option<Vec<(Symbol, Var)>>,
-) -> Result<Var, SchedulerError> {
+) -> Result<Var, TaskFailure> {
     call_eval_with_env_and_features(
         scheduler,
         session,
@@ -118,6 +127,6 @@ pub fn call_eval_with_env_and_features(
     code: String,
     initial_env: Option<Vec<(Symbol, Var)>>,
     features: Arc<FeaturesConfig>,
-) -> Result<Var, SchedulerError> {
+) -> Result<Var, TaskFailure> {
     execute(|| scheduler.submit_eval_task(player, player, code, initial_env, session, features))
 }

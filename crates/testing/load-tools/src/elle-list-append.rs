@@ -27,13 +27,14 @@ use clap_derive::{Parser, ValueEnum};
 use edn_format::{Keyword, Value};
 use moor_common::{
     model::{CommitResult, ObjAttrs, ObjFlag, ObjectKind, TaskPermissions, WorldStateSource},
+    tasks::{Kept, TaskEnding},
     util::BitEnum,
 };
 use moor_db::{Database, TxDB};
 use moor_kernel::{
     SchedulerClient,
     config::{Config, FeaturesConfig},
-    tasks::{NoopTasksDb, SchedulerOp, TaskNotification, sched_counters, scheduler::Scheduler},
+    tasks::{NoopTasksDb, SchedulerOp, sched_counters, scheduler::Scheduler},
 };
 use moor_model_checker::{
     DirectSession, DirectSessionFactory, NoopSystemControl,
@@ -292,12 +293,16 @@ impl Executor for SchedulerExecutor {
         )?;
         let receiver = handle.into_receiver();
         loop {
-            match receiver.recv()? {
-                (_, Ok(TaskNotification::Suspended)) => continue,
-                (_, Ok(TaskNotification::Result(result))) => {
-                    return Ok(Outcome::Committed(eval_reads(ops, &result)?));
+            let (_, outcome) = receiver.recv()?;
+            match &outcome.ending {
+                TaskEnding::Suspended => continue,
+                TaskEnding::Completed(result) => {
+                    return Ok(Outcome::Committed(eval_reads(ops, result)?));
                 }
-                (_, Err(_)) => return Ok(Outcome::Failed),
+                // Only a task known not to have kept its changes is a failed transaction. If it
+                // might have committed, recording `:fail` would be false.
+                _ if outcome.kept == Kept::No => return Ok(Outcome::Failed),
+                _ => return Err(eyre::eyre!("task ended without completing: {outcome:?}")),
             }
         }
     }

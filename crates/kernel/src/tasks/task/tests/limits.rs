@@ -133,7 +133,13 @@ fn task_limit_commits_world_state_and_output_by_default() {
         .unwrap();
 
     let error = wait_result(&handle).unwrap_err();
-    assert!(matches!(error, SchedulerError::TaskAbortedLimit(_)));
+    assert!(matches!(
+        error,
+        TaskOutcome {
+            kept: Kept::Yes,
+            ending: TaskEnding::Aborted(AbortReason::Limit(_)),
+        }
+    ));
     assert_eq!(limit_test_property(&database, "limit_test_value"), v_int(1));
     assert_eq!(
         wait_for_limit_test_messages(&database),
@@ -169,7 +175,13 @@ fn task_limit_can_roll_back_world_state_and_output() {
         .unwrap();
 
     let error = wait_result(&handle).unwrap_err();
-    assert!(matches!(error, SchedulerError::TaskAbortedLimit(_)));
+    assert!(matches!(
+        error,
+        TaskOutcome {
+            kept: Kept::No,
+            ending: TaskEnding::Aborted(AbortReason::Limit(_)),
+        }
+    ));
     assert_eq!(limit_test_property(&database, "limit_test_value"), v_int(0));
     assert_eq!(
         wait_for_limit_test_messages(&database),

@@ -12,11 +12,10 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::tasks::scheduler::*;
-use crate::tasks::{AbortTaskOutcome, TaskNotification, registry::RunningTaskPhase};
+use crate::tasks::{AbortTaskOutcome, registry::RunningTaskPhase};
 use moor_common::tasks::{
-    CommandError, NarrativeEvent, NoopClientSession,
-    SchedulerError::{TaskAbortedCancelled, TaskAbortedError},
-    Session,
+    AbortReason, CommandError, Kept, NarrativeEvent, NoopClientSession, Session, TaskEnding,
+    TaskOutcome,
 };
 use moor_var::{E_QUOTA, List, SYSTEM_OBJECT, Symbol, v_int, v_obj, v_str};
 use std::sync::Barrier;
@@ -58,7 +57,7 @@ fn terminal_task_result_removes_live_membership() {
         .lifecycle
         .lock()
         .task_q
-        .send_task_result(task_id, Ok(v_int(0)));
+        .send_task_result(task_id, TaskOutcome::completed(v_int(0)));
 
     assert!(!scheduler.handle_task_exists(task_id));
 }
@@ -192,7 +191,7 @@ fn stale_worker_client_cannot_complete_replacement_attempt() {
             let active = lc.task_q.active.get_mut(&task_id).unwrap();
             active.result_sender = Some(send);
             active.effects.send(target_id, v_int(17));
-            active.abort_error = Some(SchedulerError::CouldNotStartTask);
+            active.abort_error = Some(AbortReason::Internal("pending abort".to_string()));
         }
 
         callback(&old_client);
@@ -206,7 +205,10 @@ fn stale_worker_client_cannot_complete_replacement_attempt() {
         assert!(Arc::ptr_eq(&active.control, &replacement.control));
         assert_eq!(active.phase, RunningTaskPhase::Running);
         assert_eq!(active.effects.messages_for(target_id), 1);
-        assert_eq!(active.abort_error, Some(SchedulerError::CouldNotStartTask));
+        assert_eq!(
+            active.abort_error,
+            Some(AbortReason::Internal("pending abort".to_string()))
+        );
         assert_eq!(lc.task_q.mailbox_len(task_id), 1);
         assert!(lc.task_q.drain_messages(target_id).is_empty());
         assert!(lc.task_q.settled_results.is_empty());
@@ -296,7 +298,6 @@ fn session_finalization_cannot_settle_a_replacement_attempt() {
 #[test]
 fn finalization_preserves_effect_and_error_policies() {
     use crate::tasks::task_scheduler_client::TaskSchedulerClient;
-    use moor_common::tasks::SchedulerError::{CouldNotStartTask, TaskAbortedException};
     for kind in ["exception", "renewal", "cancellation"] {
         for fail_commit in [false, true] {
             let scheduler = scheduler();
@@ -351,12 +352,28 @@ fn finalization_preserves_effect_and_error_policies() {
             assert_eq!(lc.task_q.mailbox_len(task_id), 0);
             let (id, result) = recv.try_recv().unwrap();
             assert_eq!(id, task_id);
+            // A failed session commit does not change the reported outcome.
             assert!(matches!(
-                (kind, fail_commit, result),
-                ("exception", _, Err(TaskAbortedException(_)))
-                    | ("renewal", false, Err(CouldNotStartTask))
-                    | ("cancellation", false, Err(TaskAbortedCancelled))
-                    | ("renewal" | "cancellation", true, Err(TaskAbortedError))
+                (kind, result),
+                (
+                    "exception",
+                    TaskOutcome {
+                        kept: Kept::Yes,
+                        ending: TaskEnding::Aborted(AbortReason::Exception(_)),
+                    },
+                ) | (
+                    "renewal",
+                    TaskOutcome {
+                        kept: Kept::Yes,
+                        ending: TaskEnding::Aborted(AbortReason::Internal(_)),
+                    },
+                ) | (
+                    "cancellation",
+                    TaskOutcome {
+                        kept: Kept::No,
+                        ending: TaskEnding::Aborted(AbortReason::Cancelled),
+                    },
+                )
             ));
             assert!(matches!(
                 recv.try_recv(),
@@ -406,8 +423,9 @@ fn reserved_completion_rejects_duplicate_callbacks() {
     release_commit.wait();
     worker.join().unwrap();
     assert!(still_pending);
-    assert!(
-        matches!(recv.try_recv(), Ok((256, Ok(TaskNotification::Result(value)))) if value == v_int(17))
+    assert_eq!(
+        recv.try_recv(),
+        Ok((256, TaskOutcome::completed(v_int(17))))
     );
     assert!(scheduler.lifecycle.lock().last_mutation_timestamp.is_none());
     assert!(matches!(

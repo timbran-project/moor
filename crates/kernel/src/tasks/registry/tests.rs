@@ -23,7 +23,7 @@ use crate::tasks::{
 };
 use moor_common::{
     model::ObjFlag,
-    tasks::{NoopClientSession, Session},
+    tasks::{NoopClientSession, Session, TaskOutcome},
     util::{BitEnum, Instant},
 };
 use moor_var::v_int;
@@ -201,7 +201,7 @@ fn abort_task_waits_for_session_finalization() {
     let mut task_q = task_q();
     add_active_task(&mut task_q, 10, Obj::mk_id(2));
     let task = task_q.active.get_mut(&10).unwrap();
-    task.phase = RunningTaskPhase::Completing(Ok(v_int(42)));
+    task.phase = RunningTaskPhase::Completing(TaskOutcome::completed(v_int(42)));
     assert!(task.control.claim_terminal().unwrap().committed());
 
     assert!(matches!(
@@ -245,7 +245,7 @@ fn live_task_membership_ends_with_active_completion() {
     add_active_task(&mut task_q, 10, Obj::mk_id(2));
     assert!(task_q.live_tasks.contains(10));
 
-    task_q.send_task_result(10, Ok(v_int(0)));
+    task_q.send_task_result(10, TaskOutcome::completed(v_int(0)));
 
     assert!(!task_q.live_tasks.contains(10));
 }
@@ -294,7 +294,7 @@ fn abandoned_old_wakeup_preserves_replacement_membership() {
     add_active_task(&mut task_q, 10, Obj::mk_id(4));
     drop(old_wakeup);
     assert!(task_q.live_tasks.contains(10));
-    task_q.send_task_result(10, Ok(v_int(0)));
+    task_q.send_task_result(10, TaskOutcome::completed(v_int(0)));
     assert!(!task_q.live_tasks.contains(10));
 }
 

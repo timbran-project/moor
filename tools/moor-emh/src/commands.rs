@@ -18,10 +18,10 @@ use crate::{
 use crossterm::style::Stylize;
 use eyre::{Report, bail, eyre};
 use moor_common::model::{Named, ObjectKind, ValSet};
-use moor_common::tasks::{SchedulerError, SessionFactory};
+use moor_common::tasks::{AbortReason, SessionFactory, TaskEnding, TaskOutcome};
 use moor_compiler::to_literal;
 use moor_db::{Database, TxDB};
-use moor_kernel::{SchedulerClient, config::FeaturesConfig, tasks::TaskNotification};
+use moor_kernel::{SchedulerClient, config::FeaturesConfig};
 use moor_objdef::dump_snapshot_object_definitions;
 use moor_var::{Obj, Symbol};
 use rustyline::Editor;
@@ -66,10 +66,10 @@ pub(crate) fn print_success(message: impl AsRef<str>) {
     println!("{} {}", "✓".green().bold(), message.as_ref());
 }
 
-/// Format a SchedulerError for user-friendly display
-pub(crate) fn format_scheduler_error(err: &SchedulerError) -> String {
-    match err {
-        SchedulerError::TaskAbortedException(exception) => {
+/// Format a task outcome that did not complete for user-friendly display
+pub(crate) fn format_task_failure(outcome: &TaskOutcome) -> String {
+    match &outcome.ending {
+        TaskEnding::Aborted(AbortReason::Exception(exception)) => {
             let mut msg = format!("MOO Error: {}\n", exception.error);
             if !exception.backtrace.is_empty() {
                 msg.push_str("Traceback:\n");
@@ -81,7 +81,8 @@ pub(crate) fn format_scheduler_error(err: &SchedulerError) -> String {
             }
             msg
         }
-        _ => format!("{err}"),
+        TaskEnding::Aborted(reason) => format!("{reason}"),
+        _ => format!("{outcome:?}"),
     }
 }
 
@@ -110,19 +111,20 @@ pub(crate) fn exec_code_block(
 
     let result = loop {
         match handle.receiver().recv_timeout(Duration::from_secs(30)) {
-            Ok((_task_id, Ok(TaskNotification::Suspended))) => continue,
+            Ok((_task_id, outcome)) if outcome.ending == TaskEnding::Suspended => continue,
             other => break other,
         }
     };
 
     match result {
-        Ok((_task_id, Ok(TaskNotification::Result(value)))) => {
-            println!("=> {}", to_literal(&value));
-            Ok(())
-        }
-        Ok((_task_id, Err(e))) => bail!("Execution failed: {}", format_scheduler_error(&e)),
+        Ok((_task_id, outcome)) => match outcome.completed_value() {
+            Some(value) => {
+                println!("=> {}", to_literal(value));
+                Ok(())
+            }
+            None => bail!("Execution failed: {}", format_task_failure(&outcome)),
+        },
         Err(_) => bail!("Task timed out after 30 seconds"),
-        _ => bail!("Task was replaced by scheduler"),
     }
 }
 
@@ -185,18 +187,14 @@ pub(crate) fn cmd_get(
             .receiver()
             .recv_timeout(std::time::Duration::from_secs(30))
             .map_err(|_| eyre!("Task timed out"))?;
-        match result {
-            Ok(TaskNotification::Suspended) => continue,
-            other => break other,
+        if result.ending != TaskEnding::Suspended {
+            break result;
         }
     };
 
-    let Ok(TaskNotification::Result(value)) = result else {
-        if let Err(e) = result {
-            eprintln!("{}", format_scheduler_error(&e));
-            bail!("Failed to get property");
-        }
-        bail!("Unexpected result");
+    let Some(value) = result.completed_value().cloned() else {
+        eprintln!("{}", format_task_failure(&result));
+        bail!("Failed to get property");
     };
 
     println!(
@@ -258,16 +256,16 @@ pub(crate) fn cmd_set(
         .recv_timeout(std::time::Duration::from_secs(30))
         .map_err(|_| eyre!("Task timed out"))?;
 
-    let Err(e) = result else {
+    if result.completed_value().is_some() {
         print_success(format!(
             "Property {}.{} set successfully",
             obj.to_literal(),
             prop.as_string()
         ));
         return Ok(());
-    };
+    }
 
-    eprintln!("{}", format_scheduler_error(&e));
+    eprintln!("{}", format_task_failure(&result));
     bail!("Failed to set property");
 }
 
@@ -417,13 +415,12 @@ pub(crate) fn cmd_prog(
             .receiver()
             .recv_timeout(std::time::Duration::from_secs(30))
             .map_err(|_| eyre!("Task timed out"))?;
-        match result {
-            Ok(TaskNotification::Suspended) => continue,
-            other => break other,
+        if result.ending != TaskEnding::Suspended {
+            break result;
         }
     };
 
-    let Err(e) = result else {
+    if result.completed_value().is_some() {
         print_success(format!(
             "Verb {}:{} programmed successfully ({} lines)",
             obj.to_literal(),
@@ -431,9 +428,9 @@ pub(crate) fn cmd_prog(
             code_lines.len()
         ));
         return Ok(());
-    };
+    }
 
-    eprintln!("{}", format_scheduler_error(&e));
+    eprintln!("{}", format_task_failure(&result));
     bail!("Failed to program verb");
 }
 
@@ -461,18 +458,14 @@ pub(crate) fn cmd_su(
             .receiver()
             .recv_timeout(std::time::Duration::from_secs(30))
             .map_err(|_| eyre!("Task timed out"))?;
-        match result {
-            Ok(TaskNotification::Suspended) => continue,
-            other => break other,
+        if result.ending != TaskEnding::Suspended {
+            break result;
         }
     };
 
-    let Ok(TaskNotification::Result(value)) = result else {
-        if let Err(e) = result {
-            eprintln!("{}", format_scheduler_error(&e));
-            bail!("Failed to check object");
-        }
-        bail!("Unexpected result");
+    let Some(value) = result.completed_value().cloned() else {
+        eprintln!("{}", format_task_failure(&result));
+        bail!("Failed to check object");
     };
 
     // Parse the result list {valid, is_player}
@@ -534,18 +527,14 @@ pub(crate) fn cmd_list(
             .receiver()
             .recv_timeout(std::time::Duration::from_secs(30))
             .map_err(|_| eyre!("Task timed out"))?;
-        match result {
-            Ok(TaskNotification::Suspended) => continue,
-            other => break other,
+        if result.ending != TaskEnding::Suspended {
+            break result;
         }
     };
 
-    let Ok(TaskNotification::Result(value)) = result else {
-        if let Err(e) = result {
-            eprintln!("{}", format_scheduler_error(&e));
-            bail!("Failed to list verb");
-        }
-        bail!("Unexpected result");
+    let Some(value) = result.completed_value().cloned() else {
+        eprintln!("{}", format_task_failure(&result));
+        bail!("Failed to list verb");
     };
 
     let Some(lines) = value.as_list() else {
@@ -604,18 +593,14 @@ pub(crate) fn cmd_dump(
             .receiver()
             .recv_timeout(std::time::Duration::from_secs(30))
             .map_err(|_| eyre!("Task timed out"))?;
-        match result {
-            Ok(TaskNotification::Suspended) => continue,
-            other => break other,
+        if result.ending != TaskEnding::Suspended {
+            break result;
         }
     };
 
-    let Ok(TaskNotification::Result(value)) = result else {
-        if let Err(e) = result {
-            eprintln!("{}", format_scheduler_error(&e));
-            bail!("Failed to dump object");
-        }
-        bail!("Unexpected result");
+    let Some(value) = result.completed_value().cloned() else {
+        eprintln!("{}", format_task_failure(&result));
+        bail!("Failed to dump object");
     };
 
     let Some(lines) = value.as_list() else {

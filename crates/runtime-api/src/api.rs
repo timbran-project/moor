@@ -23,7 +23,7 @@ use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use moor_common::model::{ObjectRef, PropDef, PropPerms, VerbDef, VerbDefs};
-use moor_common::tasks::{NarrativeEvent, SchedulerError};
+use moor_common::tasks::{NarrativeEvent, SchedulerError, TaskOutcome};
 use moor_common::util::MetricsSnapshot;
 use moor_var::{Obj, Symbol, Var};
 use uuid::Uuid;
@@ -213,25 +213,13 @@ pub enum VerbProgramResponse {
     Failure { error: SchedulerError },
 }
 
-/// Whether a captured invocation returned a value or failed.
-#[derive(Debug, Clone)]
-pub enum InvocationOutcome {
-    Success { result: Var },
-    Error { error: SchedulerError },
-}
-
-/// The outcome and committed narrative output of a captured invocation.
+/// The reply to a call that ran a task: how the task ended, and the narrative output it addressed
+/// to the caller when the call captured output.
 #[derive(Debug, Clone)]
 pub struct InvocationResponse {
-    pub outcome: InvocationOutcome,
+    pub outcome: TaskOutcome,
+    /// Empty when the task's output went to the caller's connection.
     pub output: Vec<moor_common::tasks::NarrativeEvent>,
-}
-
-/// Outcome of invoking a system handler.
-#[derive(Debug, Clone)]
-pub enum SystemHandlerResponse {
-    Success { result: Var },
-    Error { error: SchedulerError },
 }
 
 /// A historical narrative event from the event log.
@@ -328,16 +316,10 @@ pub enum ClientEvent {
         message: String,
     },
     Disconnect,
-    TaskError {
+    /// A task the client submitted ended or suspended.
+    TaskOutcome {
         task_id: u64,
-        error: SchedulerError,
-    },
-    TaskSuccess {
-        task_id: u64,
-        result: Var,
-    },
-    TaskSuspended {
-        task_id: u64,
+        outcome: TaskOutcome,
     },
     PlayerSwitched {
         new_player: Obj,
@@ -725,9 +707,6 @@ pub enum ClientReply {
         task_id: u64,
     },
     InputThanks,
-    EvalResult {
-        result: Var,
-    },
     ThanksPong {
         timestamp: u64,
     },
@@ -774,11 +753,7 @@ pub enum ClientReply {
         objects: Vec<ObjectInfo>,
     },
     PropertyUpdated,
-    SystemHandlerResponseReply {
-        response: SystemHandlerResponse,
-        /// Narrative events the handler addressed to its caller, for the host to deliver.
-        output: Vec<moor_common::tasks::NarrativeEvent>,
-    },
+    /// The reply to eval, verb invocation, captured commands and system handlers.
     InvocationResponse {
         response: InvocationResponse,
     },

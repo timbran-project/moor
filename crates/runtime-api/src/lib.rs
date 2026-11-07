@@ -30,6 +30,7 @@ mod client_event_replay;
 pub mod session_pong;
 #[cfg(feature = "task-client")]
 pub mod task_client;
+mod task_outcome;
 #[cfg(feature = "task-client")]
 pub use client_event_replay::RecoveringClientEventSubscription;
 pub use host::{ListenerKind, extract_listener_kind};
@@ -52,6 +53,7 @@ pub use extract::{
 };
 
 pub use errors::*;
+pub use task_outcome::{task_outcome_from_ref, task_outcome_to_flatbuffer_struct};
 
 pub fn read_reply_result(bytes: &[u8]) -> Result<rpc::ReplyResultRef<'_>, planus::Error> {
     rpc::ReplyResultRef::read_as_root(bytes)
@@ -203,8 +205,9 @@ pub enum RpcMessageError {
     CreateSessionFailed,
     #[error("Permission denied")]
     PermissionDenied,
-    #[error("Error scheduling task")]
-    TaskError(SchedulerError),
+    /// The scheduler refused the request, so no task ran.
+    #[error("Request rejected: {0}")]
+    Rejected(SchedulerError),
     #[error("Error retreiving entity: {0}")]
     EntityRetrievalError(String),
     #[error("Internal error: {0}")]

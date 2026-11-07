@@ -24,7 +24,7 @@ use uuid::Uuid;
 
 use crate::rpc::{DeferredCalls, SessionActions};
 use flume::Sender;
-use moor_common::tasks::{SchedulerError, TaskId};
+use moor_common::tasks::{TaskEnding, TaskId};
 use moor_kernel::tasks::TaskHandle;
 use moor_runtime_api::api::ClientEvent;
 
@@ -146,13 +146,7 @@ impl TaskMonitor {
     fn process_task_completion(
         &self,
         index: usize,
-        result: Result<
-            (
-                TaskId,
-                Result<moor_kernel::tasks::TaskNotification, SchedulerError>,
-            ),
-            flume::RecvError,
-        >,
+        result: Result<moor_kernel::tasks::TaskResult, flume::RecvError>,
         task_client_ids: &[(TaskId, TaskOwner)],
     ) {
         let task_id = task_client_ids[index].0;
@@ -161,10 +155,9 @@ impl TaskMonitor {
             TaskOwner::Client(client_id) => *client_id,
             TaskOwner::Deferred(deferred) => {
                 match result {
-                    Ok((task_id, result)) => {
-                        let suspended =
-                            matches!(result, Ok(moor_kernel::tasks::TaskNotification::Suspended));
-                        deferred.task_result(task_id, result);
+                    Ok((task_id, outcome)) => {
+                        let suspended = outcome.ending == TaskEnding::Suspended;
+                        deferred.task_result(task_id, outcome);
                         if !suspended {
                             self.task_handles.remove(&task_id, &guard);
                         }
@@ -178,59 +171,26 @@ impl TaskMonitor {
             }
         };
         match result {
-            Ok((task_id, r)) => match r {
-                Ok(moor_kernel::tasks::TaskNotification::Result(v)) => {
-                    let client_event = ClientEvent::TaskSuccess {
-                        task_id: task_id as u64,
-                        result: v,
-                    };
-
-                    if let Err(e) = self
-                        .mailbox_sender
-                        .send(SessionActions::PublishTaskCompletion(
-                            client_id,
-                            client_event,
-                        ))
-                    {
-                        tracing::error!(error = ?e, client_id = ?client_id, "Failed to send task completion for publishing");
-                    }
-
+            Ok((task_id, outcome)) => {
+                // A suspended task is still running, so its handle stays until it ends.
+                let ended = outcome.ending != TaskEnding::Suspended;
+                let client_event = ClientEvent::TaskOutcome {
+                    task_id: task_id as u64,
+                    outcome,
+                };
+                if let Err(e) = self
+                    .mailbox_sender
+                    .send(SessionActions::PublishTaskCompletion(
+                        client_id,
+                        client_event,
+                    ))
+                {
+                    tracing::error!(error = ?e, client_id = ?client_id, "Failed to send task outcome for publishing");
+                }
+                if ended {
                     self.task_handles.remove(&task_id, &guard);
                 }
-                Ok(moor_kernel::tasks::TaskNotification::Suspended) => {
-                    let client_event = ClientEvent::TaskSuspended {
-                        task_id: task_id as u64,
-                    };
-
-                    if let Err(e) = self
-                        .mailbox_sender
-                        .send(SessionActions::PublishTaskCompletion(
-                            client_id,
-                            client_event,
-                        ))
-                    {
-                        tracing::error!(error = ?e, client_id = ?client_id, "Failed to send task suspension event");
-                    }
-                }
-                Err(e) => {
-                    let client_event = ClientEvent::TaskError {
-                        task_id: task_id as u64,
-                        error: e,
-                    };
-
-                    if let Err(e) = self
-                        .mailbox_sender
-                        .send(SessionActions::PublishTaskCompletion(
-                            client_id,
-                            client_event,
-                        ))
-                    {
-                        tracing::error!(error = ?e, client_id = ?client_id, "Failed to send task completion for publishing");
-                    }
-
-                    self.task_handles.remove(&task_id, &guard);
-                }
-            },
+            }
             Err(_e) => {
                 self.task_handles.remove(&task_id, &guard);
             }
@@ -241,7 +201,7 @@ impl TaskMonitor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use moor_kernel::tasks::TaskNotification;
+    use moor_common::tasks::TaskOutcome;
     use moor_var::v_int;
     use std::time::Instant;
 
@@ -266,7 +226,7 @@ mod tests {
 
         let (finished_send, finished_receive) = flume::unbounded();
         finished_send
-            .send((2, Ok(TaskNotification::Result(v_int(1)))))
+            .send((2, TaskOutcome::completed(v_int(1))))
             .unwrap();
         let added = Instant::now();
         monitor
@@ -283,8 +243,8 @@ mod tests {
             published,
             Ok(SessionActions::PublishTaskCompletion(
                 _,
-                ClientEvent::TaskSuccess { task_id: 2, .. }
-            ))
+                ClientEvent::TaskOutcome { task_id: 2, outcome }
+            )) if outcome == TaskOutcome::completed(v_int(1))
         ));
         assert!(
             elapsed < Duration::from_millis(500),

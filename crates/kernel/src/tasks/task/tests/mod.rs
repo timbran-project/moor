@@ -27,8 +27,8 @@ use moor_common::{
         loader::{LoaderInterface, SnapshotInterface},
     },
     tasks::{
-        CommandError, MockClientSession, NoopClientSession, NoopSystemControl, SchedulerError,
-        SessionError, SessionFactory, SystemControl,
+        AbortReason, CommandError, Kept, MockClientSession, NoopClientSession, NoopSystemControl,
+        SessionError, SessionFactory, SystemControl, TaskEnding, TaskOutcome,
     },
     util::BitEnum,
 };
@@ -42,7 +42,7 @@ use moor_var::{
 use crate::{
     config::{Config, FeaturesConfig},
     tasks::{
-        NoopTasksDb, TaskHandle, TaskNotification,
+        NoopTasksDb, TaskHandle,
         scheduler::{Scheduler, SchedulerThreads},
         scheduler_client::SchedulerClient,
     },
@@ -182,17 +182,17 @@ fn setup_scheduler(verbs: &[TestVerb]) -> (SchedulerClient, RunningScheduler) {
     start_scheduler(Box::new(setup_database(verbs)))
 }
 
-/// Wait for a task result, handling suspended notifications.
-fn wait_result(handle: &TaskHandle) -> Result<moor_var::Var, SchedulerError> {
+/// Wait for a task result, skipping suspended notifications. Any other ending is the error.
+fn wait_result(handle: &TaskHandle) -> Result<moor_var::Var, TaskOutcome> {
     loop {
-        match handle
+        let (_, outcome) = handle
             .receiver()
             .recv_timeout(Duration::from_secs(5))
-            .expect("Task result timed out")
-        {
-            (_, Ok(TaskNotification::Result(v))) => return Ok(v),
-            (_, Ok(TaskNotification::Suspended)) => continue,
-            (_, Err(e)) => return Err(e),
+            .expect("Task result timed out");
+        match outcome.ending {
+            TaskEnding::Completed(v) => return Ok(v),
+            TaskEnding::Suspended => continue,
+            _ => return Err(outcome),
         }
     }
 }

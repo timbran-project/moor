@@ -13,6 +13,7 @@
 
 mod errors;
 mod events;
+mod outcome;
 mod sessions;
 
 pub type TaskId = usize;
@@ -22,6 +23,7 @@ pub use errors::{
 };
 
 pub use events::{Event, NarrativeEvent, Presentation};
+pub use outcome::{AbortReason, Kept, TaskEnding, TaskOutcome};
 pub use sessions::{
     ConnectionDetails, EventLogPurgeResult, EventLogStats, ListenerInfo, MockClientSession,
     NoopClientSession, NoopSystemControl, Session, SessionError, SessionFactory, SystemControl,

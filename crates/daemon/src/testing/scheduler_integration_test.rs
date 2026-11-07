@@ -26,11 +26,12 @@ mod tests {
 
     use crate::testing::{MockTransport, test_env};
     use moor_common::model::ObjectRef;
-    use moor_common::tasks::Event;
+    use moor_common::tasks::{Event, TaskOutcome};
     use moor_runtime_api::{
         AuthToken, BatchAction, ClientToken, mk_batch_world_state_msg, mk_command_msg,
-        mk_connection_establish_msg, mk_eval_msg, mk_login_command_msg, ws_list_objects,
-        ws_request_system_property, ws_resolve_object, ws_update_property,
+        mk_connection_establish_msg, mk_eval_msg, mk_login_command_msg,
+        task_outcome_to_flatbuffer_struct, ws_list_objects, ws_request_system_property,
+        ws_resolve_object, ws_update_property,
     };
     use moor_schema::{convert::var_from_flatbuffer, rpc as moor_rpc};
     use moor_var::{E_PERM, Obj, SYSTEM_OBJECT, Var, v_err, v_str};
@@ -835,15 +836,15 @@ mod tests {
                 eval,
             )
             .expect("Non-wizard GC check should finish");
-        let moor_rpc::DaemonToClientReplyUnion::EvalResult(result) = reply.reply else {
+        let moor_rpc::DaemonToClientReplyUnion::InvocationResponse(response) = reply.reply else {
             panic!(
-                "Expected EvalResult for GC permission check: {:?}",
+                "Expected InvocationResponse for GC permission check: {:?}",
                 reply.reply
             );
         };
         assert_eq!(
-            var_from_flatbuffer(*result.result).unwrap(),
-            v_err(E_PERM),
+            *response.outcome,
+            task_outcome_to_flatbuffer_struct(&TaskOutcome::completed(v_err(E_PERM))).unwrap(),
             "gc_collect() should raise E_PERM under non-wizard task permissions"
         );
     }

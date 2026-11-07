@@ -14,7 +14,9 @@
 //! Cancellation and abort policy for active and suspended tasks.
 
 use super::complete::TaskCompletion;
-use crate::tasks::registry::{RegisteredSuspendedTask, RunningTaskPhase, TaskDispatch};
+use crate::tasks::registry::{
+    RegisteredSuspendedTask, RunningTaskPhase, TaskDispatch, WakeCondition,
+};
 use crate::tasks::{
     AbortTaskOutcome, SchedulerOp, sched_counters,
     scheduler::{
@@ -24,18 +26,20 @@ use crate::tasks::{
 };
 use moor_common::{
     model::TaskPermissions,
-    tasks::{
-        SchedulerError,
-        SchedulerError::{TaskAbortedCancelled, TaskAbortedError},
-        TaskId,
-    },
+    tasks::{AbortReason, Kept, TaskId, TaskOutcome},
 };
 use moor_var::{E_INVARG, Obj, Var, v_err};
 use std::backtrace::Backtrace;
 use tracing::{debug, warn};
 
 impl Scheduler {
-    pub(crate) fn handle_task_abort_cancelled_for_dispatch(&self, dispatch: &TaskDispatch) {
+    /// End a task that stopped without committing. `reason` is reported unless the scheduler had
+    /// requested the abort with a reason of its own.
+    pub(crate) fn handle_task_abort_cancelled_for_dispatch(
+        &self,
+        dispatch: &TaskDispatch,
+        reason: AbortReason,
+    ) {
         let task_id = dispatch.task_id();
         let requested_abort = {
             let mut lc = self.lifecycle.lock();
@@ -50,9 +54,9 @@ impl Scheduler {
             if task.phase != RunningTaskPhase::Running {
                 return;
             }
-            task.abort_error
-                .take()
-                .and_then(|error| TaskCompletion::reserve(task_id, task, Err(error)))
+            task.abort_error.take().and_then(|reason| {
+                TaskCompletion::reserve(task_id, task, TaskOutcome::aborted(reason, Kept::No))
+            })
         };
         if let Some(completion) = requested_abort {
             if let Err(session_error) = completion.session.rollback() {
@@ -85,7 +89,7 @@ impl Scheduler {
                 .get_mut(&task_id)
                 .expect("checked current attempt");
             let Some(completion) =
-                TaskCompletion::reserve(task_id, task, Err(TaskAbortedCancelled))
+                TaskCompletion::reserve(task_id, task, TaskOutcome::aborted(reason, Kept::No))
             else {
                 return;
             };
@@ -115,16 +119,17 @@ impl Scheduler {
             return completion.finish(&mut self.lifecycle.lock());
         }
         if completion.session.commit().is_err() {
-            warn!("Could not commit aborted session; aborting task");
-            return completion
-                .finish_with_result(&mut self.lifecycle.lock(), Err(TaskAbortedError));
+            warn!(
+                task_id,
+                "Could not commit a cancelled task's session; output may be lost"
+            );
         }
         completion.finish(&mut self.lifecycle.lock());
     }
 
     /// The task killed itself with `kill_task(task_id())` and has committed. LambdaMOO keeps a
     /// self-killed task's changes, so its session output and task effects are published like a
-    /// committed task's. The result is still `TaskAbortedCancelled`.
+    /// committed task's.
     pub(crate) fn handle_task_killed_for_dispatch(&self, dispatch: &TaskDispatch) {
         let task_id = dispatch.task_id();
         let perfc = sched_counters();
@@ -139,9 +144,11 @@ impl Scheduler {
                 .active
                 .get_mut(&task_id)
                 .expect("checked current attempt");
-            let Some(completion) =
-                TaskCompletion::reserve(task_id, task, Err(TaskAbortedCancelled))
-            else {
+            let Some(completion) = TaskCompletion::reserve(
+                task_id,
+                task,
+                TaskOutcome::aborted(AbortReason::Killed, Kept::Yes),
+            ) else {
                 return;
             };
             if let Err(send_error) = completion.session.send_system_msg(task.player, "Aborted.") {
@@ -184,8 +191,15 @@ impl Scheduler {
         lc.discard_task_effects(task_id);
         lc.task_q.remove_message_queue(task_id);
 
-        // Task already dead, can't access session. Just send error result directly.
-        lc.task_q.send_task_result(task_id, Err(TaskAbortedError));
+        // Task already dead, can't access session. Just send error result directly. The panic may
+        // have come before or after the task's commit.
+        lc.task_q.send_task_result(
+            task_id,
+            TaskOutcome::aborted(
+                AbortReason::Internal(format!("task thread panicked: {panic_msg}")),
+                Kept::Unknown,
+            ),
+        );
     }
 
     pub fn handle_kill_task(
@@ -256,10 +270,17 @@ impl TaskLifecycle {
         task.task.control.request_cancel();
         self.task_q.remove_message_queue(task_id);
         self.task_q.suspended.enqueue_dependents_for(task_id);
+        // A task waiting to retry a conflicting commit has not committed its attempt; any other
+        // suspended task committed when it suspended.
+        let kept = if matches!(task.record.wake_condition, WakeCondition::Retry(_)) {
+            Kept::No
+        } else {
+            Kept::Yes
+        };
         self.task_q.send_task_result_direct(
             task.registration,
             task.record.result_sender,
-            Err(SchedulerError::TaskAbortedCancelled),
+            TaskOutcome::aborted(AbortReason::Cancelled, kept),
         );
     }
 

@@ -23,7 +23,7 @@ use crate::{
     config::Config,
     task_context::TaskGuard,
     tasks::{
-        SchedulerOp, TaskNotification,
+        SchedulerOp,
         registry::{LiveTaskRegistration, RunningTask, RunningTaskPhase},
         sched_counters,
         task::Task,
@@ -35,7 +35,7 @@ use crate::{
 };
 use flume::Sender;
 use moor_common::{
-    tasks::{SchedulerError, Session, TaskId},
+    tasks::{SchedulerError, Session},
     util::Instant,
 };
 use moor_db::Database;
@@ -49,7 +49,7 @@ impl TaskLifecycle {
         mut task: Box<Task>,
         resume_action: ResumeAction,
         session: Arc<dyn Session>,
-        result_sender: Option<Sender<(TaskId, Result<TaskNotification, SchedulerError>)>>,
+        result_sender: Option<Sender<crate::tasks::TaskResult>>,
         scheduler: &Scheduler,
         database: &dyn Database,
         builtin_registry: BuiltinRegistry,

@@ -353,9 +353,7 @@ impl ClientSession {
                         ClientEvent::RequestInput { request_id, .. } => {
                             expecting_input.push_back(*request_id);
                         }
-                        ClientEvent::TaskSuccess { .. } |
-                        ClientEvent::TaskError { .. } |
-                        ClientEvent::TaskSuspended { .. } => {
+                        ClientEvent::TaskOutcome { .. } => {
                             // Clear the pending task so we can process the next command
                             self.pending_task = None;
                         }

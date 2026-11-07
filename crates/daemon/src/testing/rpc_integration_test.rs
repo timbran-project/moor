@@ -23,7 +23,10 @@ mod tests {
     use uuid::Uuid;
 
     use crate::testing::{MockTransport, test_env};
-    use moor_common::model::ObjectRef;
+    use moor_common::{
+        model::ObjectRef,
+        tasks::{AbortReason, Kept, TaskEnding, TaskOutcome},
+    };
     use moor_runtime_api::{
         AuthToken, ClientToken, RpcMessageError, api::ClientEvent, mk_client_data_msg,
         mk_client_pong_msg, mk_command_capture_msg, mk_command_msg, mk_connection_establish_msg,
@@ -32,6 +35,7 @@ mod tests {
         mk_invoke_welcome_message_msg, mk_login_command_msg, mk_program_msg, mk_properties_msg,
         mk_register_host_msg, mk_request_metrics_msg, mk_request_sys_prop_msg,
         mk_requested_input_msg, mk_set_client_attribute_msg, mk_verbs_msg, obj_fb,
+        task_outcome_from_ref,
     };
     use moor_schema::{convert::obj_from_flatbuffer_struct, rpc as moor_rpc};
     use moor_var::{Obj, SYSTEM_OBJECT, Symbol};
@@ -1163,33 +1167,6 @@ mod tests {
         (auth_token, player)
     }
 
-    /// The response and captured output of a system handler reply.
-    fn system_handler_reply(
-        reply: &moor_rpc::DaemonToClientReply,
-    ) -> (
-        moor_rpc::SystemHandlerResponseUnion,
-        Vec<moor_common::tasks::NarrativeEvent>,
-    ) {
-        let moor_rpc::DaemonToClientReplyUnion::SystemHandlerResponseReply(response) = &reply.reply
-        else {
-            panic!("Expected SystemHandlerResponseReply, got {:?}", reply.reply);
-        };
-        let output = response
-            .output
-            .iter()
-            .flatten()
-            .map(|event| {
-                let mut builder = planus::Builder::new();
-                let bytes = builder.finish(event, None).to_vec();
-                moor_schema::convert::narrative_event_from_ref(
-                    moor_schema::common::NarrativeEventRef::read_as_root(&bytes).unwrap(),
-                )
-                .expect("Failed to decode narrative event")
-            })
-            .collect();
-        (response.response.clone(), output)
-    }
-
     fn captured_output(
         response: &moor_rpc::InvocationResponse,
     ) -> Vec<moor_common::tasks::NarrativeEvent> {
@@ -1207,41 +1184,34 @@ mod tests {
             .collect()
     }
 
+    /// The outcome and captured narrative events of a call that ran a task.
+    fn captured_outcome(
+        reply: &moor_rpc::DaemonToClientReply,
+    ) -> (TaskOutcome, Vec<moor_common::tasks::NarrativeEvent>) {
+        let moor_rpc::DaemonToClientReplyUnion::InvocationResponse(response) = &reply.reply else {
+            panic!("Expected InvocationResponse, got {:?}", reply.reply);
+        };
+        let mut builder = planus::Builder::new();
+        let bytes = builder.finish(response.outcome.as_ref(), None).to_vec();
+        let outcome =
+            task_outcome_from_ref(moor_rpc::TaskOutcomeRef::read_as_root(&bytes).unwrap())
+                .expect("Failed to decode task outcome");
+        (outcome, captured_output(response))
+    }
+
     /// The result value and captured narrative events of a successful captured call.
     fn captured_success(
         reply: &moor_rpc::DaemonToClientReply,
     ) -> (moor_var::Var, Vec<moor_common::tasks::NarrativeEvent>) {
-        let moor_rpc::DaemonToClientReplyUnion::InvocationResponse(response) = &reply.reply else {
-            panic!("Expected InvocationResponse, got {:?}", reply.reply);
+        let (outcome, output) = captured_outcome(reply);
+        let TaskOutcome {
+            kept: Kept::Yes,
+            ending: TaskEnding::Completed(result),
+        } = outcome
+        else {
+            panic!("Expected success, got {outcome:?}");
         };
-        let moor_rpc::InvocationOutcome::InvocationSuccess(success) = &response.outcome else {
-            panic!("Expected success, got {:?}", response.outcome);
-        };
-
-        let mut builder = planus::Builder::new();
-        let result_bytes = builder.finish(success.result.as_ref(), None).to_vec();
-        let result = moor_schema::convert::var_from_flatbuffer_ref(
-            moor_schema::var::VarRef::read_as_root(&result_bytes).unwrap(),
-        )
-        .expect("Failed to decode result var");
-
-        (result, captured_output(response))
-    }
-
-    /// The scheduler error and committed narrative events of a failed captured call.
-    fn captured_error(
-        reply: &moor_rpc::DaemonToClientReply,
-    ) -> (
-        moor_rpc::SchedulerError,
-        Vec<moor_common::tasks::NarrativeEvent>,
-    ) {
-        let moor_rpc::DaemonToClientReplyUnion::InvocationResponse(response) = &reply.reply else {
-            panic!("Expected InvocationResponse, got {:?}", reply.reply);
-        };
-        let moor_rpc::InvocationOutcome::InvocationError(error) = &response.outcome else {
-            panic!("Expected error, got {:?}", response.outcome);
-        };
-        (*error.error.clone(), captured_output(response))
+        (result, output)
     }
 
     fn captured_notify_text(output: &[moor_common::tasks::NarrativeEvent]) -> Vec<String> {
@@ -1379,7 +1349,7 @@ mod tests {
     }
 
     #[test]
-    fn test_captured_eval_reports_compile_errors_as_outcomes() {
+    fn test_captured_eval_rejects_compile_errors() {
         let env = setup_test_environment();
         let (_client_token, auth_token, _player) = logged_in_wizard(&env, Uuid::new_v4());
 
@@ -1398,23 +1368,16 @@ mod tests {
                 Uuid::new_v4(),
                 eval,
             )
-            .expect("A compile error is a result, not an RPC failure");
+            .expect_err("A compile error is refused before any task runs");
 
-        let (error, output) = captured_error(&reply);
-        let moor_rpc::SchedulerErrorUnion::CompilationError(compilation) = error.error else {
-            panic!("Expected CompilationError, got {:?}", error.error);
-        };
-        let moor_schema::common::CompileErrorUnion::DuplicateVariable(duplicate) =
-            compilation.error.error
+        let RpcMessageError::Rejected(moor_common::tasks::SchedulerError::CompilationError(
+            moor_common::model::CompileError::DuplicateVariable(context, name),
+        )) = reply
         else {
-            panic!(
-                "Expected DuplicateVariable, got {:?}",
-                compilation.error.error
-            );
+            panic!("Expected a rejected DuplicateVariable compile error, got {reply:?}");
         };
-        assert_eq!(duplicate.var_name.value, "b");
-        assert_eq!(duplicate.context.line, 2);
-        assert!(output.is_empty());
+        assert_eq!(name.as_string(), "b");
+        assert_eq!(context.line_col.0, 2);
     }
 
     #[test]
@@ -1439,7 +1402,7 @@ mod tests {
         assert!(
             matches!(
                 &missing_verb,
-                RpcMessageError::TaskError(SchedulerError::VerbRetrievalFailed(
+                RpcMessageError::Rejected(SchedulerError::VerbRetrievalFailed(
                     WorldStateError::VerbNotFound(_, name)
                 )) if name == "no_such_verb"
             ),
@@ -1454,7 +1417,7 @@ mod tests {
         assert!(
             matches!(
                 &missing_object,
-                RpcMessageError::TaskError(SchedulerError::CommandExecutionError(
+                RpcMessageError::Rejected(SchedulerError::CommandExecutionError(
                     moor_common::tasks::CommandError::NoObjectMatch
                 ))
             ),
@@ -1485,11 +1448,11 @@ mod tests {
             )
             .expect("Captured eval should reply once the deadline passes");
 
-        let (error, _output) = captured_error(&reply);
-        let moor_rpc::SchedulerErrorUnion::TaskAbortedLimit(limit) = error.error else {
-            panic!("Expected TaskAbortedLimit, got {:?}", error.error);
-        };
-        assert_eq!(limit.limit.reason, moor_rpc::AbortLimitReason::Time);
+        let (outcome, _output) = captured_outcome(&reply);
+        assert_eq!(
+            outcome,
+            TaskOutcome::aborted(AbortReason::Deadline(Duration::from_millis(500)), Kept::No)
+        );
     }
 
     #[test]
@@ -1515,22 +1478,11 @@ mod tests {
                 invoke,
             )
             .expect("System handler should run without connection state");
-        let moor_rpc::DaemonToClientReplyUnion::SystemHandlerResponseReply(response) = &reply.reply
-        else {
-            panic!("Expected SystemHandlerResponseReply, got {:?}", reply.reply);
-        };
-        let moor_rpc::SystemHandlerResponseUnion::SystemHandlerSuccess(success) =
-            &response.response
-        else {
-            panic!("Expected SystemHandlerSuccess, got {:?}", response.response);
-        };
-        let mut builder = planus::Builder::new();
-        let bytes = builder.finish(success.result.as_ref(), None).to_vec();
-        let result = moor_schema::convert::var_from_flatbuffer_ref(
-            moor_schema::var::VarRef::read_as_root(&bytes).unwrap(),
-        )
-        .expect("System handler result should decode");
-        assert_eq!(result, moor_var::v_str("webhook response"));
+        let (outcome, _output) = captured_outcome(&reply);
+        assert_eq!(
+            outcome,
+            TaskOutcome::completed(moor_var::v_str("webhook response"))
+        );
     }
 
     #[test]
@@ -1559,10 +1511,8 @@ mod tests {
                 invoke,
             )
             .expect("System handler should run");
-        let (response, output) = system_handler_reply(&reply);
-        let moor_rpc::SystemHandlerResponseUnion::SystemHandlerSuccess(_) = response else {
-            panic!("Expected SystemHandlerSuccess, got {response:?}");
-        };
+        let (outcome, output) = captured_outcome(&reply);
+        assert_eq!(outcome, TaskOutcome::completed(moor_var::v_int(1)));
         assert_eq!(captured_notify_text(&output), vec!["first", "second"]);
     }
 
@@ -1590,10 +1540,17 @@ mod tests {
                 invoke,
             )
             .expect("System handler should return its error");
-        let (response, output) = system_handler_reply(&reply);
-        let moor_rpc::SystemHandlerResponseUnion::SystemHandlerError(_) = response else {
-            panic!("Expected SystemHandlerError, got {response:?}");
-        };
+        let (outcome, output) = captured_outcome(&reply);
+        assert!(
+            matches!(
+                outcome,
+                TaskOutcome {
+                    kept: Kept::Yes,
+                    ending: TaskEnding::Aborted(AbortReason::Exception(_)),
+                }
+            ),
+            "Expected an uncaught exception, got {outcome:?}"
+        );
         assert_eq!(captured_notify_text(&output), vec!["before"]);
     }
 
@@ -1620,18 +1577,11 @@ mod tests {
                 invoke,
             )
             .expect("System handler should return its deadline error");
-        let moor_rpc::DaemonToClientReplyUnion::SystemHandlerResponseReply(response) = &reply.reply
-        else {
-            panic!("Expected SystemHandlerResponseReply, got {:?}", reply.reply);
-        };
-        let moor_rpc::SystemHandlerResponseUnion::SystemHandlerError(error) = &response.response
-        else {
-            panic!("Expected SystemHandlerError, got {:?}", response.response);
-        };
-        let moor_rpc::SchedulerErrorUnion::TaskAbortedLimit(limit) = &error.error.error else {
-            panic!("Expected TaskAbortedLimit, got {:?}", error.error.error);
-        };
-        assert_eq!(limit.limit.reason, moor_rpc::AbortLimitReason::Time);
+        let (outcome, _output) = captured_outcome(&reply);
+        assert_eq!(
+            outcome,
+            TaskOutcome::aborted(AbortReason::Deadline(Duration::from_millis(500)), Kept::No)
+        );
     }
 
     #[test]
@@ -1667,11 +1617,11 @@ mod tests {
             )
             .expect("Captured command should reply once the deadline passes");
 
-        let (error, _output) = captured_error(&reply);
-        let moor_rpc::SchedulerErrorUnion::TaskAbortedLimit(limit) = error.error else {
-            panic!("Expected TaskAbortedLimit, got {:?}", error.error);
-        };
-        assert_eq!(limit.limit.reason, moor_rpc::AbortLimitReason::Time);
+        let (outcome, _output) = captured_outcome(&reply);
+        assert_eq!(
+            outcome,
+            TaskOutcome::aborted(AbortReason::Deadline(Duration::from_millis(500)), Kept::No)
+        );
     }
 
     /// A forked task is an independent task, so its output does not appear in the parent's
@@ -1755,7 +1705,11 @@ mod tests {
 
         // The task fails; which failure it is depends on how the input error surfaces, so only
         // check that the caller is told about it rather than left waiting.
-        let _ = captured_error(&reply);
+        let (outcome, _output) = captured_outcome(&reply);
+        assert!(
+            matches!(outcome.ending, TaskEnding::Aborted(_)),
+            "Expected the task to abort, got {outcome:?}"
+        );
     }
 
     /// A failed call returns output committed before the failure, including its traceback.
@@ -1795,7 +1749,17 @@ mod tests {
             )
             .expect("Captured invocation should reply with its error");
 
-        let (_error, output) = captured_error(&reply);
+        let (outcome, output) = captured_outcome(&reply);
+        assert!(
+            matches!(
+                outcome,
+                TaskOutcome {
+                    kept: Kept::Yes,
+                    ending: TaskEnding::Aborted(AbortReason::Exception(_)),
+                }
+            ),
+            "Expected an uncaught exception, got {outcome:?}"
+        );
         assert_eq!(captured_notify_text(&output), vec!["before failure"]);
         assert!(
             output
@@ -1842,15 +1806,10 @@ mod tests {
             )
             .expect("Captured invocation should reply once the deadline passes");
 
-        let (error, _output) = captured_error(&reply);
-        let moor_rpc::SchedulerErrorUnion::TaskAbortedLimit(limit) = error.error else {
-            panic!("Expected TaskAbortedLimit, got {:?}", error.error);
-        };
+        let (outcome, _output) = captured_outcome(&reply);
         assert_eq!(
-            limit.limit.reason,
-            moor_rpc::AbortLimitReason::Time,
-            "Expected a time limit, got {:?}",
-            limit.limit.reason
+            outcome,
+            TaskOutcome::aborted(AbortReason::Deadline(Duration::from_millis(500)), Kept::No)
         );
     }
 

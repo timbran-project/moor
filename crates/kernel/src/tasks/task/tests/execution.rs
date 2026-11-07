@@ -48,7 +48,7 @@ fn test_kill_current_task() {
         )
         .unwrap();
     let err = wait_result(&handle).unwrap_err();
-    assert!(matches!(err, SchedulerError::TaskAbortedCancelled));
+    assert_eq!(err, TaskOutcome::aborted(AbortReason::Killed, Kept::Yes));
 }
 
 /// Trigger a MOO VM exception
@@ -68,10 +68,13 @@ fn test_simple_run_exception() {
         .unwrap();
     let err = wait_result(&handle).unwrap_err();
     match err {
-        SchedulerError::TaskAbortedException(ex) => {
+        TaskOutcome {
+            kept: Kept::Yes,
+            ending: TaskEnding::Aborted(AbortReason::Exception(ex)),
+        } => {
             assert_eq!(ex.error.err_type(), E_DIV);
         }
-        other => panic!("Expected TaskAbortedException, got {other:?}"),
+        other => panic!("Expected an uncaught exception, got {other:?}"),
     }
 }
 
@@ -99,7 +102,7 @@ fn test_notify_invocation() {
 fn eval_capturing(
     code: &str,
 ) -> (
-    Result<Var, SchedulerError>,
+    Result<Var, TaskOutcome>,
     Vec<moor_common::tasks::NarrativeEvent>,
 ) {
     let (client, _sched) = setup_scheduler(&[]);
@@ -123,9 +126,12 @@ fn eval_capturing(
     (result, session.committed())
 }
 
-fn aborted_with(result: Result<Var, SchedulerError>) -> moor_var::ErrorCode {
+fn aborted_with(result: Result<Var, TaskOutcome>) -> moor_var::ErrorCode {
     match result {
-        Err(SchedulerError::TaskAbortedException(ex)) => ex.error.err_type(),
+        Err(TaskOutcome {
+            kept: Kept::Yes,
+            ending: TaskEnding::Aborted(AbortReason::Exception(ex)),
+        }) => ex.error.err_type(),
         other => panic!("expected an aborted task, got {other:?}"),
     }
 }

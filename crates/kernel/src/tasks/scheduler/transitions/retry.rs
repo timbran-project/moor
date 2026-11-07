@@ -20,7 +20,7 @@ use crate::{
     config::Config,
     task_context::TaskGuard,
     tasks::{
-        SchedulerOp, TaskNotification,
+        SchedulerOp,
         registry::{
             LiveTaskRegistration, RegisteredSuspendedTask, RunningTask, RunningTaskPhase,
             SuspendedTask, TaskDispatch, WakeCondition,
@@ -40,11 +40,7 @@ use crate::{
 use flume::Sender;
 use moor_common::{
     model::ConflictInfo,
-    tasks::{
-        SchedulerError,
-        SchedulerError::{TaskAbortedCancelled, TaskAbortedError},
-        Session, TaskId,
-    },
+    tasks::{AbortReason, Kept, Session, TaskId, TaskOutcome},
     util::{Deadline, Instant},
 };
 use moor_db::Database;
@@ -84,8 +80,10 @@ impl Scheduler {
             debug!(task_id, "Discarding transaction retry during shutdown");
             lc.task_q.remove_message_queue(task_id);
             if lc.task_q.active.contains_key(&task_id) {
-                lc.task_q
-                    .send_task_result(task_id, Err(TaskAbortedCancelled));
+                lc.task_q.send_task_result(
+                    task_id,
+                    TaskOutcome::aborted(AbortReason::Cancelled, Kept::No),
+                );
             }
             return;
         }
@@ -119,7 +117,7 @@ impl Scheduler {
             lc.task_q.send_task_result_direct(
                 old_tc.registration,
                 old_tc.result_sender,
-                Err(TaskAbortedError),
+                TaskOutcome::aborted(AbortReason::ConflictRetriesExhausted, Kept::No),
             );
             return;
         }
@@ -191,7 +189,7 @@ impl TaskLifecycle {
         &mut self,
         mut task: Box<Task>,
         session: Arc<dyn Session>,
-        result_sender: Option<Sender<(TaskId, Result<TaskNotification, SchedulerError>)>>,
+        result_sender: Option<Sender<crate::tasks::TaskResult>>,
         scheduler: &Scheduler,
         database: &dyn Database,
         builtin_registry: BuiltinRegistry,

@@ -60,16 +60,6 @@ pub enum SchedulerError {
     CompilationError(#[source] CompileError),
     #[error("Could not start command")]
     CommandExecutionError(#[source] CommandError),
-    #[error("Task aborted due to limit: {0:?}")]
-    TaskAbortedLimit(AbortLimitReason),
-    #[error("Task aborted due to error.")]
-    TaskAbortedError,
-    #[error("Task aborted due to verb not found for dispatch.")]
-    TaskAbortedVerbNotFound(Var, Symbol),
-    #[error("Task aborted due to exception")]
-    TaskAbortedException(#[source] Exception),
-    #[error("Task aborted due to cancellation.")]
-    TaskAbortedCancelled,
     #[error("Unable to program verb {0}")]
     VerbProgramFailed(VerbProgramError),
     #[error("Unable to retrieve property {0}")]

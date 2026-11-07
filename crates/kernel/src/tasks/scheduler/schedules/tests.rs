@@ -21,7 +21,7 @@ use crate::tasks::{
 };
 use moor_common::{
     model::TaskPermissions,
-    tasks::{NoopClientSession, TaskId},
+    tasks::{NoopClientSession, TaskId, TaskOutcome},
 };
 use moor_var::{List, SYSTEM_OBJECT, Symbol};
 use std::{sync::Arc, time::Duration};
@@ -127,7 +127,7 @@ fn finalizing_dispatch_cannot_change_pending_schedules() {
     use moor_var::v_int;
 
     for phase in [
-        RunningTaskPhase::Completing(Ok(v_int(0))),
+        RunningTaskPhase::Completing(TaskOutcome::completed(v_int(0))),
         RunningTaskPhase::Suspending,
         RunningTaskPhase::RequestingInput,
     ] {

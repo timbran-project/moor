@@ -37,7 +37,7 @@ use eyre::Report;
 use moor_common::{
     build,
     model::ObjectRef,
-    tasks::{SchedulerError, SessionFactory},
+    tasks::{AbortReason, SessionFactory, TaskEnding},
     threading::spawn_efficient,
 };
 use moor_compiler::emit_compile_error;
@@ -501,32 +501,28 @@ fn invoke_server_started_hook(
             continue;
         }
 
-        match result {
-            Ok(task_result) => match task_result {
-                moor_kernel::tasks::TaskNotification::Result(value) => {
-                    if configured {
-                        info!("Server started hook accepted the startup configuration");
-                    } else {
-                        info!(
-                            "Server started hook completed successfully with result: {:?}",
-                            value
-                        );
-                    }
+        match result.ending {
+            TaskEnding::Completed(value) => {
+                if configured {
+                    info!("Server started hook accepted the startup configuration");
+                } else {
+                    info!(
+                        "Server started hook completed successfully with result: {:?}",
+                        value
+                    );
                 }
-                moor_kernel::tasks::TaskNotification::Suspended => {
-                    // Ignore suspension notifications; keep waiting for completion.
-                    continue;
-                }
-            },
-            Err(e) => {
+            }
+            // Ignore suspension notifications; keep waiting for completion.
+            TaskEnding::Suspended => continue,
+            ending => {
                 if configured {
                     // Report the error, but not the stack, which holds the configuration's secrets.
-                    if let SchedulerError::TaskAbortedException(exception) = &e {
+                    if let TaskEnding::Aborted(AbortReason::Exception(exception)) = &ending {
                         bail!("Server startup configuration failed: {}", exception.error);
                     }
-                    bail!("Server startup configuration failed: {e}");
+                    bail!("Server startup configuration failed: {ending:?}");
                 }
-                warn!("Server started hook failed with error: {:?}", e);
+                warn!("Server started hook did not complete: {:?}", ending);
             }
         }
         break;

@@ -18,16 +18,18 @@
 
 use flume::{Receiver, RecvTimeoutError};
 use moor_common::model::{ObjFlag, ObjectRef};
-use moor_common::tasks::{NarrativeEvent, SchedulerError, Session, TaskId};
+use moor_common::tasks::{
+    Kept, NarrativeEvent, SchedulerError, Session, TaskEnding, TaskId, TaskOutcome,
+};
 use moor_common::util::MetricsSnapshot;
 use moor_kernel::{
     SchedulerClient,
-    tasks::{AbortTaskOutcome, TaskHandle, TaskNotification},
+    tasks::{AbortTaskOutcome, TaskHandle, TaskResult},
 };
 use moor_runtime_api::api::{
     ClientReply, ClientRequest, ConnectType, EntityType, HostReply, HostRequest, InvocationMode,
-    InvocationOutcome, InvocationResponse, ObjectInfo, ServerFeatures, SystemHandlerResponse,
-    TransientConnection, VerbProgramResponse, WorldStateResult, WorldStateResultEntry,
+    InvocationResponse, ObjectInfo, ServerFeatures, TransientConnection, VerbProgramResponse,
+    WorldStateResult, WorldStateResultEntry,
 };
 use moor_runtime_api::{AuthToken, ClientToken, ListenerKind, RpcMessageError};
 use moor_schema::rpc as moor_rpc;
@@ -41,7 +43,7 @@ use crate::connections::NewConnectionParams;
 use crate::metrics::visit_daemon_metrics;
 use crate::rpc::deferred_calls::{
     CallPool, CallSlot, DeferredContext, Finish, NewDeferredCall, OnFinish, capture_on_finish,
-    capture_result_response, capture_timeout_response, deadline_instants, task_on_finish,
+    deadline_instants, invocation_reply, task_on_finish,
 };
 use crate::rpc::message_handler::{DO_LOGIN_COMMAND, RpcMessageHandler};
 use crate::rpc::output_capture_session::{self, CaptureAccumulator};
@@ -550,21 +552,10 @@ impl RuntimeApi for RpcMessageHandler {
                         player,
                         expression,
                     )?;
-                    use moor_kernel::tasks::TaskNotification;
-                    let receiver = task_handle.into_receiver();
-                    loop {
-                        match receiver.recv() {
-                            Ok((_, Ok(TaskNotification::Result(v)))) => {
-                                break Ok(ClientReply::EvalResult { result: v });
-                            }
-                            Ok((_, Ok(TaskNotification::Suspended))) => continue,
-                            Ok((_, Err(e))) => break Err(RpcMessageError::TaskError(e)),
-                            Err(e) => {
-                                error!(error = ?e, "Error processing eval");
-                                break Err(RpcMessageError::InternalError(e.to_string()));
-                            }
-                        }
-                    }
+                    Ok(invocation_reply(InvocationResponse {
+                        outcome: wait_for_outcome(&task_handle.into_receiver()),
+                        output: vec![],
+                    }))
                 }
                 InvocationMode::CaptureOutput { .. } => {
                     unreachable!("prepare_capture handles captured evals")
@@ -633,7 +624,7 @@ impl RuntimeApi for RpcMessageHandler {
                             .request_property(&player, &player, &object, name)
                             .map_err(|e| {
                                 debug!(error = ?e, "Error requesting property");
-                                RpcMessageError::TaskError(e)
+                                RpcMessageError::Rejected(e)
                             })?;
                         Ok(ClientReply::PropertyValue {
                             prop_info: (propdef, propperms),
@@ -645,7 +636,7 @@ impl RuntimeApi for RpcMessageHandler {
                             .request_verb(&player, &player, &object, name)
                             .map_err(|e| {
                                 debug!(error = ?e, "Error requesting verb");
-                                RpcMessageError::TaskError(e)
+                                RpcMessageError::Rejected(e)
                             })?;
                         Ok(ClientReply::VerbValue {
                             verb_info: verbdef,
@@ -665,7 +656,7 @@ impl RuntimeApi for RpcMessageHandler {
                     .request_properties(&player, &player, &object, inherited)
                     .map_err(|e| {
                         debug!(error = ?e, "Error requesting properties");
-                        RpcMessageError::TaskError(e)
+                        RpcMessageError::Rejected(e)
                     })?;
                 Ok(ClientReply::PropertiesReply {
                     properties: prop_list.into_iter().collect(),
@@ -682,7 +673,7 @@ impl RuntimeApi for RpcMessageHandler {
                     .request_verbs(&player, &player, &object, inherited)
                     .map_err(|e| {
                         debug!(error = ?e, "Error requesting verbs");
-                        RpcMessageError::TaskError(e)
+                        RpcMessageError::Rejected(e)
                     })?;
                 Ok(ClientReply::VerbsReply {
                     verbs: verb_list.into_iter().collect(),
@@ -695,7 +686,7 @@ impl RuntimeApi for RpcMessageHandler {
                     .resolve_object(player, objref)
                     .map_err(|e| {
                         debug!(error = ?e, "Error resolving object");
-                        RpcMessageError::TaskError(e)
+                        RpcMessageError::Rejected(e)
                     })?;
                 Ok(ClientReply::ResolveResult { result: resolved })
             }
@@ -790,7 +781,7 @@ impl RuntimeApi for RpcMessageHandler {
                 let player = self.validate_auth_token(auth_token, None)?;
                 let objects = scheduler_client.list_objects(&player).map_err(|e| {
                     debug!(error = ?e, "Error listing objects");
-                    RpcMessageError::TaskError(e)
+                    RpcMessageError::Rejected(e)
                 })?;
                 let object_infos = objects
                     .into_iter()
@@ -825,7 +816,7 @@ impl RuntimeApi for RpcMessageHandler {
                 }
                 scheduler_client
                     .update_property(&player, &player, &object, property, value)
-                    .map_err(RpcMessageError::TaskError)?;
+                    .map_err(RpcMessageError::Rejected)?;
                 Ok(ClientReply::PropertyUpdated)
             }
 
@@ -888,10 +879,6 @@ fn resolve_capture_deadline(
     Ok(requested)
 }
 
-fn invocation_reply(response: InvocationResponse) -> ClientReply {
-    ClientReply::InvocationResponse { response }
-}
-
 enum LoginVerbOutcome {
     Player(Obj),
     Refused(ClientReply),
@@ -902,6 +889,20 @@ fn login_connect_type(command: &TypedLoginCommand) -> ConnectType {
         ConnectType::Created
     } else {
         ConnectType::Connected
+    }
+}
+
+/// The login verb's return value, or why the login task gave none.
+fn login_result(outcome: TaskOutcome) -> Result<Var, RpcMessageError> {
+    match outcome.ending {
+        TaskEnding::Completed(result) => Ok(result),
+        TaskEnding::Aborted(reason) => {
+            error!(%reason, "Login task did not complete");
+            Err(RpcMessageError::LoginTaskFailed(reason.to_string()))
+        }
+        TaskEnding::Suspended | TaskEnding::ResultLost => Err(RpcMessageError::InternalError(
+            "Login task ended without a result".to_string(),
+        )),
     }
 }
 
@@ -923,6 +924,21 @@ fn login_verb_outcome(result: Var) -> LoginVerbOutcome {
     })
 }
 
+/// Reply to a batch whose task has ended: its results if the task completed, or how it ended.
+fn batch_finished(
+    outcome: TaskOutcome,
+    correlation_ids: Vec<String>,
+    result_sink: &moor_kernel::tasks::BatchResultSink,
+) -> Result<ClientReply, RpcMessageError> {
+    if outcome.completed_value().is_some() {
+        return batch_reply(correlation_ids, result_sink);
+    }
+    Ok(invocation_reply(InvocationResponse {
+        outcome,
+        output: vec![],
+    }))
+}
+
 fn batch_reply(
     correlation_ids: Vec<String>,
     result_sink: &moor_kernel::tasks::BatchResultSink,
@@ -932,7 +948,8 @@ fn batch_reply(
         .unwrap()
         .take()
         .unwrap_or(Err(SchedulerError::SchedulerNotResponding))
-        .map_err(RpcMessageError::TaskError)?;
+        // A batch that fails returns before committing, or its commit fails, so it changed nothing.
+        .map_err(RpcMessageError::Rejected)?;
     let results = correlation_ids
         .into_iter()
         .zip(results)
@@ -944,13 +961,17 @@ fn batch_reply(
     Ok(ClientReply::BatchWorldStateReply { results })
 }
 
-fn system_handler_reply(response: InvocationResponse) -> ClientReply {
-    let output = response.output;
-    let response = match response.outcome {
-        InvocationOutcome::Success { result } => SystemHandlerResponse::Success { result },
-        InvocationOutcome::Error { error } => SystemHandlerResponse::Error { error },
-    };
-    ClientReply::SystemHandlerResponseReply { response, output }
+/// Wait for a task's final outcome, past any suspensions. A channel that closes first means the
+/// task's result was lost.
+fn wait_for_outcome(receiver: &Receiver<TaskResult>) -> TaskOutcome {
+    receiver
+        .iter()
+        .map(|(_, outcome)| outcome)
+        .find(|outcome| outcome.ending != TaskEnding::Suspended)
+        .unwrap_or_else(|| {
+            error!("Task result channel closed without a result");
+            TaskOutcome::result_lost(Kept::Unknown)
+        })
 }
 
 fn take_captured_output(output: &Option<Arc<CaptureAccumulator>>) -> Vec<NarrativeEvent> {
@@ -975,7 +996,6 @@ pub(crate) struct CaptureCall {
     deadline: Duration,
     operation: &'static str,
     submit: CaptureSubmit,
-    to_reply: fn(InvocationResponse) -> ClientReply,
     pool: CallPool,
     /// The connection to open for the call, if the caller asked for one.
     transient_connection: Option<TransientConnection>,
@@ -994,7 +1014,6 @@ enum StartedCapture {
         expires_at: Instant,
         deadline: Duration,
         output: Option<Arc<CaptureAccumulator>>,
-        to_reply: fn(InvocationResponse) -> ClientReply,
     },
 }
 
@@ -1023,7 +1042,6 @@ fn captured_verb_call(
                 session,
             )
         }),
-        to_reply: invocation_reply,
         pool: CallPool::Authenticated,
         transient_connection: None,
     }
@@ -1046,7 +1064,7 @@ impl RpcMessageHandler {
             }
             Err(e) => {
                 debug!(error = ?e, "Error requesting system property");
-                return Err(RpcMessageError::TaskError(e));
+                return Err(RpcMessageError::Rejected(e));
             }
         };
         Ok(ClientReply::SysPropValue { value: Some(pv) })
@@ -1060,8 +1078,6 @@ impl RpcMessageHandler {
         connection: &Obj,
         command: TypedLoginCommand,
     ) -> Result<ClientReply, RpcMessageError> {
-        use moor_kernel::tasks::TaskNotification;
-
         let connect_type = login_connect_type(&command);
         let attach = command.attach;
         let task_handle = self.submit_login_task(
@@ -1072,21 +1088,7 @@ impl RpcMessageHandler {
             command,
             connect_type,
         )?;
-        let receiver = task_handle.into_receiver();
-        let result = loop {
-            match receiver.recv() {
-                Ok((_, Ok(TaskNotification::Result(v)))) => break v,
-                Ok((_, Ok(TaskNotification::Suspended))) => continue,
-                Ok((_, Err(e))) => {
-                    error!(error = ?e, "Error waiting for login results");
-                    return Err(RpcMessageError::LoginTaskFailed(e.to_string()));
-                }
-                Err(e) => {
-                    error!(error = ?e, "Error waiting for login results");
-                    return Err(RpcMessageError::InternalError(e.to_string()));
-                }
-            }
-        };
+        let result = login_result(wait_for_outcome(&task_handle.into_receiver()))?;
         match login_verb_outcome(result) {
             LoginVerbOutcome::Refused(reply) => Ok(reply),
             LoginVerbOutcome::Player(player) => self.complete_login(
@@ -1250,24 +1252,10 @@ impl RpcMessageHandler {
         let deadline = self.config.runtime.max_capture_deadline();
         let worker_slot = slot.clone();
         let on_finish: OnFinish = Box::new(move |finish| {
-            let result = match finish {
-                Finish::Result(Ok(TaskNotification::Result(result))) => result,
-                Finish::Result(Ok(TaskNotification::Suspended)) | Finish::ResultLost => {
-                    sink(Err(RpcMessageError::InternalError(
-                        "Login task ended without a result".to_string(),
-                    )));
-                    return;
-                }
-                Finish::Result(Err(error)) | Finish::Failed(error) => {
-                    error!(?error, "Error waiting for login results");
-                    sink(Err(RpcMessageError::LoginTaskFailed(error.to_string())));
-                    return;
-                }
-                Finish::TimedOut => {
-                    warn!(?deadline, "Login verb ran past its deadline");
-                    sink(Err(RpcMessageError::LoginTaskFailed(
-                        "Login timed out".to_string(),
-                    )));
+            let result = match login_result(finish.into_outcome(deadline)) {
+                Ok(result) => result,
+                Err(error) => {
+                    sink(Err(error));
                     return;
                 }
             };
@@ -1322,7 +1310,7 @@ impl RpcMessageHandler {
             session,
         ) {
             Ok(t) => t,
-            Err(e) => return Err(RpcMessageError::TaskError(e)),
+            Err(e) => return Err(RpcMessageError::Rejected(e)),
         };
 
         let task_id = parse_command_task_handle.task_id();
@@ -1359,7 +1347,7 @@ impl RpcMessageHandler {
                     },
                 })
             }
-            Err(e) => Err(RpcMessageError::TaskError(e)),
+            Err(e) => Err(RpcMessageError::Rejected(e)),
         }
     }
 
@@ -1403,7 +1391,6 @@ impl RpcMessageHandler {
                             session,
                         )
                     }),
-                    to_reply: invocation_reply,
                     pool: CallPool::Authenticated,
                     transient_connection,
                 }
@@ -1430,7 +1417,6 @@ impl RpcMessageHandler {
                             expires_at, &player, &player, expression, None, session, features,
                         )
                     }),
-                    to_reply: invocation_reply,
                     pool: CallPool::Authenticated,
                     transient_connection,
                 }
@@ -1493,7 +1479,6 @@ impl RpcMessageHandler {
                             session,
                         )
                     }),
-                    to_reply: system_handler_reply,
                     pool,
                     transient_connection,
                 }
@@ -1546,7 +1531,6 @@ impl RpcMessageHandler {
             deadline,
             operation,
             submit,
-            to_reply,
             pool: _,
             transient_connection,
         } = call;
@@ -1575,33 +1559,31 @@ impl RpcMessageHandler {
         let output = session.accumulator();
         let take_output = || take_captured_output(&output);
 
+        let finished = |finish: Finish| {
+            Ok(StartedCapture::Finished(invocation_reply(
+                InvocationResponse {
+                    outcome: finish.into_outcome(deadline),
+                    output: take_output(),
+                },
+            )))
+        };
         let submission_budget = expires_at.saturating_duration_since(Instant::now());
         if submission_budget.is_zero() {
-            return Ok(StartedCapture::Finished(to_reply(
-                capture_timeout_response(deadline, take_output()),
-            )));
+            return finished(Finish::DeadlinePassed);
         }
         let task_handle = match submit(scheduler_client, expires_at, session.clone()) {
             Ok(t) => t,
             Err(
                 e @ (SchedulerError::SchedulerNotResponding | SchedulerError::CouldNotStartTask),
-            ) => {
+            ) if Instant::now() >= expires_at => {
                 error!(?operation, error = ?e, "Error submitting captured task");
-                if Instant::now() >= expires_at {
-                    return Ok(StartedCapture::Finished(to_reply(
-                        capture_timeout_response(deadline, take_output()),
-                    )));
-                }
-                return Err(RpcMessageError::InternalError(e.to_string()));
+                return finished(Finish::DeadlinePassed);
             }
             Err(e) => {
-                // A request the scheduler refuses, such as code that does not compile, fails
-                // like a task that ran: the caller gets the error itself, not a server fault.
+                // The scheduler refused the request, such as code that does not compile, so no
+                // task ran.
                 debug!(?operation, error = ?e, "Captured task was not started");
-                return Ok(StartedCapture::Finished(to_reply(InvocationResponse {
-                    outcome: InvocationOutcome::Error { error: e },
-                    output: take_output(),
-                })));
+                return Err(RpcMessageError::Rejected(e));
             }
         };
 
@@ -1612,7 +1594,6 @@ impl RpcMessageHandler {
             expires_at,
             deadline,
             output,
-            to_reply,
         })
     }
 
@@ -1637,12 +1618,11 @@ impl RpcMessageHandler {
                 expires_at,
                 deadline,
                 output,
-                to_reply,
             }) => {
                 self.defer_task(
                     task_handle,
                     (execution_expires_at, expires_at),
-                    capture_on_finish(deadline, output, to_reply, sink),
+                    capture_on_finish(deadline, output, sink),
                     slot,
                 );
                 None
@@ -1764,11 +1744,13 @@ impl RpcMessageHandler {
                     Err(error) => return Some(Err(error)),
                 };
                 let deadline = self.config.runtime.max_capture_deadline();
-                let on_finish = task_on_finish(
-                    deadline,
-                    move |_| batch_reply(correlation_ids, &result_sink),
-                    sink,
-                );
+                let on_finish: OnFinish = Box::new(move |finish| {
+                    sink(batch_finished(
+                        finish.into_outcome(deadline),
+                        correlation_ids,
+                        &result_sink,
+                    ))
+                });
                 self.defer_task(task_handle, deadline_instants(deadline), on_finish, slot);
                 None
             }
@@ -1801,11 +1783,7 @@ impl RpcMessageHandler {
                     Err(error) => return Some(Err(error)),
                 };
                 let deadline = self.config.runtime.max_capture_deadline();
-                let on_finish = task_on_finish(
-                    deadline,
-                    |result| Ok(ClientReply::EvalResult { result }),
-                    sink,
-                );
+                let on_finish = task_on_finish(deadline, sink);
                 self.defer_task(task_handle, deadline_instants(deadline), on_finish, slot);
                 None
             }
@@ -1829,9 +1807,7 @@ impl RpcMessageHandler {
         scheduler_client: SchedulerClient,
         call: CaptureCall,
     ) -> Result<ClientReply, RpcMessageError> {
-        use moor_kernel::tasks::TaskNotification;
-
-        let (task_handle, execution_expires_at, expires_at, deadline, output, to_reply) =
+        let (task_handle, execution_expires_at, expires_at, deadline, output) =
             match self.start_capture(&scheduler_client, call)? {
                 StartedCapture::Finished(reply) => return Ok(reply),
                 StartedCapture::Running {
@@ -1840,54 +1816,41 @@ impl RpcMessageHandler {
                     expires_at,
                     deadline,
                     output,
-                    to_reply,
                 } => (
                     task_handle,
                     execution_expires_at,
                     expires_at,
                     deadline,
                     output,
-                    to_reply,
                 ),
             };
         let take_output = || take_captured_output(&output);
+        let reply = |finish: Finish, output| {
+            invocation_reply(InvocationResponse {
+                outcome: finish.into_outcome(deadline),
+                output,
+            })
+        };
         let task_id = task_handle.task_id();
         let receiver = task_handle.into_receiver();
         loop {
             let remaining = execution_expires_at.saturating_duration_since(Instant::now());
             if remaining.is_zero() {
-                return Ok(to_reply(self.abandon_captured_task(
-                    &scheduler_client,
-                    task_id,
-                    &receiver,
-                    expires_at,
-                    deadline,
-                    take_output,
-                )));
+                let finish =
+                    self.abandon_captured_task(&scheduler_client, task_id, &receiver, expires_at);
+                return Ok(reply(finish, take_output()));
             }
             match receiver.recv_timeout(remaining) {
-                Ok((_, Ok(TaskNotification::Result(v)))) => {
-                    return Ok(to_reply(InvocationResponse {
-                        outcome: InvocationOutcome::Success { result: v },
-                        output: take_output(),
-                    }));
-                }
-                Ok((_, Ok(TaskNotification::Suspended))) => continue,
-                Ok((_, Err(e))) => {
-                    return Ok(to_reply(InvocationResponse {
-                        outcome: InvocationOutcome::Error { error: e },
-                        output: take_output(),
-                    }));
-                }
+                Ok((_, outcome)) if outcome.ending == TaskEnding::Suspended => continue,
+                Ok((_, outcome)) => return Ok(reply(Finish::Outcome(outcome), take_output())),
                 Err(RecvTimeoutError::Timeout) => {
-                    return Ok(to_reply(self.abandon_captured_task(
+                    let finish = self.abandon_captured_task(
                         &scheduler_client,
                         task_id,
                         &receiver,
                         expires_at,
-                        deadline,
-                        take_output,
-                    )));
+                    );
+                    return Ok(reply(finish, take_output()));
                 }
                 Err(e) => {
                     return Err(RpcMessageError::InternalError(e.to_string()));
@@ -1909,59 +1872,55 @@ impl RpcMessageHandler {
         &self,
         scheduler_client: &SchedulerClient,
         task_id: TaskId,
-        receiver: &Receiver<(TaskId, Result<TaskNotification, SchedulerError>)>,
+        receiver: &Receiver<TaskResult>,
         expires_at: Instant,
-        deadline: Duration,
-        take_output: impl FnOnce() -> Vec<NarrativeEvent>,
-    ) -> InvocationResponse {
-        if let Ok((_task_id, result)) = receiver.try_recv() {
-            return capture_result_response(result, take_output);
+    ) -> Finish {
+        // A suspension notice is not the task's result; skip past any that are queued.
+        let pending_outcome = || {
+            receiver
+                .try_iter()
+                .map(|(_, outcome)| outcome)
+                .find(|outcome| outcome.ending != TaskEnding::Suspended)
+        };
+        if let Some(outcome) = pending_outcome() {
+            return Finish::Outcome(outcome);
         }
 
         let cancellation_budget = expires_at.saturating_duration_since(Instant::now());
-        let outcome = match scheduler_client.abort_task_with_timeout(task_id, cancellation_budget) {
-            Ok(outcome) => outcome,
+        let answer = match scheduler_client.abort_task_with_timeout(task_id, cancellation_budget) {
+            Ok(answer) => answer,
             Err(error) => {
                 error!(
                     task_id,
                     ?error,
                     "Captured task cancellation was not acknowledged"
                 );
-                return InvocationResponse {
-                    outcome: InvocationOutcome::Error { error },
-                    output: take_output(),
-                };
+                return Finish::ResultLost(Kept::Unknown);
             }
         };
 
-        match outcome {
-            AbortTaskOutcome::Cancelled => capture_timeout_response(deadline, take_output()),
-            AbortTaskOutcome::Completing => match receiver.recv() {
-                Ok((_task_id, result)) => capture_result_response(result, take_output),
-                Err(error) => {
-                    error!(task_id, ?error, "Completing captured task lost its result");
-                    InvocationResponse {
-                        outcome: InvocationOutcome::Error {
-                            error: SchedulerError::SchedulerNotResponding,
-                        },
-                        output: take_output(),
-                    }
+        match answer {
+            AbortTaskOutcome::Cancelled => Finish::DeadlinePassed,
+            // The task has committed; wait for its result.
+            AbortTaskOutcome::Completing => match receiver
+                .iter()
+                .map(|(_, outcome)| outcome)
+                .find(|outcome| outcome.ending != TaskEnding::Suspended)
+            {
+                Some(outcome) => Finish::Outcome(outcome),
+                None => {
+                    error!(task_id, "Completing captured task lost its result");
+                    Finish::ResultLost(Kept::Yes)
                 }
             },
-            AbortTaskOutcome::NotFound => match receiver.try_recv() {
-                Ok((_task_id, result)) => capture_result_response(result, take_output),
-                Err(error) => {
+            AbortTaskOutcome::NotFound => match pending_outcome() {
+                Some(outcome) => Finish::Outcome(outcome),
+                None => {
                     error!(
                         task_id,
-                        ?error,
                         "Scheduler could not determine captured task outcome"
                     );
-                    InvocationResponse {
-                        outcome: InvocationOutcome::Error {
-                            error: SchedulerError::TaskNotFound(task_id),
-                        },
-                        output: take_output(),
-                    }
+                    Finish::ResultLost(Kept::Unknown)
                 }
             },
         }
@@ -2120,7 +2079,7 @@ impl RpcMessageHandler {
             )
             .map_err(|e| {
                 error!(error = ?e, "Error submitting eval task");
-                RpcMessageError::TaskError(e)
+                RpcMessageError::Rejected(e)
             })
     }
 
@@ -2154,7 +2113,7 @@ impl RpcMessageHandler {
             .submit_batch_world_state_task(player, player, kernel_actions, rollback, session)
             .map_err(|e| {
                 error!(error = ?e, "Error submitting batch world state task");
-                RpcMessageError::TaskError(e)
+                RpcMessageError::Rejected(e)
             })?;
         Ok((task_handle, correlation_ids, result_sink))
     }
@@ -2167,25 +2126,13 @@ impl RpcMessageHandler {
         actions: Vec<moor_runtime_api::api::BatchActionEntry>,
         rollback: bool,
     ) -> Result<ClientReply, RpcMessageError> {
-        use moor_kernel::tasks::TaskNotification;
-
         let (task_handle, correlation_ids, result_sink) =
             self.submit_batch_task(&scheduler_client, client_id, player, actions, rollback)?;
-
-        let receiver = task_handle.into_receiver();
-        loop {
-            match receiver.recv() {
-                Ok((_, Ok(TaskNotification::Result(_)))) => {
-                    break batch_reply(correlation_ids, &result_sink);
-                }
-                Ok((_, Ok(TaskNotification::Suspended))) => continue,
-                Ok((_, Err(e))) => break Err(RpcMessageError::TaskError(e)),
-                Err(e) => {
-                    error!(error = ?e, "Error processing batch world state task");
-                    break Err(RpcMessageError::InternalError(e.to_string()));
-                }
-            }
-        }
+        batch_finished(
+            wait_for_outcome(&task_handle.into_receiver()),
+            correlation_ids,
+            &result_sink,
+        )
     }
 
     /// Authenticate a request that may arrive before login (`ClientData`,

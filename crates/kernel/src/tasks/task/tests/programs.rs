@@ -85,7 +85,13 @@ fn suspended_program_sees_another_tasks_replacement() {
             .receiver()
             .recv_timeout(Duration::from_secs(5))
             .unwrap(),
-        (_, Ok(TaskNotification::Suspended))
+        (
+            _,
+            TaskOutcome {
+                ending: TaskEnding::Suspended,
+                ..
+            }
+        )
     ));
     let update = eval(
         &client,

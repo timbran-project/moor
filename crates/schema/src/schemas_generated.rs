@@ -31353,7 +31353,17 @@ mod root {
         ///
         /// Generated from these locations:
         /// * Union `SchedulerErrorUnion` in the file `moor_rpc.fbs:70`
-        #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
+        #[derive(
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
         pub enum SchedulerErrorUnion {
             /// The variant of type `SchedulerNotResponding` in the union `SchedulerErrorUnion`
             SchedulerNotResponding(::planus::alloc::boxed::Box<self::SchedulerNotResponding>),
@@ -31372,21 +31382,6 @@ mod root {
 
             /// The variant of type `CommandExecutionError` in the union `SchedulerErrorUnion`
             CommandExecutionError(::planus::alloc::boxed::Box<self::CommandExecutionError>),
-
-            /// The variant of type `TaskAbortedLimit` in the union `SchedulerErrorUnion`
-            TaskAbortedLimit(::planus::alloc::boxed::Box<self::TaskAbortedLimit>),
-
-            /// The variant of type `TaskAbortedError` in the union `SchedulerErrorUnion`
-            TaskAbortedError(::planus::alloc::boxed::Box<self::TaskAbortedError>),
-
-            /// The variant of type `TaskAbortedVerbNotFound` in the union `SchedulerErrorUnion`
-            TaskAbortedVerbNotFound(::planus::alloc::boxed::Box<self::TaskAbortedVerbNotFound>),
-
-            /// The variant of type `TaskAbortedException` in the union `SchedulerErrorUnion`
-            TaskAbortedException(::planus::alloc::boxed::Box<self::TaskAbortedException>),
-
-            /// The variant of type `TaskAbortedCancelled` in the union `SchedulerErrorUnion`
-            TaskAbortedCancelled(::planus::alloc::boxed::Box<self::TaskAbortedCancelled>),
 
             /// The variant of type `VerbProgramFailed` in the union `SchedulerErrorUnion`
             VerbProgramFailed(::planus::alloc::boxed::Box<self::VerbProgramFailed>),
@@ -31468,51 +31463,11 @@ mod root {
             }
 
             #[inline]
-            pub fn create_task_aborted_limit(
-                builder: &mut ::planus::Builder,
-                value: impl ::planus::WriteAsOffset<self::TaskAbortedLimit>,
-            ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(7, value.prepare(builder).downcast())
-            }
-
-            #[inline]
-            pub fn create_task_aborted_error(
-                builder: &mut ::planus::Builder,
-                value: impl ::planus::WriteAsOffset<self::TaskAbortedError>,
-            ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(8, value.prepare(builder).downcast())
-            }
-
-            #[inline]
-            pub fn create_task_aborted_verb_not_found(
-                builder: &mut ::planus::Builder,
-                value: impl ::planus::WriteAsOffset<self::TaskAbortedVerbNotFound>,
-            ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(9, value.prepare(builder).downcast())
-            }
-
-            #[inline]
-            pub fn create_task_aborted_exception(
-                builder: &mut ::planus::Builder,
-                value: impl ::planus::WriteAsOffset<self::TaskAbortedException>,
-            ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(10, value.prepare(builder).downcast())
-            }
-
-            #[inline]
-            pub fn create_task_aborted_cancelled(
-                builder: &mut ::planus::Builder,
-                value: impl ::planus::WriteAsOffset<self::TaskAbortedCancelled>,
-            ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(11, value.prepare(builder).downcast())
-            }
-
-            #[inline]
             pub fn create_verb_program_failed(
                 builder: &mut ::planus::Builder,
                 value: impl ::planus::WriteAsOffset<self::VerbProgramFailed>,
             ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(12, value.prepare(builder).downcast())
+                ::planus::UnionOffset::new(7, value.prepare(builder).downcast())
             }
 
             #[inline]
@@ -31520,7 +31475,7 @@ mod root {
                 builder: &mut ::planus::Builder,
                 value: impl ::planus::WriteAsOffset<self::PropertyRetrievalFailed>,
             ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(13, value.prepare(builder).downcast())
+                ::planus::UnionOffset::new(8, value.prepare(builder).downcast())
             }
 
             #[inline]
@@ -31528,7 +31483,7 @@ mod root {
                 builder: &mut ::planus::Builder,
                 value: impl ::planus::WriteAsOffset<self::VerbRetrievalFailed>,
             ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(14, value.prepare(builder).downcast())
+                ::planus::UnionOffset::new(9, value.prepare(builder).downcast())
             }
 
             #[inline]
@@ -31536,7 +31491,7 @@ mod root {
                 builder: &mut ::planus::Builder,
                 value: impl ::planus::WriteAsOffset<self::ObjectResolutionFailed>,
             ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(15, value.prepare(builder).downcast())
+                ::planus::UnionOffset::new(10, value.prepare(builder).downcast())
             }
 
             #[inline]
@@ -31544,7 +31499,7 @@ mod root {
                 builder: &mut ::planus::Builder,
                 value: impl ::planus::WriteAsOffset<self::GarbageCollectionFailed>,
             ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(16, value.prepare(builder).downcast())
+                ::planus::UnionOffset::new(11, value.prepare(builder).downcast())
             }
 
             #[inline]
@@ -31552,7 +31507,7 @@ mod root {
                 builder: &mut ::planus::Builder,
                 value: impl ::planus::WriteAsOffset<self::CheckpointInProgress>,
             ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(17, value.prepare(builder).downcast())
+                ::planus::UnionOffset::new(12, value.prepare(builder).downcast())
             }
 
             #[inline]
@@ -31560,7 +31515,7 @@ mod root {
                 builder: &mut ::planus::Builder,
                 value: impl ::planus::WriteAsOffset<self::StorageMaintenanceInProgress>,
             ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(18, value.prepare(builder).downcast())
+                ::planus::UnionOffset::new(13, value.prepare(builder).downcast())
             }
         }
 
@@ -31581,21 +31536,6 @@ mod root {
                     Self::CompilationError(value) => Self::create_compilation_error(builder, value),
                     Self::CommandExecutionError(value) => {
                         Self::create_command_execution_error(builder, value)
-                    }
-                    Self::TaskAbortedLimit(value) => {
-                        Self::create_task_aborted_limit(builder, value)
-                    }
-                    Self::TaskAbortedError(value) => {
-                        Self::create_task_aborted_error(builder, value)
-                    }
-                    Self::TaskAbortedVerbNotFound(value) => {
-                        Self::create_task_aborted_verb_not_found(builder, value)
-                    }
-                    Self::TaskAbortedException(value) => {
-                        Self::create_task_aborted_exception(builder, value)
-                    }
-                    Self::TaskAbortedCancelled(value) => {
-                        Self::create_task_aborted_cancelled(builder, value)
                     }
                     Self::VerbProgramFailed(value) => {
                         Self::create_verb_program_failed(builder, value)
@@ -31712,72 +31652,12 @@ mod root {
                 SchedulerErrorUnionBuilder(::planus::Initialized(value))
             }
 
-            /// Creates an instance of the [`TaskAbortedLimit` variant](SchedulerErrorUnion#variant.TaskAbortedLimit).
-            #[inline]
-            pub fn task_aborted_limit<T>(
-                self,
-                value: T,
-            ) -> SchedulerErrorUnionBuilder<::planus::Initialized<7, T>>
-            where
-                T: ::planus::WriteAsOffset<self::TaskAbortedLimit>,
-            {
-                SchedulerErrorUnionBuilder(::planus::Initialized(value))
-            }
-
-            /// Creates an instance of the [`TaskAbortedError` variant](SchedulerErrorUnion#variant.TaskAbortedError).
-            #[inline]
-            pub fn task_aborted_error<T>(
-                self,
-                value: T,
-            ) -> SchedulerErrorUnionBuilder<::planus::Initialized<8, T>>
-            where
-                T: ::planus::WriteAsOffset<self::TaskAbortedError>,
-            {
-                SchedulerErrorUnionBuilder(::planus::Initialized(value))
-            }
-
-            /// Creates an instance of the [`TaskAbortedVerbNotFound` variant](SchedulerErrorUnion#variant.TaskAbortedVerbNotFound).
-            #[inline]
-            pub fn task_aborted_verb_not_found<T>(
-                self,
-                value: T,
-            ) -> SchedulerErrorUnionBuilder<::planus::Initialized<9, T>>
-            where
-                T: ::planus::WriteAsOffset<self::TaskAbortedVerbNotFound>,
-            {
-                SchedulerErrorUnionBuilder(::planus::Initialized(value))
-            }
-
-            /// Creates an instance of the [`TaskAbortedException` variant](SchedulerErrorUnion#variant.TaskAbortedException).
-            #[inline]
-            pub fn task_aborted_exception<T>(
-                self,
-                value: T,
-            ) -> SchedulerErrorUnionBuilder<::planus::Initialized<10, T>>
-            where
-                T: ::planus::WriteAsOffset<self::TaskAbortedException>,
-            {
-                SchedulerErrorUnionBuilder(::planus::Initialized(value))
-            }
-
-            /// Creates an instance of the [`TaskAbortedCancelled` variant](SchedulerErrorUnion#variant.TaskAbortedCancelled).
-            #[inline]
-            pub fn task_aborted_cancelled<T>(
-                self,
-                value: T,
-            ) -> SchedulerErrorUnionBuilder<::planus::Initialized<11, T>>
-            where
-                T: ::planus::WriteAsOffset<self::TaskAbortedCancelled>,
-            {
-                SchedulerErrorUnionBuilder(::planus::Initialized(value))
-            }
-
             /// Creates an instance of the [`VerbProgramFailed` variant](SchedulerErrorUnion#variant.VerbProgramFailed).
             #[inline]
             pub fn verb_program_failed<T>(
                 self,
                 value: T,
-            ) -> SchedulerErrorUnionBuilder<::planus::Initialized<12, T>>
+            ) -> SchedulerErrorUnionBuilder<::planus::Initialized<7, T>>
             where
                 T: ::planus::WriteAsOffset<self::VerbProgramFailed>,
             {
@@ -31789,7 +31669,7 @@ mod root {
             pub fn property_retrieval_failed<T>(
                 self,
                 value: T,
-            ) -> SchedulerErrorUnionBuilder<::planus::Initialized<13, T>>
+            ) -> SchedulerErrorUnionBuilder<::planus::Initialized<8, T>>
             where
                 T: ::planus::WriteAsOffset<self::PropertyRetrievalFailed>,
             {
@@ -31801,7 +31681,7 @@ mod root {
             pub fn verb_retrieval_failed<T>(
                 self,
                 value: T,
-            ) -> SchedulerErrorUnionBuilder<::planus::Initialized<14, T>>
+            ) -> SchedulerErrorUnionBuilder<::planus::Initialized<9, T>>
             where
                 T: ::planus::WriteAsOffset<self::VerbRetrievalFailed>,
             {
@@ -31813,7 +31693,7 @@ mod root {
             pub fn object_resolution_failed<T>(
                 self,
                 value: T,
-            ) -> SchedulerErrorUnionBuilder<::planus::Initialized<15, T>>
+            ) -> SchedulerErrorUnionBuilder<::planus::Initialized<10, T>>
             where
                 T: ::planus::WriteAsOffset<self::ObjectResolutionFailed>,
             {
@@ -31825,7 +31705,7 @@ mod root {
             pub fn garbage_collection_failed<T>(
                 self,
                 value: T,
-            ) -> SchedulerErrorUnionBuilder<::planus::Initialized<16, T>>
+            ) -> SchedulerErrorUnionBuilder<::planus::Initialized<11, T>>
             where
                 T: ::planus::WriteAsOffset<self::GarbageCollectionFailed>,
             {
@@ -31837,7 +31717,7 @@ mod root {
             pub fn checkpoint_in_progress<T>(
                 self,
                 value: T,
-            ) -> SchedulerErrorUnionBuilder<::planus::Initialized<17, T>>
+            ) -> SchedulerErrorUnionBuilder<::planus::Initialized<12, T>>
             where
                 T: ::planus::WriteAsOffset<self::CheckpointInProgress>,
             {
@@ -31849,7 +31729,7 @@ mod root {
             pub fn storage_maintenance_in_progress<T>(
                 self,
                 value: T,
-            ) -> SchedulerErrorUnionBuilder<::planus::Initialized<18, T>>
+            ) -> SchedulerErrorUnionBuilder<::planus::Initialized<13, T>>
             where
                 T: ::planus::WriteAsOffset<self::StorageMaintenanceInProgress>,
             {
@@ -32036,7 +31916,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<SchedulerErrorUnion>
             for SchedulerErrorUnionBuilder<::planus::Initialized<7, T>>
         where
-            T: ::planus::WriteAsOffset<self::TaskAbortedLimit>,
+            T: ::planus::WriteAsOffset<self::VerbProgramFailed>,
         {
             #[inline]
             fn prepare(
@@ -32050,7 +31930,7 @@ mod root {
         impl<T> ::planus::WriteAsOptionalUnion<SchedulerErrorUnion>
             for SchedulerErrorUnionBuilder<::planus::Initialized<7, T>>
         where
-            T: ::planus::WriteAsOffset<self::TaskAbortedLimit>,
+            T: ::planus::WriteAsOffset<self::VerbProgramFailed>,
         {
             #[inline]
             fn prepare(
@@ -32063,7 +31943,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<SchedulerErrorUnion>
             for SchedulerErrorUnionBuilder<::planus::Initialized<8, T>>
         where
-            T: ::planus::WriteAsOffset<self::TaskAbortedError>,
+            T: ::planus::WriteAsOffset<self::PropertyRetrievalFailed>,
         {
             #[inline]
             fn prepare(
@@ -32077,7 +31957,7 @@ mod root {
         impl<T> ::planus::WriteAsOptionalUnion<SchedulerErrorUnion>
             for SchedulerErrorUnionBuilder<::planus::Initialized<8, T>>
         where
-            T: ::planus::WriteAsOffset<self::TaskAbortedError>,
+            T: ::planus::WriteAsOffset<self::PropertyRetrievalFailed>,
         {
             #[inline]
             fn prepare(
@@ -32090,7 +31970,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<SchedulerErrorUnion>
             for SchedulerErrorUnionBuilder<::planus::Initialized<9, T>>
         where
-            T: ::planus::WriteAsOffset<self::TaskAbortedVerbNotFound>,
+            T: ::planus::WriteAsOffset<self::VerbRetrievalFailed>,
         {
             #[inline]
             fn prepare(
@@ -32104,7 +31984,7 @@ mod root {
         impl<T> ::planus::WriteAsOptionalUnion<SchedulerErrorUnion>
             for SchedulerErrorUnionBuilder<::planus::Initialized<9, T>>
         where
-            T: ::planus::WriteAsOffset<self::TaskAbortedVerbNotFound>,
+            T: ::planus::WriteAsOffset<self::VerbRetrievalFailed>,
         {
             #[inline]
             fn prepare(
@@ -32117,7 +31997,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<SchedulerErrorUnion>
             for SchedulerErrorUnionBuilder<::planus::Initialized<10, T>>
         where
-            T: ::planus::WriteAsOffset<self::TaskAbortedException>,
+            T: ::planus::WriteAsOffset<self::ObjectResolutionFailed>,
         {
             #[inline]
             fn prepare(
@@ -32131,7 +32011,7 @@ mod root {
         impl<T> ::planus::WriteAsOptionalUnion<SchedulerErrorUnion>
             for SchedulerErrorUnionBuilder<::planus::Initialized<10, T>>
         where
-            T: ::planus::WriteAsOffset<self::TaskAbortedException>,
+            T: ::planus::WriteAsOffset<self::ObjectResolutionFailed>,
         {
             #[inline]
             fn prepare(
@@ -32144,7 +32024,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<SchedulerErrorUnion>
             for SchedulerErrorUnionBuilder<::planus::Initialized<11, T>>
         where
-            T: ::planus::WriteAsOffset<self::TaskAbortedCancelled>,
+            T: ::planus::WriteAsOffset<self::GarbageCollectionFailed>,
         {
             #[inline]
             fn prepare(
@@ -32158,7 +32038,7 @@ mod root {
         impl<T> ::planus::WriteAsOptionalUnion<SchedulerErrorUnion>
             for SchedulerErrorUnionBuilder<::planus::Initialized<11, T>>
         where
-            T: ::planus::WriteAsOffset<self::TaskAbortedCancelled>,
+            T: ::planus::WriteAsOffset<self::GarbageCollectionFailed>,
         {
             #[inline]
             fn prepare(
@@ -32171,7 +32051,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<SchedulerErrorUnion>
             for SchedulerErrorUnionBuilder<::planus::Initialized<12, T>>
         where
-            T: ::planus::WriteAsOffset<self::VerbProgramFailed>,
+            T: ::planus::WriteAsOffset<self::CheckpointInProgress>,
         {
             #[inline]
             fn prepare(
@@ -32185,7 +32065,7 @@ mod root {
         impl<T> ::planus::WriteAsOptionalUnion<SchedulerErrorUnion>
             for SchedulerErrorUnionBuilder<::planus::Initialized<12, T>>
         where
-            T: ::planus::WriteAsOffset<self::VerbProgramFailed>,
+            T: ::planus::WriteAsOffset<self::CheckpointInProgress>,
         {
             #[inline]
             fn prepare(
@@ -32198,7 +32078,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<SchedulerErrorUnion>
             for SchedulerErrorUnionBuilder<::planus::Initialized<13, T>>
         where
-            T: ::planus::WriteAsOffset<self::PropertyRetrievalFailed>,
+            T: ::planus::WriteAsOffset<self::StorageMaintenanceInProgress>,
         {
             #[inline]
             fn prepare(
@@ -32211,141 +32091,6 @@ mod root {
 
         impl<T> ::planus::WriteAsOptionalUnion<SchedulerErrorUnion>
             for SchedulerErrorUnionBuilder<::planus::Initialized<13, T>>
-        where
-            T: ::planus::WriteAsOffset<self::PropertyRetrievalFailed>,
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::UnionOffset<SchedulerErrorUnion>> {
-                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
-            }
-        }
-        impl<T> ::planus::WriteAsUnion<SchedulerErrorUnion>
-            for SchedulerErrorUnionBuilder<::planus::Initialized<14, T>>
-        where
-            T: ::planus::WriteAsOffset<self::VerbRetrievalFailed>,
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::UnionOffset<SchedulerErrorUnion> {
-                ::planus::UnionOffset::new(14, (self.0).0.prepare(builder).downcast())
-            }
-        }
-
-        impl<T> ::planus::WriteAsOptionalUnion<SchedulerErrorUnion>
-            for SchedulerErrorUnionBuilder<::planus::Initialized<14, T>>
-        where
-            T: ::planus::WriteAsOffset<self::VerbRetrievalFailed>,
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::UnionOffset<SchedulerErrorUnion>> {
-                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
-            }
-        }
-        impl<T> ::planus::WriteAsUnion<SchedulerErrorUnion>
-            for SchedulerErrorUnionBuilder<::planus::Initialized<15, T>>
-        where
-            T: ::planus::WriteAsOffset<self::ObjectResolutionFailed>,
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::UnionOffset<SchedulerErrorUnion> {
-                ::planus::UnionOffset::new(15, (self.0).0.prepare(builder).downcast())
-            }
-        }
-
-        impl<T> ::planus::WriteAsOptionalUnion<SchedulerErrorUnion>
-            for SchedulerErrorUnionBuilder<::planus::Initialized<15, T>>
-        where
-            T: ::planus::WriteAsOffset<self::ObjectResolutionFailed>,
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::UnionOffset<SchedulerErrorUnion>> {
-                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
-            }
-        }
-        impl<T> ::planus::WriteAsUnion<SchedulerErrorUnion>
-            for SchedulerErrorUnionBuilder<::planus::Initialized<16, T>>
-        where
-            T: ::planus::WriteAsOffset<self::GarbageCollectionFailed>,
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::UnionOffset<SchedulerErrorUnion> {
-                ::planus::UnionOffset::new(16, (self.0).0.prepare(builder).downcast())
-            }
-        }
-
-        impl<T> ::planus::WriteAsOptionalUnion<SchedulerErrorUnion>
-            for SchedulerErrorUnionBuilder<::planus::Initialized<16, T>>
-        where
-            T: ::planus::WriteAsOffset<self::GarbageCollectionFailed>,
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::UnionOffset<SchedulerErrorUnion>> {
-                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
-            }
-        }
-        impl<T> ::planus::WriteAsUnion<SchedulerErrorUnion>
-            for SchedulerErrorUnionBuilder<::planus::Initialized<17, T>>
-        where
-            T: ::planus::WriteAsOffset<self::CheckpointInProgress>,
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::UnionOffset<SchedulerErrorUnion> {
-                ::planus::UnionOffset::new(17, (self.0).0.prepare(builder).downcast())
-            }
-        }
-
-        impl<T> ::planus::WriteAsOptionalUnion<SchedulerErrorUnion>
-            for SchedulerErrorUnionBuilder<::planus::Initialized<17, T>>
-        where
-            T: ::planus::WriteAsOffset<self::CheckpointInProgress>,
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::UnionOffset<SchedulerErrorUnion>> {
-                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
-            }
-        }
-        impl<T> ::planus::WriteAsUnion<SchedulerErrorUnion>
-            for SchedulerErrorUnionBuilder<::planus::Initialized<18, T>>
-        where
-            T: ::planus::WriteAsOffset<self::StorageMaintenanceInProgress>,
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::UnionOffset<SchedulerErrorUnion> {
-                ::planus::UnionOffset::new(18, (self.0).0.prepare(builder).downcast())
-            }
-        }
-
-        impl<T> ::planus::WriteAsOptionalUnion<SchedulerErrorUnion>
-            for SchedulerErrorUnionBuilder<::planus::Initialized<18, T>>
         where
             T: ::planus::WriteAsOffset<self::StorageMaintenanceInProgress>,
         {
@@ -32367,11 +32112,6 @@ mod root {
             CouldNotStartTask(self::CouldNotStartTaskRef<'a>),
             CompilationError(self::CompilationErrorRef<'a>),
             CommandExecutionError(self::CommandExecutionErrorRef<'a>),
-            TaskAbortedLimit(self::TaskAbortedLimitRef<'a>),
-            TaskAbortedError(self::TaskAbortedErrorRef<'a>),
-            TaskAbortedVerbNotFound(self::TaskAbortedVerbNotFoundRef<'a>),
-            TaskAbortedException(self::TaskAbortedExceptionRef<'a>),
-            TaskAbortedCancelled(self::TaskAbortedCancelledRef<'a>),
             VerbProgramFailed(self::VerbProgramFailedRef<'a>),
             PropertyRetrievalFailed(self::PropertyRetrievalFailedRef<'a>),
             VerbRetrievalFailed(self::VerbRetrievalFailedRef<'a>),
@@ -32418,36 +32158,6 @@ mod root {
 
                     SchedulerErrorUnionRef::CommandExecutionError(value) => {
                         Self::CommandExecutionError(::planus::alloc::boxed::Box::new(
-                            ::core::convert::TryFrom::try_from(value)?,
-                        ))
-                    }
-
-                    SchedulerErrorUnionRef::TaskAbortedLimit(value) => {
-                        Self::TaskAbortedLimit(::planus::alloc::boxed::Box::new(
-                            ::core::convert::TryFrom::try_from(value)?,
-                        ))
-                    }
-
-                    SchedulerErrorUnionRef::TaskAbortedError(value) => {
-                        Self::TaskAbortedError(::planus::alloc::boxed::Box::new(
-                            ::core::convert::TryFrom::try_from(value)?,
-                        ))
-                    }
-
-                    SchedulerErrorUnionRef::TaskAbortedVerbNotFound(value) => {
-                        Self::TaskAbortedVerbNotFound(::planus::alloc::boxed::Box::new(
-                            ::core::convert::TryFrom::try_from(value)?,
-                        ))
-                    }
-
-                    SchedulerErrorUnionRef::TaskAbortedException(value) => {
-                        Self::TaskAbortedException(::planus::alloc::boxed::Box::new(
-                            ::core::convert::TryFrom::try_from(value)?,
-                        ))
-                    }
-
-                    SchedulerErrorUnionRef::TaskAbortedCancelled(value) => {
-                        Self::TaskAbortedCancelled(::planus::alloc::boxed::Box::new(
                             ::core::convert::TryFrom::try_from(value)?,
                         ))
                     }
@@ -32522,40 +32232,25 @@ mod root {
                     6 => ::core::result::Result::Ok(Self::CommandExecutionError(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    7 => ::core::result::Result::Ok(Self::TaskAbortedLimit(
+                    7 => ::core::result::Result::Ok(Self::VerbProgramFailed(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    8 => ::core::result::Result::Ok(Self::TaskAbortedError(
+                    8 => ::core::result::Result::Ok(Self::PropertyRetrievalFailed(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    9 => ::core::result::Result::Ok(Self::TaskAbortedVerbNotFound(
+                    9 => ::core::result::Result::Ok(Self::VerbRetrievalFailed(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    10 => ::core::result::Result::Ok(Self::TaskAbortedException(
+                    10 => ::core::result::Result::Ok(Self::ObjectResolutionFailed(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    11 => ::core::result::Result::Ok(Self::TaskAbortedCancelled(
+                    11 => ::core::result::Result::Ok(Self::GarbageCollectionFailed(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    12 => ::core::result::Result::Ok(Self::VerbProgramFailed(
+                    12 => ::core::result::Result::Ok(Self::CheckpointInProgress(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    13 => ::core::result::Result::Ok(Self::PropertyRetrievalFailed(
-                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
-                    )),
-                    14 => ::core::result::Result::Ok(Self::VerbRetrievalFailed(
-                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
-                    )),
-                    15 => ::core::result::Result::Ok(Self::ObjectResolutionFailed(
-                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
-                    )),
-                    16 => ::core::result::Result::Ok(Self::GarbageCollectionFailed(
-                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
-                    )),
-                    17 => ::core::result::Result::Ok(Self::CheckpointInProgress(
-                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
-                    )),
-                    18 => ::core::result::Result::Ok(Self::StorageMaintenanceInProgress(
+                    13 => ::core::result::Result::Ok(Self::StorageMaintenanceInProgress(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
                     _ => {
@@ -32574,7 +32269,7 @@ mod root {
         /// The table `SchedulerNotResponding` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SchedulerNotResponding` in the file `moor_rpc.fbs:91`
+        /// * Table `SchedulerNotResponding` in the file `moor_rpc.fbs:86`
         #[derive(
             Clone,
             Debug,
@@ -32810,7 +32505,7 @@ mod root {
         /// The table `TaskNotFound` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `TaskNotFound` in the file `moor_rpc.fbs:94`
+        /// * Table `TaskNotFound` in the file `moor_rpc.fbs:89`
         #[derive(
             Clone,
             Debug,
@@ -33075,7 +32770,7 @@ mod root {
         /// The table `InputRequestNotFound` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `InputRequestNotFound` in the file `moor_rpc.fbs:98`
+        /// * Table `InputRequestNotFound` in the file `moor_rpc.fbs:93`
         #[derive(
             Clone,
             Debug,
@@ -33350,7 +33045,7 @@ mod root {
         /// The table `CouldNotStartTask` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `CouldNotStartTask` in the file `moor_rpc.fbs:102`
+        /// * Table `CouldNotStartTask` in the file `moor_rpc.fbs:97`
         #[derive(
             Clone,
             Debug,
@@ -33578,7 +33273,7 @@ mod root {
         /// The table `CompilationError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `CompilationError` in the file `moor_rpc.fbs:105`
+        /// * Table `CompilationError` in the file `moor_rpc.fbs:100`
         #[derive(
             Clone,
             Debug,
@@ -33841,7 +33536,7 @@ mod root {
         /// The table `CommandExecutionError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `CommandExecutionError` in the file `moor_rpc.fbs:109`
+        /// * Table `CommandExecutionError` in the file `moor_rpc.fbs:104`
         #[derive(
             Clone,
             Debug,
@@ -34105,10 +33800,880 @@ mod root {
             }
         }
 
-        /// The table `TaskAbortedLimit` in the namespace `MoorRpc`
+        /// The enum `Kept` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `TaskAbortedLimit` in the file `moor_rpc.fbs:113`
+        /// * Enum `Kept` in the file `moor_rpc.fbs:114`
+        #[derive(
+            Copy,
+            Clone,
+            Debug,
+            PartialEq,
+            Eq,
+            PartialOrd,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        #[repr(u8)]
+        pub enum Kept {
+            /// The variant `Unknown` in the enum `Kept`
+            Unknown = 0,
+
+            /// The variant `Yes` in the enum `Kept`
+            Yes = 1,
+
+            /// The variant `No` in the enum `Kept`
+            No = 2,
+        }
+
+        impl Kept {
+            /// Array containing all valid variants of Kept
+            pub const ENUM_VALUES: [Self; 3] = [Self::Unknown, Self::Yes, Self::No];
+        }
+
+        impl ::core::convert::TryFrom<u8> for Kept {
+            type Error = ::planus::errors::UnknownEnumTagKind;
+            #[inline]
+            fn try_from(
+                value: u8,
+            ) -> ::core::result::Result<Self, ::planus::errors::UnknownEnumTagKind> {
+                #[allow(clippy::match_single_binding)]
+                match value {
+                    0 => ::core::result::Result::Ok(Kept::Unknown),
+                    1 => ::core::result::Result::Ok(Kept::Yes),
+                    2 => ::core::result::Result::Ok(Kept::No),
+
+                    _ => ::core::result::Result::Err(::planus::errors::UnknownEnumTagKind {
+                        tag: value as i128,
+                    }),
+                }
+            }
+        }
+
+        impl ::core::convert::From<Kept> for u8 {
+            #[inline]
+            fn from(value: Kept) -> Self {
+                value as u8
+            }
+        }
+
+        /// # Safety
+        /// The Planus compiler correctly calculates `ALIGNMENT` and `SIZE`.
+        unsafe impl ::planus::Primitive for Kept {
+            const ALIGNMENT: usize = 1;
+            const SIZE: usize = 1;
+        }
+
+        impl ::planus::WriteAsPrimitive<Kept> for Kept {
+            #[inline]
+            fn write<const N: usize>(&self, cursor: ::planus::Cursor<'_, N>, buffer_position: u32) {
+                (*self as u8).write(cursor, buffer_position);
+            }
+        }
+
+        impl ::planus::WriteAs<Kept> for Kept {
+            type Prepared = Self;
+
+            #[inline]
+            fn prepare(&self, _builder: &mut ::planus::Builder) -> Kept {
+                *self
+            }
+        }
+
+        impl ::planus::WriteAsDefault<Kept, Kept> for Kept {
+            type Prepared = Self;
+
+            #[inline]
+            fn prepare(
+                &self,
+                _builder: &mut ::planus::Builder,
+                default: &Kept,
+            ) -> ::core::option::Option<Kept> {
+                if self == default {
+                    ::core::option::Option::None
+                } else {
+                    ::core::option::Option::Some(*self)
+                }
+            }
+        }
+
+        impl ::planus::WriteAsOptional<Kept> for Kept {
+            type Prepared = Self;
+
+            #[inline]
+            fn prepare(&self, _builder: &mut ::planus::Builder) -> ::core::option::Option<Kept> {
+                ::core::option::Option::Some(*self)
+            }
+        }
+
+        impl<'buf> ::planus::TableRead<'buf> for Kept {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'buf>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                let n: u8 = ::planus::TableRead::from_buffer(buffer, offset)?;
+                ::core::result::Result::Ok(::core::convert::TryInto::try_into(n)?)
+            }
+        }
+
+        impl<'buf> ::planus::VectorReadInner<'buf> for Kept {
+            type Error = ::planus::errors::UnknownEnumTag;
+            const STRIDE: usize = 1;
+            #[inline]
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'buf>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::UnknownEnumTag> {
+                let value = unsafe { *buffer.buffer.get_unchecked(offset) };
+                let value: ::core::result::Result<Self, _> =
+                    ::core::convert::TryInto::try_into(value);
+                value.map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "Kept",
+                        "VectorRead::from_buffer",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<Kept> for Kept {
+            const STRIDE: usize = 1;
+
+            type Value = Self;
+
+            #[inline]
+            fn prepare(&self, _builder: &mut ::planus::Builder) -> Self {
+                *self
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[Self],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 1];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - i as u32,
+                    );
+                }
+            }
+        }
+
+        /// The union `AbortReason` in the namespace `MoorRpc`
+        ///
+        /// Generated from these locations:
+        /// * Union `AbortReason` in the file `moor_rpc.fbs:120`
+        #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
+        pub enum AbortReason {
+            /// The variant of type `AbortedLimit` in the union `AbortReason`
+            AbortedLimit(::planus::alloc::boxed::Box<self::AbortedLimit>),
+
+            /// The variant of type `AbortedException` in the union `AbortReason`
+            AbortedException(::planus::alloc::boxed::Box<self::AbortedException>),
+
+            /// The variant of type `AbortedVerbNotFound` in the union `AbortReason`
+            AbortedVerbNotFound(::planus::alloc::boxed::Box<self::AbortedVerbNotFound>),
+
+            /// The variant of type `AbortedCommandFailed` in the union `AbortReason`
+            AbortedCommandFailed(::planus::alloc::boxed::Box<self::AbortedCommandFailed>),
+
+            /// The variant of type `AbortedCancelled` in the union `AbortReason`
+            AbortedCancelled(::planus::alloc::boxed::Box<self::AbortedCancelled>),
+
+            /// The variant of type `AbortedKilled` in the union `AbortReason`
+            AbortedKilled(::planus::alloc::boxed::Box<self::AbortedKilled>),
+
+            /// The variant of type `AbortedRolledBack` in the union `AbortReason`
+            AbortedRolledBack(::planus::alloc::boxed::Box<self::AbortedRolledBack>),
+
+            /// The variant of type `AbortedConflictRetriesExhausted` in the union `AbortReason`
+            AbortedConflictRetriesExhausted(
+                ::planus::alloc::boxed::Box<self::AbortedConflictRetriesExhausted>,
+            ),
+
+            /// The variant of type `AbortedDeadline` in the union `AbortReason`
+            AbortedDeadline(::planus::alloc::boxed::Box<self::AbortedDeadline>),
+
+            /// The variant of type `AbortedInternal` in the union `AbortReason`
+            AbortedInternal(::planus::alloc::boxed::Box<self::AbortedInternal>),
+        }
+
+        impl AbortReason {
+            /// Creates a [AbortReasonBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> AbortReasonBuilder<::planus::Uninitialized> {
+                AbortReasonBuilder(::planus::Uninitialized)
+            }
+
+            #[inline]
+            pub fn create_aborted_limit(
+                builder: &mut ::planus::Builder,
+                value: impl ::planus::WriteAsOffset<self::AbortedLimit>,
+            ) -> ::planus::UnionOffset<Self> {
+                ::planus::UnionOffset::new(1, value.prepare(builder).downcast())
+            }
+
+            #[inline]
+            pub fn create_aborted_exception(
+                builder: &mut ::planus::Builder,
+                value: impl ::planus::WriteAsOffset<self::AbortedException>,
+            ) -> ::planus::UnionOffset<Self> {
+                ::planus::UnionOffset::new(2, value.prepare(builder).downcast())
+            }
+
+            #[inline]
+            pub fn create_aborted_verb_not_found(
+                builder: &mut ::planus::Builder,
+                value: impl ::planus::WriteAsOffset<self::AbortedVerbNotFound>,
+            ) -> ::planus::UnionOffset<Self> {
+                ::planus::UnionOffset::new(3, value.prepare(builder).downcast())
+            }
+
+            #[inline]
+            pub fn create_aborted_command_failed(
+                builder: &mut ::planus::Builder,
+                value: impl ::planus::WriteAsOffset<self::AbortedCommandFailed>,
+            ) -> ::planus::UnionOffset<Self> {
+                ::planus::UnionOffset::new(4, value.prepare(builder).downcast())
+            }
+
+            #[inline]
+            pub fn create_aborted_cancelled(
+                builder: &mut ::planus::Builder,
+                value: impl ::planus::WriteAsOffset<self::AbortedCancelled>,
+            ) -> ::planus::UnionOffset<Self> {
+                ::planus::UnionOffset::new(5, value.prepare(builder).downcast())
+            }
+
+            #[inline]
+            pub fn create_aborted_killed(
+                builder: &mut ::planus::Builder,
+                value: impl ::planus::WriteAsOffset<self::AbortedKilled>,
+            ) -> ::planus::UnionOffset<Self> {
+                ::planus::UnionOffset::new(6, value.prepare(builder).downcast())
+            }
+
+            #[inline]
+            pub fn create_aborted_rolled_back(
+                builder: &mut ::planus::Builder,
+                value: impl ::planus::WriteAsOffset<self::AbortedRolledBack>,
+            ) -> ::planus::UnionOffset<Self> {
+                ::planus::UnionOffset::new(7, value.prepare(builder).downcast())
+            }
+
+            #[inline]
+            pub fn create_aborted_conflict_retries_exhausted(
+                builder: &mut ::planus::Builder,
+                value: impl ::planus::WriteAsOffset<self::AbortedConflictRetriesExhausted>,
+            ) -> ::planus::UnionOffset<Self> {
+                ::planus::UnionOffset::new(8, value.prepare(builder).downcast())
+            }
+
+            #[inline]
+            pub fn create_aborted_deadline(
+                builder: &mut ::planus::Builder,
+                value: impl ::planus::WriteAsOffset<self::AbortedDeadline>,
+            ) -> ::planus::UnionOffset<Self> {
+                ::planus::UnionOffset::new(9, value.prepare(builder).downcast())
+            }
+
+            #[inline]
+            pub fn create_aborted_internal(
+                builder: &mut ::planus::Builder,
+                value: impl ::planus::WriteAsOffset<self::AbortedInternal>,
+            ) -> ::planus::UnionOffset<Self> {
+                ::planus::UnionOffset::new(10, value.prepare(builder).downcast())
+            }
+        }
+
+        impl ::planus::WriteAsUnion<AbortReason> for AbortReason {
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::UnionOffset<Self> {
+                match self {
+                    Self::AbortedLimit(value) => Self::create_aborted_limit(builder, value),
+                    Self::AbortedException(value) => Self::create_aborted_exception(builder, value),
+                    Self::AbortedVerbNotFound(value) => {
+                        Self::create_aborted_verb_not_found(builder, value)
+                    }
+                    Self::AbortedCommandFailed(value) => {
+                        Self::create_aborted_command_failed(builder, value)
+                    }
+                    Self::AbortedCancelled(value) => Self::create_aborted_cancelled(builder, value),
+                    Self::AbortedKilled(value) => Self::create_aborted_killed(builder, value),
+                    Self::AbortedRolledBack(value) => {
+                        Self::create_aborted_rolled_back(builder, value)
+                    }
+                    Self::AbortedConflictRetriesExhausted(value) => {
+                        Self::create_aborted_conflict_retries_exhausted(builder, value)
+                    }
+                    Self::AbortedDeadline(value) => Self::create_aborted_deadline(builder, value),
+                    Self::AbortedInternal(value) => Self::create_aborted_internal(builder, value),
+                }
+            }
+        }
+
+        impl ::planus::WriteAsOptionalUnion<AbortReason> for AbortReason {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::UnionOffset<Self>> {
+                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
+            }
+        }
+
+        /// Builder for serializing an instance of the [AbortReason] type.
+        ///
+        /// Can be created using the [AbortReason::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct AbortReasonBuilder<T>(T);
+
+        impl AbortReasonBuilder<::planus::Uninitialized> {
+            /// Creates an instance of the [`AbortedLimit` variant](AbortReason#variant.AbortedLimit).
+            #[inline]
+            pub fn aborted_limit<T>(
+                self,
+                value: T,
+            ) -> AbortReasonBuilder<::planus::Initialized<1, T>>
+            where
+                T: ::planus::WriteAsOffset<self::AbortedLimit>,
+            {
+                AbortReasonBuilder(::planus::Initialized(value))
+            }
+
+            /// Creates an instance of the [`AbortedException` variant](AbortReason#variant.AbortedException).
+            #[inline]
+            pub fn aborted_exception<T>(
+                self,
+                value: T,
+            ) -> AbortReasonBuilder<::planus::Initialized<2, T>>
+            where
+                T: ::planus::WriteAsOffset<self::AbortedException>,
+            {
+                AbortReasonBuilder(::planus::Initialized(value))
+            }
+
+            /// Creates an instance of the [`AbortedVerbNotFound` variant](AbortReason#variant.AbortedVerbNotFound).
+            #[inline]
+            pub fn aborted_verb_not_found<T>(
+                self,
+                value: T,
+            ) -> AbortReasonBuilder<::planus::Initialized<3, T>>
+            where
+                T: ::planus::WriteAsOffset<self::AbortedVerbNotFound>,
+            {
+                AbortReasonBuilder(::planus::Initialized(value))
+            }
+
+            /// Creates an instance of the [`AbortedCommandFailed` variant](AbortReason#variant.AbortedCommandFailed).
+            #[inline]
+            pub fn aborted_command_failed<T>(
+                self,
+                value: T,
+            ) -> AbortReasonBuilder<::planus::Initialized<4, T>>
+            where
+                T: ::planus::WriteAsOffset<self::AbortedCommandFailed>,
+            {
+                AbortReasonBuilder(::planus::Initialized(value))
+            }
+
+            /// Creates an instance of the [`AbortedCancelled` variant](AbortReason#variant.AbortedCancelled).
+            #[inline]
+            pub fn aborted_cancelled<T>(
+                self,
+                value: T,
+            ) -> AbortReasonBuilder<::planus::Initialized<5, T>>
+            where
+                T: ::planus::WriteAsOffset<self::AbortedCancelled>,
+            {
+                AbortReasonBuilder(::planus::Initialized(value))
+            }
+
+            /// Creates an instance of the [`AbortedKilled` variant](AbortReason#variant.AbortedKilled).
+            #[inline]
+            pub fn aborted_killed<T>(
+                self,
+                value: T,
+            ) -> AbortReasonBuilder<::planus::Initialized<6, T>>
+            where
+                T: ::planus::WriteAsOffset<self::AbortedKilled>,
+            {
+                AbortReasonBuilder(::planus::Initialized(value))
+            }
+
+            /// Creates an instance of the [`AbortedRolledBack` variant](AbortReason#variant.AbortedRolledBack).
+            #[inline]
+            pub fn aborted_rolled_back<T>(
+                self,
+                value: T,
+            ) -> AbortReasonBuilder<::planus::Initialized<7, T>>
+            where
+                T: ::planus::WriteAsOffset<self::AbortedRolledBack>,
+            {
+                AbortReasonBuilder(::planus::Initialized(value))
+            }
+
+            /// Creates an instance of the [`AbortedConflictRetriesExhausted` variant](AbortReason#variant.AbortedConflictRetriesExhausted).
+            #[inline]
+            pub fn aborted_conflict_retries_exhausted<T>(
+                self,
+                value: T,
+            ) -> AbortReasonBuilder<::planus::Initialized<8, T>>
+            where
+                T: ::planus::WriteAsOffset<self::AbortedConflictRetriesExhausted>,
+            {
+                AbortReasonBuilder(::planus::Initialized(value))
+            }
+
+            /// Creates an instance of the [`AbortedDeadline` variant](AbortReason#variant.AbortedDeadline).
+            #[inline]
+            pub fn aborted_deadline<T>(
+                self,
+                value: T,
+            ) -> AbortReasonBuilder<::planus::Initialized<9, T>>
+            where
+                T: ::planus::WriteAsOffset<self::AbortedDeadline>,
+            {
+                AbortReasonBuilder(::planus::Initialized(value))
+            }
+
+            /// Creates an instance of the [`AbortedInternal` variant](AbortReason#variant.AbortedInternal).
+            #[inline]
+            pub fn aborted_internal<T>(
+                self,
+                value: T,
+            ) -> AbortReasonBuilder<::planus::Initialized<10, T>>
+            where
+                T: ::planus::WriteAsOffset<self::AbortedInternal>,
+            {
+                AbortReasonBuilder(::planus::Initialized(value))
+            }
+        }
+
+        impl<const N: u8, T> AbortReasonBuilder<::planus::Initialized<N, T>> {
+            /// Finish writing the builder to get an [UnionOffset](::planus::UnionOffset) to a serialized [AbortReason].
+            #[inline]
+            pub fn finish(
+                self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::UnionOffset<AbortReason>
+            where
+                Self: ::planus::WriteAsUnion<AbortReason>,
+            {
+                ::planus::WriteAsUnion::prepare(&self, builder)
+            }
+        }
+
+        impl<T> ::planus::WriteAsUnion<AbortReason> for AbortReasonBuilder<::planus::Initialized<1, T>>
+        where
+            T: ::planus::WriteAsOffset<self::AbortedLimit>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::UnionOffset<AbortReason> {
+                ::planus::UnionOffset::new(1, (self.0).0.prepare(builder).downcast())
+            }
+        }
+
+        impl<T> ::planus::WriteAsOptionalUnion<AbortReason>
+            for AbortReasonBuilder<::planus::Initialized<1, T>>
+        where
+            T: ::planus::WriteAsOffset<self::AbortedLimit>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::UnionOffset<AbortReason>> {
+                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
+            }
+        }
+        impl<T> ::planus::WriteAsUnion<AbortReason> for AbortReasonBuilder<::planus::Initialized<2, T>>
+        where
+            T: ::planus::WriteAsOffset<self::AbortedException>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::UnionOffset<AbortReason> {
+                ::planus::UnionOffset::new(2, (self.0).0.prepare(builder).downcast())
+            }
+        }
+
+        impl<T> ::planus::WriteAsOptionalUnion<AbortReason>
+            for AbortReasonBuilder<::planus::Initialized<2, T>>
+        where
+            T: ::planus::WriteAsOffset<self::AbortedException>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::UnionOffset<AbortReason>> {
+                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
+            }
+        }
+        impl<T> ::planus::WriteAsUnion<AbortReason> for AbortReasonBuilder<::planus::Initialized<3, T>>
+        where
+            T: ::planus::WriteAsOffset<self::AbortedVerbNotFound>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::UnionOffset<AbortReason> {
+                ::planus::UnionOffset::new(3, (self.0).0.prepare(builder).downcast())
+            }
+        }
+
+        impl<T> ::planus::WriteAsOptionalUnion<AbortReason>
+            for AbortReasonBuilder<::planus::Initialized<3, T>>
+        where
+            T: ::planus::WriteAsOffset<self::AbortedVerbNotFound>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::UnionOffset<AbortReason>> {
+                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
+            }
+        }
+        impl<T> ::planus::WriteAsUnion<AbortReason> for AbortReasonBuilder<::planus::Initialized<4, T>>
+        where
+            T: ::planus::WriteAsOffset<self::AbortedCommandFailed>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::UnionOffset<AbortReason> {
+                ::planus::UnionOffset::new(4, (self.0).0.prepare(builder).downcast())
+            }
+        }
+
+        impl<T> ::planus::WriteAsOptionalUnion<AbortReason>
+            for AbortReasonBuilder<::planus::Initialized<4, T>>
+        where
+            T: ::planus::WriteAsOffset<self::AbortedCommandFailed>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::UnionOffset<AbortReason>> {
+                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
+            }
+        }
+        impl<T> ::planus::WriteAsUnion<AbortReason> for AbortReasonBuilder<::planus::Initialized<5, T>>
+        where
+            T: ::planus::WriteAsOffset<self::AbortedCancelled>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::UnionOffset<AbortReason> {
+                ::planus::UnionOffset::new(5, (self.0).0.prepare(builder).downcast())
+            }
+        }
+
+        impl<T> ::planus::WriteAsOptionalUnion<AbortReason>
+            for AbortReasonBuilder<::planus::Initialized<5, T>>
+        where
+            T: ::planus::WriteAsOffset<self::AbortedCancelled>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::UnionOffset<AbortReason>> {
+                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
+            }
+        }
+        impl<T> ::planus::WriteAsUnion<AbortReason> for AbortReasonBuilder<::planus::Initialized<6, T>>
+        where
+            T: ::planus::WriteAsOffset<self::AbortedKilled>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::UnionOffset<AbortReason> {
+                ::planus::UnionOffset::new(6, (self.0).0.prepare(builder).downcast())
+            }
+        }
+
+        impl<T> ::planus::WriteAsOptionalUnion<AbortReason>
+            for AbortReasonBuilder<::planus::Initialized<6, T>>
+        where
+            T: ::planus::WriteAsOffset<self::AbortedKilled>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::UnionOffset<AbortReason>> {
+                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
+            }
+        }
+        impl<T> ::planus::WriteAsUnion<AbortReason> for AbortReasonBuilder<::planus::Initialized<7, T>>
+        where
+            T: ::planus::WriteAsOffset<self::AbortedRolledBack>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::UnionOffset<AbortReason> {
+                ::planus::UnionOffset::new(7, (self.0).0.prepare(builder).downcast())
+            }
+        }
+
+        impl<T> ::planus::WriteAsOptionalUnion<AbortReason>
+            for AbortReasonBuilder<::planus::Initialized<7, T>>
+        where
+            T: ::planus::WriteAsOffset<self::AbortedRolledBack>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::UnionOffset<AbortReason>> {
+                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
+            }
+        }
+        impl<T> ::planus::WriteAsUnion<AbortReason> for AbortReasonBuilder<::planus::Initialized<8, T>>
+        where
+            T: ::planus::WriteAsOffset<self::AbortedConflictRetriesExhausted>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::UnionOffset<AbortReason> {
+                ::planus::UnionOffset::new(8, (self.0).0.prepare(builder).downcast())
+            }
+        }
+
+        impl<T> ::planus::WriteAsOptionalUnion<AbortReason>
+            for AbortReasonBuilder<::planus::Initialized<8, T>>
+        where
+            T: ::planus::WriteAsOffset<self::AbortedConflictRetriesExhausted>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::UnionOffset<AbortReason>> {
+                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
+            }
+        }
+        impl<T> ::planus::WriteAsUnion<AbortReason> for AbortReasonBuilder<::planus::Initialized<9, T>>
+        where
+            T: ::planus::WriteAsOffset<self::AbortedDeadline>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::UnionOffset<AbortReason> {
+                ::planus::UnionOffset::new(9, (self.0).0.prepare(builder).downcast())
+            }
+        }
+
+        impl<T> ::planus::WriteAsOptionalUnion<AbortReason>
+            for AbortReasonBuilder<::planus::Initialized<9, T>>
+        where
+            T: ::planus::WriteAsOffset<self::AbortedDeadline>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::UnionOffset<AbortReason>> {
+                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
+            }
+        }
+        impl<T> ::planus::WriteAsUnion<AbortReason> for AbortReasonBuilder<::planus::Initialized<10, T>>
+        where
+            T: ::planus::WriteAsOffset<self::AbortedInternal>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::UnionOffset<AbortReason> {
+                ::planus::UnionOffset::new(10, (self.0).0.prepare(builder).downcast())
+            }
+        }
+
+        impl<T> ::planus::WriteAsOptionalUnion<AbortReason>
+            for AbortReasonBuilder<::planus::Initialized<10, T>>
+        where
+            T: ::planus::WriteAsOffset<self::AbortedInternal>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::UnionOffset<AbortReason>> {
+                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
+            }
+        }
+
+        /// Reference to a deserialized [AbortReason].
+        #[derive(Copy, Clone, Debug)]
+        pub enum AbortReasonRef<'a> {
+            AbortedLimit(self::AbortedLimitRef<'a>),
+            AbortedException(self::AbortedExceptionRef<'a>),
+            AbortedVerbNotFound(self::AbortedVerbNotFoundRef<'a>),
+            AbortedCommandFailed(self::AbortedCommandFailedRef<'a>),
+            AbortedCancelled(self::AbortedCancelledRef<'a>),
+            AbortedKilled(self::AbortedKilledRef<'a>),
+            AbortedRolledBack(self::AbortedRolledBackRef<'a>),
+            AbortedConflictRetriesExhausted(self::AbortedConflictRetriesExhaustedRef<'a>),
+            AbortedDeadline(self::AbortedDeadlineRef<'a>),
+            AbortedInternal(self::AbortedInternalRef<'a>),
+        }
+
+        impl<'a> ::core::convert::TryFrom<AbortReasonRef<'a>> for AbortReason {
+            type Error = ::planus::Error;
+
+            fn try_from(value: AbortReasonRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(match value {
+                    AbortReasonRef::AbortedLimit(value) => {
+                        Self::AbortedLimit(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryFrom::try_from(value)?,
+                        ))
+                    }
+
+                    AbortReasonRef::AbortedException(value) => {
+                        Self::AbortedException(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryFrom::try_from(value)?,
+                        ))
+                    }
+
+                    AbortReasonRef::AbortedVerbNotFound(value) => {
+                        Self::AbortedVerbNotFound(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryFrom::try_from(value)?,
+                        ))
+                    }
+
+                    AbortReasonRef::AbortedCommandFailed(value) => {
+                        Self::AbortedCommandFailed(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryFrom::try_from(value)?,
+                        ))
+                    }
+
+                    AbortReasonRef::AbortedCancelled(value) => {
+                        Self::AbortedCancelled(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryFrom::try_from(value)?,
+                        ))
+                    }
+
+                    AbortReasonRef::AbortedKilled(value) => {
+                        Self::AbortedKilled(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryFrom::try_from(value)?,
+                        ))
+                    }
+
+                    AbortReasonRef::AbortedRolledBack(value) => {
+                        Self::AbortedRolledBack(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryFrom::try_from(value)?,
+                        ))
+                    }
+
+                    AbortReasonRef::AbortedConflictRetriesExhausted(value) => {
+                        Self::AbortedConflictRetriesExhausted(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryFrom::try_from(value)?,
+                        ))
+                    }
+
+                    AbortReasonRef::AbortedDeadline(value) => {
+                        Self::AbortedDeadline(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryFrom::try_from(value)?,
+                        ))
+                    }
+
+                    AbortReasonRef::AbortedInternal(value) => {
+                        Self::AbortedInternal(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryFrom::try_from(value)?,
+                        ))
+                    }
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableReadUnion<'a> for AbortReasonRef<'a> {
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                tag: u8,
+                field_offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                match tag {
+                    1 => ::core::result::Result::Ok(Self::AbortedLimit(
+                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
+                    )),
+                    2 => ::core::result::Result::Ok(Self::AbortedException(
+                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
+                    )),
+                    3 => ::core::result::Result::Ok(Self::AbortedVerbNotFound(
+                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
+                    )),
+                    4 => ::core::result::Result::Ok(Self::AbortedCommandFailed(
+                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
+                    )),
+                    5 => ::core::result::Result::Ok(Self::AbortedCancelled(
+                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
+                    )),
+                    6 => ::core::result::Result::Ok(Self::AbortedKilled(
+                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
+                    )),
+                    7 => ::core::result::Result::Ok(Self::AbortedRolledBack(
+                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
+                    )),
+                    8 => ::core::result::Result::Ok(Self::AbortedConflictRetriesExhausted(
+                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
+                    )),
+                    9 => ::core::result::Result::Ok(Self::AbortedDeadline(
+                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
+                    )),
+                    10 => ::core::result::Result::Ok(Self::AbortedInternal(
+                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
+                    )),
+                    _ => {
+                        ::core::result::Result::Err(::planus::errors::ErrorKind::UnknownUnionTag {
+                            tag,
+                        })
+                    }
+                }
+            }
+        }
+
+        impl<'a> ::planus::VectorReadUnion<'a> for AbortReasonRef<'a> {
+            const VECTOR_NAME: &'static str = "[AbortReasonRef]";
+        }
+
+        /// The table `AbortedLimit` in the namespace `MoorRpc`
+        ///
+        /// Generated from these locations:
+        /// * Table `AbortedLimit` in the file `moor_rpc.fbs:134`
         #[derive(
             Clone,
             Debug,
@@ -34120,13 +34685,13 @@ mod root {
             ::serde::Serialize,
             ::serde::Deserialize,
         )]
-        pub struct TaskAbortedLimit {
-            /// The field `limit` in the table `TaskAbortedLimit`
+        pub struct AbortedLimit {
+            /// The field `limit` in the table `AbortedLimit`
             pub limit: ::planus::alloc::boxed::Box<self::AbortLimit>,
         }
 
         #[allow(clippy::derivable_impls)]
-        impl ::core::default::Default for TaskAbortedLimit {
+        impl ::core::default::Default for AbortedLimit {
             fn default() -> Self {
                 Self {
                     limit: ::core::default::Default::default(),
@@ -34134,11 +34699,11 @@ mod root {
             }
         }
 
-        impl TaskAbortedLimit {
-            /// Creates a [TaskAbortedLimitBuilder] for serializing an instance of this table.
+        impl AbortedLimit {
+            /// Creates a [AbortedLimitBuilder] for serializing an instance of this table.
             #[inline]
-            pub fn builder() -> TaskAbortedLimitBuilder<()> {
-                TaskAbortedLimitBuilder(())
+            pub fn builder() -> AbortedLimitBuilder<()> {
+                AbortedLimitBuilder(())
             }
 
             #[allow(clippy::too_many_arguments)]
@@ -34161,141 +34726,125 @@ mod root {
             }
         }
 
-        impl ::planus::WriteAs<::planus::Offset<TaskAbortedLimit>> for TaskAbortedLimit {
+        impl ::planus::WriteAs<::planus::Offset<AbortedLimit>> for AbortedLimit {
             type Prepared = ::planus::Offset<Self>;
 
             #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskAbortedLimit> {
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<AbortedLimit> {
                 ::planus::WriteAsOffset::prepare(self, builder)
             }
         }
 
-        impl ::planus::WriteAsOptional<::planus::Offset<TaskAbortedLimit>> for TaskAbortedLimit {
+        impl ::planus::WriteAsOptional<::planus::Offset<AbortedLimit>> for AbortedLimit {
             type Prepared = ::planus::Offset<Self>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<TaskAbortedLimit>> {
+            ) -> ::core::option::Option<::planus::Offset<AbortedLimit>> {
                 ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
             }
         }
 
-        impl ::planus::WriteAsOffset<TaskAbortedLimit> for TaskAbortedLimit {
+        impl ::planus::WriteAsOffset<AbortedLimit> for AbortedLimit {
             #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskAbortedLimit> {
-                TaskAbortedLimit::create(builder, &self.limit)
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<AbortedLimit> {
+                AbortedLimit::create(builder, &self.limit)
             }
         }
 
-        /// Builder for serializing an instance of the [TaskAbortedLimit] type.
+        /// Builder for serializing an instance of the [AbortedLimit] type.
         ///
-        /// Can be created using the [TaskAbortedLimit::builder] method.
+        /// Can be created using the [AbortedLimit::builder] method.
         #[derive(Debug)]
         #[must_use]
-        pub struct TaskAbortedLimitBuilder<State>(State);
+        pub struct AbortedLimitBuilder<State>(State);
 
-        impl TaskAbortedLimitBuilder<()> {
-            /// Setter for the [`limit` field](TaskAbortedLimit#structfield.limit).
+        impl AbortedLimitBuilder<()> {
+            /// Setter for the [`limit` field](AbortedLimit#structfield.limit).
             #[inline]
             #[allow(clippy::type_complexity)]
-            pub fn limit<T0>(self, value: T0) -> TaskAbortedLimitBuilder<(T0,)>
+            pub fn limit<T0>(self, value: T0) -> AbortedLimitBuilder<(T0,)>
             where
                 T0: ::planus::WriteAs<::planus::Offset<self::AbortLimit>>,
             {
-                TaskAbortedLimitBuilder((value,))
+                AbortedLimitBuilder((value,))
             }
         }
 
-        impl<T0> TaskAbortedLimitBuilder<(T0,)> {
-            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [TaskAbortedLimit].
+        impl<T0> AbortedLimitBuilder<(T0,)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [AbortedLimit].
             #[inline]
-            pub fn finish(
-                self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskAbortedLimit>
+            pub fn finish(self, builder: &mut ::planus::Builder) -> ::planus::Offset<AbortedLimit>
             where
-                Self: ::planus::WriteAsOffset<TaskAbortedLimit>,
+                Self: ::planus::WriteAsOffset<AbortedLimit>,
             {
                 ::planus::WriteAsOffset::prepare(&self, builder)
             }
         }
 
         impl<T0: ::planus::WriteAs<::planus::Offset<self::AbortLimit>>>
-            ::planus::WriteAs<::planus::Offset<TaskAbortedLimit>>
-            for TaskAbortedLimitBuilder<(T0,)>
+            ::planus::WriteAs<::planus::Offset<AbortedLimit>> for AbortedLimitBuilder<(T0,)>
         {
-            type Prepared = ::planus::Offset<TaskAbortedLimit>;
+            type Prepared = ::planus::Offset<AbortedLimit>;
 
             #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskAbortedLimit> {
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<AbortedLimit> {
                 ::planus::WriteAsOffset::prepare(self, builder)
             }
         }
 
         impl<T0: ::planus::WriteAs<::planus::Offset<self::AbortLimit>>>
-            ::planus::WriteAsOptional<::planus::Offset<TaskAbortedLimit>>
-            for TaskAbortedLimitBuilder<(T0,)>
+            ::planus::WriteAsOptional<::planus::Offset<AbortedLimit>>
+            for AbortedLimitBuilder<(T0,)>
         {
-            type Prepared = ::planus::Offset<TaskAbortedLimit>;
+            type Prepared = ::planus::Offset<AbortedLimit>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<TaskAbortedLimit>> {
+            ) -> ::core::option::Option<::planus::Offset<AbortedLimit>> {
                 ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
             }
         }
 
         impl<T0: ::planus::WriteAs<::planus::Offset<self::AbortLimit>>>
-            ::planus::WriteAsOffset<TaskAbortedLimit> for TaskAbortedLimitBuilder<(T0,)>
+            ::planus::WriteAsOffset<AbortedLimit> for AbortedLimitBuilder<(T0,)>
         {
             #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskAbortedLimit> {
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<AbortedLimit> {
                 let (v0,) = &self.0;
-                TaskAbortedLimit::create(builder, v0)
+                AbortedLimit::create(builder, v0)
             }
         }
 
-        /// Reference to a deserialized [TaskAbortedLimit].
+        /// Reference to a deserialized [AbortedLimit].
         #[derive(Copy, Clone)]
-        pub struct TaskAbortedLimitRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+        pub struct AbortedLimitRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
 
-        impl<'a> TaskAbortedLimitRef<'a> {
-            /// Getter for the [`limit` field](TaskAbortedLimit#structfield.limit).
+        impl<'a> AbortedLimitRef<'a> {
+            /// Getter for the [`limit` field](AbortedLimit#structfield.limit).
             #[inline]
             pub fn limit(&self) -> ::planus::Result<self::AbortLimitRef<'a>> {
-                self.0.access_required(0, "TaskAbortedLimit", "limit")
+                self.0.access_required(0, "AbortedLimit", "limit")
             }
         }
 
-        impl<'a> ::core::fmt::Debug for TaskAbortedLimitRef<'a> {
+        impl<'a> ::core::fmt::Debug for AbortedLimitRef<'a> {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                let mut f = f.debug_struct("TaskAbortedLimitRef");
+                let mut f = f.debug_struct("AbortedLimitRef");
                 f.field("limit", &self.limit());
                 f.finish()
             }
         }
 
-        impl<'a> ::core::convert::TryFrom<TaskAbortedLimitRef<'a>> for TaskAbortedLimit {
+        impl<'a> ::core::convert::TryFrom<AbortedLimitRef<'a>> for AbortedLimit {
             type Error = ::planus::Error;
 
             #[allow(unreachable_code)]
-            fn try_from(value: TaskAbortedLimitRef<'a>) -> ::planus::Result<Self> {
+            fn try_from(value: AbortedLimitRef<'a>) -> ::planus::Result<Self> {
                 ::core::result::Result::Ok(Self {
                     limit: ::planus::alloc::boxed::Box::new(::core::convert::TryInto::try_into(
                         value.limit()?,
@@ -34304,7 +34853,7 @@ mod root {
             }
         }
 
-        impl<'a> ::planus::TableRead<'a> for TaskAbortedLimitRef<'a> {
+        impl<'a> ::planus::TableRead<'a> for AbortedLimitRef<'a> {
             #[inline]
             fn from_buffer(
                 buffer: ::planus::SliceWithStartOffset<'a>,
@@ -34316,7 +34865,7 @@ mod root {
             }
         }
 
-        impl<'a> ::planus::VectorReadInner<'a> for TaskAbortedLimitRef<'a> {
+        impl<'a> ::planus::VectorReadInner<'a> for AbortedLimitRef<'a> {
             type Error = ::planus::Error;
             const STRIDE: usize = 4;
 
@@ -34326,7 +34875,7 @@ mod root {
             ) -> ::planus::Result<Self> {
                 ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
                     error_kind.with_error_location(
-                        "[TaskAbortedLimitRef]",
+                        "[AbortedLimitRef]",
                         "get",
                         buffer.offset_from_start,
                     )
@@ -34337,8 +34886,8 @@ mod root {
         /// # Safety
         /// The planus compiler generates implementations that initialize
         /// the bytes in `write_values`.
-        unsafe impl ::planus::VectorWrite<::planus::Offset<TaskAbortedLimit>> for TaskAbortedLimit {
-            type Value = ::planus::Offset<TaskAbortedLimit>;
+        unsafe impl ::planus::VectorWrite<::planus::Offset<AbortedLimit>> for AbortedLimit {
+            type Value = ::planus::Offset<AbortedLimit>;
             const STRIDE: usize = 4;
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
@@ -34347,7 +34896,7 @@ mod root {
 
             #[inline]
             unsafe fn write_values(
-                values: &[::planus::Offset<TaskAbortedLimit>],
+                values: &[::planus::Offset<AbortedLimit>],
                 bytes: *mut ::core::mem::MaybeUninit<u8>,
                 buffer_position: u32,
             ) {
@@ -34362,7 +34911,7 @@ mod root {
             }
         }
 
-        impl<'a> ::planus::ReadAsRoot<'a> for TaskAbortedLimitRef<'a> {
+        impl<'a> ::planus::ReadAsRoot<'a> for AbortedLimitRef<'a> {
             fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
                 ::planus::TableRead::from_buffer(
                     ::planus::SliceWithStartOffset {
@@ -34372,249 +34921,23 @@ mod root {
                     0,
                 )
                 .map_err(|error_kind| {
-                    error_kind.with_error_location("[TaskAbortedLimitRef]", "read_as_root", 0)
+                    error_kind.with_error_location("[AbortedLimitRef]", "read_as_root", 0)
                 })
             }
         }
 
-        /// The table `TaskAbortedError` in the namespace `MoorRpc`
+        /// The table `AbortedException` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `TaskAbortedError` in the file `moor_rpc.fbs:117`
-        #[derive(
-            Clone,
-            Debug,
-            PartialEq,
-            PartialOrd,
-            Eq,
-            Ord,
-            Hash,
-            ::serde::Serialize,
-            ::serde::Deserialize,
-        )]
-        pub struct TaskAbortedError {}
-
-        #[allow(clippy::derivable_impls)]
-        impl ::core::default::Default for TaskAbortedError {
-            fn default() -> Self {
-                Self {}
-            }
-        }
-
-        impl TaskAbortedError {
-            /// Creates a [TaskAbortedErrorBuilder] for serializing an instance of this table.
-            #[inline]
-            pub fn builder() -> TaskAbortedErrorBuilder<()> {
-                TaskAbortedErrorBuilder(())
-            }
-
-            #[allow(clippy::too_many_arguments)]
-            pub fn create(builder: &mut ::planus::Builder) -> ::planus::Offset<Self> {
-                let table_writer: ::planus::table_writer::TableWriter<4> =
-                    ::core::default::Default::default();
-                unsafe {
-                    table_writer.finish(builder, |_table_writer| {});
-                }
-                builder.current_offset()
-            }
-        }
-
-        impl ::planus::WriteAs<::planus::Offset<TaskAbortedError>> for TaskAbortedError {
-            type Prepared = ::planus::Offset<Self>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskAbortedError> {
-                ::planus::WriteAsOffset::prepare(self, builder)
-            }
-        }
-
-        impl ::planus::WriteAsOptional<::planus::Offset<TaskAbortedError>> for TaskAbortedError {
-            type Prepared = ::planus::Offset<Self>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<TaskAbortedError>> {
-                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
-            }
-        }
-
-        impl ::planus::WriteAsOffset<TaskAbortedError> for TaskAbortedError {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskAbortedError> {
-                TaskAbortedError::create(builder)
-            }
-        }
-
-        /// Builder for serializing an instance of the [TaskAbortedError] type.
-        ///
-        /// Can be created using the [TaskAbortedError::builder] method.
-        #[derive(Debug)]
-        #[must_use]
-        pub struct TaskAbortedErrorBuilder<State>(State);
-
-        impl TaskAbortedErrorBuilder<()> {
-            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [TaskAbortedError].
-            #[inline]
-            pub fn finish(
-                self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskAbortedError>
-            where
-                Self: ::planus::WriteAsOffset<TaskAbortedError>,
-            {
-                ::planus::WriteAsOffset::prepare(&self, builder)
-            }
-        }
-
-        impl ::planus::WriteAs<::planus::Offset<TaskAbortedError>> for TaskAbortedErrorBuilder<()> {
-            type Prepared = ::planus::Offset<TaskAbortedError>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskAbortedError> {
-                ::planus::WriteAsOffset::prepare(self, builder)
-            }
-        }
-
-        impl ::planus::WriteAsOptional<::planus::Offset<TaskAbortedError>> for TaskAbortedErrorBuilder<()> {
-            type Prepared = ::planus::Offset<TaskAbortedError>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<TaskAbortedError>> {
-                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
-            }
-        }
-
-        impl ::planus::WriteAsOffset<TaskAbortedError> for TaskAbortedErrorBuilder<()> {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskAbortedError> {
-                TaskAbortedError::create(builder)
-            }
-        }
-
-        /// Reference to a deserialized [TaskAbortedError].
-        #[derive(Copy, Clone)]
-        pub struct TaskAbortedErrorRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
-
-        impl<'a> TaskAbortedErrorRef<'a> {}
-
-        impl<'a> ::core::fmt::Debug for TaskAbortedErrorRef<'a> {
-            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                let mut f = f.debug_struct("TaskAbortedErrorRef");
-
-                f.finish()
-            }
-        }
-
-        impl<'a> ::core::convert::TryFrom<TaskAbortedErrorRef<'a>> for TaskAbortedError {
-            type Error = ::planus::Error;
-
-            fn try_from(_value: TaskAbortedErrorRef<'a>) -> ::planus::Result<Self> {
-                ::core::result::Result::Ok(Self {})
-            }
-        }
-
-        impl<'a> ::planus::TableRead<'a> for TaskAbortedErrorRef<'a> {
-            #[inline]
-            fn from_buffer(
-                buffer: ::planus::SliceWithStartOffset<'a>,
-                offset: usize,
-            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
-                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
-                    buffer, offset,
-                )?))
-            }
-        }
-
-        impl<'a> ::planus::VectorReadInner<'a> for TaskAbortedErrorRef<'a> {
-            type Error = ::planus::Error;
-            const STRIDE: usize = 4;
-
-            unsafe fn from_buffer(
-                buffer: ::planus::SliceWithStartOffset<'a>,
-                offset: usize,
-            ) -> ::planus::Result<Self> {
-                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
-                    error_kind.with_error_location(
-                        "[TaskAbortedErrorRef]",
-                        "get",
-                        buffer.offset_from_start,
-                    )
-                })
-            }
-        }
-
-        /// # Safety
-        /// The planus compiler generates implementations that initialize
-        /// the bytes in `write_values`.
-        unsafe impl ::planus::VectorWrite<::planus::Offset<TaskAbortedError>> for TaskAbortedError {
-            type Value = ::planus::Offset<TaskAbortedError>;
-            const STRIDE: usize = 4;
-            #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
-                ::planus::WriteAs::prepare(self, builder)
-            }
-
-            #[inline]
-            unsafe fn write_values(
-                values: &[::planus::Offset<TaskAbortedError>],
-                bytes: *mut ::core::mem::MaybeUninit<u8>,
-                buffer_position: u32,
-            ) {
-                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
-                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
-                    ::planus::WriteAsPrimitive::write(
-                        v,
-                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
-                        buffer_position - (Self::STRIDE * i) as u32,
-                    );
-                }
-            }
-        }
-
-        impl<'a> ::planus::ReadAsRoot<'a> for TaskAbortedErrorRef<'a> {
-            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
-                ::planus::TableRead::from_buffer(
-                    ::planus::SliceWithStartOffset {
-                        buffer: slice,
-                        offset_from_start: 0,
-                    },
-                    0,
-                )
-                .map_err(|error_kind| {
-                    error_kind.with_error_location("[TaskAbortedErrorRef]", "read_as_root", 0)
-                })
-            }
-        }
-
-        /// The table `TaskAbortedException` in the namespace `MoorRpc`
-        ///
-        /// Generated from these locations:
-        /// * Table `TaskAbortedException` in the file `moor_rpc.fbs:120`
+        /// * Table `AbortedException` in the file `moor_rpc.fbs:139`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
-        pub struct TaskAbortedException {
-            /// The field `exception` in the table `TaskAbortedException`
+        pub struct AbortedException {
+            /// The field `exception` in the table `AbortedException`
             pub exception: ::planus::alloc::boxed::Box<super::moor_common::Exception>,
         }
 
         #[allow(clippy::derivable_impls)]
-        impl ::core::default::Default for TaskAbortedException {
+        impl ::core::default::Default for AbortedException {
             fn default() -> Self {
                 Self {
                     exception: ::core::default::Default::default(),
@@ -34622,11 +34945,11 @@ mod root {
             }
         }
 
-        impl TaskAbortedException {
-            /// Creates a [TaskAbortedExceptionBuilder] for serializing an instance of this table.
+        impl AbortedException {
+            /// Creates a [AbortedExceptionBuilder] for serializing an instance of this table.
             #[inline]
-            pub fn builder() -> TaskAbortedExceptionBuilder<()> {
-                TaskAbortedExceptionBuilder(())
+            pub fn builder() -> AbortedExceptionBuilder<()> {
+                AbortedExceptionBuilder(())
             }
 
             #[allow(clippy::too_many_arguments)]
@@ -34649,144 +34972,141 @@ mod root {
             }
         }
 
-        impl ::planus::WriteAs<::planus::Offset<TaskAbortedException>> for TaskAbortedException {
+        impl ::planus::WriteAs<::planus::Offset<AbortedException>> for AbortedException {
             type Prepared = ::planus::Offset<Self>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskAbortedException> {
+            ) -> ::planus::Offset<AbortedException> {
                 ::planus::WriteAsOffset::prepare(self, builder)
             }
         }
 
-        impl ::planus::WriteAsOptional<::planus::Offset<TaskAbortedException>> for TaskAbortedException {
+        impl ::planus::WriteAsOptional<::planus::Offset<AbortedException>> for AbortedException {
             type Prepared = ::planus::Offset<Self>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<TaskAbortedException>> {
+            ) -> ::core::option::Option<::planus::Offset<AbortedException>> {
                 ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
             }
         }
 
-        impl ::planus::WriteAsOffset<TaskAbortedException> for TaskAbortedException {
+        impl ::planus::WriteAsOffset<AbortedException> for AbortedException {
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskAbortedException> {
-                TaskAbortedException::create(builder, &self.exception)
+            ) -> ::planus::Offset<AbortedException> {
+                AbortedException::create(builder, &self.exception)
             }
         }
 
-        /// Builder for serializing an instance of the [TaskAbortedException] type.
+        /// Builder for serializing an instance of the [AbortedException] type.
         ///
-        /// Can be created using the [TaskAbortedException::builder] method.
+        /// Can be created using the [AbortedException::builder] method.
         #[derive(Debug)]
         #[must_use]
-        pub struct TaskAbortedExceptionBuilder<State>(State);
+        pub struct AbortedExceptionBuilder<State>(State);
 
-        impl TaskAbortedExceptionBuilder<()> {
-            /// Setter for the [`exception` field](TaskAbortedException#structfield.exception).
+        impl AbortedExceptionBuilder<()> {
+            /// Setter for the [`exception` field](AbortedException#structfield.exception).
             #[inline]
             #[allow(clippy::type_complexity)]
-            pub fn exception<T0>(self, value: T0) -> TaskAbortedExceptionBuilder<(T0,)>
+            pub fn exception<T0>(self, value: T0) -> AbortedExceptionBuilder<(T0,)>
             where
                 T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Exception>>,
             {
-                TaskAbortedExceptionBuilder((value,))
+                AbortedExceptionBuilder((value,))
             }
         }
 
-        impl<T0> TaskAbortedExceptionBuilder<(T0,)> {
-            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [TaskAbortedException].
+        impl<T0> AbortedExceptionBuilder<(T0,)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [AbortedException].
             #[inline]
             pub fn finish(
                 self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskAbortedException>
+            ) -> ::planus::Offset<AbortedException>
             where
-                Self: ::planus::WriteAsOffset<TaskAbortedException>,
+                Self: ::planus::WriteAsOffset<AbortedException>,
             {
                 ::planus::WriteAsOffset::prepare(&self, builder)
             }
         }
 
         impl<T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Exception>>>
-            ::planus::WriteAs<::planus::Offset<TaskAbortedException>>
-            for TaskAbortedExceptionBuilder<(T0,)>
+            ::planus::WriteAs<::planus::Offset<AbortedException>>
+            for AbortedExceptionBuilder<(T0,)>
         {
-            type Prepared = ::planus::Offset<TaskAbortedException>;
+            type Prepared = ::planus::Offset<AbortedException>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskAbortedException> {
+            ) -> ::planus::Offset<AbortedException> {
                 ::planus::WriteAsOffset::prepare(self, builder)
             }
         }
 
         impl<T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Exception>>>
-            ::planus::WriteAsOptional<::planus::Offset<TaskAbortedException>>
-            for TaskAbortedExceptionBuilder<(T0,)>
+            ::planus::WriteAsOptional<::planus::Offset<AbortedException>>
+            for AbortedExceptionBuilder<(T0,)>
         {
-            type Prepared = ::planus::Offset<TaskAbortedException>;
+            type Prepared = ::planus::Offset<AbortedException>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<TaskAbortedException>> {
+            ) -> ::core::option::Option<::planus::Offset<AbortedException>> {
                 ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
             }
         }
 
         impl<T0: ::planus::WriteAs<::planus::Offset<super::moor_common::Exception>>>
-            ::planus::WriteAsOffset<TaskAbortedException> for TaskAbortedExceptionBuilder<(T0,)>
+            ::planus::WriteAsOffset<AbortedException> for AbortedExceptionBuilder<(T0,)>
         {
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskAbortedException> {
+            ) -> ::planus::Offset<AbortedException> {
                 let (v0,) = &self.0;
-                TaskAbortedException::create(builder, v0)
+                AbortedException::create(builder, v0)
             }
         }
 
-        /// Reference to a deserialized [TaskAbortedException].
+        /// Reference to a deserialized [AbortedException].
         #[derive(Copy, Clone)]
-        pub struct TaskAbortedExceptionRef<'a>(
-            #[allow(dead_code)] ::planus::table_reader::Table<'a>,
-        );
+        pub struct AbortedExceptionRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
 
-        impl<'a> TaskAbortedExceptionRef<'a> {
-            /// Getter for the [`exception` field](TaskAbortedException#structfield.exception).
+        impl<'a> AbortedExceptionRef<'a> {
+            /// Getter for the [`exception` field](AbortedException#structfield.exception).
             #[inline]
             pub fn exception(&self) -> ::planus::Result<super::moor_common::ExceptionRef<'a>> {
-                self.0
-                    .access_required(0, "TaskAbortedException", "exception")
+                self.0.access_required(0, "AbortedException", "exception")
             }
         }
 
-        impl<'a> ::core::fmt::Debug for TaskAbortedExceptionRef<'a> {
+        impl<'a> ::core::fmt::Debug for AbortedExceptionRef<'a> {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                let mut f = f.debug_struct("TaskAbortedExceptionRef");
+                let mut f = f.debug_struct("AbortedExceptionRef");
                 f.field("exception", &self.exception());
                 f.finish()
             }
         }
 
-        impl<'a> ::core::convert::TryFrom<TaskAbortedExceptionRef<'a>> for TaskAbortedException {
+        impl<'a> ::core::convert::TryFrom<AbortedExceptionRef<'a>> for AbortedException {
             type Error = ::planus::Error;
 
             #[allow(unreachable_code)]
-            fn try_from(value: TaskAbortedExceptionRef<'a>) -> ::planus::Result<Self> {
+            fn try_from(value: AbortedExceptionRef<'a>) -> ::planus::Result<Self> {
                 ::core::result::Result::Ok(Self {
                     exception: ::planus::alloc::boxed::Box::new(
                         ::core::convert::TryInto::try_into(value.exception()?)?,
@@ -34795,7 +35115,7 @@ mod root {
             }
         }
 
-        impl<'a> ::planus::TableRead<'a> for TaskAbortedExceptionRef<'a> {
+        impl<'a> ::planus::TableRead<'a> for AbortedExceptionRef<'a> {
             #[inline]
             fn from_buffer(
                 buffer: ::planus::SliceWithStartOffset<'a>,
@@ -34807,7 +35127,7 @@ mod root {
             }
         }
 
-        impl<'a> ::planus::VectorReadInner<'a> for TaskAbortedExceptionRef<'a> {
+        impl<'a> ::planus::VectorReadInner<'a> for AbortedExceptionRef<'a> {
             type Error = ::planus::Error;
             const STRIDE: usize = 4;
 
@@ -34817,7 +35137,7 @@ mod root {
             ) -> ::planus::Result<Self> {
                 ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
                     error_kind.with_error_location(
-                        "[TaskAbortedExceptionRef]",
+                        "[AbortedExceptionRef]",
                         "get",
                         buffer.offset_from_start,
                     )
@@ -34828,8 +35148,8 @@ mod root {
         /// # Safety
         /// The planus compiler generates implementations that initialize
         /// the bytes in `write_values`.
-        unsafe impl ::planus::VectorWrite<::planus::Offset<TaskAbortedException>> for TaskAbortedException {
-            type Value = ::planus::Offset<TaskAbortedException>;
+        unsafe impl ::planus::VectorWrite<::planus::Offset<AbortedException>> for AbortedException {
+            type Value = ::planus::Offset<AbortedException>;
             const STRIDE: usize = 4;
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
@@ -34838,7 +35158,7 @@ mod root {
 
             #[inline]
             unsafe fn write_values(
-                values: &[::planus::Offset<TaskAbortedException>],
+                values: &[::planus::Offset<AbortedException>],
                 bytes: *mut ::core::mem::MaybeUninit<u8>,
                 buffer_position: u32,
             ) {
@@ -34853,7 +35173,7 @@ mod root {
             }
         }
 
-        impl<'a> ::planus::ReadAsRoot<'a> for TaskAbortedExceptionRef<'a> {
+        impl<'a> ::planus::ReadAsRoot<'a> for AbortedExceptionRef<'a> {
             fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
                 ::planus::TableRead::from_buffer(
                     ::planus::SliceWithStartOffset {
@@ -34863,28 +35183,28 @@ mod root {
                     0,
                 )
                 .map_err(|error_kind| {
-                    error_kind.with_error_location("[TaskAbortedExceptionRef]", "read_as_root", 0)
+                    error_kind.with_error_location("[AbortedExceptionRef]", "read_as_root", 0)
                 })
             }
         }
 
-        /// The table `TaskAbortedVerbNotFound` in the namespace `MoorRpc`
+        /// The table `AbortedVerbNotFound` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `TaskAbortedVerbNotFound` in the file `moor_rpc.fbs:124`
+        /// * Table `AbortedVerbNotFound` in the file `moor_rpc.fbs:144`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
-        pub struct TaskAbortedVerbNotFound {
-            /// The field `where` in the table `TaskAbortedVerbNotFound`
+        pub struct AbortedVerbNotFound {
+            /// The field `where` in the table `AbortedVerbNotFound`
             pub where_: ::planus::alloc::boxed::Box<super::moor_var::Var>,
-            /// The field `what` in the table `TaskAbortedVerbNotFound`
+            /// The field `what` in the table `AbortedVerbNotFound`
             pub what: ::planus::alloc::boxed::Box<super::moor_common::Symbol>,
         }
 
-        impl TaskAbortedVerbNotFound {
-            /// Creates a [TaskAbortedVerbNotFoundBuilder] for serializing an instance of this table.
+        impl AbortedVerbNotFound {
+            /// Creates a [AbortedVerbNotFoundBuilder] for serializing an instance of this table.
             #[inline]
-            pub fn builder() -> TaskAbortedVerbNotFoundBuilder<()> {
-                TaskAbortedVerbNotFoundBuilder(())
+            pub fn builder() -> AbortedVerbNotFoundBuilder<()> {
+                AbortedVerbNotFoundBuilder(())
             }
 
             #[allow(clippy::too_many_arguments)]
@@ -34911,83 +35231,81 @@ mod root {
             }
         }
 
-        impl ::planus::WriteAs<::planus::Offset<TaskAbortedVerbNotFound>> for TaskAbortedVerbNotFound {
+        impl ::planus::WriteAs<::planus::Offset<AbortedVerbNotFound>> for AbortedVerbNotFound {
             type Prepared = ::planus::Offset<Self>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskAbortedVerbNotFound> {
+            ) -> ::planus::Offset<AbortedVerbNotFound> {
                 ::planus::WriteAsOffset::prepare(self, builder)
             }
         }
 
-        impl ::planus::WriteAsOptional<::planus::Offset<TaskAbortedVerbNotFound>>
-            for TaskAbortedVerbNotFound
-        {
+        impl ::planus::WriteAsOptional<::planus::Offset<AbortedVerbNotFound>> for AbortedVerbNotFound {
             type Prepared = ::planus::Offset<Self>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<TaskAbortedVerbNotFound>> {
+            ) -> ::core::option::Option<::planus::Offset<AbortedVerbNotFound>> {
                 ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
             }
         }
 
-        impl ::planus::WriteAsOffset<TaskAbortedVerbNotFound> for TaskAbortedVerbNotFound {
+        impl ::planus::WriteAsOffset<AbortedVerbNotFound> for AbortedVerbNotFound {
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskAbortedVerbNotFound> {
-                TaskAbortedVerbNotFound::create(builder, &self.where_, &self.what)
+            ) -> ::planus::Offset<AbortedVerbNotFound> {
+                AbortedVerbNotFound::create(builder, &self.where_, &self.what)
             }
         }
 
-        /// Builder for serializing an instance of the [TaskAbortedVerbNotFound] type.
+        /// Builder for serializing an instance of the [AbortedVerbNotFound] type.
         ///
-        /// Can be created using the [TaskAbortedVerbNotFound::builder] method.
+        /// Can be created using the [AbortedVerbNotFound::builder] method.
         #[derive(Debug)]
         #[must_use]
-        pub struct TaskAbortedVerbNotFoundBuilder<State>(State);
+        pub struct AbortedVerbNotFoundBuilder<State>(State);
 
-        impl TaskAbortedVerbNotFoundBuilder<()> {
-            /// Setter for the [`where` field](TaskAbortedVerbNotFound#structfield.where_).
+        impl AbortedVerbNotFoundBuilder<()> {
+            /// Setter for the [`where` field](AbortedVerbNotFound#structfield.where_).
             #[inline]
             #[allow(clippy::type_complexity)]
-            pub fn where_<T0>(self, value: T0) -> TaskAbortedVerbNotFoundBuilder<(T0,)>
+            pub fn where_<T0>(self, value: T0) -> AbortedVerbNotFoundBuilder<(T0,)>
             where
                 T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
             {
-                TaskAbortedVerbNotFoundBuilder((value,))
+                AbortedVerbNotFoundBuilder((value,))
             }
         }
 
-        impl<T0> TaskAbortedVerbNotFoundBuilder<(T0,)> {
-            /// Setter for the [`what` field](TaskAbortedVerbNotFound#structfield.what).
+        impl<T0> AbortedVerbNotFoundBuilder<(T0,)> {
+            /// Setter for the [`what` field](AbortedVerbNotFound#structfield.what).
             #[inline]
             #[allow(clippy::type_complexity)]
-            pub fn what<T1>(self, value: T1) -> TaskAbortedVerbNotFoundBuilder<(T0, T1)>
+            pub fn what<T1>(self, value: T1) -> AbortedVerbNotFoundBuilder<(T0, T1)>
             where
                 T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
             {
                 let (v0,) = self.0;
-                TaskAbortedVerbNotFoundBuilder((v0, value))
+                AbortedVerbNotFoundBuilder((v0, value))
             }
         }
 
-        impl<T0, T1> TaskAbortedVerbNotFoundBuilder<(T0, T1)> {
-            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [TaskAbortedVerbNotFound].
+        impl<T0, T1> AbortedVerbNotFoundBuilder<(T0, T1)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [AbortedVerbNotFound].
             #[inline]
             pub fn finish(
                 self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskAbortedVerbNotFound>
+            ) -> ::planus::Offset<AbortedVerbNotFound>
             where
-                Self: ::planus::WriteAsOffset<TaskAbortedVerbNotFound>,
+                Self: ::planus::WriteAsOffset<AbortedVerbNotFound>,
             {
                 ::planus::WriteAsOffset::prepare(&self, builder)
             }
@@ -34996,16 +35314,16 @@ mod root {
         impl<
             T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
             T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-        > ::planus::WriteAs<::planus::Offset<TaskAbortedVerbNotFound>>
-            for TaskAbortedVerbNotFoundBuilder<(T0, T1)>
+        > ::planus::WriteAs<::planus::Offset<AbortedVerbNotFound>>
+            for AbortedVerbNotFoundBuilder<(T0, T1)>
         {
-            type Prepared = ::planus::Offset<TaskAbortedVerbNotFound>;
+            type Prepared = ::planus::Offset<AbortedVerbNotFound>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskAbortedVerbNotFound> {
+            ) -> ::planus::Offset<AbortedVerbNotFound> {
                 ::planus::WriteAsOffset::prepare(self, builder)
             }
         }
@@ -35013,16 +35331,16 @@ mod root {
         impl<
             T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
             T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-        > ::planus::WriteAsOptional<::planus::Offset<TaskAbortedVerbNotFound>>
-            for TaskAbortedVerbNotFoundBuilder<(T0, T1)>
+        > ::planus::WriteAsOptional<::planus::Offset<AbortedVerbNotFound>>
+            for AbortedVerbNotFoundBuilder<(T0, T1)>
         {
-            type Prepared = ::planus::Offset<TaskAbortedVerbNotFound>;
+            type Prepared = ::planus::Offset<AbortedVerbNotFound>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<TaskAbortedVerbNotFound>> {
+            ) -> ::core::option::Option<::planus::Offset<AbortedVerbNotFound>> {
                 ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
             }
         }
@@ -35030,54 +35348,52 @@ mod root {
         impl<
             T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
             T1: ::planus::WriteAs<::planus::Offset<super::moor_common::Symbol>>,
-        > ::planus::WriteAsOffset<TaskAbortedVerbNotFound>
-            for TaskAbortedVerbNotFoundBuilder<(T0, T1)>
+        > ::planus::WriteAsOffset<AbortedVerbNotFound> for AbortedVerbNotFoundBuilder<(T0, T1)>
         {
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskAbortedVerbNotFound> {
+            ) -> ::planus::Offset<AbortedVerbNotFound> {
                 let (v0, v1) = &self.0;
-                TaskAbortedVerbNotFound::create(builder, v0, v1)
+                AbortedVerbNotFound::create(builder, v0, v1)
             }
         }
 
-        /// Reference to a deserialized [TaskAbortedVerbNotFound].
+        /// Reference to a deserialized [AbortedVerbNotFound].
         #[derive(Copy, Clone)]
-        pub struct TaskAbortedVerbNotFoundRef<'a>(
+        pub struct AbortedVerbNotFoundRef<'a>(
             #[allow(dead_code)] ::planus::table_reader::Table<'a>,
         );
 
-        impl<'a> TaskAbortedVerbNotFoundRef<'a> {
-            /// Getter for the [`where` field](TaskAbortedVerbNotFound#structfield.where_).
+        impl<'a> AbortedVerbNotFoundRef<'a> {
+            /// Getter for the [`where` field](AbortedVerbNotFound#structfield.where_).
             #[inline]
             pub fn where_(&self) -> ::planus::Result<super::moor_var::VarRef<'a>> {
-                self.0
-                    .access_required(0, "TaskAbortedVerbNotFound", "where_")
+                self.0.access_required(0, "AbortedVerbNotFound", "where_")
             }
 
-            /// Getter for the [`what` field](TaskAbortedVerbNotFound#structfield.what).
+            /// Getter for the [`what` field](AbortedVerbNotFound#structfield.what).
             #[inline]
             pub fn what(&self) -> ::planus::Result<super::moor_common::SymbolRef<'a>> {
-                self.0.access_required(1, "TaskAbortedVerbNotFound", "what")
+                self.0.access_required(1, "AbortedVerbNotFound", "what")
             }
         }
 
-        impl<'a> ::core::fmt::Debug for TaskAbortedVerbNotFoundRef<'a> {
+        impl<'a> ::core::fmt::Debug for AbortedVerbNotFoundRef<'a> {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                let mut f = f.debug_struct("TaskAbortedVerbNotFoundRef");
+                let mut f = f.debug_struct("AbortedVerbNotFoundRef");
                 f.field("where_", &self.where_());
                 f.field("what", &self.what());
                 f.finish()
             }
         }
 
-        impl<'a> ::core::convert::TryFrom<TaskAbortedVerbNotFoundRef<'a>> for TaskAbortedVerbNotFound {
+        impl<'a> ::core::convert::TryFrom<AbortedVerbNotFoundRef<'a>> for AbortedVerbNotFound {
             type Error = ::planus::Error;
 
             #[allow(unreachable_code)]
-            fn try_from(value: TaskAbortedVerbNotFoundRef<'a>) -> ::planus::Result<Self> {
+            fn try_from(value: AbortedVerbNotFoundRef<'a>) -> ::planus::Result<Self> {
                 ::core::result::Result::Ok(Self {
                     where_: ::planus::alloc::boxed::Box::new(::core::convert::TryInto::try_into(
                         value.where_()?,
@@ -35089,7 +35405,7 @@ mod root {
             }
         }
 
-        impl<'a> ::planus::TableRead<'a> for TaskAbortedVerbNotFoundRef<'a> {
+        impl<'a> ::planus::TableRead<'a> for AbortedVerbNotFoundRef<'a> {
             #[inline]
             fn from_buffer(
                 buffer: ::planus::SliceWithStartOffset<'a>,
@@ -35101,7 +35417,7 @@ mod root {
             }
         }
 
-        impl<'a> ::planus::VectorReadInner<'a> for TaskAbortedVerbNotFoundRef<'a> {
+        impl<'a> ::planus::VectorReadInner<'a> for AbortedVerbNotFoundRef<'a> {
             type Error = ::planus::Error;
             const STRIDE: usize = 4;
 
@@ -35111,7 +35427,7 @@ mod root {
             ) -> ::planus::Result<Self> {
                 ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
                     error_kind.with_error_location(
-                        "[TaskAbortedVerbNotFoundRef]",
+                        "[AbortedVerbNotFoundRef]",
                         "get",
                         buffer.offset_from_start,
                     )
@@ -35122,10 +35438,8 @@ mod root {
         /// # Safety
         /// The planus compiler generates implementations that initialize
         /// the bytes in `write_values`.
-        unsafe impl ::planus::VectorWrite<::planus::Offset<TaskAbortedVerbNotFound>>
-            for TaskAbortedVerbNotFound
-        {
-            type Value = ::planus::Offset<TaskAbortedVerbNotFound>;
+        unsafe impl ::planus::VectorWrite<::planus::Offset<AbortedVerbNotFound>> for AbortedVerbNotFound {
+            type Value = ::planus::Offset<AbortedVerbNotFound>;
             const STRIDE: usize = 4;
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
@@ -35134,7 +35448,7 @@ mod root {
 
             #[inline]
             unsafe fn write_values(
-                values: &[::planus::Offset<TaskAbortedVerbNotFound>],
+                values: &[::planus::Offset<AbortedVerbNotFound>],
                 bytes: *mut ::core::mem::MaybeUninit<u8>,
                 buffer_position: u32,
             ) {
@@ -35149,7 +35463,7 @@ mod root {
             }
         }
 
-        impl<'a> ::planus::ReadAsRoot<'a> for TaskAbortedVerbNotFoundRef<'a> {
+        impl<'a> ::planus::ReadAsRoot<'a> for AbortedVerbNotFoundRef<'a> {
             fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
                 ::planus::TableRead::from_buffer(
                     ::planus::SliceWithStartOffset {
@@ -35159,19 +35473,15 @@ mod root {
                     0,
                 )
                 .map_err(|error_kind| {
-                    error_kind.with_error_location(
-                        "[TaskAbortedVerbNotFoundRef]",
-                        "read_as_root",
-                        0,
-                    )
+                    error_kind.with_error_location("[AbortedVerbNotFoundRef]", "read_as_root", 0)
                 })
             }
         }
 
-        /// The table `TaskAbortedCancelled` in the namespace `MoorRpc`
+        /// The table `AbortedCommandFailed` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `TaskAbortedCancelled` in the file `moor_rpc.fbs:129`
+        /// * Table `AbortedCommandFailed` in the file `moor_rpc.fbs:150`
         #[derive(
             Clone,
             Debug,
@@ -35183,20 +35493,285 @@ mod root {
             ::serde::Serialize,
             ::serde::Deserialize,
         )]
-        pub struct TaskAbortedCancelled {}
+        pub struct AbortedCommandFailed {
+            /// The field `error` in the table `AbortedCommandFailed`
+            pub error: ::planus::alloc::boxed::Box<self::CommandError>,
+        }
+
+        impl AbortedCommandFailed {
+            /// Creates a [AbortedCommandFailedBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> AbortedCommandFailedBuilder<()> {
+                AbortedCommandFailedBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(
+                builder: &mut ::planus::Builder,
+                field_error: impl ::planus::WriteAs<::planus::Offset<self::CommandError>>,
+            ) -> ::planus::Offset<Self> {
+                let prepared_error = field_error.prepare(builder);
+
+                let mut table_writer: ::planus::table_writer::TableWriter<6> =
+                    ::core::default::Default::default();
+                table_writer.write_entry::<::planus::Offset<self::CommandError>>(0);
+
+                unsafe {
+                    table_writer.finish(builder, |object_writer| {
+                        object_writer.write::<_, _, 4>(&prepared_error);
+                    });
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<AbortedCommandFailed>> for AbortedCommandFailed {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<AbortedCommandFailed> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<AbortedCommandFailed>> for AbortedCommandFailed {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<AbortedCommandFailed>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<AbortedCommandFailed> for AbortedCommandFailed {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<AbortedCommandFailed> {
+                AbortedCommandFailed::create(builder, &self.error)
+            }
+        }
+
+        /// Builder for serializing an instance of the [AbortedCommandFailed] type.
+        ///
+        /// Can be created using the [AbortedCommandFailed::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct AbortedCommandFailedBuilder<State>(State);
+
+        impl AbortedCommandFailedBuilder<()> {
+            /// Setter for the [`error` field](AbortedCommandFailed#structfield.error).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn error<T0>(self, value: T0) -> AbortedCommandFailedBuilder<(T0,)>
+            where
+                T0: ::planus::WriteAs<::planus::Offset<self::CommandError>>,
+            {
+                AbortedCommandFailedBuilder((value,))
+            }
+        }
+
+        impl<T0> AbortedCommandFailedBuilder<(T0,)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [AbortedCommandFailed].
+            #[inline]
+            pub fn finish(
+                self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<AbortedCommandFailed>
+            where
+                Self: ::planus::WriteAsOffset<AbortedCommandFailed>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl<T0: ::planus::WriteAs<::planus::Offset<self::CommandError>>>
+            ::planus::WriteAs<::planus::Offset<AbortedCommandFailed>>
+            for AbortedCommandFailedBuilder<(T0,)>
+        {
+            type Prepared = ::planus::Offset<AbortedCommandFailed>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<AbortedCommandFailed> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl<T0: ::planus::WriteAs<::planus::Offset<self::CommandError>>>
+            ::planus::WriteAsOptional<::planus::Offset<AbortedCommandFailed>>
+            for AbortedCommandFailedBuilder<(T0,)>
+        {
+            type Prepared = ::planus::Offset<AbortedCommandFailed>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<AbortedCommandFailed>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl<T0: ::planus::WriteAs<::planus::Offset<self::CommandError>>>
+            ::planus::WriteAsOffset<AbortedCommandFailed> for AbortedCommandFailedBuilder<(T0,)>
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<AbortedCommandFailed> {
+                let (v0,) = &self.0;
+                AbortedCommandFailed::create(builder, v0)
+            }
+        }
+
+        /// Reference to a deserialized [AbortedCommandFailed].
+        #[derive(Copy, Clone)]
+        pub struct AbortedCommandFailedRef<'a>(
+            #[allow(dead_code)] ::planus::table_reader::Table<'a>,
+        );
+
+        impl<'a> AbortedCommandFailedRef<'a> {
+            /// Getter for the [`error` field](AbortedCommandFailed#structfield.error).
+            #[inline]
+            pub fn error(&self) -> ::planus::Result<self::CommandErrorRef<'a>> {
+                self.0.access_required(0, "AbortedCommandFailed", "error")
+            }
+        }
+
+        impl<'a> ::core::fmt::Debug for AbortedCommandFailedRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("AbortedCommandFailedRef");
+                f.field("error", &self.error());
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<AbortedCommandFailedRef<'a>> for AbortedCommandFailed {
+            type Error = ::planus::Error;
+
+            #[allow(unreachable_code)]
+            fn try_from(value: AbortedCommandFailedRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {
+                    error: ::planus::alloc::boxed::Box::new(::core::convert::TryInto::try_into(
+                        value.error()?,
+                    )?),
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for AbortedCommandFailedRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for AbortedCommandFailedRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[AbortedCommandFailedRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<AbortedCommandFailed>> for AbortedCommandFailed {
+            type Value = ::planus::Offset<AbortedCommandFailed>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<AbortedCommandFailed>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for AbortedCommandFailedRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[AbortedCommandFailedRef]", "read_as_root", 0)
+                })
+            }
+        }
+
+        /// The table `AbortedCancelled` in the namespace `MoorRpc`
+        ///
+        /// Generated from these locations:
+        /// * Table `AbortedCancelled` in the file `moor_rpc.fbs:155`
+        #[derive(
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        pub struct AbortedCancelled {}
 
         #[allow(clippy::derivable_impls)]
-        impl ::core::default::Default for TaskAbortedCancelled {
+        impl ::core::default::Default for AbortedCancelled {
             fn default() -> Self {
                 Self {}
             }
         }
 
-        impl TaskAbortedCancelled {
-            /// Creates a [TaskAbortedCancelledBuilder] for serializing an instance of this table.
+        impl AbortedCancelled {
+            /// Creates a [AbortedCancelledBuilder] for serializing an instance of this table.
             #[inline]
-            pub fn builder() -> TaskAbortedCancelledBuilder<()> {
-                TaskAbortedCancelledBuilder(())
+            pub fn builder() -> AbortedCancelledBuilder<()> {
+                AbortedCancelledBuilder(())
             }
 
             #[allow(clippy::too_many_arguments)]
@@ -35210,122 +35785,118 @@ mod root {
             }
         }
 
-        impl ::planus::WriteAs<::planus::Offset<TaskAbortedCancelled>> for TaskAbortedCancelled {
+        impl ::planus::WriteAs<::planus::Offset<AbortedCancelled>> for AbortedCancelled {
             type Prepared = ::planus::Offset<Self>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskAbortedCancelled> {
+            ) -> ::planus::Offset<AbortedCancelled> {
                 ::planus::WriteAsOffset::prepare(self, builder)
             }
         }
 
-        impl ::planus::WriteAsOptional<::planus::Offset<TaskAbortedCancelled>> for TaskAbortedCancelled {
+        impl ::planus::WriteAsOptional<::planus::Offset<AbortedCancelled>> for AbortedCancelled {
             type Prepared = ::planus::Offset<Self>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<TaskAbortedCancelled>> {
+            ) -> ::core::option::Option<::planus::Offset<AbortedCancelled>> {
                 ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
             }
         }
 
-        impl ::planus::WriteAsOffset<TaskAbortedCancelled> for TaskAbortedCancelled {
+        impl ::planus::WriteAsOffset<AbortedCancelled> for AbortedCancelled {
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskAbortedCancelled> {
-                TaskAbortedCancelled::create(builder)
+            ) -> ::planus::Offset<AbortedCancelled> {
+                AbortedCancelled::create(builder)
             }
         }
 
-        /// Builder for serializing an instance of the [TaskAbortedCancelled] type.
+        /// Builder for serializing an instance of the [AbortedCancelled] type.
         ///
-        /// Can be created using the [TaskAbortedCancelled::builder] method.
+        /// Can be created using the [AbortedCancelled::builder] method.
         #[derive(Debug)]
         #[must_use]
-        pub struct TaskAbortedCancelledBuilder<State>(State);
+        pub struct AbortedCancelledBuilder<State>(State);
 
-        impl TaskAbortedCancelledBuilder<()> {
-            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [TaskAbortedCancelled].
+        impl AbortedCancelledBuilder<()> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [AbortedCancelled].
             #[inline]
             pub fn finish(
                 self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskAbortedCancelled>
+            ) -> ::planus::Offset<AbortedCancelled>
             where
-                Self: ::planus::WriteAsOffset<TaskAbortedCancelled>,
+                Self: ::planus::WriteAsOffset<AbortedCancelled>,
             {
                 ::planus::WriteAsOffset::prepare(&self, builder)
             }
         }
 
-        impl ::planus::WriteAs<::planus::Offset<TaskAbortedCancelled>> for TaskAbortedCancelledBuilder<()> {
-            type Prepared = ::planus::Offset<TaskAbortedCancelled>;
+        impl ::planus::WriteAs<::planus::Offset<AbortedCancelled>> for AbortedCancelledBuilder<()> {
+            type Prepared = ::planus::Offset<AbortedCancelled>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskAbortedCancelled> {
+            ) -> ::planus::Offset<AbortedCancelled> {
                 ::planus::WriteAsOffset::prepare(self, builder)
             }
         }
 
-        impl ::planus::WriteAsOptional<::planus::Offset<TaskAbortedCancelled>>
-            for TaskAbortedCancelledBuilder<()>
-        {
-            type Prepared = ::planus::Offset<TaskAbortedCancelled>;
+        impl ::planus::WriteAsOptional<::planus::Offset<AbortedCancelled>> for AbortedCancelledBuilder<()> {
+            type Prepared = ::planus::Offset<AbortedCancelled>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<TaskAbortedCancelled>> {
+            ) -> ::core::option::Option<::planus::Offset<AbortedCancelled>> {
                 ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
             }
         }
 
-        impl ::planus::WriteAsOffset<TaskAbortedCancelled> for TaskAbortedCancelledBuilder<()> {
+        impl ::planus::WriteAsOffset<AbortedCancelled> for AbortedCancelledBuilder<()> {
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskAbortedCancelled> {
-                TaskAbortedCancelled::create(builder)
+            ) -> ::planus::Offset<AbortedCancelled> {
+                AbortedCancelled::create(builder)
             }
         }
 
-        /// Reference to a deserialized [TaskAbortedCancelled].
+        /// Reference to a deserialized [AbortedCancelled].
         #[derive(Copy, Clone)]
-        pub struct TaskAbortedCancelledRef<'a>(
-            #[allow(dead_code)] ::planus::table_reader::Table<'a>,
-        );
+        pub struct AbortedCancelledRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
 
-        impl<'a> TaskAbortedCancelledRef<'a> {}
+        impl<'a> AbortedCancelledRef<'a> {}
 
-        impl<'a> ::core::fmt::Debug for TaskAbortedCancelledRef<'a> {
+        impl<'a> ::core::fmt::Debug for AbortedCancelledRef<'a> {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                let mut f = f.debug_struct("TaskAbortedCancelledRef");
+                let mut f = f.debug_struct("AbortedCancelledRef");
 
                 f.finish()
             }
         }
 
-        impl<'a> ::core::convert::TryFrom<TaskAbortedCancelledRef<'a>> for TaskAbortedCancelled {
+        impl<'a> ::core::convert::TryFrom<AbortedCancelledRef<'a>> for AbortedCancelled {
             type Error = ::planus::Error;
 
-            fn try_from(_value: TaskAbortedCancelledRef<'a>) -> ::planus::Result<Self> {
+            fn try_from(_value: AbortedCancelledRef<'a>) -> ::planus::Result<Self> {
                 ::core::result::Result::Ok(Self {})
             }
         }
 
-        impl<'a> ::planus::TableRead<'a> for TaskAbortedCancelledRef<'a> {
+        impl<'a> ::planus::TableRead<'a> for AbortedCancelledRef<'a> {
             #[inline]
             fn from_buffer(
                 buffer: ::planus::SliceWithStartOffset<'a>,
@@ -35337,7 +35908,7 @@ mod root {
             }
         }
 
-        impl<'a> ::planus::VectorReadInner<'a> for TaskAbortedCancelledRef<'a> {
+        impl<'a> ::planus::VectorReadInner<'a> for AbortedCancelledRef<'a> {
             type Error = ::planus::Error;
             const STRIDE: usize = 4;
 
@@ -35347,7 +35918,7 @@ mod root {
             ) -> ::planus::Result<Self> {
                 ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
                     error_kind.with_error_location(
-                        "[TaskAbortedCancelledRef]",
+                        "[AbortedCancelledRef]",
                         "get",
                         buffer.offset_from_start,
                     )
@@ -35358,8 +35929,8 @@ mod root {
         /// # Safety
         /// The planus compiler generates implementations that initialize
         /// the bytes in `write_values`.
-        unsafe impl ::planus::VectorWrite<::planus::Offset<TaskAbortedCancelled>> for TaskAbortedCancelled {
-            type Value = ::planus::Offset<TaskAbortedCancelled>;
+        unsafe impl ::planus::VectorWrite<::planus::Offset<AbortedCancelled>> for AbortedCancelled {
+            type Value = ::planus::Offset<AbortedCancelled>;
             const STRIDE: usize = 4;
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
@@ -35368,7 +35939,7 @@ mod root {
 
             #[inline]
             unsafe fn write_values(
-                values: &[::planus::Offset<TaskAbortedCancelled>],
+                values: &[::planus::Offset<AbortedCancelled>],
                 bytes: *mut ::core::mem::MaybeUninit<u8>,
                 buffer_position: u32,
             ) {
@@ -35383,7 +35954,7 @@ mod root {
             }
         }
 
-        impl<'a> ::planus::ReadAsRoot<'a> for TaskAbortedCancelledRef<'a> {
+        impl<'a> ::planus::ReadAsRoot<'a> for AbortedCancelledRef<'a> {
             fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
                 ::planus::TableRead::from_buffer(
                     ::planus::SliceWithStartOffset {
@@ -35393,7 +35964,2756 @@ mod root {
                     0,
                 )
                 .map_err(|error_kind| {
-                    error_kind.with_error_location("[TaskAbortedCancelledRef]", "read_as_root", 0)
+                    error_kind.with_error_location("[AbortedCancelledRef]", "read_as_root", 0)
+                })
+            }
+        }
+
+        /// The table `AbortedKilled` in the namespace `MoorRpc`
+        ///
+        /// Generated from these locations:
+        /// * Table `AbortedKilled` in the file `moor_rpc.fbs:159`
+        #[derive(
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        pub struct AbortedKilled {}
+
+        #[allow(clippy::derivable_impls)]
+        impl ::core::default::Default for AbortedKilled {
+            fn default() -> Self {
+                Self {}
+            }
+        }
+
+        impl AbortedKilled {
+            /// Creates a [AbortedKilledBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> AbortedKilledBuilder<()> {
+                AbortedKilledBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(builder: &mut ::planus::Builder) -> ::planus::Offset<Self> {
+                let table_writer: ::planus::table_writer::TableWriter<4> =
+                    ::core::default::Default::default();
+                unsafe {
+                    table_writer.finish(builder, |_table_writer| {});
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<AbortedKilled>> for AbortedKilled {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<AbortedKilled> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<AbortedKilled>> for AbortedKilled {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<AbortedKilled>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<AbortedKilled> for AbortedKilled {
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<AbortedKilled> {
+                AbortedKilled::create(builder)
+            }
+        }
+
+        /// Builder for serializing an instance of the [AbortedKilled] type.
+        ///
+        /// Can be created using the [AbortedKilled::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct AbortedKilledBuilder<State>(State);
+
+        impl AbortedKilledBuilder<()> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [AbortedKilled].
+            #[inline]
+            pub fn finish(self, builder: &mut ::planus::Builder) -> ::planus::Offset<AbortedKilled>
+            where
+                Self: ::planus::WriteAsOffset<AbortedKilled>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<AbortedKilled>> for AbortedKilledBuilder<()> {
+            type Prepared = ::planus::Offset<AbortedKilled>;
+
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<AbortedKilled> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<AbortedKilled>> for AbortedKilledBuilder<()> {
+            type Prepared = ::planus::Offset<AbortedKilled>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<AbortedKilled>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<AbortedKilled> for AbortedKilledBuilder<()> {
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<AbortedKilled> {
+                AbortedKilled::create(builder)
+            }
+        }
+
+        /// Reference to a deserialized [AbortedKilled].
+        #[derive(Copy, Clone)]
+        pub struct AbortedKilledRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+
+        impl<'a> AbortedKilledRef<'a> {}
+
+        impl<'a> ::core::fmt::Debug for AbortedKilledRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("AbortedKilledRef");
+
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<AbortedKilledRef<'a>> for AbortedKilled {
+            type Error = ::planus::Error;
+
+            fn try_from(_value: AbortedKilledRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {})
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for AbortedKilledRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for AbortedKilledRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[AbortedKilledRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<AbortedKilled>> for AbortedKilled {
+            type Value = ::planus::Offset<AbortedKilled>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<AbortedKilled>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for AbortedKilledRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[AbortedKilledRef]", "read_as_root", 0)
+                })
+            }
+        }
+
+        /// The table `AbortedRolledBack` in the namespace `MoorRpc`
+        ///
+        /// Generated from these locations:
+        /// * Table `AbortedRolledBack` in the file `moor_rpc.fbs:163`
+        #[derive(
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        pub struct AbortedRolledBack {}
+
+        #[allow(clippy::derivable_impls)]
+        impl ::core::default::Default for AbortedRolledBack {
+            fn default() -> Self {
+                Self {}
+            }
+        }
+
+        impl AbortedRolledBack {
+            /// Creates a [AbortedRolledBackBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> AbortedRolledBackBuilder<()> {
+                AbortedRolledBackBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(builder: &mut ::planus::Builder) -> ::planus::Offset<Self> {
+                let table_writer: ::planus::table_writer::TableWriter<4> =
+                    ::core::default::Default::default();
+                unsafe {
+                    table_writer.finish(builder, |_table_writer| {});
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<AbortedRolledBack>> for AbortedRolledBack {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<AbortedRolledBack> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<AbortedRolledBack>> for AbortedRolledBack {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<AbortedRolledBack>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<AbortedRolledBack> for AbortedRolledBack {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<AbortedRolledBack> {
+                AbortedRolledBack::create(builder)
+            }
+        }
+
+        /// Builder for serializing an instance of the [AbortedRolledBack] type.
+        ///
+        /// Can be created using the [AbortedRolledBack::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct AbortedRolledBackBuilder<State>(State);
+
+        impl AbortedRolledBackBuilder<()> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [AbortedRolledBack].
+            #[inline]
+            pub fn finish(
+                self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<AbortedRolledBack>
+            where
+                Self: ::planus::WriteAsOffset<AbortedRolledBack>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<AbortedRolledBack>> for AbortedRolledBackBuilder<()> {
+            type Prepared = ::planus::Offset<AbortedRolledBack>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<AbortedRolledBack> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<AbortedRolledBack>>
+            for AbortedRolledBackBuilder<()>
+        {
+            type Prepared = ::planus::Offset<AbortedRolledBack>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<AbortedRolledBack>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<AbortedRolledBack> for AbortedRolledBackBuilder<()> {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<AbortedRolledBack> {
+                AbortedRolledBack::create(builder)
+            }
+        }
+
+        /// Reference to a deserialized [AbortedRolledBack].
+        #[derive(Copy, Clone)]
+        pub struct AbortedRolledBackRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+
+        impl<'a> AbortedRolledBackRef<'a> {}
+
+        impl<'a> ::core::fmt::Debug for AbortedRolledBackRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("AbortedRolledBackRef");
+
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<AbortedRolledBackRef<'a>> for AbortedRolledBack {
+            type Error = ::planus::Error;
+
+            fn try_from(_value: AbortedRolledBackRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {})
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for AbortedRolledBackRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for AbortedRolledBackRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[AbortedRolledBackRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<AbortedRolledBack>> for AbortedRolledBack {
+            type Value = ::planus::Offset<AbortedRolledBack>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<AbortedRolledBack>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for AbortedRolledBackRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[AbortedRolledBackRef]", "read_as_root", 0)
+                })
+            }
+        }
+
+        /// The table `AbortedConflictRetriesExhausted` in the namespace `MoorRpc`
+        ///
+        /// Generated from these locations:
+        /// * Table `AbortedConflictRetriesExhausted` in the file `moor_rpc.fbs:167`
+        #[derive(
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        pub struct AbortedConflictRetriesExhausted {}
+
+        #[allow(clippy::derivable_impls)]
+        impl ::core::default::Default for AbortedConflictRetriesExhausted {
+            fn default() -> Self {
+                Self {}
+            }
+        }
+
+        impl AbortedConflictRetriesExhausted {
+            /// Creates a [AbortedConflictRetriesExhaustedBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> AbortedConflictRetriesExhaustedBuilder<()> {
+                AbortedConflictRetriesExhaustedBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(builder: &mut ::planus::Builder) -> ::planus::Offset<Self> {
+                let table_writer: ::planus::table_writer::TableWriter<4> =
+                    ::core::default::Default::default();
+                unsafe {
+                    table_writer.finish(builder, |_table_writer| {});
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<AbortedConflictRetriesExhausted>>
+            for AbortedConflictRetriesExhausted
+        {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<AbortedConflictRetriesExhausted> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<AbortedConflictRetriesExhausted>>
+            for AbortedConflictRetriesExhausted
+        {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<AbortedConflictRetriesExhausted>>
+            {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<AbortedConflictRetriesExhausted> for AbortedConflictRetriesExhausted {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<AbortedConflictRetriesExhausted> {
+                AbortedConflictRetriesExhausted::create(builder)
+            }
+        }
+
+        /// Builder for serializing an instance of the [AbortedConflictRetriesExhausted] type.
+        ///
+        /// Can be created using the [AbortedConflictRetriesExhausted::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct AbortedConflictRetriesExhaustedBuilder<State>(State);
+
+        impl AbortedConflictRetriesExhaustedBuilder<()> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [AbortedConflictRetriesExhausted].
+            #[inline]
+            pub fn finish(
+                self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<AbortedConflictRetriesExhausted>
+            where
+                Self: ::planus::WriteAsOffset<AbortedConflictRetriesExhausted>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<AbortedConflictRetriesExhausted>>
+            for AbortedConflictRetriesExhaustedBuilder<()>
+        {
+            type Prepared = ::planus::Offset<AbortedConflictRetriesExhausted>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<AbortedConflictRetriesExhausted> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<AbortedConflictRetriesExhausted>>
+            for AbortedConflictRetriesExhaustedBuilder<()>
+        {
+            type Prepared = ::planus::Offset<AbortedConflictRetriesExhausted>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<AbortedConflictRetriesExhausted>>
+            {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<AbortedConflictRetriesExhausted>
+            for AbortedConflictRetriesExhaustedBuilder<()>
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<AbortedConflictRetriesExhausted> {
+                AbortedConflictRetriesExhausted::create(builder)
+            }
+        }
+
+        /// Reference to a deserialized [AbortedConflictRetriesExhausted].
+        #[derive(Copy, Clone)]
+        pub struct AbortedConflictRetriesExhaustedRef<'a>(
+            #[allow(dead_code)] ::planus::table_reader::Table<'a>,
+        );
+
+        impl<'a> AbortedConflictRetriesExhaustedRef<'a> {}
+
+        impl<'a> ::core::fmt::Debug for AbortedConflictRetriesExhaustedRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("AbortedConflictRetriesExhaustedRef");
+
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<AbortedConflictRetriesExhaustedRef<'a>>
+            for AbortedConflictRetriesExhausted
+        {
+            type Error = ::planus::Error;
+
+            fn try_from(_value: AbortedConflictRetriesExhaustedRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {})
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for AbortedConflictRetriesExhaustedRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for AbortedConflictRetriesExhaustedRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[AbortedConflictRetriesExhaustedRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<AbortedConflictRetriesExhausted>>
+            for AbortedConflictRetriesExhausted
+        {
+            type Value = ::planus::Offset<AbortedConflictRetriesExhausted>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<AbortedConflictRetriesExhausted>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for AbortedConflictRetriesExhaustedRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[AbortedConflictRetriesExhaustedRef]",
+                        "read_as_root",
+                        0,
+                    )
+                })
+            }
+        }
+
+        /// The table `AbortedDeadline` in the namespace `MoorRpc`
+        ///
+        /// Generated from these locations:
+        /// * Table `AbortedDeadline` in the file `moor_rpc.fbs:171`
+        #[derive(
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        pub struct AbortedDeadline {
+            /// The field `deadline_nanos` in the table `AbortedDeadline`
+            pub deadline_nanos: u64,
+        }
+
+        #[allow(clippy::derivable_impls)]
+        impl ::core::default::Default for AbortedDeadline {
+            fn default() -> Self {
+                Self { deadline_nanos: 0 }
+            }
+        }
+
+        impl AbortedDeadline {
+            /// Creates a [AbortedDeadlineBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> AbortedDeadlineBuilder<()> {
+                AbortedDeadlineBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(
+                builder: &mut ::planus::Builder,
+                field_deadline_nanos: impl ::planus::WriteAsDefault<u64, u64>,
+            ) -> ::planus::Offset<Self> {
+                let prepared_deadline_nanos = field_deadline_nanos.prepare(builder, &0);
+
+                let mut table_writer: ::planus::table_writer::TableWriter<6> =
+                    ::core::default::Default::default();
+                if prepared_deadline_nanos.is_some() {
+                    table_writer.write_entry::<u64>(0);
+                }
+
+                unsafe {
+                    table_writer.finish(builder, |object_writer| {
+                        if let ::core::option::Option::Some(prepared_deadline_nanos) =
+                            prepared_deadline_nanos
+                        {
+                            object_writer.write::<_, _, 8>(&prepared_deadline_nanos);
+                        }
+                    });
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<AbortedDeadline>> for AbortedDeadline {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<AbortedDeadline> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<AbortedDeadline>> for AbortedDeadline {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<AbortedDeadline>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<AbortedDeadline> for AbortedDeadline {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<AbortedDeadline> {
+                AbortedDeadline::create(builder, self.deadline_nanos)
+            }
+        }
+
+        /// Builder for serializing an instance of the [AbortedDeadline] type.
+        ///
+        /// Can be created using the [AbortedDeadline::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct AbortedDeadlineBuilder<State>(State);
+
+        impl AbortedDeadlineBuilder<()> {
+            /// Setter for the [`deadline_nanos` field](AbortedDeadline#structfield.deadline_nanos).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn deadline_nanos<T0>(self, value: T0) -> AbortedDeadlineBuilder<(T0,)>
+            where
+                T0: ::planus::WriteAsDefault<u64, u64>,
+            {
+                AbortedDeadlineBuilder((value,))
+            }
+
+            /// Sets the [`deadline_nanos` field](AbortedDeadline#structfield.deadline_nanos) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn deadline_nanos_as_default(
+                self,
+            ) -> AbortedDeadlineBuilder<(::planus::DefaultValue,)> {
+                self.deadline_nanos(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0> AbortedDeadlineBuilder<(T0,)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [AbortedDeadline].
+            #[inline]
+            pub fn finish(
+                self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<AbortedDeadline>
+            where
+                Self: ::planus::WriteAsOffset<AbortedDeadline>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl<T0: ::planus::WriteAsDefault<u64, u64>>
+            ::planus::WriteAs<::planus::Offset<AbortedDeadline>> for AbortedDeadlineBuilder<(T0,)>
+        {
+            type Prepared = ::planus::Offset<AbortedDeadline>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<AbortedDeadline> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl<T0: ::planus::WriteAsDefault<u64, u64>>
+            ::planus::WriteAsOptional<::planus::Offset<AbortedDeadline>>
+            for AbortedDeadlineBuilder<(T0,)>
+        {
+            type Prepared = ::planus::Offset<AbortedDeadline>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<AbortedDeadline>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl<T0: ::planus::WriteAsDefault<u64, u64>> ::planus::WriteAsOffset<AbortedDeadline>
+            for AbortedDeadlineBuilder<(T0,)>
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<AbortedDeadline> {
+                let (v0,) = &self.0;
+                AbortedDeadline::create(builder, v0)
+            }
+        }
+
+        /// Reference to a deserialized [AbortedDeadline].
+        #[derive(Copy, Clone)]
+        pub struct AbortedDeadlineRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+
+        impl<'a> AbortedDeadlineRef<'a> {
+            /// Getter for the [`deadline_nanos` field](AbortedDeadline#structfield.deadline_nanos).
+            #[inline]
+            pub fn deadline_nanos(&self) -> ::planus::Result<u64> {
+                ::core::result::Result::Ok(
+                    self.0
+                        .access(0, "AbortedDeadline", "deadline_nanos")?
+                        .unwrap_or(0),
+                )
+            }
+        }
+
+        impl<'a> ::core::fmt::Debug for AbortedDeadlineRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("AbortedDeadlineRef");
+                f.field("deadline_nanos", &self.deadline_nanos());
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<AbortedDeadlineRef<'a>> for AbortedDeadline {
+            type Error = ::planus::Error;
+
+            #[allow(unreachable_code)]
+            fn try_from(value: AbortedDeadlineRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {
+                    deadline_nanos: ::core::convert::TryInto::try_into(value.deadline_nanos()?)?,
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for AbortedDeadlineRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for AbortedDeadlineRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[AbortedDeadlineRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<AbortedDeadline>> for AbortedDeadline {
+            type Value = ::planus::Offset<AbortedDeadline>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<AbortedDeadline>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for AbortedDeadlineRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[AbortedDeadlineRef]", "read_as_root", 0)
+                })
+            }
+        }
+
+        /// The table `AbortedInternal` in the namespace `MoorRpc`
+        ///
+        /// Generated from these locations:
+        /// * Table `AbortedInternal` in the file `moor_rpc.fbs:176`
+        #[derive(
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        pub struct AbortedInternal {
+            /// The field `message` in the table `AbortedInternal`
+            pub message: ::planus::alloc::string::String,
+        }
+
+        #[allow(clippy::derivable_impls)]
+        impl ::core::default::Default for AbortedInternal {
+            fn default() -> Self {
+                Self {
+                    message: ::core::default::Default::default(),
+                }
+            }
+        }
+
+        impl AbortedInternal {
+            /// Creates a [AbortedInternalBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> AbortedInternalBuilder<()> {
+                AbortedInternalBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(
+                builder: &mut ::planus::Builder,
+                field_message: impl ::planus::WriteAs<::planus::Offset<str>>,
+            ) -> ::planus::Offset<Self> {
+                let prepared_message = field_message.prepare(builder);
+
+                let mut table_writer: ::planus::table_writer::TableWriter<6> =
+                    ::core::default::Default::default();
+                table_writer.write_entry::<::planus::Offset<str>>(0);
+
+                unsafe {
+                    table_writer.finish(builder, |object_writer| {
+                        object_writer.write::<_, _, 4>(&prepared_message);
+                    });
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<AbortedInternal>> for AbortedInternal {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<AbortedInternal> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<AbortedInternal>> for AbortedInternal {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<AbortedInternal>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<AbortedInternal> for AbortedInternal {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<AbortedInternal> {
+                AbortedInternal::create(builder, &self.message)
+            }
+        }
+
+        /// Builder for serializing an instance of the [AbortedInternal] type.
+        ///
+        /// Can be created using the [AbortedInternal::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct AbortedInternalBuilder<State>(State);
+
+        impl AbortedInternalBuilder<()> {
+            /// Setter for the [`message` field](AbortedInternal#structfield.message).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn message<T0>(self, value: T0) -> AbortedInternalBuilder<(T0,)>
+            where
+                T0: ::planus::WriteAs<::planus::Offset<str>>,
+            {
+                AbortedInternalBuilder((value,))
+            }
+        }
+
+        impl<T0> AbortedInternalBuilder<(T0,)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [AbortedInternal].
+            #[inline]
+            pub fn finish(
+                self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<AbortedInternal>
+            where
+                Self: ::planus::WriteAsOffset<AbortedInternal>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl<T0: ::planus::WriteAs<::planus::Offset<str>>>
+            ::planus::WriteAs<::planus::Offset<AbortedInternal>> for AbortedInternalBuilder<(T0,)>
+        {
+            type Prepared = ::planus::Offset<AbortedInternal>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<AbortedInternal> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl<T0: ::planus::WriteAs<::planus::Offset<str>>>
+            ::planus::WriteAsOptional<::planus::Offset<AbortedInternal>>
+            for AbortedInternalBuilder<(T0,)>
+        {
+            type Prepared = ::planus::Offset<AbortedInternal>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<AbortedInternal>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl<T0: ::planus::WriteAs<::planus::Offset<str>>> ::planus::WriteAsOffset<AbortedInternal>
+            for AbortedInternalBuilder<(T0,)>
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<AbortedInternal> {
+                let (v0,) = &self.0;
+                AbortedInternal::create(builder, v0)
+            }
+        }
+
+        /// Reference to a deserialized [AbortedInternal].
+        #[derive(Copy, Clone)]
+        pub struct AbortedInternalRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+
+        impl<'a> AbortedInternalRef<'a> {
+            /// Getter for the [`message` field](AbortedInternal#structfield.message).
+            #[inline]
+            pub fn message(&self) -> ::planus::Result<&'a ::core::primitive::str> {
+                self.0.access_required(0, "AbortedInternal", "message")
+            }
+        }
+
+        impl<'a> ::core::fmt::Debug for AbortedInternalRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("AbortedInternalRef");
+                f.field("message", &self.message());
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<AbortedInternalRef<'a>> for AbortedInternal {
+            type Error = ::planus::Error;
+
+            #[allow(unreachable_code)]
+            fn try_from(value: AbortedInternalRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {
+                    message: ::core::convert::Into::into(value.message()?),
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for AbortedInternalRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for AbortedInternalRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[AbortedInternalRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<AbortedInternal>> for AbortedInternal {
+            type Value = ::planus::Offset<AbortedInternal>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<AbortedInternal>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for AbortedInternalRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[AbortedInternalRef]", "read_as_root", 0)
+                })
+            }
+        }
+
+        /// The union `TaskEnding` in the namespace `MoorRpc`
+        ///
+        /// Generated from these locations:
+        /// * Union `TaskEnding` in the file `moor_rpc.fbs:180`
+        #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
+        pub enum TaskEnding {
+            /// The variant of type `TaskCompleted` in the union `TaskEnding`
+            TaskCompleted(::planus::alloc::boxed::Box<self::TaskCompleted>),
+
+            /// The variant of type `TaskSuspended` in the union `TaskEnding`
+            TaskSuspended(::planus::alloc::boxed::Box<self::TaskSuspended>),
+
+            /// The variant of type `TaskAborted` in the union `TaskEnding`
+            TaskAborted(::planus::alloc::boxed::Box<self::TaskAborted>),
+
+            /// The variant of type `TaskResultLost` in the union `TaskEnding`
+            TaskResultLost(::planus::alloc::boxed::Box<self::TaskResultLost>),
+        }
+
+        impl TaskEnding {
+            /// Creates a [TaskEndingBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> TaskEndingBuilder<::planus::Uninitialized> {
+                TaskEndingBuilder(::planus::Uninitialized)
+            }
+
+            #[inline]
+            pub fn create_task_completed(
+                builder: &mut ::planus::Builder,
+                value: impl ::planus::WriteAsOffset<self::TaskCompleted>,
+            ) -> ::planus::UnionOffset<Self> {
+                ::planus::UnionOffset::new(1, value.prepare(builder).downcast())
+            }
+
+            #[inline]
+            pub fn create_task_suspended(
+                builder: &mut ::planus::Builder,
+                value: impl ::planus::WriteAsOffset<self::TaskSuspended>,
+            ) -> ::planus::UnionOffset<Self> {
+                ::planus::UnionOffset::new(2, value.prepare(builder).downcast())
+            }
+
+            #[inline]
+            pub fn create_task_aborted(
+                builder: &mut ::planus::Builder,
+                value: impl ::planus::WriteAsOffset<self::TaskAborted>,
+            ) -> ::planus::UnionOffset<Self> {
+                ::planus::UnionOffset::new(3, value.prepare(builder).downcast())
+            }
+
+            #[inline]
+            pub fn create_task_result_lost(
+                builder: &mut ::planus::Builder,
+                value: impl ::planus::WriteAsOffset<self::TaskResultLost>,
+            ) -> ::planus::UnionOffset<Self> {
+                ::planus::UnionOffset::new(4, value.prepare(builder).downcast())
+            }
+        }
+
+        impl ::planus::WriteAsUnion<TaskEnding> for TaskEnding {
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::UnionOffset<Self> {
+                match self {
+                    Self::TaskCompleted(value) => Self::create_task_completed(builder, value),
+                    Self::TaskSuspended(value) => Self::create_task_suspended(builder, value),
+                    Self::TaskAborted(value) => Self::create_task_aborted(builder, value),
+                    Self::TaskResultLost(value) => Self::create_task_result_lost(builder, value),
+                }
+            }
+        }
+
+        impl ::planus::WriteAsOptionalUnion<TaskEnding> for TaskEnding {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::UnionOffset<Self>> {
+                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
+            }
+        }
+
+        /// Builder for serializing an instance of the [TaskEnding] type.
+        ///
+        /// Can be created using the [TaskEnding::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct TaskEndingBuilder<T>(T);
+
+        impl TaskEndingBuilder<::planus::Uninitialized> {
+            /// Creates an instance of the [`TaskCompleted` variant](TaskEnding#variant.TaskCompleted).
+            #[inline]
+            pub fn task_completed<T>(
+                self,
+                value: T,
+            ) -> TaskEndingBuilder<::planus::Initialized<1, T>>
+            where
+                T: ::planus::WriteAsOffset<self::TaskCompleted>,
+            {
+                TaskEndingBuilder(::planus::Initialized(value))
+            }
+
+            /// Creates an instance of the [`TaskSuspended` variant](TaskEnding#variant.TaskSuspended).
+            #[inline]
+            pub fn task_suspended<T>(
+                self,
+                value: T,
+            ) -> TaskEndingBuilder<::planus::Initialized<2, T>>
+            where
+                T: ::planus::WriteAsOffset<self::TaskSuspended>,
+            {
+                TaskEndingBuilder(::planus::Initialized(value))
+            }
+
+            /// Creates an instance of the [`TaskAborted` variant](TaskEnding#variant.TaskAborted).
+            #[inline]
+            pub fn task_aborted<T>(self, value: T) -> TaskEndingBuilder<::planus::Initialized<3, T>>
+            where
+                T: ::planus::WriteAsOffset<self::TaskAborted>,
+            {
+                TaskEndingBuilder(::planus::Initialized(value))
+            }
+
+            /// Creates an instance of the [`TaskResultLost` variant](TaskEnding#variant.TaskResultLost).
+            #[inline]
+            pub fn task_result_lost<T>(
+                self,
+                value: T,
+            ) -> TaskEndingBuilder<::planus::Initialized<4, T>>
+            where
+                T: ::planus::WriteAsOffset<self::TaskResultLost>,
+            {
+                TaskEndingBuilder(::planus::Initialized(value))
+            }
+        }
+
+        impl<const N: u8, T> TaskEndingBuilder<::planus::Initialized<N, T>> {
+            /// Finish writing the builder to get an [UnionOffset](::planus::UnionOffset) to a serialized [TaskEnding].
+            #[inline]
+            pub fn finish(
+                self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::UnionOffset<TaskEnding>
+            where
+                Self: ::planus::WriteAsUnion<TaskEnding>,
+            {
+                ::planus::WriteAsUnion::prepare(&self, builder)
+            }
+        }
+
+        impl<T> ::planus::WriteAsUnion<TaskEnding> for TaskEndingBuilder<::planus::Initialized<1, T>>
+        where
+            T: ::planus::WriteAsOffset<self::TaskCompleted>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::UnionOffset<TaskEnding> {
+                ::planus::UnionOffset::new(1, (self.0).0.prepare(builder).downcast())
+            }
+        }
+
+        impl<T> ::planus::WriteAsOptionalUnion<TaskEnding>
+            for TaskEndingBuilder<::planus::Initialized<1, T>>
+        where
+            T: ::planus::WriteAsOffset<self::TaskCompleted>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::UnionOffset<TaskEnding>> {
+                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
+            }
+        }
+        impl<T> ::planus::WriteAsUnion<TaskEnding> for TaskEndingBuilder<::planus::Initialized<2, T>>
+        where
+            T: ::planus::WriteAsOffset<self::TaskSuspended>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::UnionOffset<TaskEnding> {
+                ::planus::UnionOffset::new(2, (self.0).0.prepare(builder).downcast())
+            }
+        }
+
+        impl<T> ::planus::WriteAsOptionalUnion<TaskEnding>
+            for TaskEndingBuilder<::planus::Initialized<2, T>>
+        where
+            T: ::planus::WriteAsOffset<self::TaskSuspended>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::UnionOffset<TaskEnding>> {
+                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
+            }
+        }
+        impl<T> ::planus::WriteAsUnion<TaskEnding> for TaskEndingBuilder<::planus::Initialized<3, T>>
+        where
+            T: ::planus::WriteAsOffset<self::TaskAborted>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::UnionOffset<TaskEnding> {
+                ::planus::UnionOffset::new(3, (self.0).0.prepare(builder).downcast())
+            }
+        }
+
+        impl<T> ::planus::WriteAsOptionalUnion<TaskEnding>
+            for TaskEndingBuilder<::planus::Initialized<3, T>>
+        where
+            T: ::planus::WriteAsOffset<self::TaskAborted>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::UnionOffset<TaskEnding>> {
+                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
+            }
+        }
+        impl<T> ::planus::WriteAsUnion<TaskEnding> for TaskEndingBuilder<::planus::Initialized<4, T>>
+        where
+            T: ::planus::WriteAsOffset<self::TaskResultLost>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::UnionOffset<TaskEnding> {
+                ::planus::UnionOffset::new(4, (self.0).0.prepare(builder).downcast())
+            }
+        }
+
+        impl<T> ::planus::WriteAsOptionalUnion<TaskEnding>
+            for TaskEndingBuilder<::planus::Initialized<4, T>>
+        where
+            T: ::planus::WriteAsOffset<self::TaskResultLost>,
+        {
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::UnionOffset<TaskEnding>> {
+                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
+            }
+        }
+
+        /// Reference to a deserialized [TaskEnding].
+        #[derive(Copy, Clone, Debug)]
+        pub enum TaskEndingRef<'a> {
+            TaskCompleted(self::TaskCompletedRef<'a>),
+            TaskSuspended(self::TaskSuspendedRef<'a>),
+            TaskAborted(self::TaskAbortedRef<'a>),
+            TaskResultLost(self::TaskResultLostRef<'a>),
+        }
+
+        impl<'a> ::core::convert::TryFrom<TaskEndingRef<'a>> for TaskEnding {
+            type Error = ::planus::Error;
+
+            fn try_from(value: TaskEndingRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(match value {
+                    TaskEndingRef::TaskCompleted(value) => {
+                        Self::TaskCompleted(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryFrom::try_from(value)?,
+                        ))
+                    }
+
+                    TaskEndingRef::TaskSuspended(value) => {
+                        Self::TaskSuspended(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryFrom::try_from(value)?,
+                        ))
+                    }
+
+                    TaskEndingRef::TaskAborted(value) => {
+                        Self::TaskAborted(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryFrom::try_from(value)?,
+                        ))
+                    }
+
+                    TaskEndingRef::TaskResultLost(value) => {
+                        Self::TaskResultLost(::planus::alloc::boxed::Box::new(
+                            ::core::convert::TryFrom::try_from(value)?,
+                        ))
+                    }
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableReadUnion<'a> for TaskEndingRef<'a> {
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                tag: u8,
+                field_offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                match tag {
+                    1 => ::core::result::Result::Ok(Self::TaskCompleted(
+                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
+                    )),
+                    2 => ::core::result::Result::Ok(Self::TaskSuspended(
+                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
+                    )),
+                    3 => ::core::result::Result::Ok(Self::TaskAborted(
+                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
+                    )),
+                    4 => ::core::result::Result::Ok(Self::TaskResultLost(
+                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
+                    )),
+                    _ => {
+                        ::core::result::Result::Err(::planus::errors::ErrorKind::UnknownUnionTag {
+                            tag,
+                        })
+                    }
+                }
+            }
+        }
+
+        impl<'a> ::planus::VectorReadUnion<'a> for TaskEndingRef<'a> {
+            const VECTOR_NAME: &'static str = "[TaskEndingRef]";
+        }
+
+        /// The table `TaskCompleted` in the namespace `MoorRpc`
+        ///
+        /// Generated from these locations:
+        /// * Table `TaskCompleted` in the file `moor_rpc.fbs:188`
+        #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
+        pub struct TaskCompleted {
+            /// The field `result` in the table `TaskCompleted`
+            pub result: ::planus::alloc::boxed::Box<super::moor_var::Var>,
+        }
+
+        impl TaskCompleted {
+            /// Creates a [TaskCompletedBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> TaskCompletedBuilder<()> {
+                TaskCompletedBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(
+                builder: &mut ::planus::Builder,
+                field_result: impl ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            ) -> ::planus::Offset<Self> {
+                let prepared_result = field_result.prepare(builder);
+
+                let mut table_writer: ::planus::table_writer::TableWriter<6> =
+                    ::core::default::Default::default();
+                table_writer.write_entry::<::planus::Offset<super::moor_var::Var>>(0);
+
+                unsafe {
+                    table_writer.finish(builder, |object_writer| {
+                        object_writer.write::<_, _, 4>(&prepared_result);
+                    });
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<TaskCompleted>> for TaskCompleted {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<TaskCompleted> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<TaskCompleted>> for TaskCompleted {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<TaskCompleted>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<TaskCompleted> for TaskCompleted {
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<TaskCompleted> {
+                TaskCompleted::create(builder, &self.result)
+            }
+        }
+
+        /// Builder for serializing an instance of the [TaskCompleted] type.
+        ///
+        /// Can be created using the [TaskCompleted::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct TaskCompletedBuilder<State>(State);
+
+        impl TaskCompletedBuilder<()> {
+            /// Setter for the [`result` field](TaskCompleted#structfield.result).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn result<T0>(self, value: T0) -> TaskCompletedBuilder<(T0,)>
+            where
+                T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
+            {
+                TaskCompletedBuilder((value,))
+            }
+        }
+
+        impl<T0> TaskCompletedBuilder<(T0,)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [TaskCompleted].
+            #[inline]
+            pub fn finish(self, builder: &mut ::planus::Builder) -> ::planus::Offset<TaskCompleted>
+            where
+                Self: ::planus::WriteAsOffset<TaskCompleted>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl<T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>>
+            ::planus::WriteAs<::planus::Offset<TaskCompleted>> for TaskCompletedBuilder<(T0,)>
+        {
+            type Prepared = ::planus::Offset<TaskCompleted>;
+
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<TaskCompleted> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl<T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>>
+            ::planus::WriteAsOptional<::planus::Offset<TaskCompleted>>
+            for TaskCompletedBuilder<(T0,)>
+        {
+            type Prepared = ::planus::Offset<TaskCompleted>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<TaskCompleted>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl<T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>>
+            ::planus::WriteAsOffset<TaskCompleted> for TaskCompletedBuilder<(T0,)>
+        {
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<TaskCompleted> {
+                let (v0,) = &self.0;
+                TaskCompleted::create(builder, v0)
+            }
+        }
+
+        /// Reference to a deserialized [TaskCompleted].
+        #[derive(Copy, Clone)]
+        pub struct TaskCompletedRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+
+        impl<'a> TaskCompletedRef<'a> {
+            /// Getter for the [`result` field](TaskCompleted#structfield.result).
+            #[inline]
+            pub fn result(&self) -> ::planus::Result<super::moor_var::VarRef<'a>> {
+                self.0.access_required(0, "TaskCompleted", "result")
+            }
+        }
+
+        impl<'a> ::core::fmt::Debug for TaskCompletedRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("TaskCompletedRef");
+                f.field("result", &self.result());
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<TaskCompletedRef<'a>> for TaskCompleted {
+            type Error = ::planus::Error;
+
+            #[allow(unreachable_code)]
+            fn try_from(value: TaskCompletedRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {
+                    result: ::planus::alloc::boxed::Box::new(::core::convert::TryInto::try_into(
+                        value.result()?,
+                    )?),
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for TaskCompletedRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for TaskCompletedRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[TaskCompletedRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<TaskCompleted>> for TaskCompleted {
+            type Value = ::planus::Offset<TaskCompleted>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<TaskCompleted>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for TaskCompletedRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[TaskCompletedRef]", "read_as_root", 0)
+                })
+            }
+        }
+
+        /// The table `TaskSuspended` in the namespace `MoorRpc`
+        ///
+        /// Generated from these locations:
+        /// * Table `TaskSuspended` in the file `moor_rpc.fbs:193`
+        #[derive(
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        pub struct TaskSuspended {}
+
+        #[allow(clippy::derivable_impls)]
+        impl ::core::default::Default for TaskSuspended {
+            fn default() -> Self {
+                Self {}
+            }
+        }
+
+        impl TaskSuspended {
+            /// Creates a [TaskSuspendedBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> TaskSuspendedBuilder<()> {
+                TaskSuspendedBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(builder: &mut ::planus::Builder) -> ::planus::Offset<Self> {
+                let table_writer: ::planus::table_writer::TableWriter<4> =
+                    ::core::default::Default::default();
+                unsafe {
+                    table_writer.finish(builder, |_table_writer| {});
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<TaskSuspended>> for TaskSuspended {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<TaskSuspended> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<TaskSuspended>> for TaskSuspended {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<TaskSuspended>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<TaskSuspended> for TaskSuspended {
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<TaskSuspended> {
+                TaskSuspended::create(builder)
+            }
+        }
+
+        /// Builder for serializing an instance of the [TaskSuspended] type.
+        ///
+        /// Can be created using the [TaskSuspended::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct TaskSuspendedBuilder<State>(State);
+
+        impl TaskSuspendedBuilder<()> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [TaskSuspended].
+            #[inline]
+            pub fn finish(self, builder: &mut ::planus::Builder) -> ::planus::Offset<TaskSuspended>
+            where
+                Self: ::planus::WriteAsOffset<TaskSuspended>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<TaskSuspended>> for TaskSuspendedBuilder<()> {
+            type Prepared = ::planus::Offset<TaskSuspended>;
+
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<TaskSuspended> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<TaskSuspended>> for TaskSuspendedBuilder<()> {
+            type Prepared = ::planus::Offset<TaskSuspended>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<TaskSuspended>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<TaskSuspended> for TaskSuspendedBuilder<()> {
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<TaskSuspended> {
+                TaskSuspended::create(builder)
+            }
+        }
+
+        /// Reference to a deserialized [TaskSuspended].
+        #[derive(Copy, Clone)]
+        pub struct TaskSuspendedRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+
+        impl<'a> TaskSuspendedRef<'a> {}
+
+        impl<'a> ::core::fmt::Debug for TaskSuspendedRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("TaskSuspendedRef");
+
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<TaskSuspendedRef<'a>> for TaskSuspended {
+            type Error = ::planus::Error;
+
+            fn try_from(_value: TaskSuspendedRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {})
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for TaskSuspendedRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for TaskSuspendedRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[TaskSuspendedRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<TaskSuspended>> for TaskSuspended {
+            type Value = ::planus::Offset<TaskSuspended>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<TaskSuspended>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for TaskSuspendedRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[TaskSuspendedRef]", "read_as_root", 0)
+                })
+            }
+        }
+
+        /// The table `TaskAborted` in the namespace `MoorRpc`
+        ///
+        /// Generated from these locations:
+        /// * Table `TaskAborted` in the file `moor_rpc.fbs:197`
+        #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
+        pub struct TaskAborted {
+            /// The field `reason` in the table `TaskAborted`
+            pub reason: self::AbortReason,
+        }
+
+        impl TaskAborted {
+            /// Creates a [TaskAbortedBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> TaskAbortedBuilder<()> {
+                TaskAbortedBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(
+                builder: &mut ::planus::Builder,
+                field_reason: impl ::planus::WriteAsUnion<self::AbortReason>,
+            ) -> ::planus::Offset<Self> {
+                let prepared_reason = field_reason.prepare(builder);
+
+                let mut table_writer: ::planus::table_writer::TableWriter<8> =
+                    ::core::default::Default::default();
+                table_writer.write_entry::<::planus::Offset<self::AbortReason>>(1);
+                table_writer.write_entry::<u8>(0);
+
+                unsafe {
+                    table_writer.finish(builder, |object_writer| {
+                        object_writer.write::<_, _, 4>(&prepared_reason.offset());
+                        object_writer.write::<_, _, 1>(&prepared_reason.tag());
+                    });
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<TaskAborted>> for TaskAborted {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<TaskAborted> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<TaskAborted>> for TaskAborted {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<TaskAborted>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<TaskAborted> for TaskAborted {
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<TaskAborted> {
+                TaskAborted::create(builder, &self.reason)
+            }
+        }
+
+        /// Builder for serializing an instance of the [TaskAborted] type.
+        ///
+        /// Can be created using the [TaskAborted::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct TaskAbortedBuilder<State>(State);
+
+        impl TaskAbortedBuilder<()> {
+            /// Setter for the [`reason` field](TaskAborted#structfield.reason).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn reason<T0>(self, value: T0) -> TaskAbortedBuilder<(T0,)>
+            where
+                T0: ::planus::WriteAsUnion<self::AbortReason>,
+            {
+                TaskAbortedBuilder((value,))
+            }
+        }
+
+        impl<T0> TaskAbortedBuilder<(T0,)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [TaskAborted].
+            #[inline]
+            pub fn finish(self, builder: &mut ::planus::Builder) -> ::planus::Offset<TaskAborted>
+            where
+                Self: ::planus::WriteAsOffset<TaskAborted>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl<T0: ::planus::WriteAsUnion<self::AbortReason>>
+            ::planus::WriteAs<::planus::Offset<TaskAborted>> for TaskAbortedBuilder<(T0,)>
+        {
+            type Prepared = ::planus::Offset<TaskAborted>;
+
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<TaskAborted> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl<T0: ::planus::WriteAsUnion<self::AbortReason>>
+            ::planus::WriteAsOptional<::planus::Offset<TaskAborted>> for TaskAbortedBuilder<(T0,)>
+        {
+            type Prepared = ::planus::Offset<TaskAborted>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<TaskAborted>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl<T0: ::planus::WriteAsUnion<self::AbortReason>> ::planus::WriteAsOffset<TaskAborted>
+            for TaskAbortedBuilder<(T0,)>
+        {
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<TaskAborted> {
+                let (v0,) = &self.0;
+                TaskAborted::create(builder, v0)
+            }
+        }
+
+        /// Reference to a deserialized [TaskAborted].
+        #[derive(Copy, Clone)]
+        pub struct TaskAbortedRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+
+        impl<'a> TaskAbortedRef<'a> {
+            /// Getter for the [`reason` field](TaskAborted#structfield.reason).
+            #[inline]
+            pub fn reason(&self) -> ::planus::Result<self::AbortReasonRef<'a>> {
+                self.0.access_union_required(0, "TaskAborted", "reason")
+            }
+        }
+
+        impl<'a> ::core::fmt::Debug for TaskAbortedRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("TaskAbortedRef");
+                f.field("reason", &self.reason());
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<TaskAbortedRef<'a>> for TaskAborted {
+            type Error = ::planus::Error;
+
+            #[allow(unreachable_code)]
+            fn try_from(value: TaskAbortedRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {
+                    reason: ::core::convert::TryInto::try_into(value.reason()?)?,
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for TaskAbortedRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for TaskAbortedRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[TaskAbortedRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<TaskAborted>> for TaskAborted {
+            type Value = ::planus::Offset<TaskAborted>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<TaskAborted>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for TaskAbortedRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[TaskAbortedRef]", "read_as_root", 0)
+                })
+            }
+        }
+
+        /// The table `TaskResultLost` in the namespace `MoorRpc`
+        ///
+        /// Generated from these locations:
+        /// * Table `TaskResultLost` in the file `moor_rpc.fbs:202`
+        #[derive(
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
+        pub struct TaskResultLost {}
+
+        #[allow(clippy::derivable_impls)]
+        impl ::core::default::Default for TaskResultLost {
+            fn default() -> Self {
+                Self {}
+            }
+        }
+
+        impl TaskResultLost {
+            /// Creates a [TaskResultLostBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> TaskResultLostBuilder<()> {
+                TaskResultLostBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(builder: &mut ::planus::Builder) -> ::planus::Offset<Self> {
+                let table_writer: ::planus::table_writer::TableWriter<4> =
+                    ::core::default::Default::default();
+                unsafe {
+                    table_writer.finish(builder, |_table_writer| {});
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<TaskResultLost>> for TaskResultLost {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<TaskResultLost> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<TaskResultLost>> for TaskResultLost {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<TaskResultLost>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<TaskResultLost> for TaskResultLost {
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<TaskResultLost> {
+                TaskResultLost::create(builder)
+            }
+        }
+
+        /// Builder for serializing an instance of the [TaskResultLost] type.
+        ///
+        /// Can be created using the [TaskResultLost::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct TaskResultLostBuilder<State>(State);
+
+        impl TaskResultLostBuilder<()> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [TaskResultLost].
+            #[inline]
+            pub fn finish(self, builder: &mut ::planus::Builder) -> ::planus::Offset<TaskResultLost>
+            where
+                Self: ::planus::WriteAsOffset<TaskResultLost>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<TaskResultLost>> for TaskResultLostBuilder<()> {
+            type Prepared = ::planus::Offset<TaskResultLost>;
+
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<TaskResultLost> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<TaskResultLost>> for TaskResultLostBuilder<()> {
+            type Prepared = ::planus::Offset<TaskResultLost>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<TaskResultLost>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<TaskResultLost> for TaskResultLostBuilder<()> {
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<TaskResultLost> {
+                TaskResultLost::create(builder)
+            }
+        }
+
+        /// Reference to a deserialized [TaskResultLost].
+        #[derive(Copy, Clone)]
+        pub struct TaskResultLostRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+
+        impl<'a> TaskResultLostRef<'a> {}
+
+        impl<'a> ::core::fmt::Debug for TaskResultLostRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("TaskResultLostRef");
+
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<TaskResultLostRef<'a>> for TaskResultLost {
+            type Error = ::planus::Error;
+
+            fn try_from(_value: TaskResultLostRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {})
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for TaskResultLostRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for TaskResultLostRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[TaskResultLostRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<TaskResultLost>> for TaskResultLost {
+            type Value = ::planus::Offset<TaskResultLost>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<TaskResultLost>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for TaskResultLostRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[TaskResultLostRef]", "read_as_root", 0)
+                })
+            }
+        }
+
+        /// The table `TaskOutcome` in the namespace `MoorRpc`
+        ///
+        /// Generated from these locations:
+        /// * Table `TaskOutcome` in the file `moor_rpc.fbs:207`
+        #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
+        pub struct TaskOutcome {
+            /// The field `kept` in the table `TaskOutcome`
+            pub kept: self::Kept,
+            /// The field `ending` in the table `TaskOutcome`
+            pub ending: self::TaskEnding,
+        }
+
+        impl TaskOutcome {
+            /// Creates a [TaskOutcomeBuilder] for serializing an instance of this table.
+            #[inline]
+            pub fn builder() -> TaskOutcomeBuilder<()> {
+                TaskOutcomeBuilder(())
+            }
+
+            #[allow(clippy::too_many_arguments)]
+            pub fn create(
+                builder: &mut ::planus::Builder,
+                field_kept: impl ::planus::WriteAsDefault<self::Kept, self::Kept>,
+                field_ending: impl ::planus::WriteAsUnion<self::TaskEnding>,
+            ) -> ::planus::Offset<Self> {
+                let prepared_kept = field_kept.prepare(builder, &self::Kept::Unknown);
+                let prepared_ending = field_ending.prepare(builder);
+
+                let mut table_writer: ::planus::table_writer::TableWriter<10> =
+                    ::core::default::Default::default();
+                table_writer.write_entry::<::planus::Offset<self::TaskEnding>>(2);
+                if prepared_kept.is_some() {
+                    table_writer.write_entry::<self::Kept>(0);
+                }
+                table_writer.write_entry::<u8>(1);
+
+                unsafe {
+                    table_writer.finish(builder, |object_writer| {
+                        object_writer.write::<_, _, 4>(&prepared_ending.offset());
+                        if let ::core::option::Option::Some(prepared_kept) = prepared_kept {
+                            object_writer.write::<_, _, 1>(&prepared_kept);
+                        }
+                        object_writer.write::<_, _, 1>(&prepared_ending.tag());
+                    });
+                }
+                builder.current_offset()
+            }
+        }
+
+        impl ::planus::WriteAs<::planus::Offset<TaskOutcome>> for TaskOutcome {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<TaskOutcome> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<TaskOutcome>> for TaskOutcome {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<TaskOutcome>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl ::planus::WriteAsOffset<TaskOutcome> for TaskOutcome {
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<TaskOutcome> {
+                TaskOutcome::create(builder, self.kept, &self.ending)
+            }
+        }
+
+        /// Builder for serializing an instance of the [TaskOutcome] type.
+        ///
+        /// Can be created using the [TaskOutcome::builder] method.
+        #[derive(Debug)]
+        #[must_use]
+        pub struct TaskOutcomeBuilder<State>(State);
+
+        impl TaskOutcomeBuilder<()> {
+            /// Setter for the [`kept` field](TaskOutcome#structfield.kept).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn kept<T0>(self, value: T0) -> TaskOutcomeBuilder<(T0,)>
+            where
+                T0: ::planus::WriteAsDefault<self::Kept, self::Kept>,
+            {
+                TaskOutcomeBuilder((value,))
+            }
+
+            /// Sets the [`kept` field](TaskOutcome#structfield.kept) to the default value.
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn kept_as_default(self) -> TaskOutcomeBuilder<(::planus::DefaultValue,)> {
+                self.kept(::planus::DefaultValue)
+            }
+        }
+
+        impl<T0> TaskOutcomeBuilder<(T0,)> {
+            /// Setter for the [`ending` field](TaskOutcome#structfield.ending).
+            #[inline]
+            #[allow(clippy::type_complexity)]
+            pub fn ending<T1>(self, value: T1) -> TaskOutcomeBuilder<(T0, T1)>
+            where
+                T1: ::planus::WriteAsUnion<self::TaskEnding>,
+            {
+                let (v0,) = self.0;
+                TaskOutcomeBuilder((v0, value))
+            }
+        }
+
+        impl<T0, T1> TaskOutcomeBuilder<(T0, T1)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [TaskOutcome].
+            #[inline]
+            pub fn finish(self, builder: &mut ::planus::Builder) -> ::planus::Offset<TaskOutcome>
+            where
+                Self: ::planus::WriteAsOffset<TaskOutcome>,
+            {
+                ::planus::WriteAsOffset::prepare(&self, builder)
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAsDefault<self::Kept, self::Kept>,
+            T1: ::planus::WriteAsUnion<self::TaskEnding>,
+        > ::planus::WriteAs<::planus::Offset<TaskOutcome>> for TaskOutcomeBuilder<(T0, T1)>
+        {
+            type Prepared = ::planus::Offset<TaskOutcome>;
+
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<TaskOutcome> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAsDefault<self::Kept, self::Kept>,
+            T1: ::planus::WriteAsUnion<self::TaskEnding>,
+        > ::planus::WriteAsOptional<::planus::Offset<TaskOutcome>>
+            for TaskOutcomeBuilder<(T0, T1)>
+        {
+            type Prepared = ::planus::Offset<TaskOutcome>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<TaskOutcome>> {
+                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
+            }
+        }
+
+        impl<
+            T0: ::planus::WriteAsDefault<self::Kept, self::Kept>,
+            T1: ::planus::WriteAsUnion<self::TaskEnding>,
+        > ::planus::WriteAsOffset<TaskOutcome> for TaskOutcomeBuilder<(T0, T1)>
+        {
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<TaskOutcome> {
+                let (v0, v1) = &self.0;
+                TaskOutcome::create(builder, v0, v1)
+            }
+        }
+
+        /// Reference to a deserialized [TaskOutcome].
+        #[derive(Copy, Clone)]
+        pub struct TaskOutcomeRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+
+        impl<'a> TaskOutcomeRef<'a> {
+            /// Getter for the [`kept` field](TaskOutcome#structfield.kept).
+            #[inline]
+            pub fn kept(&self) -> ::planus::Result<self::Kept> {
+                ::core::result::Result::Ok(
+                    self.0
+                        .access(0, "TaskOutcome", "kept")?
+                        .unwrap_or(self::Kept::Unknown),
+                )
+            }
+
+            /// Getter for the [`ending` field](TaskOutcome#structfield.ending).
+            #[inline]
+            pub fn ending(&self) -> ::planus::Result<self::TaskEndingRef<'a>> {
+                self.0.access_union_required(1, "TaskOutcome", "ending")
+            }
+        }
+
+        impl<'a> ::core::fmt::Debug for TaskOutcomeRef<'a> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                let mut f = f.debug_struct("TaskOutcomeRef");
+                f.field("kept", &self.kept());
+                f.field("ending", &self.ending());
+                f.finish()
+            }
+        }
+
+        impl<'a> ::core::convert::TryFrom<TaskOutcomeRef<'a>> for TaskOutcome {
+            type Error = ::planus::Error;
+
+            #[allow(unreachable_code)]
+            fn try_from(value: TaskOutcomeRef<'a>) -> ::planus::Result<Self> {
+                ::core::result::Result::Ok(Self {
+                    kept: ::core::convert::TryInto::try_into(value.kept()?)?,
+                    ending: ::core::convert::TryInto::try_into(value.ending()?)?,
+                })
+            }
+        }
+
+        impl<'a> ::planus::TableRead<'a> for TaskOutcomeRef<'a> {
+            #[inline]
+            fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
+                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
+                    buffer, offset,
+                )?))
+            }
+        }
+
+        impl<'a> ::planus::VectorReadInner<'a> for TaskOutcomeRef<'a> {
+            type Error = ::planus::Error;
+            const STRIDE: usize = 4;
+
+            unsafe fn from_buffer(
+                buffer: ::planus::SliceWithStartOffset<'a>,
+                offset: usize,
+            ) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
+                    error_kind.with_error_location(
+                        "[TaskOutcomeRef]",
+                        "get",
+                        buffer.offset_from_start,
+                    )
+                })
+            }
+        }
+
+        /// # Safety
+        /// The planus compiler generates implementations that initialize
+        /// the bytes in `write_values`.
+        unsafe impl ::planus::VectorWrite<::planus::Offset<TaskOutcome>> for TaskOutcome {
+            type Value = ::planus::Offset<TaskOutcome>;
+            const STRIDE: usize = 4;
+            #[inline]
+            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
+                ::planus::WriteAs::prepare(self, builder)
+            }
+
+            #[inline]
+            unsafe fn write_values(
+                values: &[::planus::Offset<TaskOutcome>],
+                bytes: *mut ::core::mem::MaybeUninit<u8>,
+                buffer_position: u32,
+            ) {
+                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
+                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
+                    ::planus::WriteAsPrimitive::write(
+                        v,
+                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
+                        buffer_position - (Self::STRIDE * i) as u32,
+                    );
+                }
+            }
+        }
+
+        impl<'a> ::planus::ReadAsRoot<'a> for TaskOutcomeRef<'a> {
+            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
+                ::planus::TableRead::from_buffer(
+                    ::planus::SliceWithStartOffset {
+                        buffer: slice,
+                        offset_from_start: 0,
+                    },
+                    0,
+                )
+                .map_err(|error_kind| {
+                    error_kind.with_error_location("[TaskOutcomeRef]", "read_as_root", 0)
                 })
             }
         }
@@ -35401,7 +38721,7 @@ mod root {
         /// The table `VerbProgramFailed` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbProgramFailed` in the file `moor_rpc.fbs:132`
+        /// * Table `VerbProgramFailed` in the file `moor_rpc.fbs:212`
         #[derive(
             Clone,
             Debug,
@@ -35664,7 +38984,7 @@ mod root {
         /// The table `PropertyRetrievalFailed` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PropertyRetrievalFailed` in the file `moor_rpc.fbs:136`
+        /// * Table `PropertyRetrievalFailed` in the file `moor_rpc.fbs:216`
         #[derive(
             Clone,
             Debug,
@@ -35942,7 +39262,7 @@ mod root {
         /// The table `VerbRetrievalFailed` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbRetrievalFailed` in the file `moor_rpc.fbs:140`
+        /// * Table `VerbRetrievalFailed` in the file `moor_rpc.fbs:220`
         #[derive(
             Clone,
             Debug,
@@ -36210,7 +39530,7 @@ mod root {
         /// The table `ObjectResolutionFailed` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ObjectResolutionFailed` in the file `moor_rpc.fbs:144`
+        /// * Table `ObjectResolutionFailed` in the file `moor_rpc.fbs:224`
         #[derive(
             Clone,
             Debug,
@@ -36483,7 +39803,7 @@ mod root {
         /// The table `GarbageCollectionFailed` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `GarbageCollectionFailed` in the file `moor_rpc.fbs:148`
+        /// * Table `GarbageCollectionFailed` in the file `moor_rpc.fbs:228`
         #[derive(
             Clone,
             Debug,
@@ -36765,7 +40085,7 @@ mod root {
         /// The table `CheckpointInProgress` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `CheckpointInProgress` in the file `moor_rpc.fbs:152`
+        /// * Table `CheckpointInProgress` in the file `moor_rpc.fbs:232`
         #[derive(
             Clone,
             Debug,
@@ -36995,7 +40315,7 @@ mod root {
         /// The table `StorageMaintenanceInProgress` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `StorageMaintenanceInProgress` in the file `moor_rpc.fbs:155`
+        /// * Table `StorageMaintenanceInProgress` in the file `moor_rpc.fbs:235`
         #[derive(
             Clone,
             Debug,
@@ -37243,8 +40563,18 @@ mod root {
         /// The table `SchedulerError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SchedulerError` in the file `moor_rpc.fbs:158`
-        #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
+        /// * Table `SchedulerError` in the file `moor_rpc.fbs:238`
+        #[derive(
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
         pub struct SchedulerError {
             /// The field `error` in the table `SchedulerError`
             pub error: self::SchedulerErrorUnion,
@@ -37480,7 +40810,7 @@ mod root {
         /// The union `CommandErrorUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `CommandErrorUnion` in the file `moor_rpc.fbs:163`
+        /// * Union `CommandErrorUnion` in the file `moor_rpc.fbs:243`
         #[derive(
             Clone,
             Debug,
@@ -37887,7 +41217,7 @@ mod root {
         /// The table `CouldNotParseCommand` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `CouldNotParseCommand` in the file `moor_rpc.fbs:171`
+        /// * Table `CouldNotParseCommand` in the file `moor_rpc.fbs:251`
         #[derive(
             Clone,
             Debug,
@@ -38117,7 +41447,7 @@ mod root {
         /// The table `NoObjectMatch` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `NoObjectMatch` in the file `moor_rpc.fbs:174`
+        /// * Table `NoObjectMatch` in the file `moor_rpc.fbs:254`
         #[derive(
             Clone,
             Debug,
@@ -38328,7 +41658,7 @@ mod root {
         /// The table `NoCommandMatch` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `NoCommandMatch` in the file `moor_rpc.fbs:177`
+        /// * Table `NoCommandMatch` in the file `moor_rpc.fbs:257`
         #[derive(
             Clone,
             Debug,
@@ -38539,7 +41869,7 @@ mod root {
         /// The table `DatabaseError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DatabaseError` in the file `moor_rpc.fbs:180`
+        /// * Table `DatabaseError` in the file `moor_rpc.fbs:260`
         #[derive(
             Clone,
             Debug,
@@ -38789,7 +42119,7 @@ mod root {
         /// The table `PermissionDenied` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PermissionDenied` in the file `moor_rpc.fbs:184`
+        /// * Table `PermissionDenied` in the file `moor_rpc.fbs:264`
         #[derive(
             Clone,
             Debug,
@@ -39015,7 +42345,7 @@ mod root {
         /// The table `CommandError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `CommandError` in the file `moor_rpc.fbs:187`
+        /// * Table `CommandError` in the file `moor_rpc.fbs:267`
         #[derive(
             Clone,
             Debug,
@@ -39262,7 +42592,7 @@ mod root {
         /// The union `VerbProgramErrorUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `VerbProgramErrorUnion` in the file `moor_rpc.fbs:192`
+        /// * Union `VerbProgramErrorUnion` in the file `moor_rpc.fbs:272`
         #[derive(
             Clone,
             Debug,
@@ -39612,7 +42942,7 @@ mod root {
         /// The table `NoVerbToProgram` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `NoVerbToProgram` in the file `moor_rpc.fbs:199`
+        /// * Table `NoVerbToProgram` in the file `moor_rpc.fbs:279`
         #[derive(
             Clone,
             Debug,
@@ -39838,7 +43168,7 @@ mod root {
         /// The table `VerbPermissionDenied` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbPermissionDenied` in the file `moor_rpc.fbs:202`
+        /// * Table `VerbPermissionDenied` in the file `moor_rpc.fbs:282`
         #[derive(
             Clone,
             Debug,
@@ -40068,7 +43398,7 @@ mod root {
         /// The table `VerbCompilationError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbCompilationError` in the file `moor_rpc.fbs:205`
+        /// * Table `VerbCompilationError` in the file `moor_rpc.fbs:285`
         #[derive(
             Clone,
             Debug,
@@ -40333,7 +43663,7 @@ mod root {
         /// The table `VerbDatabaseError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbDatabaseError` in the file `moor_rpc.fbs:209`
+        /// * Table `VerbDatabaseError` in the file `moor_rpc.fbs:289`
         #[derive(
             Clone,
             Debug,
@@ -40561,7 +43891,7 @@ mod root {
         /// The table `VerbProgramError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbProgramError` in the file `moor_rpc.fbs:212`
+        /// * Table `VerbProgramError` in the file `moor_rpc.fbs:292`
         #[derive(
             Clone,
             Debug,
@@ -40824,7 +44154,7 @@ mod root {
         /// The union `WorkerErrorUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `WorkerErrorUnion` in the file `moor_rpc.fbs:217`
+        /// * Union `WorkerErrorUnion` in the file `moor_rpc.fbs:297`
         #[derive(
             Clone,
             Debug,
@@ -41363,7 +44693,7 @@ mod root {
         /// The table `WorkerPermissionDenied` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerPermissionDenied` in the file `moor_rpc.fbs:227`
+        /// * Table `WorkerPermissionDenied` in the file `moor_rpc.fbs:307`
         #[derive(
             Clone,
             Debug,
@@ -41641,7 +44971,7 @@ mod root {
         /// The table `WorkerInvalidRequest` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerInvalidRequest` in the file `moor_rpc.fbs:231`
+        /// * Table `WorkerInvalidRequest` in the file `moor_rpc.fbs:311`
         #[derive(
             Clone,
             Debug,
@@ -41913,7 +45243,7 @@ mod root {
         /// The table `WorkerInternalError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerInternalError` in the file `moor_rpc.fbs:235`
+        /// * Table `WorkerInternalError` in the file `moor_rpc.fbs:315`
         #[derive(
             Clone,
             Debug,
@@ -42185,7 +45515,7 @@ mod root {
         /// The table `WorkerRequestTimedOut` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerRequestTimedOut` in the file `moor_rpc.fbs:239`
+        /// * Table `WorkerRequestTimedOut` in the file `moor_rpc.fbs:319`
         #[derive(
             Clone,
             Debug,
@@ -42460,7 +45790,7 @@ mod root {
         /// The table `WorkerRequestError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerRequestError` in the file `moor_rpc.fbs:243`
+        /// * Table `WorkerRequestError` in the file `moor_rpc.fbs:323`
         #[derive(
             Clone,
             Debug,
@@ -42730,7 +46060,7 @@ mod root {
         /// The table `WorkerDetached` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerDetached` in the file `moor_rpc.fbs:247`
+        /// * Table `WorkerDetached` in the file `moor_rpc.fbs:327`
         #[derive(
             Clone,
             Debug,
@@ -42984,7 +46314,7 @@ mod root {
         /// The table `NoWorkerAvailable` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `NoWorkerAvailable` in the file `moor_rpc.fbs:251`
+        /// * Table `NoWorkerAvailable` in the file `moor_rpc.fbs:331`
         #[derive(
             Clone,
             Debug,
@@ -43257,7 +46587,7 @@ mod root {
         /// The table `WorkerError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerError` in the file `moor_rpc.fbs:255`
+        /// * Table `WorkerError` in the file `moor_rpc.fbs:335`
         #[derive(
             Clone,
             Debug,
@@ -43503,7 +46833,7 @@ mod root {
         /// The table `CompileContext` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `CompileContext` in the file `moor_rpc.fbs:260`
+        /// * Table `CompileContext` in the file `moor_rpc.fbs:340`
         #[derive(
             Clone,
             Debug,
@@ -43805,7 +47135,7 @@ mod root {
         /// The table `StringLexError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `StringLexError` in the file `moor_rpc.fbs:265`
+        /// * Table `StringLexError` in the file `moor_rpc.fbs:345`
         #[derive(
             Clone,
             Debug,
@@ -44095,7 +47425,7 @@ mod root {
         /// The table `ParseError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ParseError` in the file `moor_rpc.fbs:270`
+        /// * Table `ParseError` in the file `moor_rpc.fbs:350`
         #[derive(
             Clone,
             Debug,
@@ -44846,7 +48176,7 @@ mod root {
         /// The table `UnknownBuiltinFunction` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `UnknownBuiltinFunction` in the file `moor_rpc.fbs:284`
+        /// * Table `UnknownBuiltinFunction` in the file `moor_rpc.fbs:364`
         #[derive(
             Clone,
             Debug,
@@ -45160,7 +48490,7 @@ mod root {
         /// The table `UnknownTypeConstant` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `UnknownTypeConstant` in the file `moor_rpc.fbs:289`
+        /// * Table `UnknownTypeConstant` in the file `moor_rpc.fbs:369`
         #[derive(
             Clone,
             Debug,
@@ -45468,7 +48798,7 @@ mod root {
         /// The table `UnknownLoopLabel` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `UnknownLoopLabel` in the file `moor_rpc.fbs:294`
+        /// * Table `UnknownLoopLabel` in the file `moor_rpc.fbs:374`
         #[derive(
             Clone,
             Debug,
@@ -45774,7 +49104,7 @@ mod root {
         /// The table `DuplicateVariable` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DuplicateVariable` in the file `moor_rpc.fbs:299`
+        /// * Table `DuplicateVariable` in the file `moor_rpc.fbs:379`
         #[derive(
             Clone,
             Debug,
@@ -46082,7 +49412,7 @@ mod root {
         /// The table `AssignToConst` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `AssignToConst` in the file `moor_rpc.fbs:304`
+        /// * Table `AssignToConst` in the file `moor_rpc.fbs:384`
         #[derive(
             Clone,
             Debug,
@@ -46374,7 +49704,7 @@ mod root {
         /// The table `DisabledFeature` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DisabledFeature` in the file `moor_rpc.fbs:309`
+        /// * Table `DisabledFeature` in the file `moor_rpc.fbs:389`
         #[derive(
             Clone,
             Debug,
@@ -46680,7 +50010,7 @@ mod root {
         /// The table `BadSlotName` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `BadSlotName` in the file `moor_rpc.fbs:314`
+        /// * Table `BadSlotName` in the file `moor_rpc.fbs:394`
         #[derive(
             Clone,
             Debug,
@@ -46970,7 +50300,7 @@ mod root {
         /// The table `InvalidAssignment` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `InvalidAssignment` in the file `moor_rpc.fbs:319`
+        /// * Table `InvalidAssignment` in the file `moor_rpc.fbs:399`
         #[derive(
             Clone,
             Debug,
@@ -47242,7 +50572,7 @@ mod root {
         /// The enum `ConnectType` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Enum `ConnectType` in the file `moor_rpc.fbs:327`
+        /// * Enum `ConnectType` in the file `moor_rpc.fbs:407`
         #[derive(
             Copy,
             Clone,
@@ -47424,7 +50754,7 @@ mod root {
         /// The enum `EntityType` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Enum `EntityType` in the file `moor_rpc.fbs:334`
+        /// * Enum `EntityType` in the file `moor_rpc.fbs:414`
         #[derive(
             Copy,
             Clone,
@@ -47593,7 +50923,7 @@ mod root {
         /// The union `VerbProgramResponseUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `VerbProgramResponseUnion` in the file `moor_rpc.fbs:343`
+        /// * Union `VerbProgramResponseUnion` in the file `moor_rpc.fbs:423`
         #[derive(
             Clone,
             Debug,
@@ -47821,7 +51151,7 @@ mod root {
         /// The table `VerbProgramSuccess` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbProgramSuccess` in the file `moor_rpc.fbs:348`
+        /// * Table `VerbProgramSuccess` in the file `moor_rpc.fbs:428`
         #[derive(
             Clone,
             Debug,
@@ -48117,7 +51447,7 @@ mod root {
         /// The table `VerbProgramFailure` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbProgramFailure` in the file `moor_rpc.fbs:353`
+        /// * Table `VerbProgramFailure` in the file `moor_rpc.fbs:433`
         #[derive(
             Clone,
             Debug,
@@ -48380,7 +51710,7 @@ mod root {
         /// The table `VerbProgramResponse` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbProgramResponse` in the file `moor_rpc.fbs:357`
+        /// * Table `VerbProgramResponse` in the file `moor_rpc.fbs:437`
         #[derive(
             Clone,
             Debug,
@@ -48646,7 +51976,7 @@ mod root {
         /// The table `ConnectionAttribute` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ConnectionAttribute` in the file `moor_rpc.fbs:365`
+        /// * Table `ConnectionAttribute` in the file `moor_rpc.fbs:445`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ConnectionAttribute {
             /// The field `key` in the table `ConnectionAttribute`
@@ -48936,7 +52266,7 @@ mod root {
         /// The union `HostToDaemonMessageUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `HostToDaemonMessageUnion` in the file `moor_rpc.fbs:374`
+        /// * Union `HostToDaemonMessageUnion` in the file `moor_rpc.fbs:454`
         #[derive(
             Clone,
             Debug,
@@ -49410,7 +52740,7 @@ mod root {
         /// The table `RegisterHost` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RegisterHost` in the file `moor_rpc.fbs:383`
+        /// * Table `RegisterHost` in the file `moor_rpc.fbs:463`
         #[derive(
             Clone,
             Debug,
@@ -49791,7 +53121,7 @@ mod root {
         /// The table `DetachHost` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DetachHost` in the file `moor_rpc.fbs:390`
+        /// * Table `DetachHost` in the file `moor_rpc.fbs:470`
         #[derive(
             Clone,
             Debug,
@@ -50046,7 +53376,7 @@ mod root {
         /// The table `RequestMetrics` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RequestMetrics` in the file `moor_rpc.fbs:395`
+        /// * Table `RequestMetrics` in the file `moor_rpc.fbs:475`
         #[derive(
             Clone,
             Debug,
@@ -50257,7 +53587,7 @@ mod root {
         /// The table `GetServerFeatures` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `GetServerFeatures` in the file `moor_rpc.fbs:398`
+        /// * Table `GetServerFeatures` in the file `moor_rpc.fbs:478`
         #[derive(
             Clone,
             Debug,
@@ -50485,7 +53815,7 @@ mod root {
         /// The table `HostPong` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostPong` in the file `moor_rpc.fbs:401`
+        /// * Table `HostPong` in the file `moor_rpc.fbs:481`
         #[derive(
             Clone,
             Debug,
@@ -50859,7 +54189,7 @@ mod root {
         /// The table `Listener` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Listener` in the file `moor_rpc.fbs:408`
+        /// * Table `Listener` in the file `moor_rpc.fbs:488`
         #[derive(
             Clone,
             Debug,
@@ -51164,7 +54494,7 @@ mod root {
         /// The table `HostToDaemonMessage` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostToDaemonMessage` in the file `moor_rpc.fbs:414`
+        /// * Table `HostToDaemonMessage` in the file `moor_rpc.fbs:494`
         #[derive(
             Clone,
             Debug,
@@ -51430,7 +54760,7 @@ mod root {
         /// The union `DaemonToHostReplyUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `DaemonToHostReplyUnion` in the file `moor_rpc.fbs:422`
+        /// * Union `DaemonToHostReplyUnion` in the file `moor_rpc.fbs:502`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum DaemonToHostReplyUnion {
             /// The variant of type `DaemonToHostAck` in the union `DaemonToHostReplyUnion`
@@ -51829,7 +55159,7 @@ mod root {
         /// The table `DaemonToHostAck` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DaemonToHostAck` in the file `moor_rpc.fbs:430`
+        /// * Table `DaemonToHostAck` in the file `moor_rpc.fbs:510`
         #[derive(
             Clone,
             Debug,
@@ -52055,7 +55385,7 @@ mod root {
         /// The table `DaemonToHostReject` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DaemonToHostReject` in the file `moor_rpc.fbs:433`
+        /// * Table `DaemonToHostReject` in the file `moor_rpc.fbs:513`
         #[derive(
             Clone,
             Debug,
@@ -52325,7 +55655,7 @@ mod root {
         /// The enum `MetricKind` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Enum `MetricKind` in the file `moor_rpc.fbs:439`
+        /// * Enum `MetricKind` in the file `moor_rpc.fbs:519`
         #[derive(
             Copy,
             Clone,
@@ -52498,7 +55828,7 @@ mod root {
         /// The table `MetricLabel` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `MetricLabel` in the file `moor_rpc.fbs:445`
+        /// * Table `MetricLabel` in the file `moor_rpc.fbs:525`
         #[derive(
             Clone,
             Debug,
@@ -52786,7 +56116,7 @@ mod root {
         /// The struct `HistogramBucket` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Struct `HistogramBucket` in the file `moor_rpc.fbs:450`
+        /// * Struct `HistogramBucket` in the file `moor_rpc.fbs:530`
         #[derive(
             Copy,
             Clone,
@@ -52999,7 +56329,7 @@ mod root {
         /// The table `MetricIntValue` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `MetricIntValue` in the file `moor_rpc.fbs:455`
+        /// * Table `MetricIntValue` in the file `moor_rpc.fbs:535`
         #[derive(
             Clone,
             Debug,
@@ -53264,7 +56594,7 @@ mod root {
         /// The table `MetricFloatValue` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `MetricFloatValue` in the file `moor_rpc.fbs:459`
+        /// * Table `MetricFloatValue` in the file `moor_rpc.fbs:539`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct MetricFloatValue {
             /// The field `value` in the table `MetricFloatValue`
@@ -53537,7 +56867,7 @@ mod root {
         /// The table `MetricHistogramValue` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `MetricHistogramValue` in the file `moor_rpc.fbs:463`
+        /// * Table `MetricHistogramValue` in the file `moor_rpc.fbs:543`
         #[derive(
             Clone,
             Debug,
@@ -53911,7 +57241,7 @@ mod root {
         /// The union `MetricValue` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `MetricValue` in the file `moor_rpc.fbs:469`
+        /// * Union `MetricValue` in the file `moor_rpc.fbs:549`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum MetricValue {
             /// The variant of type `MetricIntValue` in the union `MetricValue`
@@ -54185,7 +57515,7 @@ mod root {
         /// The table `MetricSample` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `MetricSample` in the file `moor_rpc.fbs:475`
+        /// * Table `MetricSample` in the file `moor_rpc.fbs:555`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct MetricSample {
             /// The field `labels` in the table `MetricSample`
@@ -54461,7 +57791,7 @@ mod root {
         /// The table `MetricFamily` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `MetricFamily` in the file `moor_rpc.fbs:480`
+        /// * Table `MetricFamily` in the file `moor_rpc.fbs:560`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct MetricFamily {
             /// The field `name` in the table `MetricFamily`
@@ -54878,7 +58208,7 @@ mod root {
         /// The table `DaemonToHostMetrics` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DaemonToHostMetrics` in the file `moor_rpc.fbs:488`
+        /// * Table `DaemonToHostMetrics` in the file `moor_rpc.fbs:568`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct DaemonToHostMetrics {
             /// The field `timestamp` in the table `DaemonToHostMetrics`
@@ -55198,7 +58528,7 @@ mod root {
         /// The table `ServerFeatures` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ServerFeatures` in the file `moor_rpc.fbs:493`
+        /// * Table `ServerFeatures` in the file `moor_rpc.fbs:573`
         #[derive(
             Clone,
             Debug,
@@ -56258,7 +59588,7 @@ mod root {
         /// The table `DaemonToHostReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DaemonToHostReply` in the file `moor_rpc.fbs:510`
+        /// * Table `DaemonToHostReply` in the file `moor_rpc.fbs:590`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct DaemonToHostReply {
             /// The field `reply` in the table `DaemonToHostReply`
@@ -56512,7 +59842,7 @@ mod root {
         /// The union `HostBroadcastEventUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `HostBroadcastEventUnion` in the file `moor_rpc.fbs:518`
+        /// * Union `HostBroadcastEventUnion` in the file `moor_rpc.fbs:598`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum HostBroadcastEventUnion {
             /// The variant of type `HostBroadcastListen` in the union `HostBroadcastEventUnion`
@@ -56794,7 +60124,7 @@ mod root {
         /// The table `HostBroadcastListen` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostBroadcastListen` in the file `moor_rpc.fbs:524`
+        /// * Table `HostBroadcastListen` in the file `moor_rpc.fbs:604`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct HostBroadcastListen {
             /// The field `handler_object` in the table `HostBroadcastListen`
@@ -57201,7 +60531,7 @@ mod root {
         /// The table `HostBroadcastUnlisten` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostBroadcastUnlisten` in the file `moor_rpc.fbs:531`
+        /// * Table `HostBroadcastUnlisten` in the file `moor_rpc.fbs:611`
         #[derive(
             Clone,
             Debug,
@@ -57521,7 +60851,7 @@ mod root {
         /// The table `HostBroadcastPingPong` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostBroadcastPingPong` in the file `moor_rpc.fbs:536`
+        /// * Table `HostBroadcastPingPong` in the file `moor_rpc.fbs:616`
         #[derive(
             Clone,
             Debug,
@@ -57811,7 +61141,7 @@ mod root {
         /// The table `HostBroadcastEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostBroadcastEvent` in the file `moor_rpc.fbs:540`
+        /// * Table `HostBroadcastEvent` in the file `moor_rpc.fbs:620`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct HostBroadcastEvent {
             /// The field `event` in the table `HostBroadcastEvent`
@@ -58065,7 +61395,7 @@ mod root {
         /// The table `WsRequestProperty` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsRequestProperty` in the file `moor_rpc.fbs:551`
+        /// * Table `WsRequestProperty` in the file `moor_rpc.fbs:631`
         #[derive(
             Clone,
             Debug,
@@ -58363,7 +61693,7 @@ mod root {
         /// The table `WsRequestProperties` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsRequestProperties` in the file `moor_rpc.fbs:556`
+        /// * Table `WsRequestProperties` in the file `moor_rpc.fbs:636`
         #[derive(
             Clone,
             Debug,
@@ -58679,7 +62009,7 @@ mod root {
         /// The table `WsRequestSystemProperty` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsRequestSystemProperty` in the file `moor_rpc.fbs:561`
+        /// * Table `WsRequestSystemProperty` in the file `moor_rpc.fbs:641`
         #[derive(
             Clone,
             Debug,
@@ -58990,7 +62320,7 @@ mod root {
         /// The table `WsRequestVerbs` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsRequestVerbs` in the file `moor_rpc.fbs:566`
+        /// * Table `WsRequestVerbs` in the file `moor_rpc.fbs:646`
         #[derive(
             Clone,
             Debug,
@@ -59288,7 +62618,7 @@ mod root {
         /// The table `WsRequestVerbCode` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsRequestVerbCode` in the file `moor_rpc.fbs:571`
+        /// * Table `WsRequestVerbCode` in the file `moor_rpc.fbs:651`
         #[derive(
             Clone,
             Debug,
@@ -59586,7 +62916,7 @@ mod root {
         /// The table `WsResolveObject` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsResolveObject` in the file `moor_rpc.fbs:576`
+        /// * Table `WsResolveObject` in the file `moor_rpc.fbs:656`
         #[derive(
             Clone,
             Debug,
@@ -59848,7 +63178,7 @@ mod root {
         /// The table `WsListObjects` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsListObjects` in the file `moor_rpc.fbs:580`
+        /// * Table `WsListObjects` in the file `moor_rpc.fbs:660`
         #[derive(
             Clone,
             Debug,
@@ -60059,7 +63389,7 @@ mod root {
         /// The table `WsRequestAllObjects` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsRequestAllObjects` in the file `moor_rpc.fbs:583`
+        /// * Table `WsRequestAllObjects` in the file `moor_rpc.fbs:663`
         #[derive(
             Clone,
             Debug,
@@ -60289,7 +63619,7 @@ mod root {
         /// The table `WsUpdateProperty` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsUpdateProperty` in the file `moor_rpc.fbs:586`
+        /// * Table `WsUpdateProperty` in the file `moor_rpc.fbs:666`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct WsUpdateProperty {
             /// The field `object` in the table `WsUpdateProperty`
@@ -60609,7 +63939,7 @@ mod root {
         /// The table `WsProgramVerb` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsProgramVerb` in the file `moor_rpc.fbs:592`
+        /// * Table `WsProgramVerb` in the file `moor_rpc.fbs:672`
         #[derive(
             Clone,
             Debug,
@@ -60925,7 +64255,7 @@ mod root {
         /// The table `WsGetObjectFlags` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsGetObjectFlags` in the file `moor_rpc.fbs:598`
+        /// * Table `WsGetObjectFlags` in the file `moor_rpc.fbs:678`
         #[derive(
             Clone,
             Debug,
@@ -61188,7 +64518,7 @@ mod root {
         /// The table `WsQueryObjects` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsQueryObjects` in the file `moor_rpc.fbs:602`
+        /// * Table `WsQueryObjects` in the file `moor_rpc.fbs:682`
         #[derive(
             Clone,
             Debug,
@@ -61683,7 +65013,7 @@ mod root {
         /// The union `WorldStateActionUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `WorldStateActionUnion` in the file `moor_rpc.fbs:610`
+        /// * Union `WorldStateActionUnion` in the file `moor_rpc.fbs:690`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum WorldStateActionUnion {
             /// The variant of type `WsRequestProperty` in the union `WorldStateActionUnion`
@@ -62519,7 +65849,7 @@ mod root {
         /// The table `WorldStateActionEntry` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorldStateActionEntry` in the file `moor_rpc.fbs:625`
+        /// * Table `WorldStateActionEntry` in the file `moor_rpc.fbs:705`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct WorldStateActionEntry {
             /// The field `id` in the table `WorldStateActionEntry`
@@ -62811,7 +66141,7 @@ mod root {
         /// The table `BatchWorldState` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `BatchWorldState` in the file `moor_rpc.fbs:630`
+        /// * Table `BatchWorldState` in the file `moor_rpc.fbs:710`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct BatchWorldState {
             /// The field `auth_token` in the table `BatchWorldState`
@@ -63163,7 +66493,7 @@ mod root {
         /// The table `WsPropertyResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsPropertyResult` in the file `moor_rpc.fbs:638`
+        /// * Table `WsPropertyResult` in the file `moor_rpc.fbs:718`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct WsPropertyResult {
             /// The field `prop_info` in the table `WsPropertyResult`
@@ -63451,7 +66781,7 @@ mod root {
         /// The table `WsPropertiesResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsPropertiesResult` in the file `moor_rpc.fbs:643`
+        /// * Table `WsPropertiesResult` in the file `moor_rpc.fbs:723`
         #[derive(
             Clone,
             Debug,
@@ -63733,7 +67063,7 @@ mod root {
         /// The table `WsSystemPropertyResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsSystemPropertyResult` in the file `moor_rpc.fbs:647`
+        /// * Table `WsSystemPropertyResult` in the file `moor_rpc.fbs:727`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct WsSystemPropertyResult {
             /// The field `value` in the table `WsSystemPropertyResult`
@@ -63993,7 +67323,7 @@ mod root {
         /// The table `WsVerbsResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsVerbsResult` in the file `moor_rpc.fbs:651`
+        /// * Table `WsVerbsResult` in the file `moor_rpc.fbs:731`
         #[derive(
             Clone,
             Debug,
@@ -64258,7 +67588,7 @@ mod root {
         /// The table `WsVerbCodeResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsVerbCodeResult` in the file `moor_rpc.fbs:655`
+        /// * Table `WsVerbCodeResult` in the file `moor_rpc.fbs:735`
         #[derive(
             Clone,
             Debug,
@@ -64557,7 +67887,7 @@ mod root {
         /// The table `WsResolveResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsResolveResult` in the file `moor_rpc.fbs:660`
+        /// * Table `WsResolveResult` in the file `moor_rpc.fbs:740`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct WsResolveResult {
             /// The field `result` in the table `WsResolveResult`
@@ -64809,7 +68139,7 @@ mod root {
         /// The table `WsObjectsListResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsObjectsListResult` in the file `moor_rpc.fbs:664`
+        /// * Table `WsObjectsListResult` in the file `moor_rpc.fbs:744`
         #[derive(
             Clone,
             Debug,
@@ -65087,7 +68417,7 @@ mod root {
         /// The table `WsAllObjectsResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsAllObjectsResult` in the file `moor_rpc.fbs:668`
+        /// * Table `WsAllObjectsResult` in the file `moor_rpc.fbs:748`
         #[derive(
             Clone,
             Debug,
@@ -65366,7 +68696,7 @@ mod root {
         /// The table `WsPropertyUpdatedResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsPropertyUpdatedResult` in the file `moor_rpc.fbs:672`
+        /// * Table `WsPropertyUpdatedResult` in the file `moor_rpc.fbs:752`
         #[derive(
             Clone,
             Debug,
@@ -65606,7 +68936,7 @@ mod root {
         /// The table `WsVerbProgrammedResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsVerbProgrammedResult` in the file `moor_rpc.fbs:675`
+        /// * Table `WsVerbProgrammedResult` in the file `moor_rpc.fbs:755`
         #[derive(
             Clone,
             Debug,
@@ -65912,7 +69242,7 @@ mod root {
         /// The table `WsObjectFlagsResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsObjectFlagsResult` in the file `moor_rpc.fbs:680`
+        /// * Table `WsObjectFlagsResult` in the file `moor_rpc.fbs:760`
         #[derive(
             Clone,
             Debug,
@@ -66197,7 +69527,7 @@ mod root {
         /// The table `WsQueryObjectsResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsQueryObjectsResult` in the file `moor_rpc.fbs:684`
+        /// * Table `WsQueryObjectsResult` in the file `moor_rpc.fbs:764`
         #[derive(
             Clone,
             Debug,
@@ -66478,8 +69808,18 @@ mod root {
         /// The table `WsActionError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WsActionError` in the file `moor_rpc.fbs:688`
-        #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
+        /// * Table `WsActionError` in the file `moor_rpc.fbs:768`
+        #[derive(
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
         pub struct WsActionError {
             /// The field `error` in the table `WsActionError`
             pub error: ::planus::alloc::boxed::Box<self::RpcMessageError>,
@@ -66724,7 +70064,7 @@ mod root {
         /// The union `WorldStateResultUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `WorldStateResultUnion` in the file `moor_rpc.fbs:692`
+        /// * Union `WorldStateResultUnion` in the file `moor_rpc.fbs:772`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum WorldStateResultUnion {
             /// The variant of type `WsPropertyResult` in the union `WorldStateResultUnion`
@@ -67627,7 +70967,7 @@ mod root {
         /// The table `WorldStateResultEntry` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorldStateResultEntry` in the file `moor_rpc.fbs:708`
+        /// * Table `WorldStateResultEntry` in the file `moor_rpc.fbs:788`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct WorldStateResultEntry {
             /// The field `id` in the table `WorldStateResultEntry`
@@ -67919,7 +71259,7 @@ mod root {
         /// The table `BatchWorldStateReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `BatchWorldStateReply` in the file `moor_rpc.fbs:713`
+        /// * Table `BatchWorldStateReply` in the file `moor_rpc.fbs:793`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct BatchWorldStateReply {
             /// The field `results` in the table `BatchWorldStateReply`
@@ -68192,7 +71532,7 @@ mod root {
         /// The union `HostClientToDaemonMessageUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `HostClientToDaemonMessageUnion` in the file `moor_rpc.fbs:721`
+        /// * Union `HostClientToDaemonMessageUnion` in the file `moor_rpc.fbs:801`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum HostClientToDaemonMessageUnion {
             /// The variant of type `ConnectionEstablish` in the union `HostClientToDaemonMessageUnion`
@@ -70360,7 +73700,7 @@ mod root {
         /// The table `ConnectionEstablish` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ConnectionEstablish` in the file `moor_rpc.fbs:757`
+        /// * Table `ConnectionEstablish` in the file `moor_rpc.fbs:837`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ConnectionEstablish {
             /// The field `peer_addr` in the table `ConnectionEstablish`
@@ -70891,7 +74231,7 @@ mod root {
         /// The table `Reattach` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Reattach` in the file `moor_rpc.fbs:765`
+        /// * Table `Reattach` in the file `moor_rpc.fbs:845`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct Reattach {
             /// The field `client_token` in the table `Reattach`
@@ -71478,7 +74818,7 @@ mod root {
         /// The table `RequestSysProp` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RequestSysProp` in the file `moor_rpc.fbs:775`
+        /// * Table `RequestSysProp` in the file `moor_rpc.fbs:855`
         #[derive(
             Clone,
             Debug,
@@ -71818,7 +75158,7 @@ mod root {
         /// The table `VerifiedOAuthLogin` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerifiedOAuthLogin` in the file `moor_rpc.fbs:783`
+        /// * Table `VerifiedOAuthLogin` in the file `moor_rpc.fbs:863`
         #[derive(
             Clone,
             Debug,
@@ -72183,7 +75523,7 @@ mod root {
         /// The table `LoginCommand` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `LoginCommand` in the file `moor_rpc.fbs:789`
+        /// * Table `LoginCommand` in the file `moor_rpc.fbs:869`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct LoginCommand {
             /// The field `client_token` in the table `LoginCommand`
@@ -72608,7 +75948,7 @@ mod root {
         /// The table `Attach` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Attach` in the file `moor_rpc.fbs:800`
+        /// * Table `Attach` in the file `moor_rpc.fbs:880`
         #[derive(
             Clone,
             Debug,
@@ -73141,7 +76481,7 @@ mod root {
         /// The table `Verbs` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Verbs` in the file `moor_rpc.fbs:810`
+        /// * Table `Verbs` in the file `moor_rpc.fbs:890`
         #[derive(
             Clone,
             Debug,
@@ -73460,7 +76800,7 @@ mod root {
         /// The table `ConnectedInvocation` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ConnectedInvocation` in the file `moor_rpc.fbs:818`
+        /// * Table `ConnectedInvocation` in the file `moor_rpc.fbs:898`
         #[derive(
             Clone,
             Debug,
@@ -73735,7 +77075,7 @@ mod root {
         /// The table `CaptureOutputInvocation` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `CaptureOutputInvocation` in the file `moor_rpc.fbs:829`
+        /// * Table `CaptureOutputInvocation` in the file `moor_rpc.fbs:909`
         #[derive(
             Clone,
             Debug,
@@ -74109,7 +77449,7 @@ mod root {
         /// The table `TransientConnection` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `TransientConnection` in the file `moor_rpc.fbs:838`
+        /// * Table `TransientConnection` in the file `moor_rpc.fbs:918`
         #[derive(
             Clone,
             Debug,
@@ -74413,7 +77753,7 @@ mod root {
         /// The union `InvocationMode` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `InvocationMode` in the file `moor_rpc.fbs:842`
+        /// * Union `InvocationMode` in the file `moor_rpc.fbs:922`
         #[derive(
             Clone,
             Debug,
@@ -74639,7 +77979,7 @@ mod root {
         /// The table `Command` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Command` in the file `moor_rpc.fbs:847`
+        /// * Table `Command` in the file `moor_rpc.fbs:927`
         #[derive(
             Clone,
             Debug,
@@ -74985,7 +78325,7 @@ mod root {
         /// The table `InvokeVerb` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `InvokeVerb` in the file `moor_rpc.fbs:854`
+        /// * Table `InvokeVerb` in the file `moor_rpc.fbs:934`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct InvokeVerb {
             /// The field `auth_token` in the table `InvokeVerb`
@@ -75365,7 +78705,7 @@ mod root {
         /// The table `Properties` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Properties` in the file `moor_rpc.fbs:862`
+        /// * Table `Properties` in the file `moor_rpc.fbs:942`
         #[derive(
             Clone,
             Debug,
@@ -75695,7 +79035,7 @@ mod root {
         /// The table `Retrieve` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Retrieve` in the file `moor_rpc.fbs:868`
+        /// * Table `Retrieve` in the file `moor_rpc.fbs:948`
         #[derive(
             Clone,
             Debug,
@@ -76061,7 +79401,7 @@ mod root {
         /// The table `Program` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Program` in the file `moor_rpc.fbs:875`
+        /// * Table `Program` in the file `moor_rpc.fbs:955`
         #[derive(
             Clone,
             Debug,
@@ -76410,7 +79750,7 @@ mod root {
         /// The table `RequestedInput` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RequestedInput` in the file `moor_rpc.fbs:882`
+        /// * Table `RequestedInput` in the file `moor_rpc.fbs:962`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct RequestedInput {
             /// The field `client_token` in the table `RequestedInput`
@@ -76753,7 +80093,7 @@ mod root {
         /// The table `OutOfBand` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `OutOfBand` in the file `moor_rpc.fbs:889`
+        /// * Table `OutOfBand` in the file `moor_rpc.fbs:969`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct OutOfBand {
             /// The field `client_token` in the table `OutOfBand`
@@ -77129,7 +80469,7 @@ mod root {
         /// The table `ClientData` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ClientData` in the file `moor_rpc.fbs:898`
+        /// * Table `ClientData` in the file `moor_rpc.fbs:978`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ClientData {
             /// The field `client_token` in the table `ClientData`
@@ -77563,7 +80903,7 @@ mod root {
         /// The table `Eval` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Eval` in the file `moor_rpc.fbs:907`
+        /// * Table `Eval` in the file `moor_rpc.fbs:987`
         #[derive(
             Clone,
             Debug,
@@ -77870,7 +81210,7 @@ mod root {
         /// The table `Resolve` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Resolve` in the file `moor_rpc.fbs:913`
+        /// * Table `Resolve` in the file `moor_rpc.fbs:993`
         #[derive(
             Clone,
             Debug,
@@ -78147,7 +81487,7 @@ mod root {
         /// The table `ClientPong` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ClientPong` in the file `moor_rpc.fbs:918`
+        /// * Table `ClientPong` in the file `moor_rpc.fbs:998`
         #[derive(
             Clone,
             Debug,
@@ -78514,7 +81854,7 @@ mod root {
         /// The table `ReplayClientEvents` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ReplayClientEvents` in the file `moor_rpc.fbs:925`
+        /// * Table `ReplayClientEvents` in the file `moor_rpc.fbs:1005`
         #[derive(
             Clone,
             Debug,
@@ -78893,7 +82233,7 @@ mod root {
         /// The table `RequestHistory` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RequestHistory` in the file `moor_rpc.fbs:931`
+        /// * Table `RequestHistory` in the file `moor_rpc.fbs:1011`
         #[derive(
             Clone,
             Debug,
@@ -79176,7 +82516,7 @@ mod root {
         /// The table `RequestCurrentPresentations` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RequestCurrentPresentations` in the file `moor_rpc.fbs:936`
+        /// * Table `RequestCurrentPresentations` in the file `moor_rpc.fbs:1016`
         #[derive(
             Clone,
             Debug,
@@ -79464,7 +82804,7 @@ mod root {
         /// The table `DismissPresentation` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DismissPresentation` in the file `moor_rpc.fbs:940`
+        /// * Table `DismissPresentation` in the file `moor_rpc.fbs:1020`
         #[derive(
             Clone,
             Debug,
@@ -79774,7 +83114,7 @@ mod root {
         /// The table `SetClientAttribute` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SetClientAttribute` in the file `moor_rpc.fbs:945`
+        /// * Table `SetClientAttribute` in the file `moor_rpc.fbs:1025`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct SetClientAttribute {
             /// The field `client_token` in the table `SetClientAttribute`
@@ -80190,7 +83530,7 @@ mod root {
         /// The table `Detach` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Detach` in the file `moor_rpc.fbs:952`
+        /// * Table `Detach` in the file `moor_rpc.fbs:1032`
         #[derive(
             Clone,
             Debug,
@@ -80490,7 +83830,7 @@ mod root {
         /// The table `GetEventLogPublicKey` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `GetEventLogPublicKey` in the file `moor_rpc.fbs:957`
+        /// * Table `GetEventLogPublicKey` in the file `moor_rpc.fbs:1037`
         #[derive(
             Clone,
             Debug,
@@ -80765,7 +84105,7 @@ mod root {
         /// The table `SetEventLogPublicKey` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SetEventLogPublicKey` in the file `moor_rpc.fbs:961`
+        /// * Table `SetEventLogPublicKey` in the file `moor_rpc.fbs:1041`
         #[derive(
             Clone,
             Debug,
@@ -81075,7 +84415,7 @@ mod root {
         /// The table `DeleteEventLogHistory` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DeleteEventLogHistory` in the file `moor_rpc.fbs:966`
+        /// * Table `DeleteEventLogHistory` in the file `moor_rpc.fbs:1046`
         #[derive(
             Clone,
             Debug,
@@ -81352,7 +84692,7 @@ mod root {
         /// The table `ListObjects` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ListObjects` in the file `moor_rpc.fbs:970`
+        /// * Table `ListObjects` in the file `moor_rpc.fbs:1050`
         #[derive(
             Clone,
             Debug,
@@ -81607,7 +84947,7 @@ mod root {
         /// The table `UpdateProperty` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `UpdateProperty` in the file `moor_rpc.fbs:974`
+        /// * Table `UpdateProperty` in the file `moor_rpc.fbs:1054`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct UpdateProperty {
             /// The field `auth_token` in the table `UpdateProperty`
@@ -81950,7 +85290,7 @@ mod root {
         /// The table `InvokeSystemHandler` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `InvokeSystemHandler` in the file `moor_rpc.fbs:981`
+        /// * Table `InvokeSystemHandler` in the file `moor_rpc.fbs:1061`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct InvokeSystemHandler {
             /// The field `host_id` in the table `InvokeSystemHandler`
@@ -82475,7 +85815,7 @@ mod root {
         /// The table `InvokeWelcomeMessage` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `InvokeWelcomeMessage` in the file `moor_rpc.fbs:994`
+        /// * Table `InvokeWelcomeMessage` in the file `moor_rpc.fbs:1074`
         #[derive(
             Clone,
             Debug,
@@ -82705,7 +86045,7 @@ mod root {
         /// The table `HostClientToDaemonMessage` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostClientToDaemonMessage` in the file `moor_rpc.fbs:997`
+        /// * Table `HostClientToDaemonMessage` in the file `moor_rpc.fbs:1077`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct HostClientToDaemonMessage {
             /// The field `message` in the table `HostClientToDaemonMessage`
@@ -82971,7 +86311,7 @@ mod root {
         /// The union `DaemonToClientReplyUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `DaemonToClientReplyUnion` in the file `moor_rpc.fbs:1005`
+        /// * Union `DaemonToClientReplyUnion` in the file `moor_rpc.fbs:1085`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum DaemonToClientReplyUnion {
             /// The variant of type `NewConnection` in the union `DaemonToClientReplyUnion`
@@ -82991,9 +86331,6 @@ mod root {
 
             /// The variant of type `InputThanks` in the union `DaemonToClientReplyUnion`
             InputThanks(::planus::alloc::boxed::Box<self::InputThanks>),
-
-            /// The variant of type `EvalResult` in the union `DaemonToClientReplyUnion`
-            EvalResult(::planus::alloc::boxed::Box<self::EvalResult>),
 
             /// The variant of type `ThanksPong` in the union `DaemonToClientReplyUnion`
             ThanksPong(::planus::alloc::boxed::Box<self::ThanksPong>),
@@ -83042,11 +86379,6 @@ mod root {
 
             /// The variant of type `PropertyUpdated` in the union `DaemonToClientReplyUnion`
             PropertyUpdated(::planus::alloc::boxed::Box<self::PropertyUpdated>),
-
-            /// The variant of type `SystemHandlerResponseReply` in the union `DaemonToClientReplyUnion`
-            SystemHandlerResponseReply(
-                ::planus::alloc::boxed::Box<self::SystemHandlerResponseReply>,
-            ),
 
             /// The variant of type `InvocationResponse` in the union `DaemonToClientReplyUnion`
             InvocationResponse(::planus::alloc::boxed::Box<self::InvocationResponse>),
@@ -83117,19 +86449,11 @@ mod root {
             }
 
             #[inline]
-            pub fn create_eval_result(
-                builder: &mut ::planus::Builder,
-                value: impl ::planus::WriteAsOffset<self::EvalResult>,
-            ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(7, value.prepare(builder).downcast())
-            }
-
-            #[inline]
             pub fn create_thanks_pong(
                 builder: &mut ::planus::Builder,
                 value: impl ::planus::WriteAsOffset<self::ThanksPong>,
             ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(8, value.prepare(builder).downcast())
+                ::planus::UnionOffset::new(7, value.prepare(builder).downcast())
             }
 
             #[inline]
@@ -83137,7 +86461,7 @@ mod root {
                 builder: &mut ::planus::Builder,
                 value: impl ::planus::WriteAsOffset<self::VerbsReply>,
             ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(9, value.prepare(builder).downcast())
+                ::planus::UnionOffset::new(8, value.prepare(builder).downcast())
             }
 
             #[inline]
@@ -83145,7 +86469,7 @@ mod root {
                 builder: &mut ::planus::Builder,
                 value: impl ::planus::WriteAsOffset<self::PropertiesReply>,
             ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(10, value.prepare(builder).downcast())
+                ::planus::UnionOffset::new(9, value.prepare(builder).downcast())
             }
 
             #[inline]
@@ -83153,7 +86477,7 @@ mod root {
                 builder: &mut ::planus::Builder,
                 value: impl ::planus::WriteAsOffset<self::VerbProgramResponseReply>,
             ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(11, value.prepare(builder).downcast())
+                ::planus::UnionOffset::new(10, value.prepare(builder).downcast())
             }
 
             #[inline]
@@ -83161,7 +86485,7 @@ mod root {
                 builder: &mut ::planus::Builder,
                 value: impl ::planus::WriteAsOffset<self::PropertyValue>,
             ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(12, value.prepare(builder).downcast())
+                ::planus::UnionOffset::new(11, value.prepare(builder).downcast())
             }
 
             #[inline]
@@ -83169,7 +86493,7 @@ mod root {
                 builder: &mut ::planus::Builder,
                 value: impl ::planus::WriteAsOffset<self::VerbValue>,
             ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(13, value.prepare(builder).downcast())
+                ::planus::UnionOffset::new(12, value.prepare(builder).downcast())
             }
 
             #[inline]
@@ -83177,7 +86501,7 @@ mod root {
                 builder: &mut ::planus::Builder,
                 value: impl ::planus::WriteAsOffset<self::ResolveResult>,
             ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(14, value.prepare(builder).downcast())
+                ::planus::UnionOffset::new(13, value.prepare(builder).downcast())
             }
 
             #[inline]
@@ -83185,7 +86509,7 @@ mod root {
                 builder: &mut ::planus::Builder,
                 value: impl ::planus::WriteAsOffset<self::HistoryResponseReply>,
             ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(15, value.prepare(builder).downcast())
+                ::planus::UnionOffset::new(14, value.prepare(builder).downcast())
             }
 
             #[inline]
@@ -83193,7 +86517,7 @@ mod root {
                 builder: &mut ::planus::Builder,
                 value: impl ::planus::WriteAsOffset<self::CurrentPresentations>,
             ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(16, value.prepare(builder).downcast())
+                ::planus::UnionOffset::new(15, value.prepare(builder).downcast())
             }
 
             #[inline]
@@ -83201,7 +86525,7 @@ mod root {
                 builder: &mut ::planus::Builder,
                 value: impl ::planus::WriteAsOffset<self::PresentationDismissed>,
             ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(17, value.prepare(builder).downcast())
+                ::planus::UnionOffset::new(16, value.prepare(builder).downcast())
             }
 
             #[inline]
@@ -83209,7 +86533,7 @@ mod root {
                 builder: &mut ::planus::Builder,
                 value: impl ::planus::WriteAsOffset<self::ClientAttributeSet>,
             ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(18, value.prepare(builder).downcast())
+                ::planus::UnionOffset::new(17, value.prepare(builder).downcast())
             }
 
             #[inline]
@@ -83217,7 +86541,7 @@ mod root {
                 builder: &mut ::planus::Builder,
                 value: impl ::planus::WriteAsOffset<self::Disconnected>,
             ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(19, value.prepare(builder).downcast())
+                ::planus::UnionOffset::new(18, value.prepare(builder).downcast())
             }
 
             #[inline]
@@ -83225,7 +86549,7 @@ mod root {
                 builder: &mut ::planus::Builder,
                 value: impl ::planus::WriteAsOffset<self::EventLogPublicKey>,
             ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(20, value.prepare(builder).downcast())
+                ::planus::UnionOffset::new(19, value.prepare(builder).downcast())
             }
 
             #[inline]
@@ -83233,7 +86557,7 @@ mod root {
                 builder: &mut ::planus::Builder,
                 value: impl ::planus::WriteAsOffset<self::EventLogHistoryDeleted>,
             ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(21, value.prepare(builder).downcast())
+                ::planus::UnionOffset::new(20, value.prepare(builder).downcast())
             }
 
             #[inline]
@@ -83241,7 +86565,7 @@ mod root {
                 builder: &mut ::planus::Builder,
                 value: impl ::planus::WriteAsOffset<self::ListObjectsReply>,
             ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(22, value.prepare(builder).downcast())
+                ::planus::UnionOffset::new(21, value.prepare(builder).downcast())
             }
 
             #[inline]
@@ -83249,15 +86573,7 @@ mod root {
                 builder: &mut ::planus::Builder,
                 value: impl ::planus::WriteAsOffset<self::PropertyUpdated>,
             ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(23, value.prepare(builder).downcast())
-            }
-
-            #[inline]
-            pub fn create_system_handler_response_reply(
-                builder: &mut ::planus::Builder,
-                value: impl ::planus::WriteAsOffset<self::SystemHandlerResponseReply>,
-            ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(24, value.prepare(builder).downcast())
+                ::planus::UnionOffset::new(22, value.prepare(builder).downcast())
             }
 
             #[inline]
@@ -83265,7 +86581,7 @@ mod root {
                 builder: &mut ::planus::Builder,
                 value: impl ::planus::WriteAsOffset<self::InvocationResponse>,
             ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(25, value.prepare(builder).downcast())
+                ::planus::UnionOffset::new(23, value.prepare(builder).downcast())
             }
 
             #[inline]
@@ -83273,7 +86589,7 @@ mod root {
                 builder: &mut ::planus::Builder,
                 value: impl ::planus::WriteAsOffset<self::BatchWorldStateReply>,
             ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(26, value.prepare(builder).downcast())
+                ::planus::UnionOffset::new(24, value.prepare(builder).downcast())
             }
 
             #[inline]
@@ -83281,7 +86597,7 @@ mod root {
                 builder: &mut ::planus::Builder,
                 value: impl ::planus::WriteAsOffset<self::ClientEvents>,
             ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(27, value.prepare(builder).downcast())
+                ::planus::UnionOffset::new(25, value.prepare(builder).downcast())
             }
 
             #[inline]
@@ -83289,7 +86605,7 @@ mod root {
                 builder: &mut ::planus::Builder,
                 value: impl ::planus::WriteAsOffset<self::EventStreamState>,
             ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(28, value.prepare(builder).downcast())
+                ::planus::UnionOffset::new(26, value.prepare(builder).downcast())
             }
         }
 
@@ -83303,7 +86619,6 @@ mod root {
                     Self::SysPropValue(value) => Self::create_sys_prop_value(builder, value),
                     Self::TaskSubmitted(value) => Self::create_task_submitted(builder, value),
                     Self::InputThanks(value) => Self::create_input_thanks(builder, value),
-                    Self::EvalResult(value) => Self::create_eval_result(builder, value),
                     Self::ThanksPong(value) => Self::create_thanks_pong(builder, value),
                     Self::VerbsReply(value) => Self::create_verbs_reply(builder, value),
                     Self::PropertiesReply(value) => Self::create_properties_reply(builder, value),
@@ -83336,9 +86651,6 @@ mod root {
                         Self::create_list_objects_reply(builder, value)
                     }
                     Self::PropertyUpdated(value) => Self::create_property_updated(builder, value),
-                    Self::SystemHandlerResponseReply(value) => {
-                        Self::create_system_handler_response_reply(builder, value)
-                    }
                     Self::InvocationResponse(value) => {
                         Self::create_invocation_response(builder, value)
                     }
@@ -83443,24 +86755,12 @@ mod root {
                 DaemonToClientReplyUnionBuilder(::planus::Initialized(value))
             }
 
-            /// Creates an instance of the [`EvalResult` variant](DaemonToClientReplyUnion#variant.EvalResult).
-            #[inline]
-            pub fn eval_result<T>(
-                self,
-                value: T,
-            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<7, T>>
-            where
-                T: ::planus::WriteAsOffset<self::EvalResult>,
-            {
-                DaemonToClientReplyUnionBuilder(::planus::Initialized(value))
-            }
-
             /// Creates an instance of the [`ThanksPong` variant](DaemonToClientReplyUnion#variant.ThanksPong).
             #[inline]
             pub fn thanks_pong<T>(
                 self,
                 value: T,
-            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<8, T>>
+            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<7, T>>
             where
                 T: ::planus::WriteAsOffset<self::ThanksPong>,
             {
@@ -83472,7 +86772,7 @@ mod root {
             pub fn verbs_reply<T>(
                 self,
                 value: T,
-            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<9, T>>
+            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<8, T>>
             where
                 T: ::planus::WriteAsOffset<self::VerbsReply>,
             {
@@ -83484,7 +86784,7 @@ mod root {
             pub fn properties_reply<T>(
                 self,
                 value: T,
-            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<10, T>>
+            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<9, T>>
             where
                 T: ::planus::WriteAsOffset<self::PropertiesReply>,
             {
@@ -83496,7 +86796,7 @@ mod root {
             pub fn verb_program_response_reply<T>(
                 self,
                 value: T,
-            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<11, T>>
+            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<10, T>>
             where
                 T: ::planus::WriteAsOffset<self::VerbProgramResponseReply>,
             {
@@ -83508,7 +86808,7 @@ mod root {
             pub fn property_value<T>(
                 self,
                 value: T,
-            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<12, T>>
+            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<11, T>>
             where
                 T: ::planus::WriteAsOffset<self::PropertyValue>,
             {
@@ -83520,7 +86820,7 @@ mod root {
             pub fn verb_value<T>(
                 self,
                 value: T,
-            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<13, T>>
+            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<12, T>>
             where
                 T: ::planus::WriteAsOffset<self::VerbValue>,
             {
@@ -83532,7 +86832,7 @@ mod root {
             pub fn resolve_result<T>(
                 self,
                 value: T,
-            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<14, T>>
+            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<13, T>>
             where
                 T: ::planus::WriteAsOffset<self::ResolveResult>,
             {
@@ -83544,7 +86844,7 @@ mod root {
             pub fn history_response_reply<T>(
                 self,
                 value: T,
-            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<15, T>>
+            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<14, T>>
             where
                 T: ::planus::WriteAsOffset<self::HistoryResponseReply>,
             {
@@ -83556,7 +86856,7 @@ mod root {
             pub fn current_presentations<T>(
                 self,
                 value: T,
-            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<16, T>>
+            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<15, T>>
             where
                 T: ::planus::WriteAsOffset<self::CurrentPresentations>,
             {
@@ -83568,7 +86868,7 @@ mod root {
             pub fn presentation_dismissed<T>(
                 self,
                 value: T,
-            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<17, T>>
+            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<16, T>>
             where
                 T: ::planus::WriteAsOffset<self::PresentationDismissed>,
             {
@@ -83580,7 +86880,7 @@ mod root {
             pub fn client_attribute_set<T>(
                 self,
                 value: T,
-            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<18, T>>
+            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<17, T>>
             where
                 T: ::planus::WriteAsOffset<self::ClientAttributeSet>,
             {
@@ -83592,7 +86892,7 @@ mod root {
             pub fn disconnected<T>(
                 self,
                 value: T,
-            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<19, T>>
+            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<18, T>>
             where
                 T: ::planus::WriteAsOffset<self::Disconnected>,
             {
@@ -83604,7 +86904,7 @@ mod root {
             pub fn event_log_public_key<T>(
                 self,
                 value: T,
-            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<20, T>>
+            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<19, T>>
             where
                 T: ::planus::WriteAsOffset<self::EventLogPublicKey>,
             {
@@ -83616,7 +86916,7 @@ mod root {
             pub fn event_log_history_deleted<T>(
                 self,
                 value: T,
-            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<21, T>>
+            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<20, T>>
             where
                 T: ::planus::WriteAsOffset<self::EventLogHistoryDeleted>,
             {
@@ -83628,7 +86928,7 @@ mod root {
             pub fn list_objects_reply<T>(
                 self,
                 value: T,
-            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<22, T>>
+            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<21, T>>
             where
                 T: ::planus::WriteAsOffset<self::ListObjectsReply>,
             {
@@ -83640,21 +86940,9 @@ mod root {
             pub fn property_updated<T>(
                 self,
                 value: T,
-            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<23, T>>
+            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<22, T>>
             where
                 T: ::planus::WriteAsOffset<self::PropertyUpdated>,
-            {
-                DaemonToClientReplyUnionBuilder(::planus::Initialized(value))
-            }
-
-            /// Creates an instance of the [`SystemHandlerResponseReply` variant](DaemonToClientReplyUnion#variant.SystemHandlerResponseReply).
-            #[inline]
-            pub fn system_handler_response_reply<T>(
-                self,
-                value: T,
-            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<24, T>>
-            where
-                T: ::planus::WriteAsOffset<self::SystemHandlerResponseReply>,
             {
                 DaemonToClientReplyUnionBuilder(::planus::Initialized(value))
             }
@@ -83664,7 +86952,7 @@ mod root {
             pub fn invocation_response<T>(
                 self,
                 value: T,
-            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<25, T>>
+            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<23, T>>
             where
                 T: ::planus::WriteAsOffset<self::InvocationResponse>,
             {
@@ -83676,7 +86964,7 @@ mod root {
             pub fn batch_world_state_reply<T>(
                 self,
                 value: T,
-            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<26, T>>
+            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<24, T>>
             where
                 T: ::planus::WriteAsOffset<self::BatchWorldStateReply>,
             {
@@ -83688,7 +86976,7 @@ mod root {
             pub fn client_events<T>(
                 self,
                 value: T,
-            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<27, T>>
+            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<25, T>>
             where
                 T: ::planus::WriteAsOffset<self::ClientEvents>,
             {
@@ -83700,7 +86988,7 @@ mod root {
             pub fn event_stream_state<T>(
                 self,
                 value: T,
-            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<28, T>>
+            ) -> DaemonToClientReplyUnionBuilder<::planus::Initialized<26, T>>
             where
                 T: ::planus::WriteAsOffset<self::EventStreamState>,
             {
@@ -83893,7 +87181,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<7, T>>
         where
-            T: ::planus::WriteAsOffset<self::EvalResult>,
+            T: ::planus::WriteAsOffset<self::ThanksPong>,
         {
             #[inline]
             fn prepare(
@@ -83907,7 +87195,7 @@ mod root {
         impl<T> ::planus::WriteAsOptionalUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<7, T>>
         where
-            T: ::planus::WriteAsOffset<self::EvalResult>,
+            T: ::planus::WriteAsOffset<self::ThanksPong>,
         {
             #[inline]
             fn prepare(
@@ -83921,7 +87209,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<8, T>>
         where
-            T: ::planus::WriteAsOffset<self::ThanksPong>,
+            T: ::planus::WriteAsOffset<self::VerbsReply>,
         {
             #[inline]
             fn prepare(
@@ -83935,7 +87223,7 @@ mod root {
         impl<T> ::planus::WriteAsOptionalUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<8, T>>
         where
-            T: ::planus::WriteAsOffset<self::ThanksPong>,
+            T: ::planus::WriteAsOffset<self::VerbsReply>,
         {
             #[inline]
             fn prepare(
@@ -83949,7 +87237,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<9, T>>
         where
-            T: ::planus::WriteAsOffset<self::VerbsReply>,
+            T: ::planus::WriteAsOffset<self::PropertiesReply>,
         {
             #[inline]
             fn prepare(
@@ -83963,7 +87251,7 @@ mod root {
         impl<T> ::planus::WriteAsOptionalUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<9, T>>
         where
-            T: ::planus::WriteAsOffset<self::VerbsReply>,
+            T: ::planus::WriteAsOffset<self::PropertiesReply>,
         {
             #[inline]
             fn prepare(
@@ -83977,7 +87265,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<10, T>>
         where
-            T: ::planus::WriteAsOffset<self::PropertiesReply>,
+            T: ::planus::WriteAsOffset<self::VerbProgramResponseReply>,
         {
             #[inline]
             fn prepare(
@@ -83991,7 +87279,7 @@ mod root {
         impl<T> ::planus::WriteAsOptionalUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<10, T>>
         where
-            T: ::planus::WriteAsOffset<self::PropertiesReply>,
+            T: ::planus::WriteAsOffset<self::VerbProgramResponseReply>,
         {
             #[inline]
             fn prepare(
@@ -84005,7 +87293,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<11, T>>
         where
-            T: ::planus::WriteAsOffset<self::VerbProgramResponseReply>,
+            T: ::planus::WriteAsOffset<self::PropertyValue>,
         {
             #[inline]
             fn prepare(
@@ -84019,7 +87307,7 @@ mod root {
         impl<T> ::planus::WriteAsOptionalUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<11, T>>
         where
-            T: ::planus::WriteAsOffset<self::VerbProgramResponseReply>,
+            T: ::planus::WriteAsOffset<self::PropertyValue>,
         {
             #[inline]
             fn prepare(
@@ -84033,7 +87321,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<12, T>>
         where
-            T: ::planus::WriteAsOffset<self::PropertyValue>,
+            T: ::planus::WriteAsOffset<self::VerbValue>,
         {
             #[inline]
             fn prepare(
@@ -84047,7 +87335,7 @@ mod root {
         impl<T> ::planus::WriteAsOptionalUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<12, T>>
         where
-            T: ::planus::WriteAsOffset<self::PropertyValue>,
+            T: ::planus::WriteAsOffset<self::VerbValue>,
         {
             #[inline]
             fn prepare(
@@ -84061,7 +87349,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<13, T>>
         where
-            T: ::planus::WriteAsOffset<self::VerbValue>,
+            T: ::planus::WriteAsOffset<self::ResolveResult>,
         {
             #[inline]
             fn prepare(
@@ -84075,7 +87363,7 @@ mod root {
         impl<T> ::planus::WriteAsOptionalUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<13, T>>
         where
-            T: ::planus::WriteAsOffset<self::VerbValue>,
+            T: ::planus::WriteAsOffset<self::ResolveResult>,
         {
             #[inline]
             fn prepare(
@@ -84089,7 +87377,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<14, T>>
         where
-            T: ::planus::WriteAsOffset<self::ResolveResult>,
+            T: ::planus::WriteAsOffset<self::HistoryResponseReply>,
         {
             #[inline]
             fn prepare(
@@ -84103,7 +87391,7 @@ mod root {
         impl<T> ::planus::WriteAsOptionalUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<14, T>>
         where
-            T: ::planus::WriteAsOffset<self::ResolveResult>,
+            T: ::planus::WriteAsOffset<self::HistoryResponseReply>,
         {
             #[inline]
             fn prepare(
@@ -84117,7 +87405,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<15, T>>
         where
-            T: ::planus::WriteAsOffset<self::HistoryResponseReply>,
+            T: ::planus::WriteAsOffset<self::CurrentPresentations>,
         {
             #[inline]
             fn prepare(
@@ -84131,7 +87419,7 @@ mod root {
         impl<T> ::planus::WriteAsOptionalUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<15, T>>
         where
-            T: ::planus::WriteAsOffset<self::HistoryResponseReply>,
+            T: ::planus::WriteAsOffset<self::CurrentPresentations>,
         {
             #[inline]
             fn prepare(
@@ -84145,7 +87433,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<16, T>>
         where
-            T: ::planus::WriteAsOffset<self::CurrentPresentations>,
+            T: ::planus::WriteAsOffset<self::PresentationDismissed>,
         {
             #[inline]
             fn prepare(
@@ -84159,7 +87447,7 @@ mod root {
         impl<T> ::planus::WriteAsOptionalUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<16, T>>
         where
-            T: ::planus::WriteAsOffset<self::CurrentPresentations>,
+            T: ::planus::WriteAsOffset<self::PresentationDismissed>,
         {
             #[inline]
             fn prepare(
@@ -84173,7 +87461,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<17, T>>
         where
-            T: ::planus::WriteAsOffset<self::PresentationDismissed>,
+            T: ::planus::WriteAsOffset<self::ClientAttributeSet>,
         {
             #[inline]
             fn prepare(
@@ -84187,7 +87475,7 @@ mod root {
         impl<T> ::planus::WriteAsOptionalUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<17, T>>
         where
-            T: ::planus::WriteAsOffset<self::PresentationDismissed>,
+            T: ::planus::WriteAsOffset<self::ClientAttributeSet>,
         {
             #[inline]
             fn prepare(
@@ -84201,7 +87489,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<18, T>>
         where
-            T: ::planus::WriteAsOffset<self::ClientAttributeSet>,
+            T: ::planus::WriteAsOffset<self::Disconnected>,
         {
             #[inline]
             fn prepare(
@@ -84215,7 +87503,7 @@ mod root {
         impl<T> ::planus::WriteAsOptionalUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<18, T>>
         where
-            T: ::planus::WriteAsOffset<self::ClientAttributeSet>,
+            T: ::planus::WriteAsOffset<self::Disconnected>,
         {
             #[inline]
             fn prepare(
@@ -84229,7 +87517,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<19, T>>
         where
-            T: ::planus::WriteAsOffset<self::Disconnected>,
+            T: ::planus::WriteAsOffset<self::EventLogPublicKey>,
         {
             #[inline]
             fn prepare(
@@ -84243,7 +87531,7 @@ mod root {
         impl<T> ::planus::WriteAsOptionalUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<19, T>>
         where
-            T: ::planus::WriteAsOffset<self::Disconnected>,
+            T: ::planus::WriteAsOffset<self::EventLogPublicKey>,
         {
             #[inline]
             fn prepare(
@@ -84257,7 +87545,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<20, T>>
         where
-            T: ::planus::WriteAsOffset<self::EventLogPublicKey>,
+            T: ::planus::WriteAsOffset<self::EventLogHistoryDeleted>,
         {
             #[inline]
             fn prepare(
@@ -84271,7 +87559,7 @@ mod root {
         impl<T> ::planus::WriteAsOptionalUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<20, T>>
         where
-            T: ::planus::WriteAsOffset<self::EventLogPublicKey>,
+            T: ::planus::WriteAsOffset<self::EventLogHistoryDeleted>,
         {
             #[inline]
             fn prepare(
@@ -84285,7 +87573,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<21, T>>
         where
-            T: ::planus::WriteAsOffset<self::EventLogHistoryDeleted>,
+            T: ::planus::WriteAsOffset<self::ListObjectsReply>,
         {
             #[inline]
             fn prepare(
@@ -84299,7 +87587,7 @@ mod root {
         impl<T> ::planus::WriteAsOptionalUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<21, T>>
         where
-            T: ::planus::WriteAsOffset<self::EventLogHistoryDeleted>,
+            T: ::planus::WriteAsOffset<self::ListObjectsReply>,
         {
             #[inline]
             fn prepare(
@@ -84313,7 +87601,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<22, T>>
         where
-            T: ::planus::WriteAsOffset<self::ListObjectsReply>,
+            T: ::planus::WriteAsOffset<self::PropertyUpdated>,
         {
             #[inline]
             fn prepare(
@@ -84327,7 +87615,7 @@ mod root {
         impl<T> ::planus::WriteAsOptionalUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<22, T>>
         where
-            T: ::planus::WriteAsOffset<self::ListObjectsReply>,
+            T: ::planus::WriteAsOffset<self::PropertyUpdated>,
         {
             #[inline]
             fn prepare(
@@ -84341,7 +87629,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<23, T>>
         where
-            T: ::planus::WriteAsOffset<self::PropertyUpdated>,
+            T: ::planus::WriteAsOffset<self::InvocationResponse>,
         {
             #[inline]
             fn prepare(
@@ -84355,7 +87643,7 @@ mod root {
         impl<T> ::planus::WriteAsOptionalUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<23, T>>
         where
-            T: ::planus::WriteAsOffset<self::PropertyUpdated>,
+            T: ::planus::WriteAsOffset<self::InvocationResponse>,
         {
             #[inline]
             fn prepare(
@@ -84369,7 +87657,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<24, T>>
         where
-            T: ::planus::WriteAsOffset<self::SystemHandlerResponseReply>,
+            T: ::planus::WriteAsOffset<self::BatchWorldStateReply>,
         {
             #[inline]
             fn prepare(
@@ -84383,7 +87671,7 @@ mod root {
         impl<T> ::planus::WriteAsOptionalUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<24, T>>
         where
-            T: ::planus::WriteAsOffset<self::SystemHandlerResponseReply>,
+            T: ::planus::WriteAsOffset<self::BatchWorldStateReply>,
         {
             #[inline]
             fn prepare(
@@ -84397,7 +87685,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<25, T>>
         where
-            T: ::planus::WriteAsOffset<self::InvocationResponse>,
+            T: ::planus::WriteAsOffset<self::ClientEvents>,
         {
             #[inline]
             fn prepare(
@@ -84411,7 +87699,7 @@ mod root {
         impl<T> ::planus::WriteAsOptionalUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<25, T>>
         where
-            T: ::planus::WriteAsOffset<self::InvocationResponse>,
+            T: ::planus::WriteAsOffset<self::ClientEvents>,
         {
             #[inline]
             fn prepare(
@@ -84425,7 +87713,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<26, T>>
         where
-            T: ::planus::WriteAsOffset<self::BatchWorldStateReply>,
+            T: ::planus::WriteAsOffset<self::EventStreamState>,
         {
             #[inline]
             fn prepare(
@@ -84438,62 +87726,6 @@ mod root {
 
         impl<T> ::planus::WriteAsOptionalUnion<DaemonToClientReplyUnion>
             for DaemonToClientReplyUnionBuilder<::planus::Initialized<26, T>>
-        where
-            T: ::planus::WriteAsOffset<self::BatchWorldStateReply>,
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::UnionOffset<DaemonToClientReplyUnion>>
-            {
-                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
-            }
-        }
-        impl<T> ::planus::WriteAsUnion<DaemonToClientReplyUnion>
-            for DaemonToClientReplyUnionBuilder<::planus::Initialized<27, T>>
-        where
-            T: ::planus::WriteAsOffset<self::ClientEvents>,
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::UnionOffset<DaemonToClientReplyUnion> {
-                ::planus::UnionOffset::new(27, (self.0).0.prepare(builder).downcast())
-            }
-        }
-
-        impl<T> ::planus::WriteAsOptionalUnion<DaemonToClientReplyUnion>
-            for DaemonToClientReplyUnionBuilder<::planus::Initialized<27, T>>
-        where
-            T: ::planus::WriteAsOffset<self::ClientEvents>,
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::UnionOffset<DaemonToClientReplyUnion>>
-            {
-                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
-            }
-        }
-        impl<T> ::planus::WriteAsUnion<DaemonToClientReplyUnion>
-            for DaemonToClientReplyUnionBuilder<::planus::Initialized<28, T>>
-        where
-            T: ::planus::WriteAsOffset<self::EventStreamState>,
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::UnionOffset<DaemonToClientReplyUnion> {
-                ::planus::UnionOffset::new(28, (self.0).0.prepare(builder).downcast())
-            }
-        }
-
-        impl<T> ::planus::WriteAsOptionalUnion<DaemonToClientReplyUnion>
-            for DaemonToClientReplyUnionBuilder<::planus::Initialized<28, T>>
         where
             T: ::planus::WriteAsOffset<self::EventStreamState>,
         {
@@ -84516,7 +87748,6 @@ mod root {
             SysPropValue(self::SysPropValueRef<'a>),
             TaskSubmitted(self::TaskSubmittedRef<'a>),
             InputThanks(self::InputThanksRef<'a>),
-            EvalResult(self::EvalResultRef<'a>),
             ThanksPong(self::ThanksPongRef<'a>),
             VerbsReply(self::VerbsReplyRef<'a>),
             PropertiesReply(self::PropertiesReplyRef<'a>),
@@ -84533,7 +87764,6 @@ mod root {
             EventLogHistoryDeleted(self::EventLogHistoryDeletedRef<'a>),
             ListObjectsReply(self::ListObjectsReplyRef<'a>),
             PropertyUpdated(self::PropertyUpdatedRef<'a>),
-            SystemHandlerResponseReply(self::SystemHandlerResponseReplyRef<'a>),
             InvocationResponse(self::InvocationResponseRef<'a>),
             BatchWorldStateReply(self::BatchWorldStateReplyRef<'a>),
             ClientEvents(self::ClientEventsRef<'a>),
@@ -84577,12 +87807,6 @@ mod root {
 
                     DaemonToClientReplyUnionRef::InputThanks(value) => {
                         Self::InputThanks(::planus::alloc::boxed::Box::new(
-                            ::core::convert::TryFrom::try_from(value)?,
-                        ))
-                    }
-
-                    DaemonToClientReplyUnionRef::EvalResult(value) => {
-                        Self::EvalResult(::planus::alloc::boxed::Box::new(
                             ::core::convert::TryFrom::try_from(value)?,
                         ))
                     }
@@ -84683,12 +87907,6 @@ mod root {
                         ))
                     }
 
-                    DaemonToClientReplyUnionRef::SystemHandlerResponseReply(value) => {
-                        Self::SystemHandlerResponseReply(::planus::alloc::boxed::Box::new(
-                            ::core::convert::TryFrom::try_from(value)?,
-                        ))
-                    }
-
                     DaemonToClientReplyUnionRef::InvocationResponse(value) => {
                         Self::InvocationResponse(::planus::alloc::boxed::Box::new(
                             ::core::convert::TryFrom::try_from(value)?,
@@ -84741,70 +87959,64 @@ mod root {
                     6 => ::core::result::Result::Ok(Self::InputThanks(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    7 => ::core::result::Result::Ok(Self::EvalResult(
+                    7 => ::core::result::Result::Ok(Self::ThanksPong(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    8 => ::core::result::Result::Ok(Self::ThanksPong(
+                    8 => ::core::result::Result::Ok(Self::VerbsReply(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    9 => ::core::result::Result::Ok(Self::VerbsReply(
+                    9 => ::core::result::Result::Ok(Self::PropertiesReply(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    10 => ::core::result::Result::Ok(Self::PropertiesReply(
+                    10 => ::core::result::Result::Ok(Self::VerbProgramResponseReply(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    11 => ::core::result::Result::Ok(Self::VerbProgramResponseReply(
+                    11 => ::core::result::Result::Ok(Self::PropertyValue(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    12 => ::core::result::Result::Ok(Self::PropertyValue(
+                    12 => ::core::result::Result::Ok(Self::VerbValue(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    13 => ::core::result::Result::Ok(Self::VerbValue(
+                    13 => ::core::result::Result::Ok(Self::ResolveResult(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    14 => ::core::result::Result::Ok(Self::ResolveResult(
+                    14 => ::core::result::Result::Ok(Self::HistoryResponseReply(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    15 => ::core::result::Result::Ok(Self::HistoryResponseReply(
+                    15 => ::core::result::Result::Ok(Self::CurrentPresentations(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    16 => ::core::result::Result::Ok(Self::CurrentPresentations(
+                    16 => ::core::result::Result::Ok(Self::PresentationDismissed(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    17 => ::core::result::Result::Ok(Self::PresentationDismissed(
+                    17 => ::core::result::Result::Ok(Self::ClientAttributeSet(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    18 => ::core::result::Result::Ok(Self::ClientAttributeSet(
+                    18 => ::core::result::Result::Ok(Self::Disconnected(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    19 => ::core::result::Result::Ok(Self::Disconnected(
+                    19 => ::core::result::Result::Ok(Self::EventLogPublicKey(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    20 => ::core::result::Result::Ok(Self::EventLogPublicKey(
+                    20 => ::core::result::Result::Ok(Self::EventLogHistoryDeleted(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    21 => ::core::result::Result::Ok(Self::EventLogHistoryDeleted(
+                    21 => ::core::result::Result::Ok(Self::ListObjectsReply(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    22 => ::core::result::Result::Ok(Self::ListObjectsReply(
+                    22 => ::core::result::Result::Ok(Self::PropertyUpdated(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    23 => ::core::result::Result::Ok(Self::PropertyUpdated(
+                    23 => ::core::result::Result::Ok(Self::InvocationResponse(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    24 => ::core::result::Result::Ok(Self::SystemHandlerResponseReply(
+                    24 => ::core::result::Result::Ok(Self::BatchWorldStateReply(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    25 => ::core::result::Result::Ok(Self::InvocationResponse(
+                    25 => ::core::result::Result::Ok(Self::ClientEvents(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    26 => ::core::result::Result::Ok(Self::BatchWorldStateReply(
-                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
-                    )),
-                    27 => ::core::result::Result::Ok(Self::ClientEvents(
-                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
-                    )),
-                    28 => ::core::result::Result::Ok(Self::EventStreamState(
+                    26 => ::core::result::Result::Ok(Self::EventStreamState(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
                     _ => {
@@ -84823,7 +88035,7 @@ mod root {
         /// The table `NewConnection` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `NewConnection` in the file `moor_rpc.fbs:1036`
+        /// * Table `NewConnection` in the file `moor_rpc.fbs:1114`
         #[derive(
             Clone,
             Debug,
@@ -85105,7 +88317,7 @@ mod root {
         /// The table `LoginResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `LoginResult` in the file `moor_rpc.fbs:1041`
+        /// * Table `LoginResult` in the file `moor_rpc.fbs:1119`
         #[derive(
             Clone,
             Debug,
@@ -85643,7 +88855,7 @@ mod root {
         /// The table `AttachResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `AttachResult` in the file `moor_rpc.fbs:1051`
+        /// * Table `AttachResult` in the file `moor_rpc.fbs:1129`
         #[derive(
             Clone,
             Debug,
@@ -86085,7 +89297,7 @@ mod root {
         /// The table `SysPropValue` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SysPropValue` in the file `moor_rpc.fbs:1058`
+        /// * Table `SysPropValue` in the file `moor_rpc.fbs:1136`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct SysPropValue {
             /// The field `value` in the table `SysPropValue`
@@ -86350,7 +89562,7 @@ mod root {
         /// The table `TaskSubmitted` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `TaskSubmitted` in the file `moor_rpc.fbs:1062`
+        /// * Table `TaskSubmitted` in the file `moor_rpc.fbs:1140`
         #[derive(
             Clone,
             Debug,
@@ -86615,7 +89827,7 @@ mod root {
         /// The table `InputThanks` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `InputThanks` in the file `moor_rpc.fbs:1066`
+        /// * Table `InputThanks` in the file `moor_rpc.fbs:1144`
         #[derive(
             Clone,
             Debug,
@@ -86823,246 +90035,10 @@ mod root {
             }
         }
 
-        /// The table `EvalResult` in the namespace `MoorRpc`
-        ///
-        /// Generated from these locations:
-        /// * Table `EvalResult` in the file `moor_rpc.fbs:1069`
-        #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
-        pub struct EvalResult {
-            /// The field `result` in the table `EvalResult`
-            pub result: ::planus::alloc::boxed::Box<super::moor_var::Var>,
-        }
-
-        impl EvalResult {
-            /// Creates a [EvalResultBuilder] for serializing an instance of this table.
-            #[inline]
-            pub fn builder() -> EvalResultBuilder<()> {
-                EvalResultBuilder(())
-            }
-
-            #[allow(clippy::too_many_arguments)]
-            pub fn create(
-                builder: &mut ::planus::Builder,
-                field_result: impl ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            ) -> ::planus::Offset<Self> {
-                let prepared_result = field_result.prepare(builder);
-
-                let mut table_writer: ::planus::table_writer::TableWriter<6> =
-                    ::core::default::Default::default();
-                table_writer.write_entry::<::planus::Offset<super::moor_var::Var>>(0);
-
-                unsafe {
-                    table_writer.finish(builder, |object_writer| {
-                        object_writer.write::<_, _, 4>(&prepared_result);
-                    });
-                }
-                builder.current_offset()
-            }
-        }
-
-        impl ::planus::WriteAs<::planus::Offset<EvalResult>> for EvalResult {
-            type Prepared = ::planus::Offset<Self>;
-
-            #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<EvalResult> {
-                ::planus::WriteAsOffset::prepare(self, builder)
-            }
-        }
-
-        impl ::planus::WriteAsOptional<::planus::Offset<EvalResult>> for EvalResult {
-            type Prepared = ::planus::Offset<Self>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<EvalResult>> {
-                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
-            }
-        }
-
-        impl ::planus::WriteAsOffset<EvalResult> for EvalResult {
-            #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<EvalResult> {
-                EvalResult::create(builder, &self.result)
-            }
-        }
-
-        /// Builder for serializing an instance of the [EvalResult] type.
-        ///
-        /// Can be created using the [EvalResult::builder] method.
-        #[derive(Debug)]
-        #[must_use]
-        pub struct EvalResultBuilder<State>(State);
-
-        impl EvalResultBuilder<()> {
-            /// Setter for the [`result` field](EvalResult#structfield.result).
-            #[inline]
-            #[allow(clippy::type_complexity)]
-            pub fn result<T0>(self, value: T0) -> EvalResultBuilder<(T0,)>
-            where
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            {
-                EvalResultBuilder((value,))
-            }
-        }
-
-        impl<T0> EvalResultBuilder<(T0,)> {
-            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [EvalResult].
-            #[inline]
-            pub fn finish(self, builder: &mut ::planus::Builder) -> ::planus::Offset<EvalResult>
-            where
-                Self: ::planus::WriteAsOffset<EvalResult>,
-            {
-                ::planus::WriteAsOffset::prepare(&self, builder)
-            }
-        }
-
-        impl<T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>>
-            ::planus::WriteAs<::planus::Offset<EvalResult>> for EvalResultBuilder<(T0,)>
-        {
-            type Prepared = ::planus::Offset<EvalResult>;
-
-            #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<EvalResult> {
-                ::planus::WriteAsOffset::prepare(self, builder)
-            }
-        }
-
-        impl<T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>>
-            ::planus::WriteAsOptional<::planus::Offset<EvalResult>> for EvalResultBuilder<(T0,)>
-        {
-            type Prepared = ::planus::Offset<EvalResult>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<EvalResult>> {
-                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
-            }
-        }
-
-        impl<T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>>
-            ::planus::WriteAsOffset<EvalResult> for EvalResultBuilder<(T0,)>
-        {
-            #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<EvalResult> {
-                let (v0,) = &self.0;
-                EvalResult::create(builder, v0)
-            }
-        }
-
-        /// Reference to a deserialized [EvalResult].
-        #[derive(Copy, Clone)]
-        pub struct EvalResultRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
-
-        impl<'a> EvalResultRef<'a> {
-            /// Getter for the [`result` field](EvalResult#structfield.result).
-            #[inline]
-            pub fn result(&self) -> ::planus::Result<super::moor_var::VarRef<'a>> {
-                self.0.access_required(0, "EvalResult", "result")
-            }
-        }
-
-        impl<'a> ::core::fmt::Debug for EvalResultRef<'a> {
-            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                let mut f = f.debug_struct("EvalResultRef");
-                f.field("result", &self.result());
-                f.finish()
-            }
-        }
-
-        impl<'a> ::core::convert::TryFrom<EvalResultRef<'a>> for EvalResult {
-            type Error = ::planus::Error;
-
-            #[allow(unreachable_code)]
-            fn try_from(value: EvalResultRef<'a>) -> ::planus::Result<Self> {
-                ::core::result::Result::Ok(Self {
-                    result: ::planus::alloc::boxed::Box::new(::core::convert::TryInto::try_into(
-                        value.result()?,
-                    )?),
-                })
-            }
-        }
-
-        impl<'a> ::planus::TableRead<'a> for EvalResultRef<'a> {
-            #[inline]
-            fn from_buffer(
-                buffer: ::planus::SliceWithStartOffset<'a>,
-                offset: usize,
-            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
-                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
-                    buffer, offset,
-                )?))
-            }
-        }
-
-        impl<'a> ::planus::VectorReadInner<'a> for EvalResultRef<'a> {
-            type Error = ::planus::Error;
-            const STRIDE: usize = 4;
-
-            unsafe fn from_buffer(
-                buffer: ::planus::SliceWithStartOffset<'a>,
-                offset: usize,
-            ) -> ::planus::Result<Self> {
-                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
-                    error_kind.with_error_location(
-                        "[EvalResultRef]",
-                        "get",
-                        buffer.offset_from_start,
-                    )
-                })
-            }
-        }
-
-        /// # Safety
-        /// The planus compiler generates implementations that initialize
-        /// the bytes in `write_values`.
-        unsafe impl ::planus::VectorWrite<::planus::Offset<EvalResult>> for EvalResult {
-            type Value = ::planus::Offset<EvalResult>;
-            const STRIDE: usize = 4;
-            #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
-                ::planus::WriteAs::prepare(self, builder)
-            }
-
-            #[inline]
-            unsafe fn write_values(
-                values: &[::planus::Offset<EvalResult>],
-                bytes: *mut ::core::mem::MaybeUninit<u8>,
-                buffer_position: u32,
-            ) {
-                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
-                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
-                    ::planus::WriteAsPrimitive::write(
-                        v,
-                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
-                        buffer_position - (Self::STRIDE * i) as u32,
-                    );
-                }
-            }
-        }
-
-        impl<'a> ::planus::ReadAsRoot<'a> for EvalResultRef<'a> {
-            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
-                ::planus::TableRead::from_buffer(
-                    ::planus::SliceWithStartOffset {
-                        buffer: slice,
-                        offset_from_start: 0,
-                    },
-                    0,
-                )
-                .map_err(|error_kind| {
-                    error_kind.with_error_location("[EvalResultRef]", "read_as_root", 0)
-                })
-            }
-        }
-
         /// The table `ThanksPong` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ThanksPong` in the file `moor_rpc.fbs:1073`
+        /// * Table `ThanksPong` in the file `moor_rpc.fbs:1147`
         #[derive(
             Clone,
             Debug,
@@ -87327,7 +90303,7 @@ mod root {
         /// The table `ClientEvents` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ClientEvents` in the file `moor_rpc.fbs:1077`
+        /// * Table `ClientEvents` in the file `moor_rpc.fbs:1151`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ClientEvents {
             /// The field `events` in the table `ClientEvents`
@@ -87630,7 +90606,7 @@ mod root {
         /// The table `VerbsReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbsReply` in the file `moor_rpc.fbs:1082`
+        /// * Table `VerbsReply` in the file `moor_rpc.fbs:1156`
         #[derive(
             Clone,
             Debug,
@@ -87894,7 +90870,7 @@ mod root {
         /// The table `PropertiesReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PropertiesReply` in the file `moor_rpc.fbs:1086`
+        /// * Table `PropertiesReply` in the file `moor_rpc.fbs:1160`
         #[derive(
             Clone,
             Debug,
@@ -88174,7 +91150,7 @@ mod root {
         /// The table `VerbProgramResponseReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbProgramResponseReply` in the file `moor_rpc.fbs:1090`
+        /// * Table `VerbProgramResponseReply` in the file `moor_rpc.fbs:1164`
         #[derive(
             Clone,
             Debug,
@@ -88449,7 +91425,7 @@ mod root {
         /// The table `PropertyValue` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PropertyValue` in the file `moor_rpc.fbs:1094`
+        /// * Table `PropertyValue` in the file `moor_rpc.fbs:1168`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct PropertyValue {
             /// The field `prop_info` in the table `PropertyValue`
@@ -88721,7 +91697,7 @@ mod root {
         /// The table `VerbValue` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `VerbValue` in the file `moor_rpc.fbs:1099`
+        /// * Table `VerbValue` in the file `moor_rpc.fbs:1173`
         #[derive(
             Clone,
             Debug,
@@ -89003,7 +91979,7 @@ mod root {
         /// The table `ResolveResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ResolveResult` in the file `moor_rpc.fbs:1104`
+        /// * Table `ResolveResult` in the file `moor_rpc.fbs:1178`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ResolveResult {
             /// The field `result` in the table `ResolveResult`
@@ -89240,7 +92216,7 @@ mod root {
         /// The table `HistoryResponseReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HistoryResponseReply` in the file `moor_rpc.fbs:1108`
+        /// * Table `HistoryResponseReply` in the file `moor_rpc.fbs:1182`
         #[derive(
             Clone,
             Debug,
@@ -89515,7 +92491,7 @@ mod root {
         /// The table `PresentationSnapshot` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PresentationSnapshot` in the file `moor_rpc.fbs:1112`
+        /// * Table `PresentationSnapshot` in the file `moor_rpc.fbs:1186`
         #[derive(
             Clone,
             Debug,
@@ -89822,7 +92798,7 @@ mod root {
         /// The table `CurrentPresentations` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `CurrentPresentations` in the file `moor_rpc.fbs:1117`
+        /// * Table `CurrentPresentations` in the file `moor_rpc.fbs:1191`
         #[derive(
             Clone,
             Debug,
@@ -90106,7 +93082,7 @@ mod root {
         /// The table `PresentationDismissed` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PresentationDismissed` in the file `moor_rpc.fbs:1121`
+        /// * Table `PresentationDismissed` in the file `moor_rpc.fbs:1195`
         #[derive(
             Clone,
             Debug,
@@ -90340,7 +93316,7 @@ mod root {
         /// The table `ClientAttributeSet` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ClientAttributeSet` in the file `moor_rpc.fbs:1124`
+        /// * Table `ClientAttributeSet` in the file `moor_rpc.fbs:1198`
         #[derive(
             Clone,
             Debug,
@@ -90568,7 +93544,7 @@ mod root {
         /// The table `Disconnected` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Disconnected` in the file `moor_rpc.fbs:1127`
+        /// * Table `Disconnected` in the file `moor_rpc.fbs:1201`
         #[derive(
             Clone,
             Debug,
@@ -90779,7 +93755,7 @@ mod root {
         /// The table `EventLogPublicKey` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `EventLogPublicKey` in the file `moor_rpc.fbs:1130`
+        /// * Table `EventLogPublicKey` in the file `moor_rpc.fbs:1204`
         #[derive(
             Clone,
             Debug,
@@ -91070,7 +94046,7 @@ mod root {
         /// The table `EventLogHistoryDeleted` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `EventLogHistoryDeleted` in the file `moor_rpc.fbs:1134`
+        /// * Table `EventLogHistoryDeleted` in the file `moor_rpc.fbs:1208`
         #[derive(
             Clone,
             Debug,
@@ -91362,7 +94338,7 @@ mod root {
         /// The table `ObjectInfo` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ObjectInfo` in the file `moor_rpc.fbs:1138`
+        /// * Table `ObjectInfo` in the file `moor_rpc.fbs:1212`
         #[derive(
             Clone,
             Debug,
@@ -92019,7 +94995,7 @@ mod root {
         /// The table `ListObjectsReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ListObjectsReply` in the file `moor_rpc.fbs:1150`
+        /// * Table `ListObjectsReply` in the file `moor_rpc.fbs:1224`
         #[derive(
             Clone,
             Debug,
@@ -92295,7 +95271,7 @@ mod root {
         /// The table `PropertyUpdated` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PropertyUpdated` in the file `moor_rpc.fbs:1154`
+        /// * Table `PropertyUpdated` in the file `moor_rpc.fbs:1228`
         #[derive(
             Clone,
             Debug,
@@ -92518,1803 +95494,14 @@ mod root {
             }
         }
 
-        /// The union `SystemHandlerResponseUnion` in the namespace `MoorRpc`
-        ///
-        /// Generated from these locations:
-        /// * Union `SystemHandlerResponseUnion` in the file `moor_rpc.fbs:1157`
-        #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
-        pub enum SystemHandlerResponseUnion {
-            /// The variant of type `SystemHandlerSuccess` in the union `SystemHandlerResponseUnion`
-            SystemHandlerSuccess(::planus::alloc::boxed::Box<self::SystemHandlerSuccess>),
-
-            /// The variant of type `SystemHandlerError` in the union `SystemHandlerResponseUnion`
-            SystemHandlerError(::planus::alloc::boxed::Box<self::SystemHandlerError>),
-        }
-
-        impl SystemHandlerResponseUnion {
-            /// Creates a [SystemHandlerResponseUnionBuilder] for serializing an instance of this table.
-            #[inline]
-            pub fn builder() -> SystemHandlerResponseUnionBuilder<::planus::Uninitialized> {
-                SystemHandlerResponseUnionBuilder(::planus::Uninitialized)
-            }
-
-            #[inline]
-            pub fn create_system_handler_success(
-                builder: &mut ::planus::Builder,
-                value: impl ::planus::WriteAsOffset<self::SystemHandlerSuccess>,
-            ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(1, value.prepare(builder).downcast())
-            }
-
-            #[inline]
-            pub fn create_system_handler_error(
-                builder: &mut ::planus::Builder,
-                value: impl ::planus::WriteAsOffset<self::SystemHandlerError>,
-            ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(2, value.prepare(builder).downcast())
-            }
-        }
-
-        impl ::planus::WriteAsUnion<SystemHandlerResponseUnion> for SystemHandlerResponseUnion {
-            #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::UnionOffset<Self> {
-                match self {
-                    Self::SystemHandlerSuccess(value) => {
-                        Self::create_system_handler_success(builder, value)
-                    }
-                    Self::SystemHandlerError(value) => {
-                        Self::create_system_handler_error(builder, value)
-                    }
-                }
-            }
-        }
-
-        impl ::planus::WriteAsOptionalUnion<SystemHandlerResponseUnion> for SystemHandlerResponseUnion {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::UnionOffset<Self>> {
-                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
-            }
-        }
-
-        /// Builder for serializing an instance of the [SystemHandlerResponseUnion] type.
-        ///
-        /// Can be created using the [SystemHandlerResponseUnion::builder] method.
-        #[derive(Debug)]
-        #[must_use]
-        pub struct SystemHandlerResponseUnionBuilder<T>(T);
-
-        impl SystemHandlerResponseUnionBuilder<::planus::Uninitialized> {
-            /// Creates an instance of the [`SystemHandlerSuccess` variant](SystemHandlerResponseUnion#variant.SystemHandlerSuccess).
-            #[inline]
-            pub fn system_handler_success<T>(
-                self,
-                value: T,
-            ) -> SystemHandlerResponseUnionBuilder<::planus::Initialized<1, T>>
-            where
-                T: ::planus::WriteAsOffset<self::SystemHandlerSuccess>,
-            {
-                SystemHandlerResponseUnionBuilder(::planus::Initialized(value))
-            }
-
-            /// Creates an instance of the [`SystemHandlerError` variant](SystemHandlerResponseUnion#variant.SystemHandlerError).
-            #[inline]
-            pub fn system_handler_error<T>(
-                self,
-                value: T,
-            ) -> SystemHandlerResponseUnionBuilder<::planus::Initialized<2, T>>
-            where
-                T: ::planus::WriteAsOffset<self::SystemHandlerError>,
-            {
-                SystemHandlerResponseUnionBuilder(::planus::Initialized(value))
-            }
-        }
-
-        impl<const N: u8, T> SystemHandlerResponseUnionBuilder<::planus::Initialized<N, T>> {
-            /// Finish writing the builder to get an [UnionOffset](::planus::UnionOffset) to a serialized [SystemHandlerResponseUnion].
-            #[inline]
-            pub fn finish(
-                self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::UnionOffset<SystemHandlerResponseUnion>
-            where
-                Self: ::planus::WriteAsUnion<SystemHandlerResponseUnion>,
-            {
-                ::planus::WriteAsUnion::prepare(&self, builder)
-            }
-        }
-
-        impl<T> ::planus::WriteAsUnion<SystemHandlerResponseUnion>
-            for SystemHandlerResponseUnionBuilder<::planus::Initialized<1, T>>
-        where
-            T: ::planus::WriteAsOffset<self::SystemHandlerSuccess>,
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::UnionOffset<SystemHandlerResponseUnion> {
-                ::planus::UnionOffset::new(1, (self.0).0.prepare(builder).downcast())
-            }
-        }
-
-        impl<T> ::planus::WriteAsOptionalUnion<SystemHandlerResponseUnion>
-            for SystemHandlerResponseUnionBuilder<::planus::Initialized<1, T>>
-        where
-            T: ::planus::WriteAsOffset<self::SystemHandlerSuccess>,
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::UnionOffset<SystemHandlerResponseUnion>>
-            {
-                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
-            }
-        }
-        impl<T> ::planus::WriteAsUnion<SystemHandlerResponseUnion>
-            for SystemHandlerResponseUnionBuilder<::planus::Initialized<2, T>>
-        where
-            T: ::planus::WriteAsOffset<self::SystemHandlerError>,
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::UnionOffset<SystemHandlerResponseUnion> {
-                ::planus::UnionOffset::new(2, (self.0).0.prepare(builder).downcast())
-            }
-        }
-
-        impl<T> ::planus::WriteAsOptionalUnion<SystemHandlerResponseUnion>
-            for SystemHandlerResponseUnionBuilder<::planus::Initialized<2, T>>
-        where
-            T: ::planus::WriteAsOffset<self::SystemHandlerError>,
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::UnionOffset<SystemHandlerResponseUnion>>
-            {
-                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
-            }
-        }
-
-        /// Reference to a deserialized [SystemHandlerResponseUnion].
-        #[derive(Copy, Clone, Debug)]
-        pub enum SystemHandlerResponseUnionRef<'a> {
-            SystemHandlerSuccess(self::SystemHandlerSuccessRef<'a>),
-            SystemHandlerError(self::SystemHandlerErrorRef<'a>),
-        }
-
-        impl<'a> ::core::convert::TryFrom<SystemHandlerResponseUnionRef<'a>>
-            for SystemHandlerResponseUnion
-        {
-            type Error = ::planus::Error;
-
-            fn try_from(value: SystemHandlerResponseUnionRef<'a>) -> ::planus::Result<Self> {
-                ::core::result::Result::Ok(match value {
-                    SystemHandlerResponseUnionRef::SystemHandlerSuccess(value) => {
-                        Self::SystemHandlerSuccess(::planus::alloc::boxed::Box::new(
-                            ::core::convert::TryFrom::try_from(value)?,
-                        ))
-                    }
-
-                    SystemHandlerResponseUnionRef::SystemHandlerError(value) => {
-                        Self::SystemHandlerError(::planus::alloc::boxed::Box::new(
-                            ::core::convert::TryFrom::try_from(value)?,
-                        ))
-                    }
-                })
-            }
-        }
-
-        impl<'a> ::planus::TableReadUnion<'a> for SystemHandlerResponseUnionRef<'a> {
-            fn from_buffer(
-                buffer: ::planus::SliceWithStartOffset<'a>,
-                tag: u8,
-                field_offset: usize,
-            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
-                match tag {
-                    1 => ::core::result::Result::Ok(Self::SystemHandlerSuccess(
-                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
-                    )),
-                    2 => ::core::result::Result::Ok(Self::SystemHandlerError(
-                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
-                    )),
-                    _ => {
-                        ::core::result::Result::Err(::planus::errors::ErrorKind::UnknownUnionTag {
-                            tag,
-                        })
-                    }
-                }
-            }
-        }
-
-        impl<'a> ::planus::VectorReadUnion<'a> for SystemHandlerResponseUnionRef<'a> {
-            const VECTOR_NAME: &'static str = "[SystemHandlerResponseUnionRef]";
-        }
-
-        /// The table `SystemHandlerSuccess` in the namespace `MoorRpc`
-        ///
-        /// Generated from these locations:
-        /// * Table `SystemHandlerSuccess` in the file `moor_rpc.fbs:1162`
-        #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
-        pub struct SystemHandlerSuccess {
-            /// The field `result` in the table `SystemHandlerSuccess`
-            pub result: ::planus::alloc::boxed::Box<super::moor_var::Var>,
-        }
-
-        impl SystemHandlerSuccess {
-            /// Creates a [SystemHandlerSuccessBuilder] for serializing an instance of this table.
-            #[inline]
-            pub fn builder() -> SystemHandlerSuccessBuilder<()> {
-                SystemHandlerSuccessBuilder(())
-            }
-
-            #[allow(clippy::too_many_arguments)]
-            pub fn create(
-                builder: &mut ::planus::Builder,
-                field_result: impl ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            ) -> ::planus::Offset<Self> {
-                let prepared_result = field_result.prepare(builder);
-
-                let mut table_writer: ::planus::table_writer::TableWriter<6> =
-                    ::core::default::Default::default();
-                table_writer.write_entry::<::planus::Offset<super::moor_var::Var>>(0);
-
-                unsafe {
-                    table_writer.finish(builder, |object_writer| {
-                        object_writer.write::<_, _, 4>(&prepared_result);
-                    });
-                }
-                builder.current_offset()
-            }
-        }
-
-        impl ::planus::WriteAs<::planus::Offset<SystemHandlerSuccess>> for SystemHandlerSuccess {
-            type Prepared = ::planus::Offset<Self>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<SystemHandlerSuccess> {
-                ::planus::WriteAsOffset::prepare(self, builder)
-            }
-        }
-
-        impl ::planus::WriteAsOptional<::planus::Offset<SystemHandlerSuccess>> for SystemHandlerSuccess {
-            type Prepared = ::planus::Offset<Self>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<SystemHandlerSuccess>> {
-                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
-            }
-        }
-
-        impl ::planus::WriteAsOffset<SystemHandlerSuccess> for SystemHandlerSuccess {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<SystemHandlerSuccess> {
-                SystemHandlerSuccess::create(builder, &self.result)
-            }
-        }
-
-        /// Builder for serializing an instance of the [SystemHandlerSuccess] type.
-        ///
-        /// Can be created using the [SystemHandlerSuccess::builder] method.
-        #[derive(Debug)]
-        #[must_use]
-        pub struct SystemHandlerSuccessBuilder<State>(State);
-
-        impl SystemHandlerSuccessBuilder<()> {
-            /// Setter for the [`result` field](SystemHandlerSuccess#structfield.result).
-            #[inline]
-            #[allow(clippy::type_complexity)]
-            pub fn result<T0>(self, value: T0) -> SystemHandlerSuccessBuilder<(T0,)>
-            where
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            {
-                SystemHandlerSuccessBuilder((value,))
-            }
-        }
-
-        impl<T0> SystemHandlerSuccessBuilder<(T0,)> {
-            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [SystemHandlerSuccess].
-            #[inline]
-            pub fn finish(
-                self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<SystemHandlerSuccess>
-            where
-                Self: ::planus::WriteAsOffset<SystemHandlerSuccess>,
-            {
-                ::planus::WriteAsOffset::prepare(&self, builder)
-            }
-        }
-
-        impl<T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>>
-            ::planus::WriteAs<::planus::Offset<SystemHandlerSuccess>>
-            for SystemHandlerSuccessBuilder<(T0,)>
-        {
-            type Prepared = ::planus::Offset<SystemHandlerSuccess>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<SystemHandlerSuccess> {
-                ::planus::WriteAsOffset::prepare(self, builder)
-            }
-        }
-
-        impl<T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>>
-            ::planus::WriteAsOptional<::planus::Offset<SystemHandlerSuccess>>
-            for SystemHandlerSuccessBuilder<(T0,)>
-        {
-            type Prepared = ::planus::Offset<SystemHandlerSuccess>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<SystemHandlerSuccess>> {
-                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
-            }
-        }
-
-        impl<T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>>
-            ::planus::WriteAsOffset<SystemHandlerSuccess> for SystemHandlerSuccessBuilder<(T0,)>
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<SystemHandlerSuccess> {
-                let (v0,) = &self.0;
-                SystemHandlerSuccess::create(builder, v0)
-            }
-        }
-
-        /// Reference to a deserialized [SystemHandlerSuccess].
-        #[derive(Copy, Clone)]
-        pub struct SystemHandlerSuccessRef<'a>(
-            #[allow(dead_code)] ::planus::table_reader::Table<'a>,
-        );
-
-        impl<'a> SystemHandlerSuccessRef<'a> {
-            /// Getter for the [`result` field](SystemHandlerSuccess#structfield.result).
-            #[inline]
-            pub fn result(&self) -> ::planus::Result<super::moor_var::VarRef<'a>> {
-                self.0.access_required(0, "SystemHandlerSuccess", "result")
-            }
-        }
-
-        impl<'a> ::core::fmt::Debug for SystemHandlerSuccessRef<'a> {
-            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                let mut f = f.debug_struct("SystemHandlerSuccessRef");
-                f.field("result", &self.result());
-                f.finish()
-            }
-        }
-
-        impl<'a> ::core::convert::TryFrom<SystemHandlerSuccessRef<'a>> for SystemHandlerSuccess {
-            type Error = ::planus::Error;
-
-            #[allow(unreachable_code)]
-            fn try_from(value: SystemHandlerSuccessRef<'a>) -> ::planus::Result<Self> {
-                ::core::result::Result::Ok(Self {
-                    result: ::planus::alloc::boxed::Box::new(::core::convert::TryInto::try_into(
-                        value.result()?,
-                    )?),
-                })
-            }
-        }
-
-        impl<'a> ::planus::TableRead<'a> for SystemHandlerSuccessRef<'a> {
-            #[inline]
-            fn from_buffer(
-                buffer: ::planus::SliceWithStartOffset<'a>,
-                offset: usize,
-            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
-                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
-                    buffer, offset,
-                )?))
-            }
-        }
-
-        impl<'a> ::planus::VectorReadInner<'a> for SystemHandlerSuccessRef<'a> {
-            type Error = ::planus::Error;
-            const STRIDE: usize = 4;
-
-            unsafe fn from_buffer(
-                buffer: ::planus::SliceWithStartOffset<'a>,
-                offset: usize,
-            ) -> ::planus::Result<Self> {
-                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
-                    error_kind.with_error_location(
-                        "[SystemHandlerSuccessRef]",
-                        "get",
-                        buffer.offset_from_start,
-                    )
-                })
-            }
-        }
-
-        /// # Safety
-        /// The planus compiler generates implementations that initialize
-        /// the bytes in `write_values`.
-        unsafe impl ::planus::VectorWrite<::planus::Offset<SystemHandlerSuccess>> for SystemHandlerSuccess {
-            type Value = ::planus::Offset<SystemHandlerSuccess>;
-            const STRIDE: usize = 4;
-            #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
-                ::planus::WriteAs::prepare(self, builder)
-            }
-
-            #[inline]
-            unsafe fn write_values(
-                values: &[::planus::Offset<SystemHandlerSuccess>],
-                bytes: *mut ::core::mem::MaybeUninit<u8>,
-                buffer_position: u32,
-            ) {
-                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
-                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
-                    ::planus::WriteAsPrimitive::write(
-                        v,
-                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
-                        buffer_position - (Self::STRIDE * i) as u32,
-                    );
-                }
-            }
-        }
-
-        impl<'a> ::planus::ReadAsRoot<'a> for SystemHandlerSuccessRef<'a> {
-            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
-                ::planus::TableRead::from_buffer(
-                    ::planus::SliceWithStartOffset {
-                        buffer: slice,
-                        offset_from_start: 0,
-                    },
-                    0,
-                )
-                .map_err(|error_kind| {
-                    error_kind.with_error_location("[SystemHandlerSuccessRef]", "read_as_root", 0)
-                })
-            }
-        }
-
-        /// The table `SystemHandlerError` in the namespace `MoorRpc`
-        ///
-        /// Generated from these locations:
-        /// * Table `SystemHandlerError` in the file `moor_rpc.fbs:1166`
-        #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
-        pub struct SystemHandlerError {
-            /// The field `error` in the table `SystemHandlerError`
-            pub error: ::planus::alloc::boxed::Box<self::SchedulerError>,
-        }
-
-        impl SystemHandlerError {
-            /// Creates a [SystemHandlerErrorBuilder] for serializing an instance of this table.
-            #[inline]
-            pub fn builder() -> SystemHandlerErrorBuilder<()> {
-                SystemHandlerErrorBuilder(())
-            }
-
-            #[allow(clippy::too_many_arguments)]
-            pub fn create(
-                builder: &mut ::planus::Builder,
-                field_error: impl ::planus::WriteAs<::planus::Offset<self::SchedulerError>>,
-            ) -> ::planus::Offset<Self> {
-                let prepared_error = field_error.prepare(builder);
-
-                let mut table_writer: ::planus::table_writer::TableWriter<6> =
-                    ::core::default::Default::default();
-                table_writer.write_entry::<::planus::Offset<self::SchedulerError>>(0);
-
-                unsafe {
-                    table_writer.finish(builder, |object_writer| {
-                        object_writer.write::<_, _, 4>(&prepared_error);
-                    });
-                }
-                builder.current_offset()
-            }
-        }
-
-        impl ::planus::WriteAs<::planus::Offset<SystemHandlerError>> for SystemHandlerError {
-            type Prepared = ::planus::Offset<Self>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<SystemHandlerError> {
-                ::planus::WriteAsOffset::prepare(self, builder)
-            }
-        }
-
-        impl ::planus::WriteAsOptional<::planus::Offset<SystemHandlerError>> for SystemHandlerError {
-            type Prepared = ::planus::Offset<Self>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<SystemHandlerError>> {
-                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
-            }
-        }
-
-        impl ::planus::WriteAsOffset<SystemHandlerError> for SystemHandlerError {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<SystemHandlerError> {
-                SystemHandlerError::create(builder, &self.error)
-            }
-        }
-
-        /// Builder for serializing an instance of the [SystemHandlerError] type.
-        ///
-        /// Can be created using the [SystemHandlerError::builder] method.
-        #[derive(Debug)]
-        #[must_use]
-        pub struct SystemHandlerErrorBuilder<State>(State);
-
-        impl SystemHandlerErrorBuilder<()> {
-            /// Setter for the [`error` field](SystemHandlerError#structfield.error).
-            #[inline]
-            #[allow(clippy::type_complexity)]
-            pub fn error<T0>(self, value: T0) -> SystemHandlerErrorBuilder<(T0,)>
-            where
-                T0: ::planus::WriteAs<::planus::Offset<self::SchedulerError>>,
-            {
-                SystemHandlerErrorBuilder((value,))
-            }
-        }
-
-        impl<T0> SystemHandlerErrorBuilder<(T0,)> {
-            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [SystemHandlerError].
-            #[inline]
-            pub fn finish(
-                self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<SystemHandlerError>
-            where
-                Self: ::planus::WriteAsOffset<SystemHandlerError>,
-            {
-                ::planus::WriteAsOffset::prepare(&self, builder)
-            }
-        }
-
-        impl<T0: ::planus::WriteAs<::planus::Offset<self::SchedulerError>>>
-            ::planus::WriteAs<::planus::Offset<SystemHandlerError>>
-            for SystemHandlerErrorBuilder<(T0,)>
-        {
-            type Prepared = ::planus::Offset<SystemHandlerError>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<SystemHandlerError> {
-                ::planus::WriteAsOffset::prepare(self, builder)
-            }
-        }
-
-        impl<T0: ::planus::WriteAs<::planus::Offset<self::SchedulerError>>>
-            ::planus::WriteAsOptional<::planus::Offset<SystemHandlerError>>
-            for SystemHandlerErrorBuilder<(T0,)>
-        {
-            type Prepared = ::planus::Offset<SystemHandlerError>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<SystemHandlerError>> {
-                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
-            }
-        }
-
-        impl<T0: ::planus::WriteAs<::planus::Offset<self::SchedulerError>>>
-            ::planus::WriteAsOffset<SystemHandlerError> for SystemHandlerErrorBuilder<(T0,)>
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<SystemHandlerError> {
-                let (v0,) = &self.0;
-                SystemHandlerError::create(builder, v0)
-            }
-        }
-
-        /// Reference to a deserialized [SystemHandlerError].
-        #[derive(Copy, Clone)]
-        pub struct SystemHandlerErrorRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
-
-        impl<'a> SystemHandlerErrorRef<'a> {
-            /// Getter for the [`error` field](SystemHandlerError#structfield.error).
-            #[inline]
-            pub fn error(&self) -> ::planus::Result<self::SchedulerErrorRef<'a>> {
-                self.0.access_required(0, "SystemHandlerError", "error")
-            }
-        }
-
-        impl<'a> ::core::fmt::Debug for SystemHandlerErrorRef<'a> {
-            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                let mut f = f.debug_struct("SystemHandlerErrorRef");
-                f.field("error", &self.error());
-                f.finish()
-            }
-        }
-
-        impl<'a> ::core::convert::TryFrom<SystemHandlerErrorRef<'a>> for SystemHandlerError {
-            type Error = ::planus::Error;
-
-            #[allow(unreachable_code)]
-            fn try_from(value: SystemHandlerErrorRef<'a>) -> ::planus::Result<Self> {
-                ::core::result::Result::Ok(Self {
-                    error: ::planus::alloc::boxed::Box::new(::core::convert::TryInto::try_into(
-                        value.error()?,
-                    )?),
-                })
-            }
-        }
-
-        impl<'a> ::planus::TableRead<'a> for SystemHandlerErrorRef<'a> {
-            #[inline]
-            fn from_buffer(
-                buffer: ::planus::SliceWithStartOffset<'a>,
-                offset: usize,
-            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
-                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
-                    buffer, offset,
-                )?))
-            }
-        }
-
-        impl<'a> ::planus::VectorReadInner<'a> for SystemHandlerErrorRef<'a> {
-            type Error = ::planus::Error;
-            const STRIDE: usize = 4;
-
-            unsafe fn from_buffer(
-                buffer: ::planus::SliceWithStartOffset<'a>,
-                offset: usize,
-            ) -> ::planus::Result<Self> {
-                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
-                    error_kind.with_error_location(
-                        "[SystemHandlerErrorRef]",
-                        "get",
-                        buffer.offset_from_start,
-                    )
-                })
-            }
-        }
-
-        /// # Safety
-        /// The planus compiler generates implementations that initialize
-        /// the bytes in `write_values`.
-        unsafe impl ::planus::VectorWrite<::planus::Offset<SystemHandlerError>> for SystemHandlerError {
-            type Value = ::planus::Offset<SystemHandlerError>;
-            const STRIDE: usize = 4;
-            #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
-                ::planus::WriteAs::prepare(self, builder)
-            }
-
-            #[inline]
-            unsafe fn write_values(
-                values: &[::planus::Offset<SystemHandlerError>],
-                bytes: *mut ::core::mem::MaybeUninit<u8>,
-                buffer_position: u32,
-            ) {
-                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
-                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
-                    ::planus::WriteAsPrimitive::write(
-                        v,
-                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
-                        buffer_position - (Self::STRIDE * i) as u32,
-                    );
-                }
-            }
-        }
-
-        impl<'a> ::planus::ReadAsRoot<'a> for SystemHandlerErrorRef<'a> {
-            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
-                ::planus::TableRead::from_buffer(
-                    ::planus::SliceWithStartOffset {
-                        buffer: slice,
-                        offset_from_start: 0,
-                    },
-                    0,
-                )
-                .map_err(|error_kind| {
-                    error_kind.with_error_location("[SystemHandlerErrorRef]", "read_as_root", 0)
-                })
-            }
-        }
-
-        /// The table `SystemHandlerResponseReply` in the namespace `MoorRpc`
-        ///
-        /// Generated from these locations:
-        /// * Table `SystemHandlerResponseReply` in the file `moor_rpc.fbs:1170`
-        #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
-        pub struct SystemHandlerResponseReply {
-            /// The field `response` in the table `SystemHandlerResponseReply`
-            pub response: self::SystemHandlerResponseUnion,
-            /// The field `output` in the table `SystemHandlerResponseReply`
-            pub output: ::core::option::Option<
-                ::planus::alloc::vec::Vec<super::moor_common::NarrativeEvent>,
-            >,
-        }
-
-        impl SystemHandlerResponseReply {
-            /// Creates a [SystemHandlerResponseReplyBuilder] for serializing an instance of this table.
-            #[inline]
-            pub fn builder() -> SystemHandlerResponseReplyBuilder<()> {
-                SystemHandlerResponseReplyBuilder(())
-            }
-
-            #[allow(clippy::too_many_arguments)]
-            pub fn create(
-                builder: &mut ::planus::Builder,
-                field_response: impl ::planus::WriteAsUnion<self::SystemHandlerResponseUnion>,
-                field_output: impl ::planus::WriteAsOptional<
-                    ::planus::Offset<[::planus::Offset<super::moor_common::NarrativeEvent>]>,
-                >,
-            ) -> ::planus::Offset<Self> {
-                let prepared_response = field_response.prepare(builder);
-                let prepared_output = field_output.prepare(builder);
-
-                let mut table_writer: ::planus::table_writer::TableWriter<10> =
-                    ::core::default::Default::default();
-                table_writer.write_entry::<::planus::Offset<self::SystemHandlerResponseUnion>>(1);
-                if prepared_output.is_some() {
-                    table_writer.write_entry::<::planus::Offset<
-                        [::planus::Offset<super::moor_common::NarrativeEvent>],
-                    >>(2);
-                }
-                table_writer.write_entry::<u8>(0);
-
-                unsafe {
-                    table_writer.finish(builder, |object_writer| {
-                        object_writer.write::<_, _, 4>(&prepared_response.offset());
-                        if let ::core::option::Option::Some(prepared_output) = prepared_output {
-                            object_writer.write::<_, _, 4>(&prepared_output);
-                        }
-                        object_writer.write::<_, _, 1>(&prepared_response.tag());
-                    });
-                }
-                builder.current_offset()
-            }
-        }
-
-        impl ::planus::WriteAs<::planus::Offset<SystemHandlerResponseReply>>
-            for SystemHandlerResponseReply
-        {
-            type Prepared = ::planus::Offset<Self>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<SystemHandlerResponseReply> {
-                ::planus::WriteAsOffset::prepare(self, builder)
-            }
-        }
-
-        impl ::planus::WriteAsOptional<::planus::Offset<SystemHandlerResponseReply>>
-            for SystemHandlerResponseReply
-        {
-            type Prepared = ::planus::Offset<Self>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<SystemHandlerResponseReply>> {
-                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
-            }
-        }
-
-        impl ::planus::WriteAsOffset<SystemHandlerResponseReply> for SystemHandlerResponseReply {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<SystemHandlerResponseReply> {
-                SystemHandlerResponseReply::create(builder, &self.response, &self.output)
-            }
-        }
-
-        /// Builder for serializing an instance of the [SystemHandlerResponseReply] type.
-        ///
-        /// Can be created using the [SystemHandlerResponseReply::builder] method.
-        #[derive(Debug)]
-        #[must_use]
-        pub struct SystemHandlerResponseReplyBuilder<State>(State);
-
-        impl SystemHandlerResponseReplyBuilder<()> {
-            /// Setter for the [`response` field](SystemHandlerResponseReply#structfield.response).
-            #[inline]
-            #[allow(clippy::type_complexity)]
-            pub fn response<T0>(self, value: T0) -> SystemHandlerResponseReplyBuilder<(T0,)>
-            where
-                T0: ::planus::WriteAsUnion<self::SystemHandlerResponseUnion>,
-            {
-                SystemHandlerResponseReplyBuilder((value,))
-            }
-        }
-
-        impl<T0> SystemHandlerResponseReplyBuilder<(T0,)> {
-            /// Setter for the [`output` field](SystemHandlerResponseReply#structfield.output).
-            #[inline]
-            #[allow(clippy::type_complexity)]
-            pub fn output<T1>(self, value: T1) -> SystemHandlerResponseReplyBuilder<(T0, T1)>
-            where
-                T1: ::planus::WriteAsOptional<
-                        ::planus::Offset<[::planus::Offset<super::moor_common::NarrativeEvent>]>,
-                    >,
-            {
-                let (v0,) = self.0;
-                SystemHandlerResponseReplyBuilder((v0, value))
-            }
-
-            /// Sets the [`output` field](SystemHandlerResponseReply#structfield.output) to null.
-            #[inline]
-            #[allow(clippy::type_complexity)]
-            pub fn output_as_null(self) -> SystemHandlerResponseReplyBuilder<(T0, ())> {
-                self.output(())
-            }
-        }
-
-        impl<T0, T1> SystemHandlerResponseReplyBuilder<(T0, T1)> {
-            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [SystemHandlerResponseReply].
-            #[inline]
-            pub fn finish(
-                self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<SystemHandlerResponseReply>
-            where
-                Self: ::planus::WriteAsOffset<SystemHandlerResponseReply>,
-            {
-                ::planus::WriteAsOffset::prepare(&self, builder)
-            }
-        }
-
-        impl<
-            T0: ::planus::WriteAsUnion<self::SystemHandlerResponseUnion>,
-            T1: ::planus::WriteAsOptional<
-                    ::planus::Offset<[::planus::Offset<super::moor_common::NarrativeEvent>]>,
-                >,
-        > ::planus::WriteAs<::planus::Offset<SystemHandlerResponseReply>>
-            for SystemHandlerResponseReplyBuilder<(T0, T1)>
-        {
-            type Prepared = ::planus::Offset<SystemHandlerResponseReply>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<SystemHandlerResponseReply> {
-                ::planus::WriteAsOffset::prepare(self, builder)
-            }
-        }
-
-        impl<
-            T0: ::planus::WriteAsUnion<self::SystemHandlerResponseUnion>,
-            T1: ::planus::WriteAsOptional<
-                    ::planus::Offset<[::planus::Offset<super::moor_common::NarrativeEvent>]>,
-                >,
-        > ::planus::WriteAsOptional<::planus::Offset<SystemHandlerResponseReply>>
-            for SystemHandlerResponseReplyBuilder<(T0, T1)>
-        {
-            type Prepared = ::planus::Offset<SystemHandlerResponseReply>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<SystemHandlerResponseReply>> {
-                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
-            }
-        }
-
-        impl<
-            T0: ::planus::WriteAsUnion<self::SystemHandlerResponseUnion>,
-            T1: ::planus::WriteAsOptional<
-                    ::planus::Offset<[::planus::Offset<super::moor_common::NarrativeEvent>]>,
-                >,
-        > ::planus::WriteAsOffset<SystemHandlerResponseReply>
-            for SystemHandlerResponseReplyBuilder<(T0, T1)>
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<SystemHandlerResponseReply> {
-                let (v0, v1) = &self.0;
-                SystemHandlerResponseReply::create(builder, v0, v1)
-            }
-        }
-
-        /// Reference to a deserialized [SystemHandlerResponseReply].
-        #[derive(Copy, Clone)]
-        pub struct SystemHandlerResponseReplyRef<'a>(
-            #[allow(dead_code)] ::planus::table_reader::Table<'a>,
-        );
-
-        impl<'a> SystemHandlerResponseReplyRef<'a> {
-            /// Getter for the [`response` field](SystemHandlerResponseReply#structfield.response).
-            #[inline]
-            pub fn response(&self) -> ::planus::Result<self::SystemHandlerResponseUnionRef<'a>> {
-                self.0
-                    .access_union_required(0, "SystemHandlerResponseReply", "response")
-            }
-
-            /// Getter for the [`output` field](SystemHandlerResponseReply#structfield.output).
-            #[inline]
-            pub fn output(
-                &self,
-            ) -> ::planus::Result<
-                ::core::option::Option<
-                    ::planus::Vector<
-                        'a,
-                        ::planus::Result<super::moor_common::NarrativeEventRef<'a>>,
-                    >,
-                >,
-            > {
-                self.0.access(2, "SystemHandlerResponseReply", "output")
-            }
-        }
-
-        impl<'a> ::core::fmt::Debug for SystemHandlerResponseReplyRef<'a> {
-            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                let mut f = f.debug_struct("SystemHandlerResponseReplyRef");
-                f.field("response", &self.response());
-                if let ::core::option::Option::Some(field_output) = self.output().transpose() {
-                    f.field("output", &field_output);
-                }
-                f.finish()
-            }
-        }
-
-        impl<'a> ::core::convert::TryFrom<SystemHandlerResponseReplyRef<'a>>
-            for SystemHandlerResponseReply
-        {
-            type Error = ::planus::Error;
-
-            #[allow(unreachable_code)]
-            fn try_from(value: SystemHandlerResponseReplyRef<'a>) -> ::planus::Result<Self> {
-                ::core::result::Result::Ok(Self {
-                    response: ::core::convert::TryInto::try_into(value.response()?)?,
-                    output: if let ::core::option::Option::Some(output) = value.output()? {
-                        ::core::option::Option::Some(output.to_vec_result()?)
-                    } else {
-                        ::core::option::Option::None
-                    },
-                })
-            }
-        }
-
-        impl<'a> ::planus::TableRead<'a> for SystemHandlerResponseReplyRef<'a> {
-            #[inline]
-            fn from_buffer(
-                buffer: ::planus::SliceWithStartOffset<'a>,
-                offset: usize,
-            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
-                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
-                    buffer, offset,
-                )?))
-            }
-        }
-
-        impl<'a> ::planus::VectorReadInner<'a> for SystemHandlerResponseReplyRef<'a> {
-            type Error = ::planus::Error;
-            const STRIDE: usize = 4;
-
-            unsafe fn from_buffer(
-                buffer: ::planus::SliceWithStartOffset<'a>,
-                offset: usize,
-            ) -> ::planus::Result<Self> {
-                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
-                    error_kind.with_error_location(
-                        "[SystemHandlerResponseReplyRef]",
-                        "get",
-                        buffer.offset_from_start,
-                    )
-                })
-            }
-        }
-
-        /// # Safety
-        /// The planus compiler generates implementations that initialize
-        /// the bytes in `write_values`.
-        unsafe impl ::planus::VectorWrite<::planus::Offset<SystemHandlerResponseReply>>
-            for SystemHandlerResponseReply
-        {
-            type Value = ::planus::Offset<SystemHandlerResponseReply>;
-            const STRIDE: usize = 4;
-            #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
-                ::planus::WriteAs::prepare(self, builder)
-            }
-
-            #[inline]
-            unsafe fn write_values(
-                values: &[::planus::Offset<SystemHandlerResponseReply>],
-                bytes: *mut ::core::mem::MaybeUninit<u8>,
-                buffer_position: u32,
-            ) {
-                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
-                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
-                    ::planus::WriteAsPrimitive::write(
-                        v,
-                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
-                        buffer_position - (Self::STRIDE * i) as u32,
-                    );
-                }
-            }
-        }
-
-        impl<'a> ::planus::ReadAsRoot<'a> for SystemHandlerResponseReplyRef<'a> {
-            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
-                ::planus::TableRead::from_buffer(
-                    ::planus::SliceWithStartOffset {
-                        buffer: slice,
-                        offset_from_start: 0,
-                    },
-                    0,
-                )
-                .map_err(|error_kind| {
-                    error_kind.with_error_location(
-                        "[SystemHandlerResponseReplyRef]",
-                        "read_as_root",
-                        0,
-                    )
-                })
-            }
-        }
-
-        /// The union `InvocationOutcome` in the namespace `MoorRpc`
-        ///
-        /// Generated from these locations:
-        /// * Union `InvocationOutcome` in the file `moor_rpc.fbs:1177`
-        #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
-        pub enum InvocationOutcome {
-            /// The variant of type `InvocationSuccess` in the union `InvocationOutcome`
-            InvocationSuccess(::planus::alloc::boxed::Box<self::InvocationSuccess>),
-
-            /// The variant of type `InvocationError` in the union `InvocationOutcome`
-            InvocationError(::planus::alloc::boxed::Box<self::InvocationError>),
-        }
-
-        impl InvocationOutcome {
-            /// Creates a [InvocationOutcomeBuilder] for serializing an instance of this table.
-            #[inline]
-            pub fn builder() -> InvocationOutcomeBuilder<::planus::Uninitialized> {
-                InvocationOutcomeBuilder(::planus::Uninitialized)
-            }
-
-            #[inline]
-            pub fn create_invocation_success(
-                builder: &mut ::planus::Builder,
-                value: impl ::planus::WriteAsOffset<self::InvocationSuccess>,
-            ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(1, value.prepare(builder).downcast())
-            }
-
-            #[inline]
-            pub fn create_invocation_error(
-                builder: &mut ::planus::Builder,
-                value: impl ::planus::WriteAsOffset<self::InvocationError>,
-            ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(2, value.prepare(builder).downcast())
-            }
-        }
-
-        impl ::planus::WriteAsUnion<InvocationOutcome> for InvocationOutcome {
-            #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::UnionOffset<Self> {
-                match self {
-                    Self::InvocationSuccess(value) => {
-                        Self::create_invocation_success(builder, value)
-                    }
-                    Self::InvocationError(value) => Self::create_invocation_error(builder, value),
-                }
-            }
-        }
-
-        impl ::planus::WriteAsOptionalUnion<InvocationOutcome> for InvocationOutcome {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::UnionOffset<Self>> {
-                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
-            }
-        }
-
-        /// Builder for serializing an instance of the [InvocationOutcome] type.
-        ///
-        /// Can be created using the [InvocationOutcome::builder] method.
-        #[derive(Debug)]
-        #[must_use]
-        pub struct InvocationOutcomeBuilder<T>(T);
-
-        impl InvocationOutcomeBuilder<::planus::Uninitialized> {
-            /// Creates an instance of the [`InvocationSuccess` variant](InvocationOutcome#variant.InvocationSuccess).
-            #[inline]
-            pub fn invocation_success<T>(
-                self,
-                value: T,
-            ) -> InvocationOutcomeBuilder<::planus::Initialized<1, T>>
-            where
-                T: ::planus::WriteAsOffset<self::InvocationSuccess>,
-            {
-                InvocationOutcomeBuilder(::planus::Initialized(value))
-            }
-
-            /// Creates an instance of the [`InvocationError` variant](InvocationOutcome#variant.InvocationError).
-            #[inline]
-            pub fn invocation_error<T>(
-                self,
-                value: T,
-            ) -> InvocationOutcomeBuilder<::planus::Initialized<2, T>>
-            where
-                T: ::planus::WriteAsOffset<self::InvocationError>,
-            {
-                InvocationOutcomeBuilder(::planus::Initialized(value))
-            }
-        }
-
-        impl<const N: u8, T> InvocationOutcomeBuilder<::planus::Initialized<N, T>> {
-            /// Finish writing the builder to get an [UnionOffset](::planus::UnionOffset) to a serialized [InvocationOutcome].
-            #[inline]
-            pub fn finish(
-                self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::UnionOffset<InvocationOutcome>
-            where
-                Self: ::planus::WriteAsUnion<InvocationOutcome>,
-            {
-                ::planus::WriteAsUnion::prepare(&self, builder)
-            }
-        }
-
-        impl<T> ::planus::WriteAsUnion<InvocationOutcome>
-            for InvocationOutcomeBuilder<::planus::Initialized<1, T>>
-        where
-            T: ::planus::WriteAsOffset<self::InvocationSuccess>,
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::UnionOffset<InvocationOutcome> {
-                ::planus::UnionOffset::new(1, (self.0).0.prepare(builder).downcast())
-            }
-        }
-
-        impl<T> ::planus::WriteAsOptionalUnion<InvocationOutcome>
-            for InvocationOutcomeBuilder<::planus::Initialized<1, T>>
-        where
-            T: ::planus::WriteAsOffset<self::InvocationSuccess>,
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::UnionOffset<InvocationOutcome>> {
-                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
-            }
-        }
-        impl<T> ::planus::WriteAsUnion<InvocationOutcome>
-            for InvocationOutcomeBuilder<::planus::Initialized<2, T>>
-        where
-            T: ::planus::WriteAsOffset<self::InvocationError>,
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::UnionOffset<InvocationOutcome> {
-                ::planus::UnionOffset::new(2, (self.0).0.prepare(builder).downcast())
-            }
-        }
-
-        impl<T> ::planus::WriteAsOptionalUnion<InvocationOutcome>
-            for InvocationOutcomeBuilder<::planus::Initialized<2, T>>
-        where
-            T: ::planus::WriteAsOffset<self::InvocationError>,
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::UnionOffset<InvocationOutcome>> {
-                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
-            }
-        }
-
-        /// Reference to a deserialized [InvocationOutcome].
-        #[derive(Copy, Clone, Debug)]
-        pub enum InvocationOutcomeRef<'a> {
-            InvocationSuccess(self::InvocationSuccessRef<'a>),
-            InvocationError(self::InvocationErrorRef<'a>),
-        }
-
-        impl<'a> ::core::convert::TryFrom<InvocationOutcomeRef<'a>> for InvocationOutcome {
-            type Error = ::planus::Error;
-
-            fn try_from(value: InvocationOutcomeRef<'a>) -> ::planus::Result<Self> {
-                ::core::result::Result::Ok(match value {
-                    InvocationOutcomeRef::InvocationSuccess(value) => {
-                        Self::InvocationSuccess(::planus::alloc::boxed::Box::new(
-                            ::core::convert::TryFrom::try_from(value)?,
-                        ))
-                    }
-
-                    InvocationOutcomeRef::InvocationError(value) => {
-                        Self::InvocationError(::planus::alloc::boxed::Box::new(
-                            ::core::convert::TryFrom::try_from(value)?,
-                        ))
-                    }
-                })
-            }
-        }
-
-        impl<'a> ::planus::TableReadUnion<'a> for InvocationOutcomeRef<'a> {
-            fn from_buffer(
-                buffer: ::planus::SliceWithStartOffset<'a>,
-                tag: u8,
-                field_offset: usize,
-            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
-                match tag {
-                    1 => ::core::result::Result::Ok(Self::InvocationSuccess(
-                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
-                    )),
-                    2 => ::core::result::Result::Ok(Self::InvocationError(
-                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
-                    )),
-                    _ => {
-                        ::core::result::Result::Err(::planus::errors::ErrorKind::UnknownUnionTag {
-                            tag,
-                        })
-                    }
-                }
-            }
-        }
-
-        impl<'a> ::planus::VectorReadUnion<'a> for InvocationOutcomeRef<'a> {
-            const VECTOR_NAME: &'static str = "[InvocationOutcomeRef]";
-        }
-
-        /// The table `InvocationSuccess` in the namespace `MoorRpc`
-        ///
-        /// Generated from these locations:
-        /// * Table `InvocationSuccess` in the file `moor_rpc.fbs:1182`
-        #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
-        pub struct InvocationSuccess {
-            /// The field `result` in the table `InvocationSuccess`
-            pub result: ::planus::alloc::boxed::Box<super::moor_var::Var>,
-        }
-
-        impl InvocationSuccess {
-            /// Creates a [InvocationSuccessBuilder] for serializing an instance of this table.
-            #[inline]
-            pub fn builder() -> InvocationSuccessBuilder<()> {
-                InvocationSuccessBuilder(())
-            }
-
-            #[allow(clippy::too_many_arguments)]
-            pub fn create(
-                builder: &mut ::planus::Builder,
-                field_result: impl ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            ) -> ::planus::Offset<Self> {
-                let prepared_result = field_result.prepare(builder);
-
-                let mut table_writer: ::planus::table_writer::TableWriter<6> =
-                    ::core::default::Default::default();
-                table_writer.write_entry::<::planus::Offset<super::moor_var::Var>>(0);
-
-                unsafe {
-                    table_writer.finish(builder, |object_writer| {
-                        object_writer.write::<_, _, 4>(&prepared_result);
-                    });
-                }
-                builder.current_offset()
-            }
-        }
-
-        impl ::planus::WriteAs<::planus::Offset<InvocationSuccess>> for InvocationSuccess {
-            type Prepared = ::planus::Offset<Self>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<InvocationSuccess> {
-                ::planus::WriteAsOffset::prepare(self, builder)
-            }
-        }
-
-        impl ::planus::WriteAsOptional<::planus::Offset<InvocationSuccess>> for InvocationSuccess {
-            type Prepared = ::planus::Offset<Self>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<InvocationSuccess>> {
-                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
-            }
-        }
-
-        impl ::planus::WriteAsOffset<InvocationSuccess> for InvocationSuccess {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<InvocationSuccess> {
-                InvocationSuccess::create(builder, &self.result)
-            }
-        }
-
-        /// Builder for serializing an instance of the [InvocationSuccess] type.
-        ///
-        /// Can be created using the [InvocationSuccess::builder] method.
-        #[derive(Debug)]
-        #[must_use]
-        pub struct InvocationSuccessBuilder<State>(State);
-
-        impl InvocationSuccessBuilder<()> {
-            /// Setter for the [`result` field](InvocationSuccess#structfield.result).
-            #[inline]
-            #[allow(clippy::type_complexity)]
-            pub fn result<T0>(self, value: T0) -> InvocationSuccessBuilder<(T0,)>
-            where
-                T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            {
-                InvocationSuccessBuilder((value,))
-            }
-        }
-
-        impl<T0> InvocationSuccessBuilder<(T0,)> {
-            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [InvocationSuccess].
-            #[inline]
-            pub fn finish(
-                self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<InvocationSuccess>
-            where
-                Self: ::planus::WriteAsOffset<InvocationSuccess>,
-            {
-                ::planus::WriteAsOffset::prepare(&self, builder)
-            }
-        }
-
-        impl<T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>>
-            ::planus::WriteAs<::planus::Offset<InvocationSuccess>>
-            for InvocationSuccessBuilder<(T0,)>
-        {
-            type Prepared = ::planus::Offset<InvocationSuccess>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<InvocationSuccess> {
-                ::planus::WriteAsOffset::prepare(self, builder)
-            }
-        }
-
-        impl<T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>>
-            ::planus::WriteAsOptional<::planus::Offset<InvocationSuccess>>
-            for InvocationSuccessBuilder<(T0,)>
-        {
-            type Prepared = ::planus::Offset<InvocationSuccess>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<InvocationSuccess>> {
-                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
-            }
-        }
-
-        impl<T0: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>>
-            ::planus::WriteAsOffset<InvocationSuccess> for InvocationSuccessBuilder<(T0,)>
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<InvocationSuccess> {
-                let (v0,) = &self.0;
-                InvocationSuccess::create(builder, v0)
-            }
-        }
-
-        /// Reference to a deserialized [InvocationSuccess].
-        #[derive(Copy, Clone)]
-        pub struct InvocationSuccessRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
-
-        impl<'a> InvocationSuccessRef<'a> {
-            /// Getter for the [`result` field](InvocationSuccess#structfield.result).
-            #[inline]
-            pub fn result(&self) -> ::planus::Result<super::moor_var::VarRef<'a>> {
-                self.0.access_required(0, "InvocationSuccess", "result")
-            }
-        }
-
-        impl<'a> ::core::fmt::Debug for InvocationSuccessRef<'a> {
-            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                let mut f = f.debug_struct("InvocationSuccessRef");
-                f.field("result", &self.result());
-                f.finish()
-            }
-        }
-
-        impl<'a> ::core::convert::TryFrom<InvocationSuccessRef<'a>> for InvocationSuccess {
-            type Error = ::planus::Error;
-
-            #[allow(unreachable_code)]
-            fn try_from(value: InvocationSuccessRef<'a>) -> ::planus::Result<Self> {
-                ::core::result::Result::Ok(Self {
-                    result: ::planus::alloc::boxed::Box::new(::core::convert::TryInto::try_into(
-                        value.result()?,
-                    )?),
-                })
-            }
-        }
-
-        impl<'a> ::planus::TableRead<'a> for InvocationSuccessRef<'a> {
-            #[inline]
-            fn from_buffer(
-                buffer: ::planus::SliceWithStartOffset<'a>,
-                offset: usize,
-            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
-                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
-                    buffer, offset,
-                )?))
-            }
-        }
-
-        impl<'a> ::planus::VectorReadInner<'a> for InvocationSuccessRef<'a> {
-            type Error = ::planus::Error;
-            const STRIDE: usize = 4;
-
-            unsafe fn from_buffer(
-                buffer: ::planus::SliceWithStartOffset<'a>,
-                offset: usize,
-            ) -> ::planus::Result<Self> {
-                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
-                    error_kind.with_error_location(
-                        "[InvocationSuccessRef]",
-                        "get",
-                        buffer.offset_from_start,
-                    )
-                })
-            }
-        }
-
-        /// # Safety
-        /// The planus compiler generates implementations that initialize
-        /// the bytes in `write_values`.
-        unsafe impl ::planus::VectorWrite<::planus::Offset<InvocationSuccess>> for InvocationSuccess {
-            type Value = ::planus::Offset<InvocationSuccess>;
-            const STRIDE: usize = 4;
-            #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
-                ::planus::WriteAs::prepare(self, builder)
-            }
-
-            #[inline]
-            unsafe fn write_values(
-                values: &[::planus::Offset<InvocationSuccess>],
-                bytes: *mut ::core::mem::MaybeUninit<u8>,
-                buffer_position: u32,
-            ) {
-                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
-                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
-                    ::planus::WriteAsPrimitive::write(
-                        v,
-                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
-                        buffer_position - (Self::STRIDE * i) as u32,
-                    );
-                }
-            }
-        }
-
-        impl<'a> ::planus::ReadAsRoot<'a> for InvocationSuccessRef<'a> {
-            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
-                ::planus::TableRead::from_buffer(
-                    ::planus::SliceWithStartOffset {
-                        buffer: slice,
-                        offset_from_start: 0,
-                    },
-                    0,
-                )
-                .map_err(|error_kind| {
-                    error_kind.with_error_location("[InvocationSuccessRef]", "read_as_root", 0)
-                })
-            }
-        }
-
-        /// The table `InvocationError` in the namespace `MoorRpc`
-        ///
-        /// Generated from these locations:
-        /// * Table `InvocationError` in the file `moor_rpc.fbs:1186`
-        #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
-        pub struct InvocationError {
-            /// The field `error` in the table `InvocationError`
-            pub error: ::planus::alloc::boxed::Box<self::SchedulerError>,
-        }
-
-        impl InvocationError {
-            /// Creates a [InvocationErrorBuilder] for serializing an instance of this table.
-            #[inline]
-            pub fn builder() -> InvocationErrorBuilder<()> {
-                InvocationErrorBuilder(())
-            }
-
-            #[allow(clippy::too_many_arguments)]
-            pub fn create(
-                builder: &mut ::planus::Builder,
-                field_error: impl ::planus::WriteAs<::planus::Offset<self::SchedulerError>>,
-            ) -> ::planus::Offset<Self> {
-                let prepared_error = field_error.prepare(builder);
-
-                let mut table_writer: ::planus::table_writer::TableWriter<6> =
-                    ::core::default::Default::default();
-                table_writer.write_entry::<::planus::Offset<self::SchedulerError>>(0);
-
-                unsafe {
-                    table_writer.finish(builder, |object_writer| {
-                        object_writer.write::<_, _, 4>(&prepared_error);
-                    });
-                }
-                builder.current_offset()
-            }
-        }
-
-        impl ::planus::WriteAs<::planus::Offset<InvocationError>> for InvocationError {
-            type Prepared = ::planus::Offset<Self>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<InvocationError> {
-                ::planus::WriteAsOffset::prepare(self, builder)
-            }
-        }
-
-        impl ::planus::WriteAsOptional<::planus::Offset<InvocationError>> for InvocationError {
-            type Prepared = ::planus::Offset<Self>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<InvocationError>> {
-                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
-            }
-        }
-
-        impl ::planus::WriteAsOffset<InvocationError> for InvocationError {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<InvocationError> {
-                InvocationError::create(builder, &self.error)
-            }
-        }
-
-        /// Builder for serializing an instance of the [InvocationError] type.
-        ///
-        /// Can be created using the [InvocationError::builder] method.
-        #[derive(Debug)]
-        #[must_use]
-        pub struct InvocationErrorBuilder<State>(State);
-
-        impl InvocationErrorBuilder<()> {
-            /// Setter for the [`error` field](InvocationError#structfield.error).
-            #[inline]
-            #[allow(clippy::type_complexity)]
-            pub fn error<T0>(self, value: T0) -> InvocationErrorBuilder<(T0,)>
-            where
-                T0: ::planus::WriteAs<::planus::Offset<self::SchedulerError>>,
-            {
-                InvocationErrorBuilder((value,))
-            }
-        }
-
-        impl<T0> InvocationErrorBuilder<(T0,)> {
-            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [InvocationError].
-            #[inline]
-            pub fn finish(
-                self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<InvocationError>
-            where
-                Self: ::planus::WriteAsOffset<InvocationError>,
-            {
-                ::planus::WriteAsOffset::prepare(&self, builder)
-            }
-        }
-
-        impl<T0: ::planus::WriteAs<::planus::Offset<self::SchedulerError>>>
-            ::planus::WriteAs<::planus::Offset<InvocationError>> for InvocationErrorBuilder<(T0,)>
-        {
-            type Prepared = ::planus::Offset<InvocationError>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<InvocationError> {
-                ::planus::WriteAsOffset::prepare(self, builder)
-            }
-        }
-
-        impl<T0: ::planus::WriteAs<::planus::Offset<self::SchedulerError>>>
-            ::planus::WriteAsOptional<::planus::Offset<InvocationError>>
-            for InvocationErrorBuilder<(T0,)>
-        {
-            type Prepared = ::planus::Offset<InvocationError>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<InvocationError>> {
-                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
-            }
-        }
-
-        impl<T0: ::planus::WriteAs<::planus::Offset<self::SchedulerError>>>
-            ::planus::WriteAsOffset<InvocationError> for InvocationErrorBuilder<(T0,)>
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<InvocationError> {
-                let (v0,) = &self.0;
-                InvocationError::create(builder, v0)
-            }
-        }
-
-        /// Reference to a deserialized [InvocationError].
-        #[derive(Copy, Clone)]
-        pub struct InvocationErrorRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
-
-        impl<'a> InvocationErrorRef<'a> {
-            /// Getter for the [`error` field](InvocationError#structfield.error).
-            #[inline]
-            pub fn error(&self) -> ::planus::Result<self::SchedulerErrorRef<'a>> {
-                self.0.access_required(0, "InvocationError", "error")
-            }
-        }
-
-        impl<'a> ::core::fmt::Debug for InvocationErrorRef<'a> {
-            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                let mut f = f.debug_struct("InvocationErrorRef");
-                f.field("error", &self.error());
-                f.finish()
-            }
-        }
-
-        impl<'a> ::core::convert::TryFrom<InvocationErrorRef<'a>> for InvocationError {
-            type Error = ::planus::Error;
-
-            #[allow(unreachable_code)]
-            fn try_from(value: InvocationErrorRef<'a>) -> ::planus::Result<Self> {
-                ::core::result::Result::Ok(Self {
-                    error: ::planus::alloc::boxed::Box::new(::core::convert::TryInto::try_into(
-                        value.error()?,
-                    )?),
-                })
-            }
-        }
-
-        impl<'a> ::planus::TableRead<'a> for InvocationErrorRef<'a> {
-            #[inline]
-            fn from_buffer(
-                buffer: ::planus::SliceWithStartOffset<'a>,
-                offset: usize,
-            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
-                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
-                    buffer, offset,
-                )?))
-            }
-        }
-
-        impl<'a> ::planus::VectorReadInner<'a> for InvocationErrorRef<'a> {
-            type Error = ::planus::Error;
-            const STRIDE: usize = 4;
-
-            unsafe fn from_buffer(
-                buffer: ::planus::SliceWithStartOffset<'a>,
-                offset: usize,
-            ) -> ::planus::Result<Self> {
-                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
-                    error_kind.with_error_location(
-                        "[InvocationErrorRef]",
-                        "get",
-                        buffer.offset_from_start,
-                    )
-                })
-            }
-        }
-
-        /// # Safety
-        /// The planus compiler generates implementations that initialize
-        /// the bytes in `write_values`.
-        unsafe impl ::planus::VectorWrite<::planus::Offset<InvocationError>> for InvocationError {
-            type Value = ::planus::Offset<InvocationError>;
-            const STRIDE: usize = 4;
-            #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
-                ::planus::WriteAs::prepare(self, builder)
-            }
-
-            #[inline]
-            unsafe fn write_values(
-                values: &[::planus::Offset<InvocationError>],
-                bytes: *mut ::core::mem::MaybeUninit<u8>,
-                buffer_position: u32,
-            ) {
-                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
-                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
-                    ::planus::WriteAsPrimitive::write(
-                        v,
-                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
-                        buffer_position - (Self::STRIDE * i) as u32,
-                    );
-                }
-            }
-        }
-
-        impl<'a> ::planus::ReadAsRoot<'a> for InvocationErrorRef<'a> {
-            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
-                ::planus::TableRead::from_buffer(
-                    ::planus::SliceWithStartOffset {
-                        buffer: slice,
-                        offset_from_start: 0,
-                    },
-                    0,
-                )
-                .map_err(|error_kind| {
-                    error_kind.with_error_location("[InvocationErrorRef]", "read_as_root", 0)
-                })
-            }
-        }
-
         /// The table `InvocationResponse` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `InvocationResponse` in the file `moor_rpc.fbs:1190`
+        /// * Table `InvocationResponse` in the file `moor_rpc.fbs:1232`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct InvocationResponse {
             /// The field `outcome` in the table `InvocationResponse`
-            pub outcome: self::InvocationOutcome,
+            pub outcome: ::planus::alloc::boxed::Box<self::TaskOutcome>,
             /// The field `output` in the table `InvocationResponse`
             pub output: ::planus::alloc::vec::Vec<super::moor_common::NarrativeEvent>,
         }
@@ -94329,7 +95516,7 @@ mod root {
             #[allow(clippy::too_many_arguments)]
             pub fn create(
                 builder: &mut ::planus::Builder,
-                field_outcome: impl ::planus::WriteAsUnion<self::InvocationOutcome>,
+                field_outcome: impl ::planus::WriteAs<::planus::Offset<self::TaskOutcome>>,
                 field_output: impl ::planus::WriteAs<
                     ::planus::Offset<[::planus::Offset<super::moor_common::NarrativeEvent>]>,
                 >,
@@ -94337,19 +95524,17 @@ mod root {
                 let prepared_outcome = field_outcome.prepare(builder);
                 let prepared_output = field_output.prepare(builder);
 
-                let mut table_writer: ::planus::table_writer::TableWriter<10> =
+                let mut table_writer: ::planus::table_writer::TableWriter<8> =
                     ::core::default::Default::default();
-                table_writer.write_entry::<::planus::Offset<self::InvocationOutcome>>(1);
+                table_writer.write_entry::<::planus::Offset<self::TaskOutcome>>(0);
                 table_writer.write_entry::<::planus::Offset<
                     [::planus::Offset<super::moor_common::NarrativeEvent>],
-                >>(2);
-                table_writer.write_entry::<u8>(0);
+                >>(1);
 
                 unsafe {
                     table_writer.finish(builder, |object_writer| {
-                        object_writer.write::<_, _, 4>(&prepared_outcome.offset());
+                        object_writer.write::<_, _, 4>(&prepared_outcome);
                         object_writer.write::<_, _, 4>(&prepared_output);
-                        object_writer.write::<_, _, 1>(&prepared_outcome.tag());
                     });
                 }
                 builder.current_offset()
@@ -94403,7 +95588,7 @@ mod root {
             #[allow(clippy::type_complexity)]
             pub fn outcome<T0>(self, value: T0) -> InvocationResponseBuilder<(T0,)>
             where
-                T0: ::planus::WriteAsUnion<self::InvocationOutcome>,
+                T0: ::planus::WriteAs<::planus::Offset<self::TaskOutcome>>,
             {
                 InvocationResponseBuilder((value,))
             }
@@ -94439,7 +95624,7 @@ mod root {
         }
 
         impl<
-            T0: ::planus::WriteAsUnion<self::InvocationOutcome>,
+            T0: ::planus::WriteAs<::planus::Offset<self::TaskOutcome>>,
             T1: ::planus::WriteAs<
                     ::planus::Offset<[::planus::Offset<super::moor_common::NarrativeEvent>]>,
                 >,
@@ -94458,7 +95643,7 @@ mod root {
         }
 
         impl<
-            T0: ::planus::WriteAsUnion<self::InvocationOutcome>,
+            T0: ::planus::WriteAs<::planus::Offset<self::TaskOutcome>>,
             T1: ::planus::WriteAs<
                     ::planus::Offset<[::planus::Offset<super::moor_common::NarrativeEvent>]>,
                 >,
@@ -94477,7 +95662,7 @@ mod root {
         }
 
         impl<
-            T0: ::planus::WriteAsUnion<self::InvocationOutcome>,
+            T0: ::planus::WriteAs<::planus::Offset<self::TaskOutcome>>,
             T1: ::planus::WriteAs<
                     ::planus::Offset<[::planus::Offset<super::moor_common::NarrativeEvent>]>,
                 >,
@@ -94500,9 +95685,8 @@ mod root {
         impl<'a> InvocationResponseRef<'a> {
             /// Getter for the [`outcome` field](InvocationResponse#structfield.outcome).
             #[inline]
-            pub fn outcome(&self) -> ::planus::Result<self::InvocationOutcomeRef<'a>> {
-                self.0
-                    .access_union_required(0, "InvocationResponse", "outcome")
+            pub fn outcome(&self) -> ::planus::Result<self::TaskOutcomeRef<'a>> {
+                self.0.access_required(0, "InvocationResponse", "outcome")
             }
 
             /// Getter for the [`output` field](InvocationResponse#structfield.output).
@@ -94512,7 +95696,7 @@ mod root {
             ) -> ::planus::Result<
                 ::planus::Vector<'a, ::planus::Result<super::moor_common::NarrativeEventRef<'a>>>,
             > {
-                self.0.access_required(2, "InvocationResponse", "output")
+                self.0.access_required(1, "InvocationResponse", "output")
             }
         }
 
@@ -94531,7 +95715,9 @@ mod root {
             #[allow(unreachable_code)]
             fn try_from(value: InvocationResponseRef<'a>) -> ::planus::Result<Self> {
                 ::core::result::Result::Ok(Self {
-                    outcome: ::core::convert::TryInto::try_into(value.outcome()?)?,
+                    outcome: ::planus::alloc::boxed::Box::new(::core::convert::TryInto::try_into(
+                        value.outcome()?,
+                    )?),
                     output: value.output()?.to_vec_result()?,
                 })
             }
@@ -94613,7 +95799,7 @@ mod root {
         /// The table `DaemonToClientReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DaemonToClientReply` in the file `moor_rpc.fbs:1195`
+        /// * Table `DaemonToClientReply` in the file `moor_rpc.fbs:1239`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct DaemonToClientReply {
             /// The field `reply` in the table `DaemonToClientReply`
@@ -94869,7 +96055,7 @@ mod root {
         /// The union `ClientEventUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `ClientEventUnion` in the file `moor_rpc.fbs:1203`
+        /// * Union `ClientEventUnion` in the file `moor_rpc.fbs:1247`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum ClientEventUnion {
             /// The variant of type `NarrativeEventMessage` in the union `ClientEventUnion`
@@ -94884,14 +96070,8 @@ mod root {
             /// The variant of type `DisconnectEvent` in the union `ClientEventUnion`
             DisconnectEvent(::planus::alloc::boxed::Box<self::DisconnectEvent>),
 
-            /// The variant of type `TaskErrorEvent` in the union `ClientEventUnion`
-            TaskErrorEvent(::planus::alloc::boxed::Box<self::TaskErrorEvent>),
-
-            /// The variant of type `TaskSuccessEvent` in the union `ClientEventUnion`
-            TaskSuccessEvent(::planus::alloc::boxed::Box<self::TaskSuccessEvent>),
-
-            /// The variant of type `TaskSuspendedEvent` in the union `ClientEventUnion`
-            TaskSuspendedEvent(::planus::alloc::boxed::Box<self::TaskSuspendedEvent>),
+            /// The variant of type `TaskOutcomeEvent` in the union `ClientEventUnion`
+            TaskOutcomeEvent(::planus::alloc::boxed::Box<self::TaskOutcomeEvent>),
 
             /// The variant of type `PlayerSwitchedEvent` in the union `ClientEventUnion`
             PlayerSwitchedEvent(::planus::alloc::boxed::Box<self::PlayerSwitchedEvent>),
@@ -94946,27 +96126,11 @@ mod root {
             }
 
             #[inline]
-            pub fn create_task_error_event(
+            pub fn create_task_outcome_event(
                 builder: &mut ::planus::Builder,
-                value: impl ::planus::WriteAsOffset<self::TaskErrorEvent>,
+                value: impl ::planus::WriteAsOffset<self::TaskOutcomeEvent>,
             ) -> ::planus::UnionOffset<Self> {
                 ::planus::UnionOffset::new(5, value.prepare(builder).downcast())
-            }
-
-            #[inline]
-            pub fn create_task_success_event(
-                builder: &mut ::planus::Builder,
-                value: impl ::planus::WriteAsOffset<self::TaskSuccessEvent>,
-            ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(6, value.prepare(builder).downcast())
-            }
-
-            #[inline]
-            pub fn create_task_suspended_event(
-                builder: &mut ::planus::Builder,
-                value: impl ::planus::WriteAsOffset<self::TaskSuspendedEvent>,
-            ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(7, value.prepare(builder).downcast())
             }
 
             #[inline]
@@ -94974,7 +96138,7 @@ mod root {
                 builder: &mut ::planus::Builder,
                 value: impl ::planus::WriteAsOffset<self::PlayerSwitchedEvent>,
             ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(8, value.prepare(builder).downcast())
+                ::planus::UnionOffset::new(6, value.prepare(builder).downcast())
             }
 
             #[inline]
@@ -94982,7 +96146,7 @@ mod root {
                 builder: &mut ::planus::Builder,
                 value: impl ::planus::WriteAsOffset<self::SetConnectionOptionEvent>,
             ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(9, value.prepare(builder).downcast())
+                ::planus::UnionOffset::new(7, value.prepare(builder).downcast())
             }
 
             #[inline]
@@ -94990,7 +96154,7 @@ mod root {
                 builder: &mut ::planus::Builder,
                 value: impl ::planus::WriteAsOffset<self::CredentialsUpdatedEvent>,
             ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(10, value.prepare(builder).downcast())
+                ::planus::UnionOffset::new(8, value.prepare(builder).downcast())
             }
 
             #[inline]
@@ -94998,7 +96162,7 @@ mod root {
                 builder: &mut ::planus::Builder,
                 value: impl ::planus::WriteAsOffset<self::EventsAvailableEvent>,
             ) -> ::planus::UnionOffset<Self> {
-                ::planus::UnionOffset::new(11, value.prepare(builder).downcast())
+                ::planus::UnionOffset::new(9, value.prepare(builder).downcast())
             }
         }
 
@@ -95016,12 +96180,8 @@ mod root {
                         Self::create_system_message_event(builder, value)
                     }
                     Self::DisconnectEvent(value) => Self::create_disconnect_event(builder, value),
-                    Self::TaskErrorEvent(value) => Self::create_task_error_event(builder, value),
-                    Self::TaskSuccessEvent(value) => {
-                        Self::create_task_success_event(builder, value)
-                    }
-                    Self::TaskSuspendedEvent(value) => {
-                        Self::create_task_suspended_event(builder, value)
+                    Self::TaskOutcomeEvent(value) => {
+                        Self::create_task_outcome_event(builder, value)
                     }
                     Self::PlayerSwitchedEvent(value) => {
                         Self::create_player_switched_event(builder, value)
@@ -95105,38 +96265,14 @@ mod root {
                 ClientEventUnionBuilder(::planus::Initialized(value))
             }
 
-            /// Creates an instance of the [`TaskErrorEvent` variant](ClientEventUnion#variant.TaskErrorEvent).
+            /// Creates an instance of the [`TaskOutcomeEvent` variant](ClientEventUnion#variant.TaskOutcomeEvent).
             #[inline]
-            pub fn task_error_event<T>(
+            pub fn task_outcome_event<T>(
                 self,
                 value: T,
             ) -> ClientEventUnionBuilder<::planus::Initialized<5, T>>
             where
-                T: ::planus::WriteAsOffset<self::TaskErrorEvent>,
-            {
-                ClientEventUnionBuilder(::planus::Initialized(value))
-            }
-
-            /// Creates an instance of the [`TaskSuccessEvent` variant](ClientEventUnion#variant.TaskSuccessEvent).
-            #[inline]
-            pub fn task_success_event<T>(
-                self,
-                value: T,
-            ) -> ClientEventUnionBuilder<::planus::Initialized<6, T>>
-            where
-                T: ::planus::WriteAsOffset<self::TaskSuccessEvent>,
-            {
-                ClientEventUnionBuilder(::planus::Initialized(value))
-            }
-
-            /// Creates an instance of the [`TaskSuspendedEvent` variant](ClientEventUnion#variant.TaskSuspendedEvent).
-            #[inline]
-            pub fn task_suspended_event<T>(
-                self,
-                value: T,
-            ) -> ClientEventUnionBuilder<::planus::Initialized<7, T>>
-            where
-                T: ::planus::WriteAsOffset<self::TaskSuspendedEvent>,
+                T: ::planus::WriteAsOffset<self::TaskOutcomeEvent>,
             {
                 ClientEventUnionBuilder(::planus::Initialized(value))
             }
@@ -95146,7 +96282,7 @@ mod root {
             pub fn player_switched_event<T>(
                 self,
                 value: T,
-            ) -> ClientEventUnionBuilder<::planus::Initialized<8, T>>
+            ) -> ClientEventUnionBuilder<::planus::Initialized<6, T>>
             where
                 T: ::planus::WriteAsOffset<self::PlayerSwitchedEvent>,
             {
@@ -95158,7 +96294,7 @@ mod root {
             pub fn set_connection_option_event<T>(
                 self,
                 value: T,
-            ) -> ClientEventUnionBuilder<::planus::Initialized<9, T>>
+            ) -> ClientEventUnionBuilder<::planus::Initialized<7, T>>
             where
                 T: ::planus::WriteAsOffset<self::SetConnectionOptionEvent>,
             {
@@ -95170,7 +96306,7 @@ mod root {
             pub fn credentials_updated_event<T>(
                 self,
                 value: T,
-            ) -> ClientEventUnionBuilder<::planus::Initialized<10, T>>
+            ) -> ClientEventUnionBuilder<::planus::Initialized<8, T>>
             where
                 T: ::planus::WriteAsOffset<self::CredentialsUpdatedEvent>,
             {
@@ -95182,7 +96318,7 @@ mod root {
             pub fn events_available_event<T>(
                 self,
                 value: T,
-            ) -> ClientEventUnionBuilder<::planus::Initialized<11, T>>
+            ) -> ClientEventUnionBuilder<::planus::Initialized<9, T>>
             where
                 T: ::planus::WriteAsOffset<self::EventsAvailableEvent>,
             {
@@ -95315,7 +96451,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<ClientEventUnion>
             for ClientEventUnionBuilder<::planus::Initialized<5, T>>
         where
-            T: ::planus::WriteAsOffset<self::TaskErrorEvent>,
+            T: ::planus::WriteAsOffset<self::TaskOutcomeEvent>,
         {
             #[inline]
             fn prepare(
@@ -95329,7 +96465,7 @@ mod root {
         impl<T> ::planus::WriteAsOptionalUnion<ClientEventUnion>
             for ClientEventUnionBuilder<::planus::Initialized<5, T>>
         where
-            T: ::planus::WriteAsOffset<self::TaskErrorEvent>,
+            T: ::planus::WriteAsOffset<self::TaskOutcomeEvent>,
         {
             #[inline]
             fn prepare(
@@ -95342,7 +96478,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<ClientEventUnion>
             for ClientEventUnionBuilder<::planus::Initialized<6, T>>
         where
-            T: ::planus::WriteAsOffset<self::TaskSuccessEvent>,
+            T: ::planus::WriteAsOffset<self::PlayerSwitchedEvent>,
         {
             #[inline]
             fn prepare(
@@ -95356,7 +96492,7 @@ mod root {
         impl<T> ::planus::WriteAsOptionalUnion<ClientEventUnion>
             for ClientEventUnionBuilder<::planus::Initialized<6, T>>
         where
-            T: ::planus::WriteAsOffset<self::TaskSuccessEvent>,
+            T: ::planus::WriteAsOffset<self::PlayerSwitchedEvent>,
         {
             #[inline]
             fn prepare(
@@ -95369,7 +96505,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<ClientEventUnion>
             for ClientEventUnionBuilder<::planus::Initialized<7, T>>
         where
-            T: ::planus::WriteAsOffset<self::TaskSuspendedEvent>,
+            T: ::planus::WriteAsOffset<self::SetConnectionOptionEvent>,
         {
             #[inline]
             fn prepare(
@@ -95383,7 +96519,7 @@ mod root {
         impl<T> ::planus::WriteAsOptionalUnion<ClientEventUnion>
             for ClientEventUnionBuilder<::planus::Initialized<7, T>>
         where
-            T: ::planus::WriteAsOffset<self::TaskSuspendedEvent>,
+            T: ::planus::WriteAsOffset<self::SetConnectionOptionEvent>,
         {
             #[inline]
             fn prepare(
@@ -95396,7 +96532,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<ClientEventUnion>
             for ClientEventUnionBuilder<::planus::Initialized<8, T>>
         where
-            T: ::planus::WriteAsOffset<self::PlayerSwitchedEvent>,
+            T: ::planus::WriteAsOffset<self::CredentialsUpdatedEvent>,
         {
             #[inline]
             fn prepare(
@@ -95410,7 +96546,7 @@ mod root {
         impl<T> ::planus::WriteAsOptionalUnion<ClientEventUnion>
             for ClientEventUnionBuilder<::planus::Initialized<8, T>>
         where
-            T: ::planus::WriteAsOffset<self::PlayerSwitchedEvent>,
+            T: ::planus::WriteAsOffset<self::CredentialsUpdatedEvent>,
         {
             #[inline]
             fn prepare(
@@ -95423,7 +96559,7 @@ mod root {
         impl<T> ::planus::WriteAsUnion<ClientEventUnion>
             for ClientEventUnionBuilder<::planus::Initialized<9, T>>
         where
-            T: ::planus::WriteAsOffset<self::SetConnectionOptionEvent>,
+            T: ::planus::WriteAsOffset<self::EventsAvailableEvent>,
         {
             #[inline]
             fn prepare(
@@ -95436,60 +96572,6 @@ mod root {
 
         impl<T> ::planus::WriteAsOptionalUnion<ClientEventUnion>
             for ClientEventUnionBuilder<::planus::Initialized<9, T>>
-        where
-            T: ::planus::WriteAsOffset<self::SetConnectionOptionEvent>,
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::UnionOffset<ClientEventUnion>> {
-                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
-            }
-        }
-        impl<T> ::planus::WriteAsUnion<ClientEventUnion>
-            for ClientEventUnionBuilder<::planus::Initialized<10, T>>
-        where
-            T: ::planus::WriteAsOffset<self::CredentialsUpdatedEvent>,
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::UnionOffset<ClientEventUnion> {
-                ::planus::UnionOffset::new(10, (self.0).0.prepare(builder).downcast())
-            }
-        }
-
-        impl<T> ::planus::WriteAsOptionalUnion<ClientEventUnion>
-            for ClientEventUnionBuilder<::planus::Initialized<10, T>>
-        where
-            T: ::planus::WriteAsOffset<self::CredentialsUpdatedEvent>,
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::UnionOffset<ClientEventUnion>> {
-                ::core::option::Option::Some(::planus::WriteAsUnion::prepare(self, builder))
-            }
-        }
-        impl<T> ::planus::WriteAsUnion<ClientEventUnion>
-            for ClientEventUnionBuilder<::planus::Initialized<11, T>>
-        where
-            T: ::planus::WriteAsOffset<self::EventsAvailableEvent>,
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::UnionOffset<ClientEventUnion> {
-                ::planus::UnionOffset::new(11, (self.0).0.prepare(builder).downcast())
-            }
-        }
-
-        impl<T> ::planus::WriteAsOptionalUnion<ClientEventUnion>
-            for ClientEventUnionBuilder<::planus::Initialized<11, T>>
         where
             T: ::planus::WriteAsOffset<self::EventsAvailableEvent>,
         {
@@ -95509,9 +96591,7 @@ mod root {
             RequestInputEvent(self::RequestInputEventRef<'a>),
             SystemMessageEvent(self::SystemMessageEventRef<'a>),
             DisconnectEvent(self::DisconnectEventRef<'a>),
-            TaskErrorEvent(self::TaskErrorEventRef<'a>),
-            TaskSuccessEvent(self::TaskSuccessEventRef<'a>),
-            TaskSuspendedEvent(self::TaskSuspendedEventRef<'a>),
+            TaskOutcomeEvent(self::TaskOutcomeEventRef<'a>),
             PlayerSwitchedEvent(self::PlayerSwitchedEventRef<'a>),
             SetConnectionOptionEvent(self::SetConnectionOptionEventRef<'a>),
             CredentialsUpdatedEvent(self::CredentialsUpdatedEventRef<'a>),
@@ -95547,20 +96627,8 @@ mod root {
                         ))
                     }
 
-                    ClientEventUnionRef::TaskErrorEvent(value) => {
-                        Self::TaskErrorEvent(::planus::alloc::boxed::Box::new(
-                            ::core::convert::TryFrom::try_from(value)?,
-                        ))
-                    }
-
-                    ClientEventUnionRef::TaskSuccessEvent(value) => {
-                        Self::TaskSuccessEvent(::planus::alloc::boxed::Box::new(
-                            ::core::convert::TryFrom::try_from(value)?,
-                        ))
-                    }
-
-                    ClientEventUnionRef::TaskSuspendedEvent(value) => {
-                        Self::TaskSuspendedEvent(::planus::alloc::boxed::Box::new(
+                    ClientEventUnionRef::TaskOutcomeEvent(value) => {
+                        Self::TaskOutcomeEvent(::planus::alloc::boxed::Box::new(
                             ::core::convert::TryFrom::try_from(value)?,
                         ))
                     }
@@ -95611,25 +96679,19 @@ mod root {
                     4 => ::core::result::Result::Ok(Self::DisconnectEvent(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    5 => ::core::result::Result::Ok(Self::TaskErrorEvent(
+                    5 => ::core::result::Result::Ok(Self::TaskOutcomeEvent(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    6 => ::core::result::Result::Ok(Self::TaskSuccessEvent(
+                    6 => ::core::result::Result::Ok(Self::PlayerSwitchedEvent(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    7 => ::core::result::Result::Ok(Self::TaskSuspendedEvent(
+                    7 => ::core::result::Result::Ok(Self::SetConnectionOptionEvent(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    8 => ::core::result::Result::Ok(Self::PlayerSwitchedEvent(
+                    8 => ::core::result::Result::Ok(Self::CredentialsUpdatedEvent(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
-                    9 => ::core::result::Result::Ok(Self::SetConnectionOptionEvent(
-                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
-                    )),
-                    10 => ::core::result::Result::Ok(Self::CredentialsUpdatedEvent(
-                        ::planus::TableRead::from_buffer(buffer, field_offset)?,
-                    )),
-                    11 => ::core::result::Result::Ok(Self::EventsAvailableEvent(
+                    9 => ::core::result::Result::Ok(Self::EventsAvailableEvent(
                         ::planus::TableRead::from_buffer(buffer, field_offset)?,
                     )),
                     _ => {
@@ -95648,7 +96710,7 @@ mod root {
         /// The table `NarrativeEventMessage` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `NarrativeEventMessage` in the file `moor_rpc.fbs:1217`
+        /// * Table `NarrativeEventMessage` in the file `moor_rpc.fbs:1259`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct NarrativeEventMessage {
             /// The field `player` in the table `NarrativeEventMessage`
@@ -95943,7 +97005,7 @@ mod root {
         /// The table `MetadataPair` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `MetadataPair` in the file `moor_rpc.fbs:1222`
+        /// * Table `MetadataPair` in the file `moor_rpc.fbs:1264`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct MetadataPair {
             /// The field `key` in the table `MetadataPair`
@@ -96215,7 +97277,7 @@ mod root {
         /// The table `RequestInputEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RequestInputEvent` in the file `moor_rpc.fbs:1227`
+        /// * Table `RequestInputEvent` in the file `moor_rpc.fbs:1269`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct RequestInputEvent {
             /// The field `request_id` in the table `RequestInputEvent`
@@ -96539,7 +97601,7 @@ mod root {
         /// The table `SystemMessageEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SystemMessageEvent` in the file `moor_rpc.fbs:1232`
+        /// * Table `SystemMessageEvent` in the file `moor_rpc.fbs:1274`
         #[derive(
             Clone,
             Debug,
@@ -96835,7 +97897,7 @@ mod root {
         /// The table `DisconnectEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DisconnectEvent` in the file `moor_rpc.fbs:1237`
+        /// * Table `DisconnectEvent` in the file `moor_rpc.fbs:1279`
         #[derive(
             Clone,
             Debug,
@@ -97058,126 +98120,135 @@ mod root {
             }
         }
 
-        /// The table `TaskErrorEvent` in the namespace `MoorRpc`
+        /// The table `TaskOutcomeEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `TaskErrorEvent` in the file `moor_rpc.fbs:1240`
+        /// * Table `TaskOutcomeEvent` in the file `moor_rpc.fbs:1283`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
-        pub struct TaskErrorEvent {
-            /// The field `task_id` in the table `TaskErrorEvent`
+        pub struct TaskOutcomeEvent {
+            /// The field `task_id` in the table `TaskOutcomeEvent`
             pub task_id: u64,
-            /// The field `error` in the table `TaskErrorEvent`
-            pub error: ::planus::alloc::boxed::Box<self::SchedulerError>,
+            /// The field `outcome` in the table `TaskOutcomeEvent`
+            pub outcome: ::planus::alloc::boxed::Box<self::TaskOutcome>,
         }
 
-        impl TaskErrorEvent {
-            /// Creates a [TaskErrorEventBuilder] for serializing an instance of this table.
+        impl TaskOutcomeEvent {
+            /// Creates a [TaskOutcomeEventBuilder] for serializing an instance of this table.
             #[inline]
-            pub fn builder() -> TaskErrorEventBuilder<()> {
-                TaskErrorEventBuilder(())
+            pub fn builder() -> TaskOutcomeEventBuilder<()> {
+                TaskOutcomeEventBuilder(())
             }
 
             #[allow(clippy::too_many_arguments)]
             pub fn create(
                 builder: &mut ::planus::Builder,
                 field_task_id: impl ::planus::WriteAsDefault<u64, u64>,
-                field_error: impl ::planus::WriteAs<::planus::Offset<self::SchedulerError>>,
+                field_outcome: impl ::planus::WriteAs<::planus::Offset<self::TaskOutcome>>,
             ) -> ::planus::Offset<Self> {
                 let prepared_task_id = field_task_id.prepare(builder, &0);
-                let prepared_error = field_error.prepare(builder);
+                let prepared_outcome = field_outcome.prepare(builder);
 
                 let mut table_writer: ::planus::table_writer::TableWriter<8> =
                     ::core::default::Default::default();
                 if prepared_task_id.is_some() {
                     table_writer.write_entry::<u64>(0);
                 }
-                table_writer.write_entry::<::planus::Offset<self::SchedulerError>>(1);
+                table_writer.write_entry::<::planus::Offset<self::TaskOutcome>>(1);
 
                 unsafe {
                     table_writer.finish(builder, |object_writer| {
                         if let ::core::option::Option::Some(prepared_task_id) = prepared_task_id {
                             object_writer.write::<_, _, 8>(&prepared_task_id);
                         }
-                        object_writer.write::<_, _, 4>(&prepared_error);
+                        object_writer.write::<_, _, 4>(&prepared_outcome);
                     });
                 }
                 builder.current_offset()
             }
         }
 
-        impl ::planus::WriteAs<::planus::Offset<TaskErrorEvent>> for TaskErrorEvent {
-            type Prepared = ::planus::Offset<Self>;
-
-            #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<TaskErrorEvent> {
-                ::planus::WriteAsOffset::prepare(self, builder)
-            }
-        }
-
-        impl ::planus::WriteAsOptional<::planus::Offset<TaskErrorEvent>> for TaskErrorEvent {
+        impl ::planus::WriteAs<::planus::Offset<TaskOutcomeEvent>> for TaskOutcomeEvent {
             type Prepared = ::planus::Offset<Self>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<TaskErrorEvent>> {
+            ) -> ::planus::Offset<TaskOutcomeEvent> {
+                ::planus::WriteAsOffset::prepare(self, builder)
+            }
+        }
+
+        impl ::planus::WriteAsOptional<::planus::Offset<TaskOutcomeEvent>> for TaskOutcomeEvent {
+            type Prepared = ::planus::Offset<Self>;
+
+            #[inline]
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::core::option::Option<::planus::Offset<TaskOutcomeEvent>> {
                 ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
             }
         }
 
-        impl ::planus::WriteAsOffset<TaskErrorEvent> for TaskErrorEvent {
+        impl ::planus::WriteAsOffset<TaskOutcomeEvent> for TaskOutcomeEvent {
             #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<TaskErrorEvent> {
-                TaskErrorEvent::create(builder, self.task_id, &self.error)
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<TaskOutcomeEvent> {
+                TaskOutcomeEvent::create(builder, self.task_id, &self.outcome)
             }
         }
 
-        /// Builder for serializing an instance of the [TaskErrorEvent] type.
+        /// Builder for serializing an instance of the [TaskOutcomeEvent] type.
         ///
-        /// Can be created using the [TaskErrorEvent::builder] method.
+        /// Can be created using the [TaskOutcomeEvent::builder] method.
         #[derive(Debug)]
         #[must_use]
-        pub struct TaskErrorEventBuilder<State>(State);
+        pub struct TaskOutcomeEventBuilder<State>(State);
 
-        impl TaskErrorEventBuilder<()> {
-            /// Setter for the [`task_id` field](TaskErrorEvent#structfield.task_id).
+        impl TaskOutcomeEventBuilder<()> {
+            /// Setter for the [`task_id` field](TaskOutcomeEvent#structfield.task_id).
             #[inline]
             #[allow(clippy::type_complexity)]
-            pub fn task_id<T0>(self, value: T0) -> TaskErrorEventBuilder<(T0,)>
+            pub fn task_id<T0>(self, value: T0) -> TaskOutcomeEventBuilder<(T0,)>
             where
                 T0: ::planus::WriteAsDefault<u64, u64>,
             {
-                TaskErrorEventBuilder((value,))
+                TaskOutcomeEventBuilder((value,))
             }
 
-            /// Sets the [`task_id` field](TaskErrorEvent#structfield.task_id) to the default value.
+            /// Sets the [`task_id` field](TaskOutcomeEvent#structfield.task_id) to the default value.
             #[inline]
             #[allow(clippy::type_complexity)]
-            pub fn task_id_as_default(self) -> TaskErrorEventBuilder<(::planus::DefaultValue,)> {
+            pub fn task_id_as_default(self) -> TaskOutcomeEventBuilder<(::planus::DefaultValue,)> {
                 self.task_id(::planus::DefaultValue)
             }
         }
 
-        impl<T0> TaskErrorEventBuilder<(T0,)> {
-            /// Setter for the [`error` field](TaskErrorEvent#structfield.error).
+        impl<T0> TaskOutcomeEventBuilder<(T0,)> {
+            /// Setter for the [`outcome` field](TaskOutcomeEvent#structfield.outcome).
             #[inline]
             #[allow(clippy::type_complexity)]
-            pub fn error<T1>(self, value: T1) -> TaskErrorEventBuilder<(T0, T1)>
+            pub fn outcome<T1>(self, value: T1) -> TaskOutcomeEventBuilder<(T0, T1)>
             where
-                T1: ::planus::WriteAs<::planus::Offset<self::SchedulerError>>,
+                T1: ::planus::WriteAs<::planus::Offset<self::TaskOutcome>>,
             {
                 let (v0,) = self.0;
-                TaskErrorEventBuilder((v0, value))
+                TaskOutcomeEventBuilder((v0, value))
             }
         }
 
-        impl<T0, T1> TaskErrorEventBuilder<(T0, T1)> {
-            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [TaskErrorEvent].
+        impl<T0, T1> TaskOutcomeEventBuilder<(T0, T1)> {
+            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [TaskOutcomeEvent].
             #[inline]
-            pub fn finish(self, builder: &mut ::planus::Builder) -> ::planus::Offset<TaskErrorEvent>
+            pub fn finish(
+                self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<TaskOutcomeEvent>
             where
-                Self: ::planus::WriteAsOffset<TaskErrorEvent>,
+                Self: ::planus::WriteAsOffset<TaskOutcomeEvent>,
             {
                 ::planus::WriteAsOffset::prepare(&self, builder)
             }
@@ -97185,90 +98256,99 @@ mod root {
 
         impl<
             T0: ::planus::WriteAsDefault<u64, u64>,
-            T1: ::planus::WriteAs<::planus::Offset<self::SchedulerError>>,
-        > ::planus::WriteAs<::planus::Offset<TaskErrorEvent>> for TaskErrorEventBuilder<(T0, T1)>
+            T1: ::planus::WriteAs<::planus::Offset<self::TaskOutcome>>,
+        > ::planus::WriteAs<::planus::Offset<TaskOutcomeEvent>>
+            for TaskOutcomeEventBuilder<(T0, T1)>
         {
-            type Prepared = ::planus::Offset<TaskErrorEvent>;
+            type Prepared = ::planus::Offset<TaskOutcomeEvent>;
 
             #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<TaskErrorEvent> {
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<TaskOutcomeEvent> {
                 ::planus::WriteAsOffset::prepare(self, builder)
             }
         }
 
         impl<
             T0: ::planus::WriteAsDefault<u64, u64>,
-            T1: ::planus::WriteAs<::planus::Offset<self::SchedulerError>>,
-        > ::planus::WriteAsOptional<::planus::Offset<TaskErrorEvent>>
-            for TaskErrorEventBuilder<(T0, T1)>
+            T1: ::planus::WriteAs<::planus::Offset<self::TaskOutcome>>,
+        > ::planus::WriteAsOptional<::planus::Offset<TaskOutcomeEvent>>
+            for TaskOutcomeEventBuilder<(T0, T1)>
         {
-            type Prepared = ::planus::Offset<TaskErrorEvent>;
+            type Prepared = ::planus::Offset<TaskOutcomeEvent>;
 
             #[inline]
             fn prepare(
                 &self,
                 builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<TaskErrorEvent>> {
+            ) -> ::core::option::Option<::planus::Offset<TaskOutcomeEvent>> {
                 ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
             }
         }
 
         impl<
             T0: ::planus::WriteAsDefault<u64, u64>,
-            T1: ::planus::WriteAs<::planus::Offset<self::SchedulerError>>,
-        > ::planus::WriteAsOffset<TaskErrorEvent> for TaskErrorEventBuilder<(T0, T1)>
+            T1: ::planus::WriteAs<::planus::Offset<self::TaskOutcome>>,
+        > ::planus::WriteAsOffset<TaskOutcomeEvent> for TaskOutcomeEventBuilder<(T0, T1)>
         {
             #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> ::planus::Offset<TaskErrorEvent> {
+            fn prepare(
+                &self,
+                builder: &mut ::planus::Builder,
+            ) -> ::planus::Offset<TaskOutcomeEvent> {
                 let (v0, v1) = &self.0;
-                TaskErrorEvent::create(builder, v0, v1)
+                TaskOutcomeEvent::create(builder, v0, v1)
             }
         }
 
-        /// Reference to a deserialized [TaskErrorEvent].
+        /// Reference to a deserialized [TaskOutcomeEvent].
         #[derive(Copy, Clone)]
-        pub struct TaskErrorEventRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
+        pub struct TaskOutcomeEventRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
 
-        impl<'a> TaskErrorEventRef<'a> {
-            /// Getter for the [`task_id` field](TaskErrorEvent#structfield.task_id).
+        impl<'a> TaskOutcomeEventRef<'a> {
+            /// Getter for the [`task_id` field](TaskOutcomeEvent#structfield.task_id).
             #[inline]
             pub fn task_id(&self) -> ::planus::Result<u64> {
                 ::core::result::Result::Ok(
-                    self.0.access(0, "TaskErrorEvent", "task_id")?.unwrap_or(0),
+                    self.0
+                        .access(0, "TaskOutcomeEvent", "task_id")?
+                        .unwrap_or(0),
                 )
             }
 
-            /// Getter for the [`error` field](TaskErrorEvent#structfield.error).
+            /// Getter for the [`outcome` field](TaskOutcomeEvent#structfield.outcome).
             #[inline]
-            pub fn error(&self) -> ::planus::Result<self::SchedulerErrorRef<'a>> {
-                self.0.access_required(1, "TaskErrorEvent", "error")
+            pub fn outcome(&self) -> ::planus::Result<self::TaskOutcomeRef<'a>> {
+                self.0.access_required(1, "TaskOutcomeEvent", "outcome")
             }
         }
 
-        impl<'a> ::core::fmt::Debug for TaskErrorEventRef<'a> {
+        impl<'a> ::core::fmt::Debug for TaskOutcomeEventRef<'a> {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                let mut f = f.debug_struct("TaskErrorEventRef");
+                let mut f = f.debug_struct("TaskOutcomeEventRef");
                 f.field("task_id", &self.task_id());
-                f.field("error", &self.error());
+                f.field("outcome", &self.outcome());
                 f.finish()
             }
         }
 
-        impl<'a> ::core::convert::TryFrom<TaskErrorEventRef<'a>> for TaskErrorEvent {
+        impl<'a> ::core::convert::TryFrom<TaskOutcomeEventRef<'a>> for TaskOutcomeEvent {
             type Error = ::planus::Error;
 
             #[allow(unreachable_code)]
-            fn try_from(value: TaskErrorEventRef<'a>) -> ::planus::Result<Self> {
+            fn try_from(value: TaskOutcomeEventRef<'a>) -> ::planus::Result<Self> {
                 ::core::result::Result::Ok(Self {
                     task_id: ::core::convert::TryInto::try_into(value.task_id()?)?,
-                    error: ::planus::alloc::boxed::Box::new(::core::convert::TryInto::try_into(
-                        value.error()?,
+                    outcome: ::planus::alloc::boxed::Box::new(::core::convert::TryInto::try_into(
+                        value.outcome()?,
                     )?),
                 })
             }
         }
 
-        impl<'a> ::planus::TableRead<'a> for TaskErrorEventRef<'a> {
+        impl<'a> ::planus::TableRead<'a> for TaskOutcomeEventRef<'a> {
             #[inline]
             fn from_buffer(
                 buffer: ::planus::SliceWithStartOffset<'a>,
@@ -97280,7 +98360,7 @@ mod root {
             }
         }
 
-        impl<'a> ::planus::VectorReadInner<'a> for TaskErrorEventRef<'a> {
+        impl<'a> ::planus::VectorReadInner<'a> for TaskOutcomeEventRef<'a> {
             type Error = ::planus::Error;
             const STRIDE: usize = 4;
 
@@ -97290,7 +98370,7 @@ mod root {
             ) -> ::planus::Result<Self> {
                 ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
                     error_kind.with_error_location(
-                        "[TaskErrorEventRef]",
+                        "[TaskOutcomeEventRef]",
                         "get",
                         buffer.offset_from_start,
                     )
@@ -97301,8 +98381,8 @@ mod root {
         /// # Safety
         /// The planus compiler generates implementations that initialize
         /// the bytes in `write_values`.
-        unsafe impl ::planus::VectorWrite<::planus::Offset<TaskErrorEvent>> for TaskErrorEvent {
-            type Value = ::planus::Offset<TaskErrorEvent>;
+        unsafe impl ::planus::VectorWrite<::planus::Offset<TaskOutcomeEvent>> for TaskOutcomeEvent {
+            type Value = ::planus::Offset<TaskOutcomeEvent>;
             const STRIDE: usize = 4;
             #[inline]
             fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
@@ -97311,7 +98391,7 @@ mod root {
 
             #[inline]
             unsafe fn write_values(
-                values: &[::planus::Offset<TaskErrorEvent>],
+                values: &[::planus::Offset<TaskOutcomeEvent>],
                 bytes: *mut ::core::mem::MaybeUninit<u8>,
                 buffer_position: u32,
             ) {
@@ -97326,7 +98406,7 @@ mod root {
             }
         }
 
-        impl<'a> ::planus::ReadAsRoot<'a> for TaskErrorEventRef<'a> {
+        impl<'a> ::planus::ReadAsRoot<'a> for TaskOutcomeEventRef<'a> {
             fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
                 ::planus::TableRead::from_buffer(
                     ::planus::SliceWithStartOffset {
@@ -97336,593 +98416,7 @@ mod root {
                     0,
                 )
                 .map_err(|error_kind| {
-                    error_kind.with_error_location("[TaskErrorEventRef]", "read_as_root", 0)
-                })
-            }
-        }
-
-        /// The table `TaskSuccessEvent` in the namespace `MoorRpc`
-        ///
-        /// Generated from these locations:
-        /// * Table `TaskSuccessEvent` in the file `moor_rpc.fbs:1245`
-        #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
-        pub struct TaskSuccessEvent {
-            /// The field `task_id` in the table `TaskSuccessEvent`
-            pub task_id: u64,
-            /// The field `result` in the table `TaskSuccessEvent`
-            pub result: ::planus::alloc::boxed::Box<super::moor_var::Var>,
-        }
-
-        impl TaskSuccessEvent {
-            /// Creates a [TaskSuccessEventBuilder] for serializing an instance of this table.
-            #[inline]
-            pub fn builder() -> TaskSuccessEventBuilder<()> {
-                TaskSuccessEventBuilder(())
-            }
-
-            #[allow(clippy::too_many_arguments)]
-            pub fn create(
-                builder: &mut ::planus::Builder,
-                field_task_id: impl ::planus::WriteAsDefault<u64, u64>,
-                field_result: impl ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            ) -> ::planus::Offset<Self> {
-                let prepared_task_id = field_task_id.prepare(builder, &0);
-                let prepared_result = field_result.prepare(builder);
-
-                let mut table_writer: ::planus::table_writer::TableWriter<8> =
-                    ::core::default::Default::default();
-                if prepared_task_id.is_some() {
-                    table_writer.write_entry::<u64>(0);
-                }
-                table_writer.write_entry::<::planus::Offset<super::moor_var::Var>>(1);
-
-                unsafe {
-                    table_writer.finish(builder, |object_writer| {
-                        if let ::core::option::Option::Some(prepared_task_id) = prepared_task_id {
-                            object_writer.write::<_, _, 8>(&prepared_task_id);
-                        }
-                        object_writer.write::<_, _, 4>(&prepared_result);
-                    });
-                }
-                builder.current_offset()
-            }
-        }
-
-        impl ::planus::WriteAs<::planus::Offset<TaskSuccessEvent>> for TaskSuccessEvent {
-            type Prepared = ::planus::Offset<Self>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskSuccessEvent> {
-                ::planus::WriteAsOffset::prepare(self, builder)
-            }
-        }
-
-        impl ::planus::WriteAsOptional<::planus::Offset<TaskSuccessEvent>> for TaskSuccessEvent {
-            type Prepared = ::planus::Offset<Self>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<TaskSuccessEvent>> {
-                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
-            }
-        }
-
-        impl ::planus::WriteAsOffset<TaskSuccessEvent> for TaskSuccessEvent {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskSuccessEvent> {
-                TaskSuccessEvent::create(builder, self.task_id, &self.result)
-            }
-        }
-
-        /// Builder for serializing an instance of the [TaskSuccessEvent] type.
-        ///
-        /// Can be created using the [TaskSuccessEvent::builder] method.
-        #[derive(Debug)]
-        #[must_use]
-        pub struct TaskSuccessEventBuilder<State>(State);
-
-        impl TaskSuccessEventBuilder<()> {
-            /// Setter for the [`task_id` field](TaskSuccessEvent#structfield.task_id).
-            #[inline]
-            #[allow(clippy::type_complexity)]
-            pub fn task_id<T0>(self, value: T0) -> TaskSuccessEventBuilder<(T0,)>
-            where
-                T0: ::planus::WriteAsDefault<u64, u64>,
-            {
-                TaskSuccessEventBuilder((value,))
-            }
-
-            /// Sets the [`task_id` field](TaskSuccessEvent#structfield.task_id) to the default value.
-            #[inline]
-            #[allow(clippy::type_complexity)]
-            pub fn task_id_as_default(self) -> TaskSuccessEventBuilder<(::planus::DefaultValue,)> {
-                self.task_id(::planus::DefaultValue)
-            }
-        }
-
-        impl<T0> TaskSuccessEventBuilder<(T0,)> {
-            /// Setter for the [`result` field](TaskSuccessEvent#structfield.result).
-            #[inline]
-            #[allow(clippy::type_complexity)]
-            pub fn result<T1>(self, value: T1) -> TaskSuccessEventBuilder<(T0, T1)>
-            where
-                T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-            {
-                let (v0,) = self.0;
-                TaskSuccessEventBuilder((v0, value))
-            }
-        }
-
-        impl<T0, T1> TaskSuccessEventBuilder<(T0, T1)> {
-            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [TaskSuccessEvent].
-            #[inline]
-            pub fn finish(
-                self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskSuccessEvent>
-            where
-                Self: ::planus::WriteAsOffset<TaskSuccessEvent>,
-            {
-                ::planus::WriteAsOffset::prepare(&self, builder)
-            }
-        }
-
-        impl<
-            T0: ::planus::WriteAsDefault<u64, u64>,
-            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-        > ::planus::WriteAs<::planus::Offset<TaskSuccessEvent>>
-            for TaskSuccessEventBuilder<(T0, T1)>
-        {
-            type Prepared = ::planus::Offset<TaskSuccessEvent>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskSuccessEvent> {
-                ::planus::WriteAsOffset::prepare(self, builder)
-            }
-        }
-
-        impl<
-            T0: ::planus::WriteAsDefault<u64, u64>,
-            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-        > ::planus::WriteAsOptional<::planus::Offset<TaskSuccessEvent>>
-            for TaskSuccessEventBuilder<(T0, T1)>
-        {
-            type Prepared = ::planus::Offset<TaskSuccessEvent>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<TaskSuccessEvent>> {
-                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
-            }
-        }
-
-        impl<
-            T0: ::planus::WriteAsDefault<u64, u64>,
-            T1: ::planus::WriteAs<::planus::Offset<super::moor_var::Var>>,
-        > ::planus::WriteAsOffset<TaskSuccessEvent> for TaskSuccessEventBuilder<(T0, T1)>
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskSuccessEvent> {
-                let (v0, v1) = &self.0;
-                TaskSuccessEvent::create(builder, v0, v1)
-            }
-        }
-
-        /// Reference to a deserialized [TaskSuccessEvent].
-        #[derive(Copy, Clone)]
-        pub struct TaskSuccessEventRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
-
-        impl<'a> TaskSuccessEventRef<'a> {
-            /// Getter for the [`task_id` field](TaskSuccessEvent#structfield.task_id).
-            #[inline]
-            pub fn task_id(&self) -> ::planus::Result<u64> {
-                ::core::result::Result::Ok(
-                    self.0
-                        .access(0, "TaskSuccessEvent", "task_id")?
-                        .unwrap_or(0),
-                )
-            }
-
-            /// Getter for the [`result` field](TaskSuccessEvent#structfield.result).
-            #[inline]
-            pub fn result(&self) -> ::planus::Result<super::moor_var::VarRef<'a>> {
-                self.0.access_required(1, "TaskSuccessEvent", "result")
-            }
-        }
-
-        impl<'a> ::core::fmt::Debug for TaskSuccessEventRef<'a> {
-            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                let mut f = f.debug_struct("TaskSuccessEventRef");
-                f.field("task_id", &self.task_id());
-                f.field("result", &self.result());
-                f.finish()
-            }
-        }
-
-        impl<'a> ::core::convert::TryFrom<TaskSuccessEventRef<'a>> for TaskSuccessEvent {
-            type Error = ::planus::Error;
-
-            #[allow(unreachable_code)]
-            fn try_from(value: TaskSuccessEventRef<'a>) -> ::planus::Result<Self> {
-                ::core::result::Result::Ok(Self {
-                    task_id: ::core::convert::TryInto::try_into(value.task_id()?)?,
-                    result: ::planus::alloc::boxed::Box::new(::core::convert::TryInto::try_into(
-                        value.result()?,
-                    )?),
-                })
-            }
-        }
-
-        impl<'a> ::planus::TableRead<'a> for TaskSuccessEventRef<'a> {
-            #[inline]
-            fn from_buffer(
-                buffer: ::planus::SliceWithStartOffset<'a>,
-                offset: usize,
-            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
-                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
-                    buffer, offset,
-                )?))
-            }
-        }
-
-        impl<'a> ::planus::VectorReadInner<'a> for TaskSuccessEventRef<'a> {
-            type Error = ::planus::Error;
-            const STRIDE: usize = 4;
-
-            unsafe fn from_buffer(
-                buffer: ::planus::SliceWithStartOffset<'a>,
-                offset: usize,
-            ) -> ::planus::Result<Self> {
-                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
-                    error_kind.with_error_location(
-                        "[TaskSuccessEventRef]",
-                        "get",
-                        buffer.offset_from_start,
-                    )
-                })
-            }
-        }
-
-        /// # Safety
-        /// The planus compiler generates implementations that initialize
-        /// the bytes in `write_values`.
-        unsafe impl ::planus::VectorWrite<::planus::Offset<TaskSuccessEvent>> for TaskSuccessEvent {
-            type Value = ::planus::Offset<TaskSuccessEvent>;
-            const STRIDE: usize = 4;
-            #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
-                ::planus::WriteAs::prepare(self, builder)
-            }
-
-            #[inline]
-            unsafe fn write_values(
-                values: &[::planus::Offset<TaskSuccessEvent>],
-                bytes: *mut ::core::mem::MaybeUninit<u8>,
-                buffer_position: u32,
-            ) {
-                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
-                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
-                    ::planus::WriteAsPrimitive::write(
-                        v,
-                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
-                        buffer_position - (Self::STRIDE * i) as u32,
-                    );
-                }
-            }
-        }
-
-        impl<'a> ::planus::ReadAsRoot<'a> for TaskSuccessEventRef<'a> {
-            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
-                ::planus::TableRead::from_buffer(
-                    ::planus::SliceWithStartOffset {
-                        buffer: slice,
-                        offset_from_start: 0,
-                    },
-                    0,
-                )
-                .map_err(|error_kind| {
-                    error_kind.with_error_location("[TaskSuccessEventRef]", "read_as_root", 0)
-                })
-            }
-        }
-
-        /// The table `TaskSuspendedEvent` in the namespace `MoorRpc`
-        ///
-        /// Generated from these locations:
-        /// * Table `TaskSuspendedEvent` in the file `moor_rpc.fbs:1250`
-        #[derive(
-            Clone,
-            Debug,
-            PartialEq,
-            PartialOrd,
-            Eq,
-            Ord,
-            Hash,
-            ::serde::Serialize,
-            ::serde::Deserialize,
-        )]
-        pub struct TaskSuspendedEvent {
-            /// The field `task_id` in the table `TaskSuspendedEvent`
-            pub task_id: u64,
-        }
-
-        #[allow(clippy::derivable_impls)]
-        impl ::core::default::Default for TaskSuspendedEvent {
-            fn default() -> Self {
-                Self { task_id: 0 }
-            }
-        }
-
-        impl TaskSuspendedEvent {
-            /// Creates a [TaskSuspendedEventBuilder] for serializing an instance of this table.
-            #[inline]
-            pub fn builder() -> TaskSuspendedEventBuilder<()> {
-                TaskSuspendedEventBuilder(())
-            }
-
-            #[allow(clippy::too_many_arguments)]
-            pub fn create(
-                builder: &mut ::planus::Builder,
-                field_task_id: impl ::planus::WriteAsDefault<u64, u64>,
-            ) -> ::planus::Offset<Self> {
-                let prepared_task_id = field_task_id.prepare(builder, &0);
-
-                let mut table_writer: ::planus::table_writer::TableWriter<6> =
-                    ::core::default::Default::default();
-                if prepared_task_id.is_some() {
-                    table_writer.write_entry::<u64>(0);
-                }
-
-                unsafe {
-                    table_writer.finish(builder, |object_writer| {
-                        if let ::core::option::Option::Some(prepared_task_id) = prepared_task_id {
-                            object_writer.write::<_, _, 8>(&prepared_task_id);
-                        }
-                    });
-                }
-                builder.current_offset()
-            }
-        }
-
-        impl ::planus::WriteAs<::planus::Offset<TaskSuspendedEvent>> for TaskSuspendedEvent {
-            type Prepared = ::planus::Offset<Self>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskSuspendedEvent> {
-                ::planus::WriteAsOffset::prepare(self, builder)
-            }
-        }
-
-        impl ::planus::WriteAsOptional<::planus::Offset<TaskSuspendedEvent>> for TaskSuspendedEvent {
-            type Prepared = ::planus::Offset<Self>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<TaskSuspendedEvent>> {
-                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
-            }
-        }
-
-        impl ::planus::WriteAsOffset<TaskSuspendedEvent> for TaskSuspendedEvent {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskSuspendedEvent> {
-                TaskSuspendedEvent::create(builder, self.task_id)
-            }
-        }
-
-        /// Builder for serializing an instance of the [TaskSuspendedEvent] type.
-        ///
-        /// Can be created using the [TaskSuspendedEvent::builder] method.
-        #[derive(Debug)]
-        #[must_use]
-        pub struct TaskSuspendedEventBuilder<State>(State);
-
-        impl TaskSuspendedEventBuilder<()> {
-            /// Setter for the [`task_id` field](TaskSuspendedEvent#structfield.task_id).
-            #[inline]
-            #[allow(clippy::type_complexity)]
-            pub fn task_id<T0>(self, value: T0) -> TaskSuspendedEventBuilder<(T0,)>
-            where
-                T0: ::planus::WriteAsDefault<u64, u64>,
-            {
-                TaskSuspendedEventBuilder((value,))
-            }
-
-            /// Sets the [`task_id` field](TaskSuspendedEvent#structfield.task_id) to the default value.
-            #[inline]
-            #[allow(clippy::type_complexity)]
-            pub fn task_id_as_default(
-                self,
-            ) -> TaskSuspendedEventBuilder<(::planus::DefaultValue,)> {
-                self.task_id(::planus::DefaultValue)
-            }
-        }
-
-        impl<T0> TaskSuspendedEventBuilder<(T0,)> {
-            /// Finish writing the builder to get an [Offset](::planus::Offset) to a serialized [TaskSuspendedEvent].
-            #[inline]
-            pub fn finish(
-                self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskSuspendedEvent>
-            where
-                Self: ::planus::WriteAsOffset<TaskSuspendedEvent>,
-            {
-                ::planus::WriteAsOffset::prepare(&self, builder)
-            }
-        }
-
-        impl<T0: ::planus::WriteAsDefault<u64, u64>>
-            ::planus::WriteAs<::planus::Offset<TaskSuspendedEvent>>
-            for TaskSuspendedEventBuilder<(T0,)>
-        {
-            type Prepared = ::planus::Offset<TaskSuspendedEvent>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskSuspendedEvent> {
-                ::planus::WriteAsOffset::prepare(self, builder)
-            }
-        }
-
-        impl<T0: ::planus::WriteAsDefault<u64, u64>>
-            ::planus::WriteAsOptional<::planus::Offset<TaskSuspendedEvent>>
-            for TaskSuspendedEventBuilder<(T0,)>
-        {
-            type Prepared = ::planus::Offset<TaskSuspendedEvent>;
-
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::core::option::Option<::planus::Offset<TaskSuspendedEvent>> {
-                ::core::option::Option::Some(::planus::WriteAsOffset::prepare(self, builder))
-            }
-        }
-
-        impl<T0: ::planus::WriteAsDefault<u64, u64>> ::planus::WriteAsOffset<TaskSuspendedEvent>
-            for TaskSuspendedEventBuilder<(T0,)>
-        {
-            #[inline]
-            fn prepare(
-                &self,
-                builder: &mut ::planus::Builder,
-            ) -> ::planus::Offset<TaskSuspendedEvent> {
-                let (v0,) = &self.0;
-                TaskSuspendedEvent::create(builder, v0)
-            }
-        }
-
-        /// Reference to a deserialized [TaskSuspendedEvent].
-        #[derive(Copy, Clone)]
-        pub struct TaskSuspendedEventRef<'a>(#[allow(dead_code)] ::planus::table_reader::Table<'a>);
-
-        impl<'a> TaskSuspendedEventRef<'a> {
-            /// Getter for the [`task_id` field](TaskSuspendedEvent#structfield.task_id).
-            #[inline]
-            pub fn task_id(&self) -> ::planus::Result<u64> {
-                ::core::result::Result::Ok(
-                    self.0
-                        .access(0, "TaskSuspendedEvent", "task_id")?
-                        .unwrap_or(0),
-                )
-            }
-        }
-
-        impl<'a> ::core::fmt::Debug for TaskSuspendedEventRef<'a> {
-            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                let mut f = f.debug_struct("TaskSuspendedEventRef");
-                f.field("task_id", &self.task_id());
-                f.finish()
-            }
-        }
-
-        impl<'a> ::core::convert::TryFrom<TaskSuspendedEventRef<'a>> for TaskSuspendedEvent {
-            type Error = ::planus::Error;
-
-            #[allow(unreachable_code)]
-            fn try_from(value: TaskSuspendedEventRef<'a>) -> ::planus::Result<Self> {
-                ::core::result::Result::Ok(Self {
-                    task_id: ::core::convert::TryInto::try_into(value.task_id()?)?,
-                })
-            }
-        }
-
-        impl<'a> ::planus::TableRead<'a> for TaskSuspendedEventRef<'a> {
-            #[inline]
-            fn from_buffer(
-                buffer: ::planus::SliceWithStartOffset<'a>,
-                offset: usize,
-            ) -> ::core::result::Result<Self, ::planus::errors::ErrorKind> {
-                ::core::result::Result::Ok(Self(::planus::table_reader::Table::from_buffer(
-                    buffer, offset,
-                )?))
-            }
-        }
-
-        impl<'a> ::planus::VectorReadInner<'a> for TaskSuspendedEventRef<'a> {
-            type Error = ::planus::Error;
-            const STRIDE: usize = 4;
-
-            unsafe fn from_buffer(
-                buffer: ::planus::SliceWithStartOffset<'a>,
-                offset: usize,
-            ) -> ::planus::Result<Self> {
-                ::planus::TableRead::from_buffer(buffer, offset).map_err(|error_kind| {
-                    error_kind.with_error_location(
-                        "[TaskSuspendedEventRef]",
-                        "get",
-                        buffer.offset_from_start,
-                    )
-                })
-            }
-        }
-
-        /// # Safety
-        /// The planus compiler generates implementations that initialize
-        /// the bytes in `write_values`.
-        unsafe impl ::planus::VectorWrite<::planus::Offset<TaskSuspendedEvent>> for TaskSuspendedEvent {
-            type Value = ::planus::Offset<TaskSuspendedEvent>;
-            const STRIDE: usize = 4;
-            #[inline]
-            fn prepare(&self, builder: &mut ::planus::Builder) -> Self::Value {
-                ::planus::WriteAs::prepare(self, builder)
-            }
-
-            #[inline]
-            unsafe fn write_values(
-                values: &[::planus::Offset<TaskSuspendedEvent>],
-                bytes: *mut ::core::mem::MaybeUninit<u8>,
-                buffer_position: u32,
-            ) {
-                let bytes = bytes as *mut [::core::mem::MaybeUninit<u8>; 4];
-                for (i, v) in ::core::iter::Iterator::enumerate(values.iter()) {
-                    ::planus::WriteAsPrimitive::write(
-                        v,
-                        ::planus::Cursor::new(unsafe { &mut *bytes.add(i) }),
-                        buffer_position - (Self::STRIDE * i) as u32,
-                    );
-                }
-            }
-        }
-
-        impl<'a> ::planus::ReadAsRoot<'a> for TaskSuspendedEventRef<'a> {
-            fn read_as_root(slice: &'a [u8]) -> ::planus::Result<Self> {
-                ::planus::TableRead::from_buffer(
-                    ::planus::SliceWithStartOffset {
-                        buffer: slice,
-                        offset_from_start: 0,
-                    },
-                    0,
-                )
-                .map_err(|error_kind| {
-                    error_kind.with_error_location("[TaskSuspendedEventRef]", "read_as_root", 0)
+                    error_kind.with_error_location("[TaskOutcomeEventRef]", "read_as_root", 0)
                 })
             }
         }
@@ -97930,7 +98424,7 @@ mod root {
         /// The table `PlayerSwitchedEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PlayerSwitchedEvent` in the file `moor_rpc.fbs:1254`
+        /// * Table `PlayerSwitchedEvent` in the file `moor_rpc.fbs:1288`
         #[derive(
             Clone,
             Debug,
@@ -98340,7 +98834,7 @@ mod root {
         /// The table `SetConnectionOptionEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `SetConnectionOptionEvent` in the file `moor_rpc.fbs:1261`
+        /// * Table `SetConnectionOptionEvent` in the file `moor_rpc.fbs:1295`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct SetConnectionOptionEvent {
             /// The field `connection_obj` in the table `SetConnectionOptionEvent`
@@ -98679,7 +99173,7 @@ mod root {
         /// The table `CredentialsUpdatedEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `CredentialsUpdatedEvent` in the file `moor_rpc.fbs:1269`
+        /// * Table `CredentialsUpdatedEvent` in the file `moor_rpc.fbs:1303`
         #[derive(
             Clone,
             Debug,
@@ -99000,7 +99494,7 @@ mod root {
         /// The table `ClientEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ClientEvent` in the file `moor_rpc.fbs:1274`
+        /// * Table `ClientEvent` in the file `moor_rpc.fbs:1308`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ClientEvent {
             /// The field `event` in the table `ClientEvent`
@@ -99283,7 +99777,7 @@ mod root {
         /// The union `ClientsBroadcastEventUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `ClientsBroadcastEventUnion` in the file `moor_rpc.fbs:1283`
+        /// * Union `ClientsBroadcastEventUnion` in the file `moor_rpc.fbs:1317`
         #[derive(
             Clone,
             Debug,
@@ -99449,7 +99943,7 @@ mod root {
         /// The table `ClientsBroadcastPingPong` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ClientsBroadcastPingPong` in the file `moor_rpc.fbs:1287`
+        /// * Table `ClientsBroadcastPingPong` in the file `moor_rpc.fbs:1321`
         #[derive(
             Clone,
             Debug,
@@ -99746,7 +100240,7 @@ mod root {
         /// The table `ClientsBroadcastEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ClientsBroadcastEvent` in the file `moor_rpc.fbs:1291`
+        /// * Table `ClientsBroadcastEvent` in the file `moor_rpc.fbs:1325`
         #[derive(
             Clone,
             Debug,
@@ -100014,7 +100508,7 @@ mod root {
         /// The union `DaemonToWorkerMessageUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `DaemonToWorkerMessageUnion` in the file `moor_rpc.fbs:1299`
+        /// * Union `DaemonToWorkerMessageUnion` in the file `moor_rpc.fbs:1333`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum DaemonToWorkerMessageUnion {
             /// The variant of type `PingWorkers` in the union `DaemonToWorkerMessageUnion`
@@ -100292,7 +100786,7 @@ mod root {
         /// The table `PingWorkers` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PingWorkers` in the file `moor_rpc.fbs:1305`
+        /// * Table `PingWorkers` in the file `moor_rpc.fbs:1339`
         #[derive(
             Clone,
             Debug,
@@ -100503,7 +100997,7 @@ mod root {
         /// The table `WorkerRequest` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerRequest` in the file `moor_rpc.fbs:1308`
+        /// * Table `WorkerRequest` in the file `moor_rpc.fbs:1342`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct WorkerRequest {
             /// The field `worker_id` in the table `WorkerRequest`
@@ -100900,7 +101394,7 @@ mod root {
         /// The table `PleaseDie` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `PleaseDie` in the file `moor_rpc.fbs:1316`
+        /// * Table `PleaseDie` in the file `moor_rpc.fbs:1350`
         #[derive(
             Clone,
             Debug,
@@ -101155,7 +101649,7 @@ mod root {
         /// The table `DaemonToWorkerMessage` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DaemonToWorkerMessage` in the file `moor_rpc.fbs:1320`
+        /// * Table `DaemonToWorkerMessage` in the file `moor_rpc.fbs:1354`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct DaemonToWorkerMessage {
             /// The field `message` in the table `DaemonToWorkerMessage`
@@ -101413,7 +101907,7 @@ mod root {
         /// The union `WorkerToDaemonMessageUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `WorkerToDaemonMessageUnion` in the file `moor_rpc.fbs:1324`
+        /// * Union `WorkerToDaemonMessageUnion` in the file `moor_rpc.fbs:1358`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum WorkerToDaemonMessageUnion {
             /// The variant of type `AttachWorker` in the union `WorkerToDaemonMessageUnion`
@@ -101815,7 +102309,7 @@ mod root {
         /// The table `AttachWorker` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `AttachWorker` in the file `moor_rpc.fbs:1332`
+        /// * Table `AttachWorker` in the file `moor_rpc.fbs:1366`
         #[derive(
             Clone,
             Debug,
@@ -102107,7 +102601,7 @@ mod root {
         /// The table `WorkerPong` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerPong` in the file `moor_rpc.fbs:1337`
+        /// * Table `WorkerPong` in the file `moor_rpc.fbs:1371`
         #[derive(
             Clone,
             Debug,
@@ -102398,7 +102892,7 @@ mod root {
         /// The table `DetachWorker` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DetachWorker` in the file `moor_rpc.fbs:1342`
+        /// * Table `DetachWorker` in the file `moor_rpc.fbs:1376`
         #[derive(
             Clone,
             Debug,
@@ -102654,7 +103148,7 @@ mod root {
         /// The table `RequestResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RequestResult` in the file `moor_rpc.fbs:1346`
+        /// * Table `RequestResult` in the file `moor_rpc.fbs:1380`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct RequestResult {
             /// The field `worker_id` in the table `RequestResult`
@@ -102959,7 +103453,7 @@ mod root {
         /// The table `RequestError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RequestError` in the file `moor_rpc.fbs:1352`
+        /// * Table `RequestError` in the file `moor_rpc.fbs:1386`
         #[derive(
             Clone,
             Debug,
@@ -103273,7 +103767,7 @@ mod root {
         /// The table `WorkerToDaemonMessage` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerToDaemonMessage` in the file `moor_rpc.fbs:1358`
+        /// * Table `WorkerToDaemonMessage` in the file `moor_rpc.fbs:1392`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct WorkerToDaemonMessage {
             /// The field `message` in the table `WorkerToDaemonMessage`
@@ -103531,7 +104025,7 @@ mod root {
         /// The union `DaemonToWorkerReplyUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `DaemonToWorkerReplyUnion` in the file `moor_rpc.fbs:1362`
+        /// * Union `DaemonToWorkerReplyUnion` in the file `moor_rpc.fbs:1396`
         #[derive(
             Clone,
             Debug,
@@ -104073,7 +104567,7 @@ mod root {
         /// The table `WorkerAck` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerAck` in the file `moor_rpc.fbs:1372`
+        /// * Table `WorkerAck` in the file `moor_rpc.fbs:1406`
         #[derive(
             Clone,
             Debug,
@@ -104284,7 +104778,7 @@ mod root {
         /// The table `WorkerRejected` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerRejected` in the file `moor_rpc.fbs:1375`
+        /// * Table `WorkerRejected` in the file `moor_rpc.fbs:1409`
         #[derive(
             Clone,
             Debug,
@@ -104553,7 +105047,7 @@ mod root {
         /// The table `WorkerAttached` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerAttached` in the file `moor_rpc.fbs:1379`
+        /// * Table `WorkerAttached` in the file `moor_rpc.fbs:1413`
         #[derive(
             Clone,
             Debug,
@@ -104809,7 +105303,7 @@ mod root {
         /// The table `WorkerAuthFailed` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerAuthFailed` in the file `moor_rpc.fbs:1383`
+        /// * Table `WorkerAuthFailed` in the file `moor_rpc.fbs:1417`
         #[derive(
             Clone,
             Debug,
@@ -105079,7 +105573,7 @@ mod root {
         /// The table `WorkerInvalidPayload` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerInvalidPayload` in the file `moor_rpc.fbs:1387`
+        /// * Table `WorkerInvalidPayload` in the file `moor_rpc.fbs:1421`
         #[derive(
             Clone,
             Debug,
@@ -105351,7 +105845,7 @@ mod root {
         /// The table `WorkerUnknownRequest` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerUnknownRequest` in the file `moor_rpc.fbs:1391`
+        /// * Table `WorkerUnknownRequest` in the file `moor_rpc.fbs:1425`
         #[derive(
             Clone,
             Debug,
@@ -105626,7 +106120,7 @@ mod root {
         /// The table `WorkerNotRegistered` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `WorkerNotRegistered` in the file `moor_rpc.fbs:1395`
+        /// * Table `WorkerNotRegistered` in the file `moor_rpc.fbs:1429`
         #[derive(
             Clone,
             Debug,
@@ -105901,7 +106395,7 @@ mod root {
         /// The table `DaemonToWorkerReply` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `DaemonToWorkerReply` in the file `moor_rpc.fbs:1399`
+        /// * Table `DaemonToWorkerReply` in the file `moor_rpc.fbs:1433`
         #[derive(
             Clone,
             Debug,
@@ -106167,7 +106661,7 @@ mod root {
         /// The enum `RpcMessageErrorCode` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Enum `RpcMessageErrorCode` in the file `moor_rpc.fbs:1407`
+        /// * Enum `RpcMessageErrorCode` in the file `moor_rpc.fbs:1441`
         #[derive(
             Copy,
             Clone,
@@ -106203,8 +106697,8 @@ mod root {
             /// The variant `PermissionDenied` in the enum `RpcMessageErrorCode`
             PermissionDenied = 6,
 
-            /// The variant `TaskError` in the enum `RpcMessageErrorCode`
-            TaskError = 7,
+            /// The variant `Rejected` in the enum `RpcMessageErrorCode`
+            Rejected = 7,
 
             /// The variant `EntityRetrievalError` in the enum `RpcMessageErrorCode`
             EntityRetrievalError = 8,
@@ -106229,7 +106723,7 @@ mod root {
                 Self::LoginTaskFailed,
                 Self::CreateSessionFailed,
                 Self::PermissionDenied,
-                Self::TaskError,
+                Self::Rejected,
                 Self::EntityRetrievalError,
                 Self::InternalError,
                 Self::EventStreamExpired,
@@ -106254,7 +106748,7 @@ mod root {
                     4 => ::core::result::Result::Ok(RpcMessageErrorCode::LoginTaskFailed),
                     5 => ::core::result::Result::Ok(RpcMessageErrorCode::CreateSessionFailed),
                     6 => ::core::result::Result::Ok(RpcMessageErrorCode::PermissionDenied),
-                    7 => ::core::result::Result::Ok(RpcMessageErrorCode::TaskError),
+                    7 => ::core::result::Result::Ok(RpcMessageErrorCode::Rejected),
                     8 => ::core::result::Result::Ok(RpcMessageErrorCode::EntityRetrievalError),
                     9 => ::core::result::Result::Ok(RpcMessageErrorCode::InternalError),
                     10 => ::core::result::Result::Ok(RpcMessageErrorCode::EventStreamExpired),
@@ -106391,8 +106885,18 @@ mod root {
         /// The table `RpcMessageError` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `RpcMessageError` in the file `moor_rpc.fbs:1422`
-        #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
+        /// * Table `RpcMessageError` in the file `moor_rpc.fbs:1456`
+        #[derive(
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
         pub struct RpcMessageError {
             /// The field `error_code` in the table `RpcMessageError`
             pub error_code: self::RpcMessageErrorCode,
@@ -106789,7 +107293,7 @@ mod root {
         /// The union `MessageTypeUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `MessageTypeUnion` in the file `moor_rpc.fbs:1428`
+        /// * Union `MessageTypeUnion` in the file `moor_rpc.fbs:1462`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum MessageTypeUnion {
             /// The variant of type `HostToDaemonMsg` in the union `MessageTypeUnion`
@@ -107003,7 +107507,7 @@ mod root {
         /// The table `HostToDaemonMsg` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostToDaemonMsg` in the file `moor_rpc.fbs:1433`
+        /// * Table `HostToDaemonMsg` in the file `moor_rpc.fbs:1467`
         #[derive(
             Clone,
             Debug,
@@ -107301,7 +107805,7 @@ mod root {
         /// The table `HostClientToDaemonMsg` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostClientToDaemonMsg` in the file `moor_rpc.fbs:1438`
+        /// * Table `HostClientToDaemonMsg` in the file `moor_rpc.fbs:1472`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct HostClientToDaemonMsg {
             /// The field `client_data` in the table `HostClientToDaemonMsg`
@@ -107594,7 +108098,7 @@ mod root {
         /// The table `MessageType` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `MessageType` in the file `moor_rpc.fbs:1443`
+        /// * Table `MessageType` in the file `moor_rpc.fbs:1477`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct MessageType {
             /// The field `message` in the table `MessageType`
@@ -107830,7 +108334,7 @@ mod root {
         /// The union `ReplyResultUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `ReplyResultUnion` in the file `moor_rpc.fbs:1447`
+        /// * Union `ReplyResultUnion` in the file `moor_rpc.fbs:1481`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub enum ReplyResultUnion {
             /// The variant of type `HostSuccess` in the union `ReplyResultUnion`
@@ -108103,7 +108607,7 @@ mod root {
         /// The table `HostSuccess` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HostSuccess` in the file `moor_rpc.fbs:1453`
+        /// * Table `HostSuccess` in the file `moor_rpc.fbs:1487`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct HostSuccess {
             /// The field `reply` in the table `HostSuccess`
@@ -108339,7 +108843,7 @@ mod root {
         /// The table `ClientSuccess` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ClientSuccess` in the file `moor_rpc.fbs:1457`
+        /// * Table `ClientSuccess` in the file `moor_rpc.fbs:1491`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ClientSuccess {
             /// The field `reply` in the table `ClientSuccess`
@@ -108576,8 +109080,18 @@ mod root {
         /// The table `Failure` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `Failure` in the file `moor_rpc.fbs:1461`
-        #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
+        /// * Table `Failure` in the file `moor_rpc.fbs:1495`
+        #[derive(
+            Clone,
+            Debug,
+            PartialEq,
+            PartialOrd,
+            Eq,
+            Ord,
+            Hash,
+            ::serde::Serialize,
+            ::serde::Deserialize,
+        )]
         pub struct Failure {
             /// The field `error` in the table `Failure`
             pub error: ::planus::alloc::boxed::Box<self::RpcMessageError>,
@@ -108817,7 +109331,7 @@ mod root {
         /// The table `ReplyResult` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ReplyResult` in the file `moor_rpc.fbs:1465`
+        /// * Table `ReplyResult` in the file `moor_rpc.fbs:1499`
         #[derive(Clone, Debug, PartialEq, PartialOrd, ::serde::Serialize, ::serde::Deserialize)]
         pub struct ReplyResult {
             /// The field `result` in the table `ReplyResult`
@@ -109053,7 +109567,7 @@ mod root {
         /// The union `HistoryRecallUnion` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Union `HistoryRecallUnion` in the file `moor_rpc.fbs:1473`
+        /// * Union `HistoryRecallUnion` in the file `moor_rpc.fbs:1507`
         #[derive(
             Clone,
             Debug,
@@ -109405,7 +109919,7 @@ mod root {
         /// The table `HistoryRecallSinceEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HistoryRecallSinceEvent` in the file `moor_rpc.fbs:1480`
+        /// * Table `HistoryRecallSinceEvent` in the file `moor_rpc.fbs:1514`
         #[derive(
             Clone,
             Debug,
@@ -109740,7 +110254,7 @@ mod root {
         /// The table `HistoryRecallUntilEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HistoryRecallUntilEvent` in the file `moor_rpc.fbs:1485`
+        /// * Table `HistoryRecallUntilEvent` in the file `moor_rpc.fbs:1519`
         #[derive(
             Clone,
             Debug,
@@ -110075,7 +110589,7 @@ mod root {
         /// The table `HistoryRecallSinceSeconds` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HistoryRecallSinceSeconds` in the file `moor_rpc.fbs:1490`
+        /// * Table `HistoryRecallSinceSeconds` in the file `moor_rpc.fbs:1524`
         #[derive(
             Clone,
             Debug,
@@ -110420,7 +110934,7 @@ mod root {
         /// The table `HistoryRecallNone` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HistoryRecallNone` in the file `moor_rpc.fbs:1495`
+        /// * Table `HistoryRecallNone` in the file `moor_rpc.fbs:1529`
         #[derive(
             Clone,
             Debug,
@@ -110648,7 +111162,7 @@ mod root {
         /// The table `HistoryRecall` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HistoryRecall` in the file `moor_rpc.fbs:1498`
+        /// * Table `HistoryRecall` in the file `moor_rpc.fbs:1532`
         #[derive(
             Clone,
             Debug,
@@ -110895,7 +111409,7 @@ mod root {
         /// The table `HistoricalNarrativeEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HistoricalNarrativeEvent` in the file `moor_rpc.fbs:1502`
+        /// * Table `HistoricalNarrativeEvent` in the file `moor_rpc.fbs:1536`
         #[derive(
             Clone,
             Debug,
@@ -111347,7 +111861,7 @@ mod root {
         /// The table `HistoryResponse` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `HistoryResponse` in the file `moor_rpc.fbs:1510`
+        /// * Table `HistoryResponse` in the file `moor_rpc.fbs:1544`
         #[derive(
             Clone,
             Debug,
@@ -111977,7 +112491,7 @@ mod root {
         /// The enum `EventStreamOperation` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Enum `EventStreamOperation` in the file `moor_rpc.fbs:1528`
+        /// * Enum `EventStreamOperation` in the file `moor_rpc.fbs:1562`
         #[derive(
             Copy,
             Clone,
@@ -112155,7 +112669,7 @@ mod root {
         /// The table `EventStreamRequest` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `EventStreamRequest` in the file `moor_rpc.fbs:1530`
+        /// * Table `EventStreamRequest` in the file `moor_rpc.fbs:1564`
         #[derive(
             Clone,
             Debug,
@@ -112646,7 +113160,7 @@ mod root {
         /// The table `EventStreamPayload` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `EventStreamPayload` in the file `moor_rpc.fbs:1538`
+        /// * Table `EventStreamPayload` in the file `moor_rpc.fbs:1572`
         #[derive(
             Clone,
             Debug,
@@ -112916,7 +113430,7 @@ mod root {
         /// The table `EventStreamState` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `EventStreamState` in the file `moor_rpc.fbs:1540`
+        /// * Table `EventStreamState` in the file `moor_rpc.fbs:1574`
         #[derive(
             Clone,
             Debug,
@@ -113394,7 +113908,7 @@ mod root {
         /// The table `EventsAvailableEvent` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `EventsAvailableEvent` in the file `moor_rpc.fbs:1548`
+        /// * Table `EventsAvailableEvent` in the file `moor_rpc.fbs:1582`
         #[derive(
             Clone,
             Debug,
@@ -113624,7 +114138,7 @@ mod root {
         /// The table `GetServerStatus` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `GetServerStatus` in the file `moor_rpc.fbs:1551`
+        /// * Table `GetServerStatus` in the file `moor_rpc.fbs:1585`
         #[derive(
             Clone,
             Debug,
@@ -113850,7 +114364,7 @@ mod root {
         /// The table `ServerStatus` in the namespace `MoorRpc`
         ///
         /// Generated from these locations:
-        /// * Table `ServerStatus` in the file `moor_rpc.fbs:1553`
+        /// * Table `ServerStatus` in the file `moor_rpc.fbs:1587`
         #[derive(
             Clone,
             Debug,

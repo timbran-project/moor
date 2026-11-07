@@ -27,7 +27,10 @@ use crate::tasks::{
     },
     scheduler::{Scheduler, SchedulerState, lifecycle::TaskLifecycle},
 };
-use moor_common::{model::TaskPermissions, tasks::TaskId};
+use moor_common::{
+    model::TaskPermissions,
+    tasks::{AbortReason, TaskEnding, TaskId},
+};
 use moor_var::{E_INVARG, E_PERM, List, Obj, Symbol, Var, v_float, v_str};
 use std::{collections::HashMap, time::SystemTime};
 use tracing::warn;
@@ -514,14 +517,14 @@ impl TaskLifecycle {
             let Some(schedule_id) = self.schedule_q.schedule_for_task(task_id) else {
                 continue;
             };
-            let outcome = match result {
-                Ok(v) => crate::tasks::schedule_q::Outcome::Success(v),
-                Err(moor_common::tasks::SchedulerError::TaskAbortedException(e)) => {
+            let outcome = match result.ending {
+                TaskEnding::Completed(v) => crate::tasks::schedule_q::Outcome::Success(v),
+                TaskEnding::Aborted(AbortReason::Exception(e)) => {
                     crate::tasks::schedule_q::Outcome::Fault(moor_var::v_error(e.error))
                 }
-                Err(e) => {
-                    crate::tasks::schedule_q::Outcome::Fault(moor_var::v_str(&format!("{e:?}")))
-                }
+                ending => crate::tasks::schedule_q::Outcome::Fault(moor_var::v_str(&format!(
+                    "{ending:?}"
+                ))),
             };
             self.schedule_q.complete(schedule_id, task_id, outcome, now);
             self.persist_schedule(schedule_id);
