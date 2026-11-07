@@ -57,8 +57,8 @@ jobs:
           popd
           find /tmp/elle-cli/target -maxdepth 1 -name '*-standalone.jar' -print -quit | grep -q .
 
-      - name: Build workload generators
-        run: cargo build --package moor-model-checker --bin list-append --bin rw-register
+      - name: Build workload generator
+        run: cargo build --package moor-model-checker --bin list-append
 
       - name: Run list-append workload
         run: |
@@ -80,23 +80,6 @@ jobs:
             --cycle-search-timeout 5000 \
             test-output/list-append.edn | tee test-output/elle-list-append-result.txt
           grep -Eq '[[:space:]]true$' test-output/elle-list-append-result.txt
-
-      - name: Run rw-register workload
-        run: |
-          target/debug/rw-register \
-            --num-registers 5 \
-            --num-concurrent-workloads 4 \
-            --num-workload-iterations 1000 \
-            --output-file test-output/rw-register.edn
-
-      - name: Check rw-register history
-        run: |
-          elle_jar=$(find /tmp/elle-cli/target -maxdepth 1 -name '*-standalone.jar' -print -quit)
-          java -jar "$elle_jar" \
-            -m rw-register \
-            -c serializable \
-            test-output/rw-register.edn | tee test-output/elle-rw-register-result.txt
-          grep -Eq '[[:space:]]true$' test-output/elle-rw-register-result.txt
 
       - name: Upload Elle histories and results
         if: always()

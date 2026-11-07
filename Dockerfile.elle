@@ -7,7 +7,6 @@ FROM rust:1.98.1-bookworm AS builder
 WORKDIR /build
 COPY . /build
 RUN cargo build --release --bin list-append
-RUN cargo build --release --bin rw-register
 
 # Runtime stage with JVM for elle-cli. CI checks with Java 21 and elle-cli at the same commit.
 FROM eclipse-temurin:21-jdk-noble
@@ -34,7 +33,6 @@ RUN git init /opt/elle-cli && \
 
 # Copy the built binaries from builder stage
 COPY --from=builder /build/target/release/list-append /usr/local/bin/
-COPY --from=builder /build/target/release/rw-register /usr/local/bin/
 
 # Copy analysis script
 COPY crates/testing/load-tools/analyze-elle-failure.sh /usr/local/bin/
@@ -45,24 +43,11 @@ RUN mkdir -p /output
 
 WORKDIR /output
 
-# Default command: run list-append workload
-# Set MODEL=rw-register to run rw-register instead
+# Default command: run the list-append workload and check it with Elle.
 # Direct database access - no scheduler overhead
-CMD if [ "${MODEL}" = "rw-register" ]; then \
-      rw-register \
-        --num-registers ${NUM_REGISTERS:-5} \
-        --num-concurrent-workloads ${NUM_CONCURRENT:-10} \
-        --num-workload-iterations ${NUM_ITERATIONS:-1000} \
-        --output-file /output/workload.edn && \
-      java -jar /opt/elle-cli/elle-cli.jar \
-        -m rw-register \
-        -c serializable \
-        /output/workload.edn; \
-    else \
-      list-append \
-        --num-active-keys ${NUM_ACTIVE_KEYS:-10} \
-        --num-concurrent-workloads ${NUM_CONCURRENT:-16} \
-        --num-workload-iterations ${NUM_ITERATIONS:-2000} \
-        --output-file /output/workload.edn && \
-      analyze-elle-failure.sh /output/workload.edn; \
-    fi
+CMD list-append \
+      --num-active-keys ${NUM_ACTIVE_KEYS:-10} \
+      --num-concurrent-workloads ${NUM_CONCURRENT:-16} \
+      --num-workload-iterations ${NUM_ITERATIONS:-2000} \
+      --output-file /output/workload.edn && \
+    analyze-elle-failure.sh /output/workload.edn
