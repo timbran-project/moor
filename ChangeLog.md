@@ -12,7 +12,7 @@ warranted. Not every commit needs an entry.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased 2.0 series (`main`) branch
+## Unreleased 2.0 series (`v2.0-release` branch)
 
 - Every reply for a task that ran (eval, verb calls, captured commands, web hooks, and the task
   events a connected client receives) now carries the task's outcome: how it ended (completed,
