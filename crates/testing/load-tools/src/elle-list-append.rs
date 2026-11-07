@@ -11,36 +11,65 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Elle list-append workload against `moor_db`, bypassing the scheduler.
+//! Elle list-append workload.
 //!
-//! Each transaction is a short sequence of reads and appends over several list properties, run
-//! in one database transaction. Keys rotate: a key takes a bounded number of appends, then a
-//! fresh key replaces it, so lists stay short. The history is written as EDN for elle-cli's
-//! `list-append` model.
+//! Each transaction is a short sequence of reads and appends over several list properties. Keys
+//! rotate: a key takes a bounded number of appends, then a fresh key replaces it, so lists stay
+//! short. The history is written as EDN for elle-cli's `list-append` model.
+//!
+//! The target decides how a transaction runs:
+//!
+//! - `db`: one `moor_db` transaction, retried here on a commit conflict.
+//! - `scheduler`: one MOO eval task on an in-process scheduler, which retries conflicts itself.
 
 use clap::Parser;
-use clap_derive::Parser;
+use clap_derive::{Parser, ValueEnum};
 use edn_format::{Keyword, Value};
 use moor_common::{
-    model::{CommitResult, TaskPermissions, WorldStateSource},
+    model::{CommitResult, ObjAttrs, ObjFlag, ObjectKind, TaskPermissions, WorldStateSource},
     util::BitEnum,
 };
-use moor_db::TxDB;
-use moor_model_checker::elle_common::{self, EdnEvent};
-use moor_var::{Obj, Symbol, Var, v_int, v_list};
+use moor_db::{Database, TxDB};
+use moor_kernel::{
+    SchedulerClient,
+    config::{Config, FeaturesConfig},
+    tasks::{NoopTasksDb, SchedulerOp, TaskNotification, sched_counters, scheduler::Scheduler},
+};
+use moor_model_checker::{
+    DirectSession, DirectSessionFactory, NoopSystemControl,
+    elle_common::{self, EdnEvent},
+};
+use moor_var::{NOTHING, Obj, Symbol, Var, v_int, v_list};
 use rand::{Rng, RngExt};
 use std::{
+    fmt::Write as _,
     path::PathBuf,
     sync::{
         Arc, Mutex,
-        atomic::{AtomicI64, Ordering},
+        atomic::{AtomicI64, AtomicUsize, Ordering},
     },
     thread,
     time::{Duration, Instant},
 };
 
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum Target {
+    /// One `moor_db` transaction per Elle transaction.
+    Db,
+    /// One MOO eval task on an in-process scheduler per Elle transaction.
+    Scheduler,
+}
+
 #[derive(Clone, Parser, Debug)]
 struct Args {
+    #[arg(
+        long,
+        value_enum,
+        help = "What runs each transaction",
+        default_value = "db"
+    )]
+    target: Target,
+
     #[arg(long, help = "Database path; a temporary directory if not given")]
     db_path: Option<PathBuf>,
 
@@ -76,7 +105,7 @@ struct Args {
 
     #[arg(
         long,
-        help = "Commit attempts before a transaction is recorded as failed",
+        help = "Commit attempts before a db-target transaction is recorded as failed",
         default_value = "100"
     )]
     max_retries: usize,
@@ -93,6 +122,26 @@ struct Args {
 enum MicroOp {
     Read(usize),
     Append(usize, i64),
+}
+
+/// What a read returned, for each operation; `None` for appends.
+type Reads = Vec<Option<Vec<i64>>>;
+
+enum Outcome {
+    /// The transaction committed, with these reads.
+    Committed(Reads),
+    /// The transaction did not commit.
+    Failed,
+}
+
+/// Runs one transaction's operations.
+trait Executor: Send + Sync {
+    fn execute(&self, ops: &[MicroOp]) -> Result<Outcome, eyre::Error>;
+
+    /// Commit conflicts retried so far, if the executor sees them.
+    fn retries(&self) -> Option<usize> {
+        None
+    }
 }
 
 /// The keys open for operations, and the appends each has been given.
@@ -143,22 +192,20 @@ impl KeyRotation {
     }
 }
 
-struct Workload {
-    db: Arc<TxDB>,
-    obj: Obj,
-    props: Vec<Symbol>,
+struct Generator {
     keys: Mutex<KeyRotation>,
     next_value: AtomicI64,
-    args: Args,
+    max_txn_length: usize,
+    read_fraction: f64,
 }
 
-impl Workload {
+impl Generator {
     fn generate(&self, rng: &mut impl Rng) -> Result<Vec<MicroOp>, eyre::Error> {
-        let length = rng.random_range(1..=self.args.max_txn_length);
+        let length = rng.random_range(1..=self.max_txn_length);
         let mut keys = self.keys.lock().unwrap();
         (0..length)
             .map(|_| {
-                if rng.random_bool(self.args.read_fraction) {
+                if rng.random_bool(self.read_fraction) {
                     Ok(MicroOp::Read(keys.read(rng)))
                 } else {
                     let value = self.next_value.fetch_add(1, Ordering::Relaxed);
@@ -167,10 +214,19 @@ impl Workload {
             })
             .collect()
     }
+}
 
-    /// Run the operations in one transaction. Returns the values each read saw, or `None` if the
-    /// commit conflicted.
-    fn attempt(&self, ops: &[MicroOp]) -> Result<Option<Vec<Option<Vec<i64>>>>, eyre::Error> {
+/// Runs each transaction as one database transaction.
+struct DbExecutor {
+    db: Arc<TxDB>,
+    obj: Obj,
+    props: Vec<Symbol>,
+    max_retries: usize,
+    retries: AtomicUsize,
+}
+
+impl DbExecutor {
+    fn attempt(&self, ops: &[MicroOp]) -> Result<Option<Reads>, eyre::Error> {
         let perms = TaskPermissions::new(self.obj, BitEnum::new());
         let mut tx = self.db.new_world_state()?;
         let mut reads = Vec::with_capacity(ops.len());
@@ -195,63 +251,105 @@ impl Workload {
             CommitResult::ConflictRetry { .. } => Ok(None),
         }
     }
+}
 
-    fn process(&self, process_id: usize) -> Result<ProcessResult, eyre::Error> {
-        let mut rng = rand::rng();
-        let mut result = ProcessResult::default();
-        for _ in 0..self.args.num_workload_iterations {
-            let ops = self.generate(&mut rng)?;
-            let invoked = Instant::now();
-            result.events.push(EdnEvent::invoke(
-                invoked,
-                process_id,
-                "txn".to_string(),
-                txn_value(&ops, None),
-            ));
-
-            let mut committed = None;
-            for attempt in 0..self.args.max_retries {
-                if attempt > 0 {
-                    result.retries += 1;
-                }
-                if let Some(reads) = self.attempt(&ops)? {
-                    committed = Some(reads);
-                    break;
-                }
+impl Executor for DbExecutor {
+    fn execute(&self, ops: &[MicroOp]) -> Result<Outcome, eyre::Error> {
+        for attempt in 0..self.max_retries {
+            if attempt > 0 {
+                self.retries.fetch_add(1, Ordering::Relaxed);
             }
-
-            let completed = Instant::now();
-            match committed {
-                Some(reads) => {
-                    result.latencies.push(completed - invoked);
-                    result.events.push(EdnEvent::ok(
-                        completed,
-                        process_id,
-                        "txn".to_string(),
-                        txn_value(&ops, Some(&reads)),
-                    ));
-                }
-                None => {
-                    result.failed += 1;
-                    result.events.push(EdnEvent::fail(
-                        completed,
-                        process_id,
-                        "txn".to_string(),
-                        txn_value(&ops, None),
-                    ));
-                }
+            if let Some(reads) = self.attempt(ops)? {
+                return Ok(Outcome::Committed(reads));
             }
         }
-        Ok(result)
+        Ok(Outcome::Failed)
+    }
+
+    fn retries(&self) -> Option<usize> {
+        Some(self.retries.load(Ordering::Relaxed))
     }
 }
 
-#[derive(Default)]
-struct ProcessResult {
-    events: Vec<EdnEvent>,
-    latencies: Vec<Duration>,
-    retries: usize,
-    failed: usize,
+/// Runs each transaction as one MOO eval task. The scheduler retries commit conflicts by
+/// rerunning the task, and a task that aborts rolls back.
+struct SchedulerExecutor {
+    client: SchedulerClient,
+    player: Obj,
+    obj: Obj,
+    features: Arc<FeaturesConfig>,
+}
+
+impl Executor for SchedulerExecutor {
+    fn execute(&self, ops: &[MicroOp]) -> Result<Outcome, eyre::Error> {
+        let handle = self.client.submit_eval_task(
+            &self.player,
+            &self.player,
+            moo_program(self.obj, ops),
+            None,
+            Arc::new(DirectSession::new(self.player)),
+            self.features.clone(),
+        )?;
+        let receiver = handle.into_receiver();
+        loop {
+            match receiver.recv()? {
+                (_, Ok(TaskNotification::Suspended)) => continue,
+                (_, Ok(TaskNotification::Result(result))) => {
+                    return Ok(Outcome::Committed(eval_reads(ops, &result)?));
+                }
+                (_, Err(_)) => return Ok(Outcome::Failed),
+            }
+        }
+    }
+
+    fn retries(&self) -> Option<usize> {
+        let retries = sched_counters()
+            .timers
+            .calls(SchedulerOp::TaskConflictRetry);
+        Some(usize::try_from(retries).unwrap_or(usize::MAX))
+    }
+}
+
+/// The transaction as MOO code. It returns a list of what each read saw, in order.
+fn moo_program(obj: Obj, ops: &[MicroOp]) -> String {
+    let mut code = String::from("r = {};\n");
+    for op in ops {
+        match *op {
+            MicroOp::Read(key) => writeln!(code, "r = {{@r, {obj}.key_{key}}};"),
+            MicroOp::Append(key, value) => {
+                writeln!(code, "{obj}.key_{key} = {{@{obj}.key_{key}, {value}}};")
+            }
+        }
+        .expect("writing to a String does not fail");
+    }
+    code.push_str("return r;\n");
+    code
+}
+
+/// Match an eval result's read values to the transaction's read operations.
+fn eval_reads(ops: &[MicroOp], result: &Var) -> Result<Reads, eyre::Error> {
+    let list = result
+        .as_list()
+        .ok_or_else(|| eyre::eyre!("eval returned a non-list: {result:?}"))?;
+    let mut values = list.iter();
+    let reads = ops
+        .iter()
+        .map(|op| match op {
+            MicroOp::Read(key) => {
+                let value = values
+                    .next()
+                    .ok_or_else(|| eyre::eyre!("eval returned too few reads: {result:?}"))?;
+                list_values(&value)
+                    .map(Some)
+                    .map_err(|error| eyre::eyre!("read of key {key}: {error}"))
+            }
+            MicroOp::Append(..) => Ok(None),
+        })
+        .collect::<Result<_, _>>()?;
+    if values.next().is_some() {
+        return Err(eyre::eyre!("eval returned too many reads: {result:?}"));
+    }
+    Ok(reads)
 }
 
 fn list_values(value: &Var) -> Result<Vec<i64>, eyre::Error> {
@@ -293,6 +391,87 @@ fn txn_value(ops: &[MicroOp], reads: Option<&[Option<Vec<i64>>]>) -> Value {
     )
 }
 
+#[derive(Default)]
+struct ProcessResult {
+    events: Vec<EdnEvent>,
+    latencies: Vec<Duration>,
+    failed: usize,
+}
+
+fn run_process(
+    generator: &Generator,
+    executor: &dyn Executor,
+    process_id: usize,
+    iterations: usize,
+) -> Result<ProcessResult, eyre::Error> {
+    let mut rng = rand::rng();
+    let mut result = ProcessResult::default();
+    for _ in 0..iterations {
+        let ops = generator.generate(&mut rng)?;
+        let invoked = Instant::now();
+        result.events.push(EdnEvent::invoke(
+            invoked,
+            process_id,
+            "txn".to_string(),
+            txn_value(&ops, None),
+        ));
+        let outcome = executor.execute(&ops)?;
+        let completed = Instant::now();
+        match outcome {
+            Outcome::Committed(reads) => {
+                result.latencies.push(completed - invoked);
+                result.events.push(EdnEvent::ok(
+                    completed,
+                    process_id,
+                    "txn".to_string(),
+                    txn_value(&ops, Some(&reads)),
+                ));
+            }
+            Outcome::Failed => {
+                result.failed += 1;
+                result.events.push(EdnEvent::fail(
+                    completed,
+                    process_id,
+                    "txn".to_string(),
+                    txn_value(&ops, None),
+                ));
+            }
+        }
+    }
+    Ok(result)
+}
+
+/// Create the system object and a wizard player for eval tasks to run as.
+fn setup_scheduler_objects(db: &TxDB) -> Result<Obj, eyre::Error> {
+    let mut loader = db.loader_client()?;
+    let system = loader.create_object(
+        ObjectKind::Objid(Obj::mk_id(0)),
+        &ObjAttrs::new(
+            NOTHING,
+            NOTHING,
+            NOTHING,
+            ObjFlag::User.into(),
+            "System Object",
+        ),
+    )?;
+    loader.set_object_owner(&system, &system)?;
+    let player = loader.create_object(
+        ObjectKind::Objid(Obj::mk_id(1)),
+        &ObjAttrs::new(
+            NOTHING,
+            NOTHING,
+            NOTHING,
+            BitEnum::new_with(ObjFlag::User) | ObjFlag::Programmer | ObjFlag::Wizard,
+            "Wizard",
+        ),
+    )?;
+    loader.set_object_owner(&player, &player)?;
+    match loader.commit()? {
+        CommitResult::Success { .. } => Ok(player),
+        CommitResult::ConflictRetry { .. } => Err(eyre::eyre!("conflict creating test objects")),
+    }
+}
+
 fn percentile(sorted: &[Duration], fraction: f64) -> Duration {
     if sorted.is_empty() {
         return Duration::ZERO;
@@ -321,12 +500,55 @@ fn main() -> Result<(), eyre::Error> {
         .unwrap_or_else(|| temp_dir.path().join("test_db"));
     let (db, _) = TxDB::try_open(Some(&db_path), Default::default())
         .map_err(|error| eyre::eyre!("open database at {}: {error}", db_path.display()))?;
-    let db = Arc::new(db);
+
+    let player = match args.target {
+        Target::Db => None,
+        Target::Scheduler => Some(setup_scheduler_objects(&db)?),
+    };
     let (obj, props) = elle_common::setup_test_database(&db, pool_size, "key", |_| v_list(&[]))?;
 
+    let mut scheduler_threads = None;
+    let executor: Arc<dyn Executor> = match args.target {
+        Target::Db => Arc::new(DbExecutor {
+            db: Arc::new(db),
+            obj,
+            props,
+            max_retries: args.max_retries,
+            retries: AtomicUsize::new(0),
+        }),
+        Target::Scheduler => {
+            let features = Arc::new(FeaturesConfig::default());
+            let config = Arc::new(Config {
+                features: features.clone(),
+                ..Default::default()
+            });
+            let scheduler = Scheduler::new(
+                semver::Version::new(0, 0, 0),
+                Box::new(db),
+                Box::new(NoopTasksDb {}),
+                config,
+                Arc::new(NoopSystemControl {}),
+                None,
+                None,
+            );
+            let client = scheduler.client()?;
+            scheduler_threads = Some((
+                scheduler.start(Arc::new(DirectSessionFactory {}))?,
+                client.clone(),
+            ));
+            Arc::new(SchedulerExecutor {
+                client,
+                player: player.expect("scheduler target creates a player"),
+                obj,
+                features,
+            })
+        }
+    };
+
     println!(
-        "list-append: {} processes x {} transactions, up to {} operations each, {} active keys, \
-         {} appends per key, {} keys defined",
+        "list-append ({:?}): {} processes x {} transactions, up to {} operations each, {} active \
+         keys, {} appends per key, {} keys defined",
+        args.target,
         args.num_concurrent_workloads,
         args.num_workload_iterations,
         args.max_txn_length,
@@ -335,46 +557,56 @@ fn main() -> Result<(), eyre::Error> {
         pool_size
     );
 
-    let workload = Arc::new(Workload {
-        db,
-        obj,
-        props,
+    let generator = Arc::new(Generator {
         keys: Mutex::new(KeyRotation::new(
             args.num_active_keys,
             args.max_writes_per_key,
             pool_size,
         )),
         next_value: AtomicI64::new(1),
-        args: args.clone(),
+        max_txn_length: args.max_txn_length,
+        read_fraction: args.read_fraction,
     });
 
     let started = Instant::now();
     let handles: Vec<_> = (0..args.num_concurrent_workloads)
         .map(|process_id| {
-            let workload = workload.clone();
-            thread::spawn(move || workload.process(process_id))
+            let generator = generator.clone();
+            let executor = executor.clone();
+            let iterations = args.num_workload_iterations;
+            thread::spawn(move || run_process(&generator, &*executor, process_id, iterations))
         })
         .collect();
     let mut events = Vec::new();
     let mut latencies = Vec::new();
-    let (mut retries, mut failed) = (0, 0);
+    let mut failed = 0;
     for handle in handles {
         let result = handle
             .join()
             .map_err(|_| eyre::eyre!("workload thread panicked"))??;
         events.extend(result.events);
         latencies.extend(result.latencies);
-        retries += result.retries;
         failed += result.failed;
     }
     let elapsed = started.elapsed();
+
+    if let Some((threads, client)) = scheduler_threads {
+        client.submit_shutdown("list-append workload finished")?;
+        threads
+            .join()
+            .map_err(|_| eyre::eyre!("scheduler thread panicked"))?;
+    }
 
     events.sort_by_key(|event| event.timestamp);
     elle_common::write_edn_history(&events, &args.output_file)?;
 
     latencies.sort();
+    let retries = executor
+        .retries()
+        .map(|retries| format!(", {retries} retries"))
+        .unwrap_or_default();
     println!(
-        "{} committed, {failed} failed, {retries} retries in {:.2}s ({:.0} txn/s)",
+        "{} committed, {failed} failed{retries} in {:.2}s ({:.0} txn/s)",
         latencies.len(),
         elapsed.as_secs_f64(),
         latencies.len() as f64 / elapsed.as_secs_f64()
