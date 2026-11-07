@@ -298,7 +298,13 @@ fn session_finalization_cannot_settle_a_replacement_attempt() {
 #[test]
 fn finalization_preserves_effect_and_error_policies() {
     use crate::tasks::task_scheduler_client::TaskSchedulerClient;
-    for kind in ["exception", "renewal", "cancellation"] {
+    for kind in [
+        "completion",
+        "exception",
+        "renewal",
+        "killed",
+        "cancellation",
+    ] {
         for fail_commit in [false, true] {
             let scheduler = scheduler();
             let task_id = 254;
@@ -327,6 +333,8 @@ fn finalization_preserves_effect_and_error_policies() {
             }
             let client = TaskSchedulerClient::new(task_id, scheduler.clone());
             let worker = std::thread::spawn(move || match kind {
+                "completion" => client.success(v_int(1), false, 0),
+                "killed" => client.killed(),
                 "exception" => client.exception(Box::new(moor_common::tasks::Exception {
                     error: E_QUOTA.msg("failure"),
                     stack: vec![],
@@ -356,6 +364,18 @@ fn finalization_preserves_effect_and_error_policies() {
             assert!(matches!(
                 (kind, result),
                 (
+                    "completion",
+                    TaskOutcome {
+                        kept: Kept::Yes,
+                        ending: TaskEnding::Completed(_),
+                    },
+                ) | (
+                    "killed",
+                    TaskOutcome {
+                        kept: Kept::Yes,
+                        ending: TaskEnding::Aborted(AbortReason::Killed),
+                    },
+                ) | (
                     "exception",
                     TaskOutcome {
                         kept: Kept::Yes,

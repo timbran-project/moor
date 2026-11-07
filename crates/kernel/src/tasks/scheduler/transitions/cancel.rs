@@ -70,8 +70,6 @@ impl Scheduler {
             if !completion.is_current(&lc) {
                 return;
             }
-            lc.discard_task_effects(task_id);
-            lc.task_q.remove_message_queue(task_id);
             return completion.finish(&mut lc);
         }
 
@@ -94,8 +92,6 @@ impl Scheduler {
                 return;
             };
             let player = task.player;
-            lc.discard_task_effects(task_id);
-            lc.task_q.remove_message_queue(task_id);
             if shutting_down {
                 debug!(task_id, "Task cancelled during shutdown");
             } else {
@@ -168,8 +164,6 @@ impl Scheduler {
         if !completion.is_current(&lc) {
             return;
         }
-        lc.publish_task_effects(task_id);
-        lc.task_q.remove_message_queue(task_id);
         completion.finish(&mut lc);
         lc.settle_schedule_firings();
     }
@@ -188,12 +182,9 @@ impl Scheduler {
             return;
         }
 
-        lc.discard_task_effects(task_id);
-        lc.task_q.remove_message_queue(task_id);
-
         // Task already dead, can't access session. Just send error result directly. The panic may
         // have come before or after the task's commit.
-        lc.task_q.send_task_result(
+        lc.finish_task(
             task_id,
             TaskOutcome::aborted(
                 AbortReason::Internal(format!("task thread panicked: {panic_msg}")),

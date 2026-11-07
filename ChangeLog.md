@@ -640,6 +640,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- A task whose changes committed now also keeps the messages it sent with `task_send()` and the
+  schedules it created or stopped, even if its output could not be delivered. A task that completed
+  or suspended used to lose them when the server failed to commit its session output, as did a task
+  that suspended during shutdown or was killed by another task just after suspending.
 - `toliteral()`, decompiled verb code and objdef exports write printable non-ASCII characters as
   they are, such as `—` or `é`, instead of as `\uXXXX` escapes, so exported source keeps its text.
   Control characters and invisible characters such as zero-width spaces and right-to-left overrides

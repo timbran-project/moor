@@ -44,7 +44,8 @@ struct SuspensionTransition {
     task: Box<Task>,
     session: Arc<dyn Session>,
     // Legacy callers can supply a task without proof. Session I/O keeps its existing order,
-    // but finish rejects continuation and never publishes its effects.
+    // but finish rejects continuation, and with no proof of a commit the task ends with
+    // `Kept::Unknown`, which drops its effects.
     boundary: Option<CommittedBoundary>,
     phase: RunningTaskPhase,
 }
@@ -80,6 +81,15 @@ impl SuspensionTransition {
         transition.check_running(lc).then_some(transition)
     }
 
+    /// Whether the transaction at this suspension committed, as far as the scheduler can prove.
+    fn kept(&self) -> Kept {
+        if self.boundary.is_some() {
+            Kept::Yes
+        } else {
+            Kept::Unknown
+        }
+    }
+
     fn is_current(&self, lc: &TaskLifecycle) -> bool {
         lc.task_q
             .active
@@ -103,11 +113,9 @@ impl SuspensionTransition {
         }
         let task_id = self.task.task_id;
         self.task.control.request_cancel();
-        lc.discard_task_effects(task_id);
-        lc.task_q.remove_message_queue(task_id);
-        lc.task_q.send_task_result(
+        lc.finish_task(
             task_id,
-            TaskOutcome::aborted(AbortReason::Cancelled, Kept::Yes),
+            TaskOutcome::aborted(AbortReason::Cancelled, self.kept()),
         );
         false
     }
@@ -120,14 +128,13 @@ impl SuspensionTransition {
             "Session commit failed after world-state commit; output may be lost"
         );
         if self.is_current(lc) {
-            lc.discard_task_effects(task_id);
-            lc.task_q.send_task_result(
+            lc.finish_task(
                 task_id,
                 TaskOutcome::aborted(
                     AbortReason::Internal(
                         "could not commit the session when suspending".to_string(),
                     ),
-                    Kept::Yes,
+                    self.kept(),
                 ),
             );
         }
@@ -136,11 +143,11 @@ impl SuspensionTransition {
     fn input_failed(self, lc: &mut TaskLifecycle) {
         // Keep input delivery policy separate from session-commit failure policy.
         if self.is_current(lc) {
-            lc.task_q.send_task_result(
+            lc.finish_task(
                 self.task.task_id,
                 TaskOutcome::aborted(
                     AbortReason::Internal("could not request input".to_string()),
-                    Kept::Yes,
+                    self.kept(),
                 ),
             );
         }
@@ -151,12 +158,9 @@ impl SuspensionTransition {
             return None;
         }
         let task_id = self.task.task_id;
+        let kept = self.kept();
         if !self.boundary.is_some_and(CommittedBoundary::finish) {
-            lc.task_q.remove_message_queue(task_id);
-            lc.task_q.send_task_result(
-                task_id,
-                TaskOutcome::aborted(AbortReason::Cancelled, Kept::Yes),
-            );
+            lc.finish_task(task_id, TaskOutcome::aborted(AbortReason::Cancelled, kept));
             return None;
         }
         lc.publish_task_effects(task_id);
@@ -204,7 +208,7 @@ impl Scheduler {
                 // If no workers are configured, abort the task.
                 let Some(workers_sender) = self.worker_request_send.as_ref() else {
                     warn!("No workers configured for scheduler; aborting task");
-                    return lc.task_q.send_task_result(
+                    return lc.finish_task(
                         task_id,
                         TaskOutcome::aborted(
                             AbortReason::Internal("no workers are configured".to_string()),
@@ -221,7 +225,7 @@ impl Scheduler {
                     timeout,
                 }) {
                     error!(?e, "Could not send worker request; aborting task");
-                    return lc.task_q.send_task_result(
+                    return lc.finish_task(
                         task_id,
                         TaskOutcome::aborted(
                             AbortReason::Internal("could not send the worker request".to_string()),
