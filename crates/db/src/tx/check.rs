@@ -371,6 +371,8 @@ mod tests {
     #[derive(Debug, Clone, PartialEq, Eq, Hash)]
     struct TestDomain(u64);
 
+    impl crate::tx::KeyTarget for TestDomain {}
+
     impl std::fmt::Display for TestDomain {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             write!(f, "TestDomain({})", self.0)

@@ -15,7 +15,7 @@
 
 use super::PropertyPermMemo;
 use crate::{
-    ObjAndUUIDHolder,
+    PropertyKey,
     cache::{
         ancestry_cache::AncestryCache, prop_cache::PropResolutionCache,
         verb_cache::VerbResolutionCache,
@@ -31,7 +31,7 @@ pub(crate) enum EditScope {
         removed: Option<Uuid>,
     },
     PropertyValue(Obj),
-    Permissions(ObjAndUUIDHolder),
+    Permissions(PropertyKey),
     Owner(Obj),
     Hierarchy(Vec<Obj>),
     Remove {
@@ -81,7 +81,7 @@ impl Drop for EditInvalidation<'_> {
                     self.permissions.invalidate_cached_for_obj(object);
                     if let Some(uuid) = removed {
                         self.permissions
-                            .invalidate_known_for_holder(&ObjAndUUIDHolder::new(object, *uuid));
+                            .invalidate_known_for_holder(&PropertyKey::new(object, *uuid));
                     }
                 }
             }
@@ -196,7 +196,7 @@ mod tests {
         assert!(tx.set_property(&object, uuid, v_int(7)).is_err());
         assert_eq!(
             tx.object_propvalues
-                .get(&ObjAndUUIDHolder::new(&object, uuid))
+                .get(&PropertyKey::new(&object, uuid))
                 .unwrap(),
             Some(v_int(7))
         );
@@ -226,7 +226,7 @@ mod tests {
         assert!(tx.resolve_property(&child, new).is_err());
         // Remove canonical policy to force an error after the definition update.
         tx.object_propflags
-            .delete(&ObjAndUUIDHolder::new(&parent, uuid))
+            .delete(&PropertyKey::new(&parent, uuid))
             .unwrap();
         tx.prop_perm_memo.clear_cached();
         assert!(

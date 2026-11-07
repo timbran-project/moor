@@ -19,9 +19,6 @@ use super::super::{
     Caches, MoorDB, RelationCheckers, RelationWorkingSets, WorkingSets, WorldStateSnapshot,
 };
 use crate::api::world_state::db_counters;
-use crate::engine::property_definitions::{
-    PropertyDefinitionChange, collect_property_definition_changes,
-};
 use crate::engine::relation_defs::{RebaseCheck, define_relations};
 use crate::provider::batch_writer::{CommitAdmission, CommitAdmissionError};
 use crate::tx::{CommitBloom, Timestamp};
@@ -51,7 +48,6 @@ pub(super) struct PreparedCommit<'db> {
     data: CommitData<'db>,
     checked_root: Arc<WorldStateSnapshot>,
     candidate: Arc<WorldStateSnapshot>,
-    definition_changes: Vec<PropertyDefinitionChange>,
 }
 
 /// A lost CAS retains validation history, but no publishable candidate.
@@ -68,7 +64,6 @@ pub(super) struct PublishedCommit<'db> {
     working_sets: RelationWorkingSets,
     publication_version: u64,
     tx_timestamp: Timestamp,
-    definition_changes: Vec<PropertyDefinitionChange>,
     admission: CommitAdmission,
 }
 
@@ -165,10 +160,6 @@ impl<'db> PreparedCommit<'db> {
             prop_resolution_cache: prop_cache.fork(),
             ancestry_cache: ancestry_cache.fork(),
         };
-        let property_definition_changes = collect_property_definition_changes(
-            &*current_root.object_propdefs,
-            &relation_ws.object_propdefs,
-        );
         let next_root =
             checkers.build_snapshot(&current_root, tx_timestamp, combined_caches, bloom.clone());
         drop(_t);
@@ -203,7 +194,6 @@ impl<'db> PreparedCommit<'db> {
             },
             checked_root: current_root,
             candidate: next_root,
-            definition_changes: property_definition_changes,
         })
     }
 
@@ -214,7 +204,6 @@ impl<'db> PreparedCommit<'db> {
             data,
             checked_root,
             candidate,
-            definition_changes,
         } = self;
         let publication_version = candidate.version;
         if SnapshotPlanes::try_publish_write_root(RootPublication {
@@ -227,7 +216,6 @@ impl<'db> PreparedCommit<'db> {
                 working_sets: data.working_sets,
                 publication_version,
                 tx_timestamp: data.tx_timestamp,
-                definition_changes,
                 admission: data.admission,
             })
         } else {
@@ -249,10 +237,6 @@ impl<'db> RebaseRequired<'db> {
                 %info, "Transaction found an exact key overlap after CAS loss");
             return Err(info);
         }
-        let definition_changes = collect_property_definition_changes(
-            &*winner.object_propdefs,
-            &data.working_sets.object_propdefs,
-        );
         let candidate = data.checkers.build_rebased_snapshot(
             &data.working_sets,
             &winner,
@@ -264,7 +248,6 @@ impl<'db> RebaseRequired<'db> {
             data,
             checked_root: winner,
             candidate,
-            definition_changes,
         })
     }
 }
@@ -276,7 +259,6 @@ impl PublishedCommit<'_> {
             working_sets,
             publication_version,
             tx_timestamp,
-            definition_changes,
             admission,
         } = self;
         let result = CommitResult::Success {
@@ -296,7 +278,6 @@ impl PublishedCommit<'_> {
                 return result;
             }
         };
-        batch.set_property_definition_changes(definition_changes);
         let dirty_sequences = db.sequences.claim_dirty();
         for i in 0_usize..super::super::SEQUENCE_COUNT {
             if dirty_sequences & (1_u16 << i) == 0 {

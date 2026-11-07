@@ -27,7 +27,7 @@ use super::{
     },
 };
 use crate::{
-    ObjAndUUIDHolder, db_counters,
+    PropertyKey, db_counters,
     tx::{Error, HashRelationIndex, RelationIndex, Timestamp, WorkingSet},
 };
 use ahash::AHashMap;
@@ -35,9 +35,9 @@ use moor_common::model::WorldStateTimerOp;
 use moor_var::Var;
 
 pub(crate) type SeededPropertyValueIndex = (
-    Box<dyn RelationIndex<ObjAndUUIDHolder, Var>>,
+    Box<dyn RelationIndex<PropertyKey, Var>>,
     Timestamp,
-    AHashMap<ObjAndUUIDHolder, PropertyValueChain>,
+    AHashMap<PropertyKey, PropertyValueChain>,
 );
 
 #[derive(Clone)]
@@ -61,7 +61,7 @@ impl PropertyValueProvider {
     /// Consume a published working set into record-chain operations for the batch writer.
     pub(crate) fn encode_property_value_working_set(
         &self,
-        working_set: WorkingSet<ObjAndUUIDHolder, Var>,
+        working_set: WorkingSet<PropertyKey, Var>,
     ) -> Vec<BatchOp> {
         prepare_property_value_working_set(working_set)
             .into_iter()
@@ -103,8 +103,8 @@ impl PropertyValueProvider {
     }
 }
 
-impl Provider<ObjAndUUIDHolder, Var> for PropertyValueProvider {
-    fn get(&self, domain: &ObjAndUUIDHolder) -> Result<Option<(Timestamp, Var)>, Error> {
+impl Provider<PropertyKey, Var> for PropertyValueProvider {
+    fn get(&self, domain: &PropertyKey) -> Result<Option<(Timestamp, Var)>, Error> {
         let _t = db_counters()
             .timers_hot
             .start(WorldStateTimerOp::ProviderTupleLoad);
@@ -125,21 +125,21 @@ impl Provider<ObjAndUUIDHolder, Var> for PropertyValueProvider {
         Ok(Some((reconstructed.logical_timestamp, reconstructed.value)))
     }
 
-    fn put(&self, _timestamp: Timestamp, domain: &ObjAndUUIDHolder, _: &Var) -> Result<(), Error> {
+    fn put(&self, _timestamp: Timestamp, domain: &PropertyKey, _: &Var) -> Result<(), Error> {
         Err(Error::StorageFailure(format!(
             "property value {domain} must be written through the batch writer"
         )))
     }
 
-    fn del(&self, _timestamp: Timestamp, domain: &ObjAndUUIDHolder) -> Result<(), Error> {
+    fn del(&self, _timestamp: Timestamp, domain: &PropertyKey) -> Result<(), Error> {
         Err(Error::StorageFailure(format!(
             "property value {domain} must be deleted through the batch writer"
         )))
     }
 
-    fn scan<F>(&self, predicate: &F) -> Result<Vec<(Timestamp, ObjAndUUIDHolder, Var)>, Error>
+    fn scan<F>(&self, predicate: &F) -> Result<Vec<(Timestamp, PropertyKey, Var)>, Error>
     where
-        F: Fn(&ObjAndUUIDHolder, &Var) -> bool,
+        F: Fn(&PropertyKey, &Var) -> bool,
     {
         let mut result = Vec::new();
         for entry in PropertyValueScan::new(self.fjall_keyspace.iter(), PROPERTY_VALUE_CHAIN_LIMITS)

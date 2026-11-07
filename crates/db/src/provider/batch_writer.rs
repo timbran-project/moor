@@ -35,16 +35,14 @@ use std::{
 
 use ahash::AHashMap;
 use flume::{Receiver, Sender};
-use moor_common::model::HasUuid;
 use moor_common::threading::spawn_efficient;
-use moor_var::{Obj, Symbol, Var};
+use moor_var::{Obj, Var};
 use parking_lot::Mutex;
 use tracing::{error, warn};
 use uuid::Uuid;
 
 use crate::{
-    DEFAULT_COMMIT_QUEUE_TIMEOUT, DEFAULT_COMMIT_QUEUE_WARN, ObjAndUUIDHolder, db_counters,
-    engine::property_definitions::PropertyDefinitionChange,
+    DEFAULT_COMMIT_QUEUE_TIMEOUT, DEFAULT_COMMIT_QUEUE_WARN, PropertyKey, db_counters,
     provider::property_value_store::{
         PROPERTY_RECORD_KEY_BYTES, PreparedPropertyValueMutation, PreparedPropertyValueOp,
         PropertyValueChain, PropertyValueChainLimits, encode_full_record,
@@ -89,59 +87,6 @@ impl std::fmt::Display for BatchOpSource {
                 object,
                 uuid,
             } => write!(f, "{relation} {object} ({uuid})"),
-        }
-    }
-}
-
-struct BatchOpSourceDisplay<'a> {
-    source: &'a BatchOpSource,
-    property_names: &'a PropertyNames,
-}
-
-impl std::fmt::Display for BatchOpSourceDisplay<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let BatchOpSource::Property {
-            relation,
-            object,
-            uuid,
-        } = self.source
-        else {
-            return std::fmt::Display::fmt(self.source, f);
-        };
-
-        let Some(name) = self.property_names.by_uuid.get(uuid) else {
-            return std::fmt::Display::fmt(self.source, f);
-        };
-        write!(f, "{relation} {object}.{} ({uuid})", name.as_str())
-    }
-}
-
-struct PropertyNames {
-    by_uuid: AHashMap<Uuid, Symbol>,
-}
-
-impl PropertyNames {
-    fn new(by_uuid: AHashMap<Uuid, Symbol>) -> Self {
-        Self { by_uuid }
-    }
-
-    fn apply(&mut self, changes: impl IntoIterator<Item = PropertyDefinitionChange>) {
-        for change in changes {
-            match change {
-                PropertyDefinitionChange::Remove(uuid) => {
-                    self.by_uuid.remove(&uuid);
-                }
-                PropertyDefinitionChange::Upsert(definition) => {
-                    self.by_uuid.insert(definition.uuid(), definition.name());
-                }
-            }
-        }
-    }
-
-    fn display<'a>(&'a self, source: &'a BatchOpSource) -> BatchOpSourceDisplay<'a> {
-        BatchOpSourceDisplay {
-            source,
-            property_names: self,
         }
     }
 }
@@ -201,7 +146,6 @@ pub struct CommitBatch {
     pub version: u64,
     pub timestamp: Timestamp,
     pub operations: Vec<BatchOp>,
-    property_definition_changes: Box<[PropertyDefinitionChange]>,
 }
 
 struct EncodedBatchOp {
@@ -221,7 +165,7 @@ enum EncodedBatchOpType {
 }
 
 struct EncodedPropertyValueOp {
-    property: ObjAndUUIDHolder,
+    property: PropertyKey,
     mutation: EncodedPropertyValueMutation,
 }
 
@@ -239,15 +183,15 @@ enum EncodedPropertyValueMutation {
 
 enum PropertyValueChainChange {
     Reset {
-        property: ObjAndUUIDHolder,
+        property: PropertyKey,
         full_version: u64,
     },
     Append {
-        property: ObjAndUUIDHolder,
+        property: PropertyKey,
         record_version: u64,
         payload_bytes: usize,
     },
-    Delete(ObjAndUUIDHolder),
+    Delete(PropertyKey),
 }
 
 struct EncodingStats {
@@ -260,7 +204,6 @@ struct EncodedCommitBatch {
     version: u64,
     timestamp: Timestamp,
     operations: Vec<EncodedBatchOp>,
-    property_definition_changes: Box<[PropertyDefinitionChange]>,
     encoding: EncodingStats,
 }
 
@@ -276,7 +219,6 @@ impl CommitBatch {
             version,
             timestamp,
             operations: Vec::with_capacity(expected_operations),
-            property_definition_changes: Box::default(),
         }
     }
 
@@ -310,15 +252,7 @@ impl CommitBatch {
             version,
             timestamp,
             operations,
-            property_definition_changes: Box::default(),
         }
-    }
-
-    pub(crate) fn set_property_definition_changes(
-        &mut self,
-        changes: Vec<PropertyDefinitionChange>,
-    ) {
-        self.property_definition_changes = changes.into_boxed_slice();
     }
 }
 
@@ -635,23 +569,20 @@ struct WriterState {
     barrier_waiters: Vec<(u64, oneshot::Sender<Result<(), String>>)>,
     snapshot_waiters: Vec<(u64, oneshot::Sender<Result<fjall::Snapshot, String>>)>,
     next_version: u64,
-    property_names: PropertyNames,
-    property_value_chains: AHashMap<ObjAndUUIDHolder, PropertyValueChain>,
+    property_value_chains: AHashMap<PropertyKey, PropertyValueChain>,
     property_value_limits: PropertyValueChainLimits,
     next_property_value_record_version: u64,
 }
 
 struct WriterInit {
-    property_names: AHashMap<Uuid, Symbol>,
-    property_value_chains: AHashMap<ObjAndUUIDHolder, PropertyValueChain>,
+    property_value_chains: AHashMap<PropertyKey, PropertyValueChain>,
     property_value_limits: PropertyValueChainLimits,
     rollup_encoder: RollupEncoder,
 }
 
 impl WriterState {
     fn new(
-        property_names: AHashMap<Uuid, Symbol>,
-        property_value_chains: AHashMap<ObjAndUUIDHolder, PropertyValueChain>,
+        property_value_chains: AHashMap<PropertyKey, PropertyValueChain>,
         property_value_limits: PropertyValueChainLimits,
     ) -> Self {
         let next_property_value_record_version = property_value_chains
@@ -664,7 +595,6 @@ impl WriterState {
             barrier_waiters: Vec::new(),
             snapshot_waiters: Vec::new(),
             next_version: 1,
-            property_names: PropertyNames::new(property_names),
             property_value_chains,
             property_value_limits,
             next_property_value_record_version,
@@ -699,26 +629,12 @@ const ENCODE_WARNING_DURATION: Duration = Duration::from_secs(1);
 impl BatchWriter {
     #[cfg(test)]
     pub fn new(db: fjall::Database) -> Self {
-        Self::with_property_names(db, AHashMap::new())
-    }
-
-    #[cfg(test)]
-    pub(crate) fn with_property_names(
-        db: fjall::Database,
-        property_names: AHashMap<Uuid, Symbol>,
-    ) -> Self {
-        Self::with_property_value_state(
-            db,
-            property_names,
-            AHashMap::new(),
-            PROPERTY_VALUE_CHAIN_LIMITS,
-        )
+        Self::with_property_value_state(db, AHashMap::new(), PROPERTY_VALUE_CHAIN_LIMITS)
     }
 
     pub(crate) fn with_property_value_state(
         db: fjall::Database,
-        property_names: AHashMap<Uuid, Symbol>,
-        property_value_chains: AHashMap<ObjAndUUIDHolder, PropertyValueChain>,
+        property_value_chains: AHashMap<PropertyKey, PropertyValueChain>,
         property_value_limits: PropertyValueChainLimits,
     ) -> Self {
         let kill_switch = Arc::new(AtomicBool::new(false));
@@ -759,7 +675,6 @@ impl BatchWriter {
                 ks,
                 completed,
                 WriterInit {
-                    property_names,
                     property_value_chains,
                     property_value_limits,
                     rollup_encoder,
@@ -867,13 +782,11 @@ impl BatchWriter {
         init: WriterInit,
     ) -> Result<(), String> {
         let WriterInit {
-            property_names,
             property_value_chains,
             property_value_limits,
             rollup_encoder,
         } = init;
-        let mut state =
-            WriterState::new(property_names, property_value_chains, property_value_limits);
+        let mut state = WriterState::new(property_value_chains, property_value_limits);
 
         loop {
             if kill_switch.load(Ordering::Relaxed) {
@@ -990,7 +903,6 @@ impl BatchWriter {
                 version,
                 timestamp,
                 operations,
-                property_definition_changes,
             } = batch;
             let start = Instant::now();
             let mut encoded_bytes = 0usize;
@@ -1109,7 +1021,6 @@ impl BatchWriter {
                 version,
                 timestamp,
                 operations: encoded_operations,
-                property_definition_changes,
                 encoding: EncodingStats {
                     elapsed,
                     encoded_bytes,
@@ -1244,7 +1155,6 @@ mod tests {
         PropertyValueReconstructor, encode_property_value_record_key,
     };
     use fjall::{KeyspaceCreateOptions, Readable};
-    use moor_common::model::PropDef;
     use moor_var::{List, v_int, v_list};
 
     fn test_database() -> (tempfile::TempDir, fjall::Database) {
@@ -1368,7 +1278,7 @@ mod tests {
     fn property_batch(
         version: u64,
         partition: &fjall::Keyspace,
-        property: &ObjAndUUIDHolder,
+        property: &PropertyKey,
         mutation: PreparedPropertyValueMutation,
     ) -> CommitBatch {
         CommitBatch::from_ops(
@@ -1387,37 +1297,6 @@ mod tests {
                 },
             }],
         )
-    }
-
-    #[test]
-    fn property_source_uses_writer_local_name() {
-        let object = Obj::mk_id(42);
-        let uuid = Uuid::new_v4();
-        let source = BatchOpSource::Property {
-            relation: "object_propvalues",
-            object,
-            uuid,
-        };
-        let name = Symbol::mk("context");
-        let definition = PropDef::new(uuid, object, object, name);
-        let mut property_names = PropertyNames::new(AHashMap::new());
-        property_names.apply(vec![PropertyDefinitionChange::Upsert(definition)]);
-
-        let rendered = property_names.display(&source).to_string();
-        assert!(rendered.contains("object_propvalues"));
-        assert!(rendered.contains("context"));
-        assert!(rendered.contains(&uuid.to_string()));
-
-        let renamed = PropDef::new(uuid, object, object, Symbol::mk("history"));
-        property_names.apply(vec![PropertyDefinitionChange::Upsert(renamed)]);
-        let rendered = property_names.display(&source).to_string();
-        assert!(rendered.contains("history"));
-        assert!(!rendered.contains("context"));
-
-        property_names.apply(vec![PropertyDefinitionChange::Remove(uuid)]);
-        let rendered = property_names.display(&source).to_string();
-        assert!(!rendered.contains("context"));
-        assert!(rendered.contains(&uuid.to_string()));
     }
 
     #[test]
@@ -1510,11 +1389,7 @@ mod tests {
         let partition = database
             .keyspace("values", KeyspaceCreateOptions::default)
             .unwrap();
-        let mut state = WriterState::new(
-            AHashMap::new(),
-            AHashMap::new(),
-            PROPERTY_VALUE_CHAIN_LIMITS,
-        );
+        let mut state = WriterState::new(AHashMap::new(), PROPERTY_VALUE_CHAIN_LIMITS);
         let mut encoder = BatchEncoder::new();
         let batch = || encoded_batch(2, &partition, b"key", b"value");
         state
@@ -1631,13 +1506,8 @@ mod tests {
             .keyspace("object_propvalues", KeyspaceCreateOptions::default)
             .unwrap();
         let limits = PropertyValueChainLimits::new(2, usize::MAX);
-        let writer = BatchWriter::with_property_value_state(
-            database,
-            AHashMap::new(),
-            AHashMap::new(),
-            limits,
-        );
-        let property = ObjAndUUIDHolder::new(&Obj::mk_id(42), Uuid::from_u128(7));
+        let writer = BatchWriter::with_property_value_state(database, AHashMap::new(), limits);
+        let property = PropertyKey::new(&Obj::mk_id(42), Uuid::from_u128(7));
 
         write(
             &writer,

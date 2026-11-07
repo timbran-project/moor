@@ -13,7 +13,7 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::{DatabaseConfig, ObjAndUUIDHolder};
+    use crate::{DatabaseConfig, PropertyKey};
     use std::collections::HashSet;
 
     use crate::engine::moor_db::MoorDB;
@@ -3903,7 +3903,7 @@ mod tests {
             // They get computed on-demand from the defining object
             let propflags_exists = tx
                 .object_propflags
-                .get(&ObjAndUUIDHolder::new(child, prop.uuid()))
+                .get(&PropertyKey::new(child, prop.uuid()))
                 .unwrap()
                 .is_some();
             assert!(

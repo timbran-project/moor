@@ -24,7 +24,7 @@ mod ownership_tests;
 use edit::EditScope;
 
 use crate::{
-    EntityMetadataKey, Error, ObjAndUUIDHolder, StringHolder,
+    EntityMetadataKey, Error, PropertyKey, StringHolder, VerbKey,
     api::world_state::db_counters,
     engine::moor_db::{Caches, SEQUENCE_MAX_OBJECT, WorldStateEdit, WorldStateTransaction},
     provider::fjall_provider::{EncodeFjallValue, FjallCodec, FjallProvider},
@@ -45,9 +45,8 @@ use moor_var::{
     program::{ProgramType, opcode::BuiltinId},
     v_empty_map, v_map, v_none,
 };
+use std::collections::VecDeque;
 use std::collections::{HashMap, HashSet};
-use std::fmt::Display;
-use std::{collections::VecDeque, hash::Hash};
 use uuid::Uuid;
 
 type RTx<Domain, Codomain> = RelationTransaction<
@@ -58,8 +57,8 @@ type RTx<Domain, Codomain> = RelationTransaction<
 >;
 
 pub(crate) struct PropertyPermMemo {
-    known_propflags: HashSet<ObjAndUUIDHolder>,
-    perms_by_holder: std::cell::RefCell<HashMap<ObjAndUUIDHolder, PropPerms>>,
+    known_propflags: HashSet<PropertyKey>,
+    perms_by_holder: std::cell::RefCell<HashMap<PropertyKey, PropPerms>>,
 }
 
 impl PropertyPermMemo {
@@ -71,12 +70,12 @@ impl PropertyPermMemo {
     }
 
     #[inline]
-    fn has_known_propflags(&self, holder: &ObjAndUUIDHolder) -> bool {
+    fn has_known_propflags(&self, holder: &PropertyKey) -> bool {
         self.known_propflags.contains(holder)
     }
 
     #[inline]
-    fn mark_known_propflags(&mut self, holder: ObjAndUUIDHolder) {
+    fn mark_known_propflags(&mut self, holder: PropertyKey) {
         self.known_propflags.insert(holder);
     }
 
@@ -86,17 +85,17 @@ impl PropertyPermMemo {
     }
 
     #[inline]
-    fn invalidate_known_for_holder(&mut self, holder: &ObjAndUUIDHolder) {
+    fn invalidate_known_for_holder(&mut self, holder: &PropertyKey) {
         self.known_propflags.remove(holder);
     }
 
     #[inline]
-    fn cached_perms(&self, holder: &ObjAndUUIDHolder) -> Option<PropPerms> {
+    fn cached_perms(&self, holder: &PropertyKey) -> Option<PropPerms> {
         self.perms_by_holder.borrow().get(holder).cloned()
     }
 
     #[inline]
-    fn cache_perms(&self, holder: ObjAndUUIDHolder, perms: PropPerms) {
+    fn cache_perms(&self, holder: PropertyKey, perms: PropPerms) {
         self.perms_by_holder.borrow_mut().insert(holder, perms);
     }
 
@@ -108,7 +107,7 @@ impl PropertyPermMemo {
     }
 
     #[inline]
-    fn invalidate_cached_for_holder(&self, holder: &ObjAndUUIDHolder) {
+    fn invalidate_cached_for_holder(&self, holder: &PropertyKey) {
         self.perms_by_holder.borrow_mut().remove(holder);
     }
 
@@ -134,7 +133,7 @@ fn upsert<Domain, Codomain>(
     c: Codomain,
 ) -> Result<Option<Codomain>, Error>
 where
-    Domain: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + Display + 'static,
+    Domain: crate::tx::RelationDomain,
     Codomain: crate::tx::RelationCodomain,
     FjallProvider<Domain, Codomain>:
         EncodeFor<Domain, Stored = ByteView> + EncodeFor<Codomain, Stored = ByteView>,
@@ -150,7 +149,7 @@ fn insert_guaranteed_unique<Domain, Codomain>(
     c: Codomain,
 ) -> Result<(), Error>
 where
-    Domain: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + Display + 'static,
+    Domain: crate::tx::RelationDomain,
     Codomain: crate::tx::RelationCodomain,
     FjallProvider<Domain, Codomain>:
         EncodeFor<Domain, Stored = ByteView> + EncodeFor<Codomain, Stored = ByteView>,
@@ -319,7 +318,7 @@ impl WorldStateTransaction {
         let mut preserved = Vec::new();
         for ancestor in ancestors.iter().filter(|ancestor| ancestor != obj) {
             for property in self.get_properties(&ancestor)?.iter() {
-                let holder = ObjAndUUIDHolder::new(obj, property.uuid());
+                let holder = PropertyKey::new(obj, property.uuid());
                 // The decision to preserve or skip a property also depends on
                 // whether another transaction changes its local permissions.
                 self.inherited_policy_reads.insert(holder.clone());
@@ -500,7 +499,7 @@ impl WorldStateTransaction {
 
         for p in propdefs.iter() {
             edit.object_propvalues
-                .delete(&ObjAndUUIDHolder::new(obj, p.uuid()))
+                .delete(&PropertyKey::new(obj, p.uuid()))
                 .map_err(|e| database_error(&e, format!("Error deleting property value: {e:?}")))?;
         }
 
@@ -602,7 +601,7 @@ impl WorldStateTransaction {
         // Batch delete property values
         for (obj, prop_uuid) in properties_to_delete {
             edit.object_propvalues
-                .delete(&ObjAndUUIDHolder::new(&obj, prop_uuid))
+                .delete(&PropertyKey::new(&obj, prop_uuid))
                 .map_err(|e| database_error(&e, format!("Error deleting property value: {e:?}")))?;
         }
 
@@ -904,7 +903,7 @@ impl WorldStateTransaction {
     pub fn get_verb_program(&self, obj: &Obj, uuid: Uuid) -> Result<ProgramType, WorldStateError> {
         let r = self
             .object_verbs
-            .get(&ObjAndUUIDHolder::new(obj, uuid))
+            .get(&VerbKey::new(obj, uuid))
             .map_err(|e| database_error(&e, format!("Error getting verb binary: {e:?}")))?;
         let Some(program) = r else {
             return Err(WorldStateError::VerbNotFound(*obj, format!("{uuid}")));
@@ -1223,7 +1222,7 @@ impl WorldStateTransaction {
         }
 
         if let Some(program) = verb_attrs.program {
-            upsert(edit.object_verbs, ObjAndUUIDHolder::new(obj, uuid), program)
+            upsert(edit.object_verbs, VerbKey::new(obj, uuid), program)
                 .map_err(|e| database_error(&e, format!("Error setting verb binary: {e:?}")))?;
         }
         Ok(())
@@ -1250,7 +1249,7 @@ impl WorldStateTransaction {
         upsert(edit.object_verbdefs, *oid, verbdefs)
             .map_err(|e| database_error(&e, format!("Error setting verb definition: {e:?}")))?;
 
-        upsert(edit.object_verbs, ObjAndUUIDHolder::new(oid, uuid), program)
+        upsert(edit.object_verbs, VerbKey::new(oid, uuid), program)
             .map_err(|e| database_error(&e, format!("Error setting verb binary: {e:?}")))?;
 
         Ok(())
@@ -1267,7 +1266,7 @@ impl WorldStateTransaction {
             .map_err(|e| database_error(&e, format!("Error setting verb definition: {e:?}")))?;
 
         edit.object_verbs
-            .delete(&ObjAndUUIDHolder::new(location, uuid))
+            .delete(&VerbKey::new(location, uuid))
             .map_err(|e| database_error(&e, format!("Error deleting verb binary: {e:?}")))?;
         edit.delete_verb_metadata_for_holder(location, uuid)?;
         Ok(())
@@ -1466,7 +1465,7 @@ impl WorldStateTransaction {
         obj: &Obj,
         uuid: Uuid,
     ) -> Result<(), WorldStateError> {
-        let holder = ObjAndUUIDHolder::new(obj, uuid);
+        let holder = PropertyKey::new(obj, uuid);
         if self
             .object_propflags
             .has_domain(&holder)
@@ -1476,7 +1475,7 @@ impl WorldStateTransaction {
         }
         let definer = self.find_property_by_uuid(obj, uuid)?.definer();
         self.inherited_policy_reads
-            .insert(ObjAndUUIDHolder::new(&definer, uuid));
+            .insert(PropertyKey::new(&definer, uuid));
         Ok(())
     }
 
@@ -1489,7 +1488,7 @@ impl WorldStateTransaction {
         if value.is_none() {
             return Err(WorldStateError::PropertyTypeMismatch);
         }
-        let holder = ObjAndUUIDHolder::new(obj, uuid);
+        let holder = PropertyKey::new(obj, uuid);
 
         // Set the property value
         self.object_propvalues
@@ -1579,13 +1578,13 @@ impl WorldStateTransaction {
             // Always create propflags entry for the defining location (canonical permissions)
             upsert(
                 edit.object_propflags,
-                ObjAndUUIDHolder::new(location, u),
+                PropertyKey::new(location, u),
                 PropPerms::new(*owner, perms),
             )
             .map_err(|e| database_error(&e, format!("Error setting property owner: {e:?}")))?;
         }
         self.prop_perm_memo
-            .mark_known_propflags(ObjAndUUIDHolder::new(location, u));
+            .mark_known_propflags(PropertyKey::new(location, u));
 
         // If we have an initial value, set it, but just on ourselves. Descendants start out clear.
         if let Some(value) = value {
@@ -1654,15 +1653,11 @@ impl WorldStateTransaction {
                     objects,
                     removed: None,
                 });
-                upsert(
-                    edit.object_propflags,
-                    ObjAndUUIDHolder::new(obj, uuid),
-                    perms,
-                )
-                .map_err(|e| database_error(&e, format!("Error updating property: {e:?}")))?;
+                upsert(edit.object_propflags, PropertyKey::new(obj, uuid), perms)
+                    .map_err(|e| database_error(&e, format!("Error updating property: {e:?}")))?;
             }
             self.prop_perm_memo
-                .mark_known_propflags(ObjAndUUIDHolder::new(obj, uuid));
+                .mark_known_propflags(PropertyKey::new(obj, uuid));
         }
 
         Ok(())
@@ -1672,7 +1667,7 @@ impl WorldStateTransaction {
         let edit = self.edit(EditScope::PropertyValue(*obj));
         // remove property value
         edit.object_propvalues
-            .delete(&ObjAndUUIDHolder::new(obj, uuid))
+            .delete(&PropertyKey::new(obj, uuid))
             .map_err(|e| database_error(&e, format!("Error clearing property value: {e:?}")))?;
         Ok(())
     }
@@ -1683,7 +1678,7 @@ impl WorldStateTransaction {
         obj: &Obj,
         uuid: Uuid,
     ) -> Result<(), WorldStateError> {
-        let holder = ObjAndUUIDHolder::new(obj, uuid);
+        let holder = PropertyKey::new(obj, uuid);
         {
             let edit = self.edit(EditScope::Permissions(holder.clone()));
             edit.object_propflags.delete(&holder).map_err(|e| {
@@ -1721,7 +1716,7 @@ impl WorldStateTransaction {
         obj: &Obj,
         definition: PropDef,
     ) -> Result<moor_common::model::PropertySnapshot, WorldStateError> {
-        let holder = ObjAndUUIDHolder::new(obj, definition.uuid());
+        let holder = PropertyKey::new(obj, definition.uuid());
         let value = self.object_propvalues.get(&holder).map_err(|e| {
             database_error(&e, format!("Error reading local property value: {e:?}"))
         })?;
@@ -1747,7 +1742,7 @@ impl WorldStateTransaction {
     ) -> Result<(Option<Var>, PropPerms), WorldStateError> {
         let r = self
             .object_propvalues
-            .get(&ObjAndUUIDHolder::new(obj, uuid))
+            .get(&PropertyKey::new(obj, uuid))
             .map_err(|e| database_error(&e, format!("Error getting property value: {e:?}")))?;
         let value = r;
 
@@ -1783,7 +1778,7 @@ impl WorldStateTransaction {
                 for search_obj in ancestors.iter() {
                     let value = self
                         .object_propvalues
-                        .get(&ObjAndUUIDHolder::new(&search_obj, uuid))
+                        .get(&PropertyKey::new(&search_obj, uuid))
                         .map_err(|e| {
                             database_error(&e, format!("Error getting property value: {e:?}"))
                         })?;
@@ -1801,7 +1796,7 @@ impl WorldStateTransaction {
         obj: &Obj,
         uuid: Uuid,
     ) -> Result<PropPerms, WorldStateError> {
-        let holder = ObjAndUUIDHolder::new(obj, uuid);
+        let holder = PropertyKey::new(obj, uuid);
         if let Some(perms) = self.prop_perm_memo.cached_perms(&holder) {
             return Ok(perms);
         }
@@ -1822,7 +1817,7 @@ impl WorldStateTransaction {
         let defining_obj = propdef.definer();
 
         // Get the canonical permissions from the defining object
-        let canonical_holder = ObjAndUUIDHolder::new(&defining_obj, uuid);
+        let canonical_holder = PropertyKey::new(&defining_obj, uuid);
         let canonical_perms = self
             .object_propflags
             .with_domain_value(&canonical_holder, |perms| perms.clone())
@@ -1970,7 +1965,7 @@ impl WorldStateTransaction {
                 for search_obj in ancestors.iter() {
                     let value = self
                         .object_propvalues
-                        .get(&ObjAndUUIDHolder::new(&search_obj, propdef.uuid()))
+                        .get(&PropertyKey::new(&search_obj, propdef.uuid()))
                         .map_err(|e| {
                             database_error(&e, format!("Error getting property value: {e:?}"))
                         })?;
@@ -2389,8 +2384,8 @@ impl WorldStateTransaction {
 
                 // Move verb programs for each verb
                 for verb in verbdefs.iter() {
-                    let old_holder = ObjAndUUIDHolder::new(old_obj, verb.uuid());
-                    let new_holder = ObjAndUUIDHolder::new(&new_obj, verb.uuid());
+                    let old_holder = VerbKey::new(old_obj, verb.uuid());
+                    let new_holder = VerbKey::new(&new_obj, verb.uuid());
 
                     // Move verb program if it exists
                     if let Ok(Some(program)) = edit.object_verbs.get(&old_holder) {
@@ -2459,7 +2454,7 @@ impl WorldStateTransaction {
                 })?;
 
             for (old_holder, value) in all_prop_values {
-                let new_holder = ObjAndUUIDHolder::new(&new_obj, old_holder.uuid());
+                let new_holder = PropertyKey::new(&new_obj, old_holder.uuid());
                 edit.object_propvalues.delete(&old_holder).map_err(|e| {
                     database_error(&e, format!("Error deleting old property value: {e:?}"))
                 })?;
@@ -2477,7 +2472,7 @@ impl WorldStateTransaction {
                 .map_err(|e| database_error(&e, format!("Error scanning property flags: {e:?}")))?;
 
             for (old_holder, flags) in all_prop_flags {
-                let new_holder = ObjAndUUIDHolder::new(&new_obj, old_holder.uuid());
+                let new_holder = PropertyKey::new(&new_obj, old_holder.uuid());
                 edit.object_propflags.delete(&old_holder).map_err(|e| {
                     database_error(&e, format!("Error deleting old property flags: {e:?}"))
                 })?;

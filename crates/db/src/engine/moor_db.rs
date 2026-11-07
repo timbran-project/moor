@@ -17,8 +17,8 @@
 //! commit application, and background durability workers.
 
 use crate::{
-    AnonymousObjectMetadata, DatabaseOpenError, EntityMetadataKey, ObjAndUUIDHolder,
-    RelationCompactionResult, StorageMaintenanceStats, StringHolder,
+    AnonymousObjectMetadata, DatabaseOpenError, EntityMetadataKey, PropertyKey,
+    RelationCompactionResult, StorageMaintenanceStats, StringHolder, VerbKey,
     cache::{
         ancestry_cache::AncestryCache, prop_cache::PropResolutionCache,
         verb_cache::VerbResolutionCache,
@@ -39,9 +39,7 @@ use moor_common::model::loader::SnapshotInterface;
 use moor_common::util::CachePadded;
 use moor_common::util::Instant;
 use moor_common::{
-    model::{
-        CommitResult, HasUuid, ObjFlag, PropDefs, PropPerms, ValSet, VerbDefs, WorldStateError,
-    },
+    model::{CommitResult, ObjFlag, PropDefs, PropPerms, VerbDefs, WorldStateError},
     util::BitEnum,
 };
 use moor_var::{NOTHING, Obj, Symbol, Var, program::ProgramType};
@@ -70,10 +68,10 @@ define_relations! {
     object_owner == Obj, Obj,
     object_name => Obj, StringHolder,
     object_verbdefs => Obj, VerbDefs,
-    object_verbs => ObjAndUUIDHolder, ProgramType,
+    object_verbs => VerbKey, ProgramType,
     object_propdefs => Obj, PropDefs,
-    object_propvalues => ObjAndUUIDHolder, Var [PropertyValueProvider],
-    object_propflags => ObjAndUUIDHolder, PropPerms,
+    object_propvalues => PropertyKey, Var [PropertyValueProvider],
+    object_propflags => PropertyKey, PropPerms,
     entity_metadata == EntityMetadataKey, Var,
     object_last_move => Obj, Var,
     anonymous_object_metadata => Obj, AnonymousObjectMetadata,
@@ -469,16 +467,9 @@ impl MoorDB {
                 path: path_buf.clone(),
             })?
             .max(1);
-        let property_names = initial_root
-            .object_propdefs
-            .iter()
-            .flat_map(|(_, entry)| entry.value.iter())
-            .map(|definition| (definition.uuid(), definition.name()))
-            .collect();
         let snapshot_planes = SnapshotPlanes::new(Arc::new(initial_root));
         let batch_writer = BatchWriter::with_property_value_state(
             keyspace.clone(),
-            property_names,
             property_value_chains,
             PROPERTY_VALUE_CHAIN_LIMITS,
         );
@@ -570,6 +561,7 @@ mod tests {
         PropertyValueRecordKind, decode_property_value_record, decode_property_value_record_key,
     };
     use fjall::PersistMode;
+    use moor_common::model::HasUuid;
     use moor_common::{
         model::{CommitResult, ObjAttrs, ObjectKind, PropFlag},
         util::BitEnum,
@@ -578,7 +570,7 @@ mod tests {
 
     fn property_value_records(
         db: &MoorDB,
-    ) -> Vec<(ObjAndUUIDHolder, u64, PropertyValueRecordKind, Timestamp)> {
+    ) -> Vec<(PropertyKey, u64, PropertyValueRecordKind, Timestamp)> {
         db.relations
             .object_propvalues
             .provider()
@@ -703,7 +695,7 @@ mod tests {
         };
         db.wait_for_persistence().unwrap();
 
-        let property = ObjAndUUIDHolder::new(&object, property_uuid);
+        let property = PropertyKey::new(&object, property_uuid);
         let records = property_value_records(&db);
         assert_eq!(records.len(), 2);
         assert!(records.iter().all(|(stored, ..)| stored == &property));
@@ -857,7 +849,7 @@ mod tests {
         let root = reopened.snapshot_planes.load_root();
         let provider = reopened.relations.object_propvalues.provider();
         for (object, property, uuid) in &properties {
-            let key = ObjAndUUIDHolder::new(object, *uuid);
+            let key = PropertyKey::new(object, *uuid);
             let seeded = root
                 .object_propvalues
                 .index_lookup(&key)

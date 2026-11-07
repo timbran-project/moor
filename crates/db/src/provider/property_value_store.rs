@@ -14,7 +14,7 @@
 //! Physical record codec and bounded reconstruction for incremental property values.
 
 use crate::{
-    ObjAndUUIDHolder, db_counters,
+    PropertyKey, db_counters,
     tx::{OpType, Timestamp, WorkingSet},
 };
 use moor_common::{
@@ -30,7 +30,7 @@ use zerocopy::{FromBytes, IntoBytes};
 const RECORD_MAGIC: [u8; 4] = *b"MPRV";
 const RECORD_FORMAT_VERSION: u8 = 1;
 const RECORD_HEADER_BYTES: usize = 16;
-const PROPERTY_KEY_BYTES: usize = std::mem::size_of::<ObjAndUUIDHolder>();
+const PROPERTY_KEY_BYTES: usize = std::mem::size_of::<PropertyKey>();
 pub(crate) const PROPERTY_RECORD_KEY_BYTES: usize = PROPERTY_KEY_BYTES + size_of::<u64>();
 
 const FULL_RECORD_KIND: u8 = 0;
@@ -42,7 +42,7 @@ pub(crate) const PROPERTY_VALUE_CHAIN_LIMITS: PropertyValueChainLimits =
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct PreparedPropertyValueOp {
-    pub property: ObjAndUUIDHolder,
+    pub property: PropertyKey,
     pub mutation: PreparedPropertyValueMutation,
 }
 
@@ -54,7 +54,7 @@ pub(crate) enum PreparedPropertyValueMutation {
 }
 
 pub(crate) fn prepare_property_value_working_set(
-    working_set: WorkingSet<ObjAndUUIDHolder, Var>,
+    working_set: WorkingSet<PropertyKey, Var>,
 ) -> Vec<PreparedPropertyValueOp> {
     let operation_count = working_set.len();
     let (operations, base_index) = working_set.into_parts();
@@ -229,12 +229,12 @@ impl PropertyValueChainLimits {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct PropertyValueRecordKey {
-    pub property: ObjAndUUIDHolder,
+    pub property: PropertyKey,
     pub record_version: u64,
 }
 
 pub(crate) fn encode_property_value_record_key(
-    property: &ObjAndUUIDHolder,
+    property: &PropertyKey,
     record_version: u64,
 ) -> [u8; PROPERTY_RECORD_KEY_BYTES] {
     let mut key = [0; PROPERTY_RECORD_KEY_BYTES];
@@ -250,7 +250,7 @@ pub(crate) fn decode_property_value_record_key(
         return Err(PropertyValueRecordError::InvalidKeyLength);
     }
 
-    let property = ObjAndUUIDHolder::read_from_bytes(&key[..PROPERTY_KEY_BYTES])
+    let property = PropertyKey::read_from_bytes(&key[..PROPERTY_KEY_BYTES])
         .map_err(|_| PropertyValueRecordError::InvalidKeyLength)?;
     let record_version = u64::from_be_bytes(
         key[PROPERTY_KEY_BYTES..]
@@ -264,7 +264,7 @@ pub(crate) fn decode_property_value_record_key(
 }
 
 pub(crate) fn property_value_record_bounds(
-    property: &ObjAndUUIDHolder,
+    property: &PropertyKey,
 ) -> (
     [u8; PROPERTY_RECORD_KEY_BYTES],
     [u8; PROPERTY_RECORD_KEY_BYTES],
@@ -533,14 +533,12 @@ impl PropertyValueReconstructor {
 }
 
 struct ActiveProperty {
-    property: ObjAndUUIDHolder,
+    property: PropertyKey,
     reconstructor: PropertyValueReconstructor,
 }
 
 impl ActiveProperty {
-    fn finish(
-        self,
-    ) -> Result<(ObjAndUUIDHolder, ReconstructedPropertyValue), PropertyValueRecordError> {
+    fn finish(self) -> Result<(PropertyKey, ReconstructedPropertyValue), PropertyValueRecordError> {
         Ok((self.property, self.reconstructor.finish()?))
     }
 }
@@ -571,8 +569,7 @@ impl PropertyValueScan {
     fn fail(
         &mut self,
         error: PropertyValueRecordError,
-    ) -> Option<Result<(ObjAndUUIDHolder, ReconstructedPropertyValue), PropertyValueRecordError>>
-    {
+    ) -> Option<Result<(PropertyKey, ReconstructedPropertyValue), PropertyValueRecordError>> {
         self.state = PropertyScanState::Terminal;
         self.pending = None;
         Some(Err(error))
@@ -580,7 +577,7 @@ impl PropertyValueScan {
 }
 
 impl Iterator for PropertyValueScan {
-    type Item = Result<(ObjAndUUIDHolder, ReconstructedPropertyValue), PropertyValueRecordError>;
+    type Item = Result<(PropertyKey, ReconstructedPropertyValue), PropertyValueRecordError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if matches!(self.state, PropertyScanState::Terminal) {
@@ -643,7 +640,7 @@ impl std::iter::FusedIterator for PropertyValueScan {}
 pub(crate) fn reconstruct_property_value(
     records: fjall::Iter,
     limits: PropertyValueChainLimits,
-) -> Result<Option<(ObjAndUUIDHolder, ReconstructedPropertyValue)>, PropertyValueRecordError> {
+) -> Result<Option<(PropertyKey, ReconstructedPropertyValue)>, PropertyValueRecordError> {
     let mut scan = PropertyValueScan::new(records, limits);
     let first = scan.next().transpose()?;
     if scan.next().transpose()?.is_some() {
@@ -666,8 +663,8 @@ mod tests {
 
     const LIMITS: PropertyValueChainLimits = PropertyValueChainLimits::new(4, 4096);
 
-    fn holder() -> ObjAndUUIDHolder {
-        ObjAndUUIDHolder::new(&Obj::mk_id(42), Uuid::from_u128(0x1234))
+    fn holder() -> PropertyKey {
+        PropertyKey::new(&Obj::mk_id(42), Uuid::from_u128(0x1234))
     }
 
     fn scan_partition() -> (tempfile::TempDir, fjall::Database, fjall::Keyspace) {
@@ -687,7 +684,7 @@ mod tests {
         assert!(empty.next().is_none());
 
         let first = holder();
-        let second = ObjAndUUIDHolder::new(&Obj::mk_id(42), Uuid::from_u128(0x1235));
+        let second = PropertyKey::new(&Obj::mk_id(42), Uuid::from_u128(0x1235));
         let mut builder = planus::Builder::new();
         let full = encode_full_record(&mut builder, &v_list(&[v_int(1)]), Timestamp(1)).unwrap();
         partition
@@ -739,8 +736,8 @@ mod tests {
         partition.remove(b"bad").unwrap();
 
         let first = holder();
-        let second = ObjAndUUIDHolder::new(&Obj::mk_id(42), Uuid::from_u128(0x1235));
-        let third = ObjAndUUIDHolder::new(&Obj::mk_id(42), Uuid::from_u128(0x1236));
+        let second = PropertyKey::new(&Obj::mk_id(42), Uuid::from_u128(0x1235));
+        let third = PropertyKey::new(&Obj::mk_id(42), Uuid::from_u128(0x1236));
         let full =
             encode_full_record(&mut planus::Builder::new(), &v_int(1), Timestamp(1)).unwrap();
         partition

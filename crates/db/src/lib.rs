@@ -46,14 +46,14 @@ pub use cache::{
 };
 pub use config::{DatabaseConfig, TableConfig};
 pub use model::{
-    AnonymousObjectMetadata, BytesHolder, EntityMetadataKey, ObjAndUUIDHolder, StringHolder,
-    SystemTimeHolder, UUIDHolder,
+    AnonymousObjectMetadata, BytesHolder, EntityMetadataKey, PropertyKey, StringHolder,
+    SystemTimeHolder, UUIDHolder, VerbKey,
 };
 pub use provider::Provider;
 pub use tx::{
-    CheckRelation, ConflictResolver, Error, FailOnConflict, PotentialConflict, ProposedOp,
-    Relation, RelationCodomain, RelationCodomainHashable, RelationDomain, RelationIndex,
-    RelationTransaction, Timestamp, Tx, WorkingSet,
+    CheckRelation, ConflictResolver, Error, FailOnConflict, KeyTarget, PotentialConflict,
+    ProposedOp, Relation, RelationCodomain, RelationCodomainHashable, RelationDomain,
+    RelationIndex, RelationTransaction, Timestamp, Tx, WorkingSet,
 };
 
 pub const DEFAULT_COMMIT_QUEUE_WARN: Duration = Duration::from_secs(1);
