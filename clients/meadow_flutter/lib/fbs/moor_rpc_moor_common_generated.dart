@@ -1675,10 +1675,12 @@ class DataEvent {
   Symbol? get kind => Symbol.reader.vTableGetNullable(_bc, _bcOffset, 6);
   moor_var.Var? get payload =>
       moor_var.Var.reader.vTableGetNullable(_bc, _bcOffset, 8);
+  bool get ephemeral =>
+      const fb.BoolReader().vTableGet(_bc, _bcOffset, 10, false);
 
   @override
   String toString() {
-    return 'DataEvent{domain: ${domain}, kind: ${kind}, payload: ${payload}}';
+    return 'DataEvent{domain: ${domain}, kind: ${kind}, payload: ${payload}, ephemeral: ${ephemeral}}';
   }
 }
 
@@ -1696,7 +1698,7 @@ class DataEventBuilder {
   final fb.Builder fbBuilder;
 
   void begin() {
-    fbBuilder.startTable(3);
+    fbBuilder.startTable(4);
   }
 
   int addDomainOffset(int? offset) {
@@ -1714,6 +1716,11 @@ class DataEventBuilder {
     return fbBuilder.offset;
   }
 
+  int addEphemeral(bool? ephemeral) {
+    fbBuilder.addBool(3, ephemeral);
+    return fbBuilder.offset;
+  }
+
   int finish() {
     return fbBuilder.endTable();
   }
@@ -1723,14 +1730,17 @@ class DataEventObjectBuilder extends fb.ObjectBuilder {
   final SymbolObjectBuilder? _domain;
   final SymbolObjectBuilder? _kind;
   final moor_var.VarObjectBuilder? _payload;
+  final bool? _ephemeral;
 
   DataEventObjectBuilder({
     SymbolObjectBuilder? domain,
     SymbolObjectBuilder? kind,
     moor_var.VarObjectBuilder? payload,
+    bool? ephemeral,
   }) : _domain = domain,
        _kind = kind,
-       _payload = payload;
+       _payload = payload,
+       _ephemeral = ephemeral;
 
   /// Finish building, and store into the [fbBuilder].
   @override
@@ -1738,10 +1748,98 @@ class DataEventObjectBuilder extends fb.ObjectBuilder {
     final int? domainOffset = _domain?.getOrCreateOffset(fbBuilder);
     final int? kindOffset = _kind?.getOrCreateOffset(fbBuilder);
     final int? payloadOffset = _payload?.getOrCreateOffset(fbBuilder);
-    fbBuilder.startTable(3);
+    fbBuilder.startTable(4);
     fbBuilder.addOffset(0, domainOffset);
     fbBuilder.addOffset(1, kindOffset);
     fbBuilder.addOffset(2, payloadOffset);
+    fbBuilder.addBool(3, _ephemeral);
+    return fbBuilder.endTable();
+  }
+
+  /// Convenience method to serialize to byte list.
+  @override
+  Uint8List toBytes([String? fileIdentifier]) {
+    final fbBuilder = fb.Builder(deduplicateTables: false);
+    fbBuilder.finish(finish(fbBuilder), fileIdentifier);
+    return fbBuilder.buffer;
+  }
+}
+
+class ClientDataMessage {
+  ClientDataMessage._(this._bc, this._bcOffset);
+  factory ClientDataMessage(List<int> bytes) {
+    final rootRef = fb.BufferContext.fromBytes(bytes);
+    return reader.read(rootRef, 0);
+  }
+
+  static const fb.Reader<ClientDataMessage> reader = _ClientDataMessageReader();
+
+  final fb.BufferContext _bc;
+  final int _bcOffset;
+
+  String? get kind =>
+      const fb.StringReader().vTableGetNullable(_bc, _bcOffset, 4);
+  moor_var.Var? get payload =>
+      moor_var.Var.reader.vTableGetNullable(_bc, _bcOffset, 6);
+
+  @override
+  String toString() {
+    return 'ClientDataMessage{kind: ${kind}, payload: ${payload}}';
+  }
+}
+
+class _ClientDataMessageReader extends fb.TableReader<ClientDataMessage> {
+  const _ClientDataMessageReader();
+
+  @override
+  ClientDataMessage createObject(fb.BufferContext bc, int offset) =>
+      ClientDataMessage._(bc, offset);
+}
+
+class ClientDataMessageBuilder {
+  ClientDataMessageBuilder(this.fbBuilder);
+
+  final fb.Builder fbBuilder;
+
+  void begin() {
+    fbBuilder.startTable(2);
+  }
+
+  int addKindOffset(int? offset) {
+    fbBuilder.addOffset(0, offset);
+    return fbBuilder.offset;
+  }
+
+  int addPayloadOffset(int? offset) {
+    fbBuilder.addOffset(1, offset);
+    return fbBuilder.offset;
+  }
+
+  int finish() {
+    return fbBuilder.endTable();
+  }
+}
+
+class ClientDataMessageObjectBuilder extends fb.ObjectBuilder {
+  final String? _kind;
+  final moor_var.VarObjectBuilder? _payload;
+
+  ClientDataMessageObjectBuilder({
+    String? kind,
+    moor_var.VarObjectBuilder? payload,
+  }) : _kind = kind,
+       _payload = payload;
+
+  /// Finish building, and store into the [fbBuilder].
+  @override
+  int finish(fb.Builder fbBuilder) {
+    final int? kindOffset = _kind == null
+        ? null
+        : fbBuilder.writeString(_kind!);
+    final int? payloadOffset = _payload?.getOrCreateOffset(fbBuilder);
+    fbBuilder.startTable(2);
+    fbBuilder.addOffset(0, kindOffset);
+    fbBuilder.addOffset(1, payloadOffset);
     return fbBuilder.endTable();
   }
 

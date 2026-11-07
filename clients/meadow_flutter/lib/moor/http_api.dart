@@ -24,33 +24,84 @@ import 'package:meadow_flutter/fbs/moor_rpc_moor_var_generated.dart'
     as moor_var;
 import 'package:meadow_flutter/moor/content_type.dart';
 import 'package:meadow_flutter/moor/models.dart';
+import 'package:meadow_flutter/moor/task_outcome.dart';
 import 'package:meadow_flutter/moor/types/moor_obj.dart';
 import 'package:meadow_flutter/moor/types/moor_var.dart';
 import 'package:meadow_flutter/moor/types/moor_var_ext.dart';
 
+/// A task that ran to completion, with the output it addressed to its caller.
 class CapturedInvocationSuccess {
-  final moor_rpc.InvocationSuccess response;
+  final moor_rpc.TaskOutcome outcome;
+  final moor_rpc.TaskCompleted completed;
   final List<moor_common.NarrativeEvent> output;
 
   const CapturedInvocationSuccess({
-    required this.response,
+    required this.outcome,
+    required this.completed,
     required this.output,
   });
 
-  moor_var.Var? get result => response.result;
+  moor_var.Var? get result => completed.result;
 }
 
+/// A task that ran but did not complete: it suspended, aborted, or its result
+/// was lost. [outcome] says how it ended and whether its changes were kept.
 class CapturedInvocationException implements Exception {
-  final moor_rpc.InvocationError response;
+  final moor_rpc.TaskOutcome outcome;
   final List<moor_common.NarrativeEvent> output;
 
   const CapturedInvocationException({
-    required this.response,
+    required this.outcome,
     required this.output,
   });
 
+  moor_rpc.Kept get kept => outcome.kept;
+
+  String get message => describeTaskOutcome(outcome);
+
   @override
-  String toString() => 'Invocation failed: $response';
+  String toString() => 'Invocation failed: $message';
+}
+
+/// Code sent to `/v1/eval` that does not compile. No task ran.
+class EvalCompileException implements Exception {
+  final String message;
+
+  /// The compiler's diagnostics, as the server's JSON `compile_error`.
+  final Object? compileError;
+
+  const EvalCompileException({
+    required this.message,
+    this.compileError,
+  });
+
+  @override
+  String toString() => message;
+}
+
+/// The completed task in [invocation], or [CapturedInvocationException] if
+/// the task did not complete.
+CapturedInvocationSuccess _completedInvocation(
+  moor_rpc.InvocationResponse invocation, {
+  required String context,
+}) {
+  final outcome = invocation.outcome;
+  if (outcome == null) {
+    throw Exception('$context: missing TaskOutcome');
+  }
+  final output = invocation.output ?? const <moor_common.NarrativeEvent>[];
+  if (outcome.endingType != moor_rpc.TaskEndingTypeId.TaskCompleted) {
+    throw CapturedInvocationException(outcome: outcome, output: output);
+  }
+  final completed = outcome.ending as moor_rpc.TaskCompleted?;
+  if (completed == null) {
+    throw Exception('$context: missing TaskCompleted');
+  }
+  return CapturedInvocationSuccess(
+    outcome: outcome,
+    completed: completed,
+    output: output,
+  );
 }
 
 class MoorHttpApi {
@@ -96,41 +147,33 @@ class MoorHttpApi {
       throw Exception('welcome message: missing InvocationResponse');
     }
 
-    if (invocation.outcomeType?.value !=
-        moor_rpc.InvocationOutcomeTypeId.InvocationSuccess.value) {
-      throw Exception('welcome message: verb call failed');
-    }
-
-    final success = invocation.outcome as moor_rpc.InvocationSuccess?;
-    if (success == null) {
-      throw Exception('welcome message: missing InvocationSuccess');
-    }
+    final success = _completedInvocation(
+      invocation,
+      context: 'welcome message',
+    );
 
     // Mirror Meadow web behavior: first NotifyEvent in the output determines
     // the welcome message and content type.
     var contentType = 'text/plain';
     var outLines = const <String>[];
 
-    final output = invocation.output;
-    if (output != null) {
-      for (final evt in output) {
-        final e = evt.event;
-        if (e == null) {
-          continue;
-        }
-        if (e.eventType?.value !=
-            moor_common.EventUnionTypeId.NotifyEvent.value) {
-          continue;
-        }
-        final notify = e.event as moor_common.NotifyEvent?;
-        if (notify == null) {
-          continue;
-        }
-
-        outLines = MoorVar.fromFlatBuffer(notify.value!).asLines();
-        contentType = normalizeContentType(notify.contentType?.value);
-        break;
+    for (final evt in success.output) {
+      final e = evt.event;
+      if (e == null) {
+        continue;
       }
+      if (e.eventType?.value !=
+          moor_common.EventUnionTypeId.NotifyEvent.value) {
+        continue;
+      }
+      final notify = e.event as moor_common.NotifyEvent?;
+      if (notify == null) {
+        continue;
+      }
+
+      outLines = MoorVar.fromFlatBuffer(notify.value!).asLines();
+      contentType = normalizeContentType(notify.contentType?.value);
+      break;
     }
 
     return WelcomeMessage(lines: outLines, contentType: contentType);
@@ -334,23 +377,6 @@ class MoorHttpApi {
       if (v != null) {
         value = MoorVar.fromFlatBuffer(v);
       }
-    } else if (replyType ==
-        moor_rpc
-            .DaemonToClientReplyUnionTypeId
-            .SystemHandlerResponseReply
-            .value) {
-      final handler = reply.reply as moor_rpc.SystemHandlerResponseReply?;
-      if (handler?.responseType?.value ==
-          moor_rpc
-              .SystemHandlerResponseUnionTypeId
-              .SystemHandlerSuccess
-              .value) {
-        final success = handler?.response as moor_rpc.SystemHandlerSuccess?;
-        final v = success?.result;
-        if (v != null) {
-          value = MoorVar.fromFlatBuffer(v);
-        }
-      }
     } else {
       throw Exception('system property: unexpected reply type $replyType');
     }
@@ -515,26 +541,10 @@ class MoorHttpApi {
 
     // Unlike most /v1 endpoints, /invoke returns a raw InvocationResponse buffer
     // (see clients/web-sdk/src/verb.ts:parseVerbCallSuccessFromBytes).
-    final invocation = moor_rpc.InvocationResponse(resp.bodyBytes);
-    final outcome = invocation.outcome;
-    if (outcome == null) {
-      throw Exception('invoke verb: missing InvocationResponse');
-    }
-    final output = invocation.output ?? const <moor_common.NarrativeEvent>[];
-    if (invocation.outcomeType?.value !=
-        moor_rpc.InvocationOutcomeTypeId.InvocationSuccess.value) {
-      final error = outcome as moor_rpc.InvocationError?;
-      if (error == null) {
-        throw Exception('invoke verb: invalid error response ($outcome)');
-      }
-      throw CapturedInvocationException(response: error, output: output);
-    }
-
-    final success = outcome as moor_rpc.InvocationSuccess?;
-    if (success == null) {
-      throw Exception('invoke verb: missing InvocationSuccess');
-    }
-    return CapturedInvocationSuccess(response: success, output: output);
+    return _completedInvocation(
+      moor_rpc.InvocationResponse(resp.bodyBytes),
+      context: 'invoke verb',
+    );
   }
 
   Future<moor_rpc.VerbProgramResponse> compileVerb({
@@ -744,33 +754,41 @@ class MoorHttpApi {
     if (resp.statusCode == 401) {
       throw Exception('eval: unauthorized');
     }
+    if (resp.statusCode == 422) {
+      throw _evalCompileException(resp);
+    }
     if (resp.statusCode != 200) {
       throw Exception('eval http ${resp.statusCode}: ${resp.reasonPhrase}');
     }
 
-    final invocation = moor_rpc.InvocationResponse(resp.bodyBytes);
-    final outcome = invocation.outcome;
-    if (outcome == null) {
-      throw Exception('eval: missing InvocationResponse');
-    }
-    if (invocation.outcomeType?.value !=
-        moor_rpc.InvocationOutcomeTypeId.InvocationSuccess.value) {
-      final error = outcome as moor_rpc.InvocationError?;
-      if (error == null) {
-        throw Exception('eval: invalid error response ($outcome)');
-      }
-      throw CapturedInvocationException(
-        response: error,
-        output: invocation.output ?? const <moor_common.NarrativeEvent>[],
-      );
-    }
-
-    final success = outcome as moor_rpc.InvocationSuccess?;
-    final result = success?.result;
+    final success = _completedInvocation(
+      moor_rpc.InvocationResponse(resp.bodyBytes),
+      context: 'eval',
+    );
+    final result = success.result;
     if (result == null) {
-      throw Exception('eval: missing InvocationSuccess.result');
+      throw Exception('eval: missing TaskCompleted.result');
     }
     return MoorVar.fromFlatBuffer(result);
+  }
+
+  Exception _evalCompileException(http.Response resp) {
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(resp.body);
+    } on Object catch (e) {
+      return Exception('eval http 422: invalid error body ($e)');
+    }
+    if (decoded is! Map || decoded['code'] != 'compilation_error') {
+      return Exception('eval http 422: ${resp.reasonPhrase}');
+    }
+    final error = decoded['error'];
+    return EvalCompileException(
+      message: error is String && error.isNotEmpty
+          ? error
+          : 'Compilation error',
+      compileError: decoded['compile_error'],
+    );
   }
 
   Future<List<EncryptedHistoricalEvent>> fetchHistory({
