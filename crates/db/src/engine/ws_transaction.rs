@@ -118,6 +118,15 @@ impl PropertyPermMemo {
     }
 }
 
+/// Map a relation error to a world-state error. A conflict becomes `RollbackRetry`, so the task
+/// is retried instead of failing with a database error.
+fn database_error(error: &Error, message: String) -> WorldStateError {
+    match error {
+        Error::Conflict(_) => WorldStateError::RollbackRetry,
+        _ => WorldStateError::DatabaseError(message),
+    }
+}
+
 /// Upsert helper with shared trait bounds for relation-backed fields.
 fn upsert<Domain, Codomain>(
     table: &mut RTx<Domain, Codomain>,
@@ -154,9 +163,10 @@ impl WorldStateTransaction {
     pub fn object_valid(&self, obj: &Obj) -> Result<bool, WorldStateError> {
         match self.object_flags.has_domain(obj) {
             Ok(is_valid) => Ok(is_valid),
-            Err(e) => Err(WorldStateError::DatabaseError(format!(
-                "Error getting object flags: {e:?}"
-            ))),
+            Err(e) => Err(database_error(
+                &e,
+                format!("Error getting object flags: {e:?}"),
+            )),
         }
     }
 
@@ -166,9 +176,9 @@ impl WorldStateTransaction {
         &self,
         objs: T,
     ) -> Result<HashSet<Obj>, WorldStateError> {
-        self.object_flags.check_domains(objs).map_err(|e| {
-            WorldStateError::DatabaseError(format!("Error checking object flags: {e:?}"))
-        })
+        self.object_flags
+            .check_domains(objs)
+            .map_err(|e| database_error(&e, format!("Error checking object flags: {e:?}")))
     }
 
     pub fn ancestors(&self, obj: &Obj, include_self: bool) -> Result<ObjSet, WorldStateError> {
@@ -248,14 +258,15 @@ impl WorldStateTransaction {
         let objects = self
             .object_flags
             .scan(&|_, _| true)
-            .map_err(|e| WorldStateError::DatabaseError(format!("Error getting objects: {e:?}")))?;
+            .map_err(|e| database_error(&e, format!("Error getting objects: {e:?}")))?;
         Ok(ObjSet::from_iter(objects.iter().map(|(k, _)| *k)))
     }
 
     pub fn get_object_flags(&self, obj: &Obj) -> Result<BitEnum<ObjFlag>, WorldStateError> {
-        let r = self.object_flags.get(obj).map_err(|e| {
-            WorldStateError::DatabaseError(format!("Error getting object flags: {e:?}"))
-        })?;
+        let r = self
+            .object_flags
+            .get(obj)
+            .map_err(|e| database_error(&e, format!("Error getting object flags: {e:?}")))?;
         Ok(r.unwrap_or_default())
     }
 
@@ -263,7 +274,7 @@ impl WorldStateTransaction {
         let players = self
             .object_flags
             .scan(&|_, flags| flags.contains(ObjFlag::User))
-            .map_err(|e| WorldStateError::DatabaseError(format!("Error getting players: {e:?}")))?;
+            .map_err(|e| database_error(&e, format!("Error getting players: {e:?}")))?;
         Ok(ObjSet::from_iter(players.iter().map(|(k, _)| *k)))
     }
 
@@ -283,9 +294,10 @@ impl WorldStateTransaction {
     }
 
     pub fn get_object_owner(&self, obj: &Obj) -> Result<Obj, WorldStateError> {
-        let r = self.object_owner.get(obj).map_err(|e| {
-            WorldStateError::DatabaseError(format!("Error getting object owner: {e:?}"))
-        })?;
+        let r = self
+            .object_owner
+            .get(obj)
+            .map_err(|e| database_error(&e, format!("Error getting object owner: {e:?}")))?;
 
         Ok(r.unwrap_or(NOTHING))
     }
@@ -294,9 +306,7 @@ impl WorldStateTransaction {
         if self
             .object_owner
             .get(obj)
-            .map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error setting object owner: {e:?}"))
-            })?
+            .map_err(|e| database_error(&e, format!("Error setting object owner: {e:?}")))?
             .as_ref()
             == Some(owner)
         {
@@ -314,7 +324,7 @@ impl WorldStateTransaction {
                 // whether another transaction changes its local permissions.
                 self.inherited_policy_reads.insert(holder.clone());
                 if self.object_propflags.has_domain(&holder).map_err(|e| {
-                    WorldStateError::DatabaseError(format!("Error checking property flags: {e:?}"))
+                    database_error(&e, format!("Error checking property flags: {e:?}"))
                 })? {
                     continue;
                 }
@@ -329,17 +339,14 @@ impl WorldStateTransaction {
             {
                 let edit = self.edit(EditScope::Permissions(holder.clone()));
                 upsert(edit.object_propflags, holder.clone(), perms).map_err(|e| {
-                    WorldStateError::DatabaseError(format!(
-                        "Error preserving property flags: {e:?}"
-                    ))
+                    database_error(&e, format!("Error preserving property flags: {e:?}"))
                 })?;
             }
             self.prop_perm_memo.mark_known_propflags(holder);
         }
         let edit = self.edit(EditScope::Owner(*obj));
-        upsert(edit.object_owner, *obj, *owner).map_err(|e| {
-            WorldStateError::DatabaseError(format!("Error setting object owner: {e:?}"))
-        })?;
+        upsert(edit.object_owner, *obj, *owner)
+            .map_err(|e| database_error(&e, format!("Error setting object owner: {e:?}")))?;
         Ok(())
     }
 
@@ -353,16 +360,15 @@ impl WorldStateTransaction {
                 Some(existing) if *existing == flags => None,
                 _ => Some(flags),
             })
-            .map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error setting object flags: {e:?}"))
-            })?;
+            .map_err(|e| database_error(&e, format!("Error setting object flags: {e:?}")))?;
         Ok(())
     }
 
     pub fn get_object_name(&self, obj: &Obj) -> Result<String, WorldStateError> {
-        let r = self.object_name.get(obj).map_err(|e| {
-            WorldStateError::DatabaseError(format!("Error getting object name: {e:?}"))
-        })?;
+        let r = self
+            .object_name
+            .get(obj)
+            .map_err(|e| database_error(&e, format!("Error getting object name: {e:?}")))?;
         let Some(r) = r else {
             return Err(WorldStateError::ObjectNotFound(ObjectRef::Id(*obj)));
         };
@@ -375,9 +381,7 @@ impl WorldStateTransaction {
                 Some(existing) if existing.0 == name => None,
                 _ => Some(StringHolder(name)),
             })
-            .map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error setting object name: {e:?}"))
-            })?;
+            .map_err(|e| database_error(&e, format!("Error setting object name: {e:?}")))?;
         Ok(())
     }
 
@@ -463,43 +467,41 @@ impl WorldStateTransaction {
         });
         // Remove parent relationship (children list is automatically updated via secondary index)
         edit.object_parent.delete(obj).map_err(|e| {
-            WorldStateError::DatabaseError(format!("Error removing parent relationship: {e:?}"))
+            database_error(&e, format!("Error removing parent relationship: {e:?}"))
         })?;
 
         // Remove location relationship (contents list is automatically updated via secondary index)
         edit.object_location.delete(obj).map_err(|e| {
-            WorldStateError::DatabaseError(format!("Error removing location relationship: {e:?}"))
+            database_error(&e, format!("Error removing location relationship: {e:?}"))
         })?;
 
         // Now we can remove this object from all relevant relations
         // First the simple ones which are keyed on the object id.
-        edit.object_flags.delete(obj).map_err(|e| {
-            WorldStateError::DatabaseError(format!("Error deleting object flags: {e:?}"))
-        })?;
-        edit.object_name.delete(obj).map_err(|e| {
-            WorldStateError::DatabaseError(format!("Error deleting object name: {e:?}"))
-        })?;
+        edit.object_flags
+            .delete(obj)
+            .map_err(|e| database_error(&e, format!("Error deleting object flags: {e:?}")))?;
+        edit.object_name
+            .delete(obj)
+            .map_err(|e| database_error(&e, format!("Error deleting object name: {e:?}")))?;
         // object_children is now derived from object_parent secondary index, no need to delete
-        edit.object_owner.delete(obj).map_err(|e| {
-            WorldStateError::DatabaseError(format!("Error deleting object owner: {e:?}"))
-        })?;
-        edit.object_parent.delete(obj).map_err(|e| {
-            WorldStateError::DatabaseError(format!("Error deleting object parent: {e:?}"))
-        })?;
-        edit.object_location.delete(obj).map_err(|e| {
-            WorldStateError::DatabaseError(format!("Error deleting object location: {e:?}"))
-        })?;
+        edit.object_owner
+            .delete(obj)
+            .map_err(|e| database_error(&e, format!("Error deleting object owner: {e:?}")))?;
+        edit.object_parent
+            .delete(obj)
+            .map_err(|e| database_error(&e, format!("Error deleting object parent: {e:?}")))?;
+        edit.object_location
+            .delete(obj)
+            .map_err(|e| database_error(&e, format!("Error deleting object location: {e:?}")))?;
         edit.delete_metadata_for_obj(obj)?;
-        edit.object_verbdefs.delete(obj).map_err(|e| {
-            WorldStateError::DatabaseError(format!("Error deleting object verbdefs: {e:?}"))
-        })?;
+        edit.object_verbdefs
+            .delete(obj)
+            .map_err(|e| database_error(&e, format!("Error deleting object verbdefs: {e:?}")))?;
 
         for p in propdefs.iter() {
             edit.object_propvalues
                 .delete(&ObjAndUUIDHolder::new(obj, p.uuid()))
-                .map_err(|e| {
-                    WorldStateError::DatabaseError(format!("Error deleting property value: {e:?}"))
-                })?;
+                .map_err(|e| database_error(&e, format!("Error deleting property value: {e:?}")))?;
         }
 
         // We may or may not have propdefs yet...
@@ -556,44 +558,41 @@ impl WorldStateTransaction {
         // Bulk update location relationships directly on the relation
         for content in contents_to_move {
             upsert(edit.object_location, content, NOTHING).map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error updating object location: {e:?}"))
+                database_error(&e, format!("Error updating object location: {e:?}"))
             })?;
         }
 
         // Bulk update parent relationships directly on the relation
         for (child, new_parent) in &children_to_reparent {
-            upsert(edit.object_parent, *child, *new_parent).map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error updating object parent: {e:?}"))
-            })?;
+            upsert(edit.object_parent, *child, *new_parent)
+                .map_err(|e| database_error(&e, format!("Error updating object parent: {e:?}")))?;
         }
 
         // Batch delete all core object data
         for obj in objects {
             // Remove parent relationship (children list is automatically updated via secondary index)
             edit.object_parent.delete(obj).map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error removing parent relationship: {e:?}"))
+                database_error(&e, format!("Error removing parent relationship: {e:?}"))
             })?;
 
             // Remove location relationship (contents list is automatically updated via secondary index)
             edit.object_location.delete(obj).map_err(|e| {
-                WorldStateError::DatabaseError(format!(
-                    "Error removing location relationship: {e:?}"
-                ))
+                database_error(&e, format!("Error removing location relationship: {e:?}"))
             })?;
 
             // Delete core object attributes
-            edit.object_flags.delete(obj).map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error deleting object flags: {e:?}"))
-            })?;
-            edit.object_name.delete(obj).map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error deleting object name: {e:?}"))
-            })?;
-            edit.object_owner.delete(obj).map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error deleting object owner: {e:?}"))
-            })?;
+            edit.object_flags
+                .delete(obj)
+                .map_err(|e| database_error(&e, format!("Error deleting object flags: {e:?}")))?;
+            edit.object_name
+                .delete(obj)
+                .map_err(|e| database_error(&e, format!("Error deleting object name: {e:?}")))?;
+            edit.object_owner
+                .delete(obj)
+                .map_err(|e| database_error(&e, format!("Error deleting object owner: {e:?}")))?;
             edit.delete_metadata_for_obj(obj)?;
             edit.object_verbdefs.delete(obj).map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error deleting object verbdefs: {e:?}"))
+                database_error(&e, format!("Error deleting object verbdefs: {e:?}"))
             })?;
 
             // We may or may not have propdefs yet...
@@ -604,18 +603,17 @@ impl WorldStateTransaction {
         for (obj, prop_uuid) in properties_to_delete {
             edit.object_propvalues
                 .delete(&ObjAndUUIDHolder::new(&obj, prop_uuid))
-                .map_err(|e| {
-                    WorldStateError::DatabaseError(format!("Error deleting property value: {e:?}"))
-                })?;
+                .map_err(|e| database_error(&e, format!("Error deleting property value: {e:?}")))?;
         }
 
         Ok(())
     }
 
     pub fn get_object_parent(&self, obj: &Obj) -> Result<Obj, WorldStateError> {
-        let r = self.object_parent.get(obj).map_err(|e| {
-            WorldStateError::DatabaseError(format!("Error getting object parent: {e:?}"))
-        })?;
+        let r = self
+            .object_parent
+            .get(obj)
+            .map_err(|e| database_error(&e, format!("Error getting object parent: {e:?}")))?;
         Ok(r.unwrap_or(NOTHING))
     }
 
@@ -623,9 +621,7 @@ impl WorldStateTransaction {
         if self
             .object_parent
             .get(o)
-            .map_err(|e| {
-                WorldStateError::DatabaseError(format!("Unable to update parent relation: {e:?}"))
-            })?
+            .map_err(|e| database_error(&e, format!("Unable to update parent relation: {e:?}")))?
             .as_ref()
             == Some(new_parent)
         {
@@ -633,9 +629,8 @@ impl WorldStateTransaction {
         }
         let objects = self.branch_objects(o)?;
         let edit = self.edit(EditScope::Hierarchy(objects));
-        upsert(edit.object_parent, *o, *new_parent).map_err(|e| {
-            WorldStateError::DatabaseError(format!("Unable to update parent relation: {e:?}"))
-        })?;
+        upsert(edit.object_parent, *o, *new_parent)
+            .map_err(|e| database_error(&e, format!("Unable to update parent relation: {e:?}")))?;
         Ok(())
     }
 
@@ -663,7 +658,8 @@ impl WorldStateTransaction {
         // Use object_parent secondary index to get children of a parent.
         let mut children = Vec::new();
         self.object_parent
-            .for_each_by_codomain(obj, |child| children.push(*child));
+            .for_each_by_codomain(obj, |child| children.push(*child))
+            .map_err(|e| database_error(&e, format!("Error getting object children: {e:?}")))?;
         Ok(ObjSet::from_iter(children))
     }
 
@@ -671,7 +667,8 @@ impl WorldStateTransaction {
         // Use object_owner secondary index to get objects owned by an owner.
         let mut owned = Vec::new();
         self.object_owner
-            .for_each_by_codomain(owner, |obj| owned.push(*obj));
+            .for_each_by_codomain(owner, |obj| owned.push(*obj))
+            .map_err(|e| database_error(&e, format!("Error getting owned objects: {e:?}")))?;
         Ok(ObjSet::from_iter(owned))
     }
 
@@ -683,23 +680,33 @@ impl WorldStateTransaction {
         let candidates: Vec<Obj> = if let Some(ref location) = query.location {
             let mut v = Vec::new();
             self.object_location
-                .for_each_by_codomain(location, |obj| v.push(*obj));
+                .for_each_by_codomain(location, |obj| v.push(*obj))
+                .map_err(|e| {
+                    database_error(&e, format!("Error querying objects by location: {e:?}"))
+                })?;
             v
         } else if let Some(ref parent) = query.parent {
             let mut v = Vec::new();
             self.object_parent
-                .for_each_by_codomain(parent, |obj| v.push(*obj));
+                .for_each_by_codomain(parent, |obj| v.push(*obj))
+                .map_err(|e| {
+                    database_error(&e, format!("Error querying objects by parent: {e:?}"))
+                })?;
             v
         } else if let Some(ref owner) = query.owner {
             let mut v = Vec::new();
             self.object_owner
-                .for_each_by_codomain(owner, |obj| v.push(*obj));
+                .for_each_by_codomain(owner, |obj| v.push(*obj))
+                .map_err(|e| {
+                    database_error(&e, format!("Error querying objects by owner: {e:?}"))
+                })?;
             v
         } else {
             // No indexed filter — fall back to all objects.
-            let objects = self.object_flags.scan(&|_, _| true).map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error scanning objects: {e:?}"))
-            })?;
+            let objects = self
+                .object_flags
+                .scan(&|_, _| true)
+                .map_err(|e| database_error(&e, format!("Error scanning objects: {e:?}")))?;
             objects.into_iter().map(|(obj, _)| obj).collect()
         };
 
@@ -762,9 +769,10 @@ impl WorldStateTransaction {
     }
 
     pub fn get_object_location(&self, obj: &Obj) -> Result<Obj, WorldStateError> {
-        let r = self.object_location.get(obj).map_err(|e| {
-            WorldStateError::DatabaseError(format!("Error getting object location: {e:?}"))
-        })?;
+        let r = self
+            .object_location
+            .get(obj)
+            .map_err(|e| database_error(&e, format!("Error getting object location: {e:?}")))?;
         Ok(r.unwrap_or(NOTHING))
     }
 
@@ -772,16 +780,18 @@ impl WorldStateTransaction {
         // Use object_location secondary index to get contents of a location.
         let mut contents = Vec::new();
         self.object_location
-            .for_each_by_codomain(obj, |content| contents.push(*content));
+            .for_each_by_codomain(obj, |content| contents.push(*content))
+            .map_err(|e| database_error(&e, format!("Error getting object contents: {e:?}")))?;
         Ok(ObjSet::from_iter(contents))
     }
 
     // This is more of a guestimate.
     pub fn get_object_size_bytes(&self, obj: &Obj) -> Result<usize, WorldStateError> {
         let flags = self.get_object_flags(obj)?;
-        let name = self.object_name.get(obj).map_err(|e| {
-            WorldStateError::DatabaseError(format!("Error getting object name: {e:?}"))
-        })?;
+        let name = self
+            .object_name
+            .get(obj)
+            .map_err(|e| database_error(&e, format!("Error getting object name: {e:?}")))?;
         let owner = self.get_object_owner(obj)?;
         let parent = self.get_object_parent(obj)?;
         let location = self.get_object_location(obj)?;
@@ -832,9 +842,10 @@ impl WorldStateTransaction {
             if oid.eq(what) {
                 return Err(WorldStateError::RecursiveMove(*what, *new_location));
             }
-            let location = self.object_location.get(&oid).map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error getting object location: {e:?}"))
-            })?;
+            let location = self
+                .object_location
+                .get(&oid)
+                .map_err(|e| database_error(&e, format!("Error getting object location: {e:?}")))?;
             let Some(location) = location else {
                 break;
             };
@@ -845,9 +856,10 @@ impl WorldStateTransaction {
         // without it. Set new location, get its contents, add o to contents, put contents
         // back with it. Then update the location of o.
         // Get and remove from contents of old location, if we had any.
-        let old_location = self.object_location.get(what).map_err(|e| {
-            WorldStateError::DatabaseError(format!("Error getting object location: {e:?}"))
-        })?;
+        let old_location = self
+            .object_location
+            .get(what)
+            .map_err(|e| database_error(&e, format!("Error getting object location: {e:?}")))?;
 
         if let Some(old_location) = &old_location
             && old_location.eq(new_location)
@@ -856,9 +868,8 @@ impl WorldStateTransaction {
         }
 
         // Set new location.
-        upsert(&mut self.object_location, *what, *new_location).map_err(|e| {
-            WorldStateError::DatabaseError(format!("Error setting object location: {e:?}"))
-        })?;
+        upsert(&mut self.object_location, *what, *new_location)
+            .map_err(|e| database_error(&e, format!("Error setting object location: {e:?}")))?;
 
         // Now need to update contents in both.
         // Contents lists are automatically updated via object_location secondary index
@@ -877,7 +888,7 @@ impl WorldStateTransaction {
         new_location: &Obj,
     ) -> Result<(), WorldStateError> {
         upsert(&mut self.object_location, *what, *new_location).map_err(|e| {
-            WorldStateError::DatabaseError(format!("Error setting initial object location: {e:?}"))
+            database_error(&e, format!("Error setting initial object location: {e:?}"))
         })?;
         Ok(())
     }
@@ -886,7 +897,7 @@ impl WorldStateTransaction {
         let r = self
             .object_verbdefs
             .get(obj)
-            .map_err(|e| WorldStateError::DatabaseError(format!("Error getting verbs: {e:?}")))?;
+            .map_err(|e| database_error(&e, format!("Error getting verbs: {e:?}")))?;
         Ok(r.unwrap_or_else(VerbDefs::empty))
     }
 
@@ -894,9 +905,7 @@ impl WorldStateTransaction {
         let r = self
             .object_verbs
             .get(&ObjAndUUIDHolder::new(obj, uuid))
-            .map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error getting verb binary: {e:?}"))
-            })?;
+            .map_err(|e| database_error(&e, format!("Error getting verb binary: {e:?}")))?;
         let Some(program) = r else {
             return Err(WorldStateError::VerbNotFound(*obj, format!("{uuid}")));
         };
@@ -914,7 +923,7 @@ impl WorldStateTransaction {
             .with_domain_value(&resolved.location(), |verbdefs| {
                 verbdefs.find_ref(&resolved.uuid()).cloned()
             })
-            .map_err(|e| WorldStateError::DatabaseError(format!("Error getting verbs: {e:?}")))?
+            .map_err(|e| database_error(&e, format!("Error getting verbs: {e:?}")))?
             .flatten();
         let Some(verbdef) = verbdef else {
             return Err(WorldStateError::VerbNotFound(
@@ -942,9 +951,7 @@ impl WorldStateTransaction {
                 let verb = self
                     .object_verbdefs
                     .with_domain_value(obj, |verbdefs| verbdefs.find_first_named_ref(name).cloned())
-                    .map_err(|e| {
-                        WorldStateError::DatabaseError(format!("Error getting verbs: {e:?}"))
-                    })?
+                    .map_err(|e| database_error(&e, format!("Error getting verbs: {e:?}")))?
                     .flatten();
                 let Some(verb) = verb else {
                     // Don't record miss - preserve the inherited verb cache entry
@@ -963,9 +970,7 @@ impl WorldStateTransaction {
                 let verb = self
                     .object_verbdefs
                     .with_domain_value(obj, |verbdefs| verbdefs.find_first_named_ref(name).cloned())
-                    .map_err(|e| {
-                        WorldStateError::DatabaseError(format!("Error getting verbs: {e:?}"))
-                    })?
+                    .map_err(|e| database_error(&e, format!("Error getting verbs: {e:?}")))?
                     .flatten();
                 let Some(verb) = verb else {
                     // Don't record a miss - get_verb_by_name only looks directly on object,
@@ -986,14 +991,14 @@ impl WorldStateTransaction {
         let len = self
             .object_verbdefs
             .with_domain_value(obj, |verbs| verbs.len())
-            .map_err(|e| WorldStateError::DatabaseError(format!("Error getting verbs: {e:?}")))?
+            .map_err(|e| database_error(&e, format!("Error getting verbs: {e:?}")))?
             .unwrap_or(0);
         if index >= len {
             return Err(WorldStateError::VerbNotFound(*obj, format!("{index}")));
         }
         self.object_verbdefs
             .with_domain_value(obj, |verbs| verbs.iter().nth(index))
-            .map_err(|e| WorldStateError::DatabaseError(format!("Error getting verbs: {e:?}")))?
+            .map_err(|e| database_error(&e, format!("Error getting verbs: {e:?}")))?
             .flatten()
             .ok_or_else(|| WorldStateError::VerbNotFound(*obj, format!("{index}")))
     }
@@ -1090,9 +1095,7 @@ impl WorldStateTransaction {
                     }
                     None
                 })
-                .map_err(|e| {
-                    WorldStateError::DatabaseError(format!("Error getting verbs: {e:?}"))
-                })?;
+                .map_err(|e| database_error(&e, format!("Error getting verbs: {e:?}")))?;
             if let Some(Some(resolved)) = maybe_resolved {
                 return Ok(resolved);
             }
@@ -1206,9 +1209,7 @@ impl WorldStateTransaction {
                     )
                 })
             })
-            .map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error setting verb definition: {e:?}"))
-            })?;
+            .map_err(|e| database_error(&e, format!("Error setting verb definition: {e:?}")))?;
         if updated.is_none() {
             return Err(WorldStateError::VerbNotFound(*obj, format!("{uuid}")));
         }
@@ -1222,9 +1223,8 @@ impl WorldStateTransaction {
         }
 
         if let Some(program) = verb_attrs.program {
-            upsert(edit.object_verbs, ObjAndUUIDHolder::new(obj, uuid), program).map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error setting verb binary: {e:?}"))
-            })?;
+            upsert(edit.object_verbs, ObjAndUUIDHolder::new(obj, uuid), program)
+                .map_err(|e| database_error(&e, format!("Error setting verb binary: {e:?}")))?;
         }
         Ok(())
     }
@@ -1247,13 +1247,11 @@ impl WorldStateTransaction {
         let verbdefs = verbdefs.with_added(verbdef);
         let objects = self.branch_objects(oid)?;
         let edit = self.edit(EditScope::Verbs(objects));
-        upsert(edit.object_verbdefs, *oid, verbdefs).map_err(|e| {
-            WorldStateError::DatabaseError(format!("Error setting verb definition: {e:?}"))
-        })?;
+        upsert(edit.object_verbdefs, *oid, verbdefs)
+            .map_err(|e| database_error(&e, format!("Error setting verb definition: {e:?}")))?;
 
-        upsert(edit.object_verbs, ObjAndUUIDHolder::new(oid, uuid), program).map_err(|e| {
-            WorldStateError::DatabaseError(format!("Error setting verb binary: {e:?}"))
-        })?;
+        upsert(edit.object_verbs, ObjAndUUIDHolder::new(oid, uuid), program)
+            .map_err(|e| database_error(&e, format!("Error setting verb binary: {e:?}")))?;
 
         Ok(())
     }
@@ -1265,23 +1263,21 @@ impl WorldStateTransaction {
             .ok_or_else(|| WorldStateError::VerbNotFound(*location, format!("{uuid}")))?;
         let objects = self.branch_objects(location)?;
         let mut edit = self.edit(EditScope::Verbs(objects));
-        upsert(edit.object_verbdefs, *location, verbdefs).map_err(|e| {
-            WorldStateError::DatabaseError(format!("Error setting verb definition: {e:?}"))
-        })?;
+        upsert(edit.object_verbdefs, *location, verbdefs)
+            .map_err(|e| database_error(&e, format!("Error setting verb definition: {e:?}")))?;
 
         edit.object_verbs
             .delete(&ObjAndUUIDHolder::new(location, uuid))
-            .map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error deleting verb binary: {e:?}"))
-            })?;
+            .map_err(|e| database_error(&e, format!("Error deleting verb binary: {e:?}")))?;
         edit.delete_verb_metadata_for_holder(location, uuid)?;
         Ok(())
     }
 
     pub fn get_properties(&self, obj: &Obj) -> Result<PropDefs, WorldStateError> {
-        let r = self.object_propdefs.get(obj).map_err(|e| {
-            WorldStateError::DatabaseError(format!("Error getting properties: {e:?}"))
-        })?;
+        let r = self
+            .object_propdefs
+            .get(obj)
+            .map_err(|e| database_error(&e, format!("Error getting properties: {e:?}")))?;
         Ok(r.unwrap_or_else(PropDefs::empty))
     }
 
@@ -1292,7 +1288,7 @@ impl WorldStateTransaction {
         let mut values = self
             .entity_metadata
             .scan(&|metadata_key, _| predicate(metadata_key))
-            .map_err(|e| WorldStateError::DatabaseError(format!("Error scanning metadata: {e:?}")))?
+            .map_err(|e| database_error(&e, format!("Error scanning metadata: {e:?}")))?
             .into_iter()
             .map(|(metadata_key, value)| (metadata_key.key(), value))
             .collect::<Vec<_>>();
@@ -1311,7 +1307,7 @@ impl WorldStateTransaction {
     ) -> Result<Option<Var>, WorldStateError> {
         self.entity_metadata
             .get(&EntityMetadataKey::object(*obj, key))
-            .map_err(|e| WorldStateError::DatabaseError(format!("Error getting metadata: {e:?}")))
+            .map_err(|e| database_error(&e, format!("Error getting metadata: {e:?}")))
     }
 
     /// The objects with object metadata `key`, optionally only those whose value equals `value`.
@@ -1329,15 +1325,16 @@ impl WorldStateTransaction {
                         if metadata_key.is_object() && metadata_key.key() == key {
                             objects.push(metadata_key.obj());
                         }
-                    });
+                    })
+                    .map_err(|e| {
+                        database_error(&e, format!("Error finding objects by metadata: {e:?}"))
+                    })?;
                 objects
             }
             None => self
                 .entity_metadata
                 .scan(&|metadata_key, _| metadata_key.is_object() && metadata_key.key() == key)
-                .map_err(|e| {
-                    WorldStateError::DatabaseError(format!("Error scanning metadata: {e:?}"))
-                })?
+                .map_err(|e| database_error(&e, format!("Error scanning metadata: {e:?}")))?
                 .into_iter()
                 .map(|(metadata_key, _)| metadata_key.obj())
                 .collect::<Vec<_>>(),
@@ -1358,16 +1355,14 @@ impl WorldStateTransaction {
             EntityMetadataKey::object(*obj, key),
             value,
         )
-        .map_err(|e| WorldStateError::DatabaseError(format!("Error setting metadata: {e:?}")))?;
+        .map_err(|e| database_error(&e, format!("Error setting metadata: {e:?}")))?;
         Ok(())
     }
 
     pub fn clear_object_metadata(&mut self, obj: &Obj, key: Symbol) -> Result<(), WorldStateError> {
         self.entity_metadata
             .delete(&EntityMetadataKey::object(*obj, key))
-            .map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error clearing metadata: {e:?}"))
-            })?;
+            .map_err(|e| database_error(&e, format!("Error clearing metadata: {e:?}")))?;
         Ok(())
     }
 
@@ -1387,7 +1382,7 @@ impl WorldStateTransaction {
     ) -> Result<Option<Var>, WorldStateError> {
         self.entity_metadata
             .get(&EntityMetadataKey::property(*holder, uuid, key))
-            .map_err(|e| WorldStateError::DatabaseError(format!("Error getting metadata: {e:?}")))
+            .map_err(|e| database_error(&e, format!("Error getting metadata: {e:?}")))
     }
 
     pub fn set_property_metadata(
@@ -1402,7 +1397,7 @@ impl WorldStateTransaction {
             EntityMetadataKey::property(*holder, uuid, key),
             value,
         )
-        .map_err(|e| WorldStateError::DatabaseError(format!("Error setting metadata: {e:?}")))?;
+        .map_err(|e| database_error(&e, format!("Error setting metadata: {e:?}")))?;
         Ok(())
     }
 
@@ -1414,9 +1409,7 @@ impl WorldStateTransaction {
     ) -> Result<(), WorldStateError> {
         self.entity_metadata
             .delete(&EntityMetadataKey::property(*holder, uuid, key))
-            .map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error clearing metadata: {e:?}"))
-            })?;
+            .map_err(|e| database_error(&e, format!("Error clearing metadata: {e:?}")))?;
         Ok(())
     }
 
@@ -1436,7 +1429,7 @@ impl WorldStateTransaction {
     ) -> Result<Option<Var>, WorldStateError> {
         self.entity_metadata
             .get(&EntityMetadataKey::verb(*location, uuid, key))
-            .map_err(|e| WorldStateError::DatabaseError(format!("Error getting metadata: {e:?}")))
+            .map_err(|e| database_error(&e, format!("Error getting metadata: {e:?}")))
     }
 
     pub fn set_verb_metadata(
@@ -1451,7 +1444,7 @@ impl WorldStateTransaction {
             EntityMetadataKey::verb(*location, uuid, key),
             value,
         )
-        .map_err(|e| WorldStateError::DatabaseError(format!("Error setting metadata: {e:?}")))?;
+        .map_err(|e| database_error(&e, format!("Error setting metadata: {e:?}")))?;
         Ok(())
     }
 
@@ -1463,9 +1456,7 @@ impl WorldStateTransaction {
     ) -> Result<(), WorldStateError> {
         self.entity_metadata
             .delete(&EntityMetadataKey::verb(*location, uuid, key))
-            .map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error clearing metadata: {e:?}"))
-            })?;
+            .map_err(|e| database_error(&e, format!("Error clearing metadata: {e:?}")))?;
         Ok(())
     }
 
@@ -1476,9 +1467,11 @@ impl WorldStateTransaction {
         uuid: Uuid,
     ) -> Result<(), WorldStateError> {
         let holder = ObjAndUUIDHolder::new(obj, uuid);
-        if self.object_propflags.has_domain(&holder).map_err(|e| {
-            WorldStateError::DatabaseError(format!("Error reading property flags: {e:?}"))
-        })? {
+        if self
+            .object_propflags
+            .has_domain(&holder)
+            .map_err(|e| database_error(&e, format!("Error reading property flags: {e:?}")))?
+        {
             return Ok(());
         }
         let definer = self.find_property_by_uuid(obj, uuid)?.definer();
@@ -1499,22 +1492,24 @@ impl WorldStateTransaction {
         let holder = ObjAndUUIDHolder::new(obj, uuid);
 
         // Set the property value
-        upsert(&mut self.object_propvalues, holder.clone(), value).map_err(|e| {
-            WorldStateError::DatabaseError(format!("Error setting property value: {e:?}"))
-        })?;
+        self.object_propvalues
+            .upsert(holder.clone(), value)
+            .map_err(|e| database_error(&e, format!("Error setting property value: {e:?}")))?;
 
         // In lazy mode, ensure we have a local propflags entry when setting a value locally.
         // If we don't have one, create it by inheriting from the canonical permissions.
         if !self.prop_perm_memo.has_known_propflags(&holder) {
-            if !self.object_propflags.has_domain(&holder).map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error checking property flags: {e:?}"))
-            })? {
+            if !self
+                .object_propflags
+                .has_domain(&holder)
+                .map_err(|e| database_error(&e, format!("Error checking property flags: {e:?}")))?
+            {
                 // No local propflags entry - create one based on inherited permissions
                 let inherited_perms = self.retrieve_property_permissions(obj, uuid)?;
                 self.record_inherited_policy_dependency(obj, uuid)?;
                 let edit = self.edit(EditScope::Permissions(holder.clone()));
                 upsert(edit.object_propflags, holder.clone(), inherited_perms).map_err(|e| {
-                    WorldStateError::DatabaseError(format!("Error setting property flags: {e:?}"))
+                    database_error(&e, format!("Error setting property flags: {e:?}"))
                 })?;
             }
             self.prop_perm_memo.mark_known_propflags(holder);
@@ -1578,7 +1573,7 @@ impl WorldStateTransaction {
                 removed: None,
             });
             upsert(edit.object_propdefs, *location, props.with_added(prop)).map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error setting property definition: {e:?}"))
+                database_error(&e, format!("Error setting property definition: {e:?}"))
             })?;
 
             // Always create propflags entry for the defining location (canonical permissions)
@@ -1587,9 +1582,7 @@ impl WorldStateTransaction {
                 ObjAndUUIDHolder::new(location, u),
                 PropPerms::new(*owner, perms),
             )
-            .map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error setting property owner: {e:?}"))
-            })?;
+            .map_err(|e| database_error(&e, format!("Error setting property owner: {e:?}")))?;
         }
         self.prop_perm_memo
             .mark_known_propflags(ObjAndUUIDHolder::new(location, u));
@@ -1629,9 +1622,7 @@ impl WorldStateTransaction {
                         PropDef::new(p.uuid(), p.definer(), p.location(), new_name)
                     })
                 })
-                .map_err(|e| {
-                    WorldStateError::DatabaseError(format!("Error updating property: {e:?}"))
-                })?;
+                .map_err(|e| database_error(&e, format!("Error updating property: {e:?}")))?;
             if updated.is_none() {
                 return Err(WorldStateError::PropertyNotFound(*obj, format!("{uuid}")));
             }
@@ -1668,9 +1659,7 @@ impl WorldStateTransaction {
                     ObjAndUUIDHolder::new(obj, uuid),
                     perms,
                 )
-                .map_err(|e| {
-                    WorldStateError::DatabaseError(format!("Error updating property: {e:?}"))
-                })?;
+                .map_err(|e| database_error(&e, format!("Error updating property: {e:?}")))?;
             }
             self.prop_perm_memo
                 .mark_known_propflags(ObjAndUUIDHolder::new(obj, uuid));
@@ -1684,9 +1673,7 @@ impl WorldStateTransaction {
         // remove property value
         edit.object_propvalues
             .delete(&ObjAndUUIDHolder::new(obj, uuid))
-            .map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error clearing property value: {e:?}"))
-            })?;
+            .map_err(|e| database_error(&e, format!("Error clearing property value: {e:?}")))?;
         Ok(())
     }
 
@@ -1700,9 +1687,10 @@ impl WorldStateTransaction {
         {
             let edit = self.edit(EditScope::Permissions(holder.clone()));
             edit.object_propflags.delete(&holder).map_err(|e| {
-                WorldStateError::DatabaseError(format!(
-                    "Error clearing local property permissions: {e:?}"
-                ))
+                database_error(
+                    &e,
+                    format!("Error clearing local property permissions: {e:?}"),
+                )
             })?;
         }
         self.prop_perm_memo.invalidate_known_for_holder(&holder);
@@ -1720,9 +1708,7 @@ impl WorldStateTransaction {
         for location in locations.iter() {
             edit.object_propdefs
                 .update_with(&location, |props| props.with_removed(uuid))
-                .map_err(|e| {
-                    WorldStateError::DatabaseError(format!("Error deleting property: {e:?}"))
-                })?;
+                .map_err(|e| database_error(&e, format!("Error deleting property: {e:?}")))?;
             edit.delete_property_metadata_for_holder(&location, uuid)?;
         }
         Ok(())
@@ -1737,12 +1723,13 @@ impl WorldStateTransaction {
     ) -> Result<moor_common::model::PropertySnapshot, WorldStateError> {
         let holder = ObjAndUUIDHolder::new(obj, definition.uuid());
         let value = self.object_propvalues.get(&holder).map_err(|e| {
-            WorldStateError::DatabaseError(format!("Error reading local property value: {e:?}"))
+            database_error(&e, format!("Error reading local property value: {e:?}"))
         })?;
         let permissions = self.object_propflags.get(&holder).map_err(|e| {
-            WorldStateError::DatabaseError(format!(
-                "Error reading local property permissions: {e:?}"
-            ))
+            database_error(
+                &e,
+                format!("Error reading local property permissions: {e:?}"),
+            )
         })?;
         let metadata = self.property_metadata(obj, definition.uuid())?;
         Ok(moor_common::model::PropertySnapshot {
@@ -1761,9 +1748,7 @@ impl WorldStateTransaction {
         let r = self
             .object_propvalues
             .get(&ObjAndUUIDHolder::new(obj, uuid))
-            .map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error getting property value: {e:?}"))
-            })?;
+            .map_err(|e| database_error(&e, format!("Error getting property value: {e:?}")))?;
         let value = r;
 
         let perms = self.retrieve_property_permissions(obj, uuid)?;
@@ -1800,9 +1785,7 @@ impl WorldStateTransaction {
                         .object_propvalues
                         .get(&ObjAndUUIDHolder::new(&search_obj, uuid))
                         .map_err(|e| {
-                            WorldStateError::DatabaseError(format!(
-                                "Error getting property value: {e:?}"
-                            ))
+                            database_error(&e, format!("Error getting property value: {e:?}"))
                         })?;
                     if let Some(value) = value {
                         return Ok((value, perms, true));
@@ -1827,9 +1810,7 @@ impl WorldStateTransaction {
         if let Some(perms) = self
             .object_propflags
             .with_domain_value(&holder, |perms| perms.clone())
-            .map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error getting property flags: {e:?}"))
-            })?
+            .map_err(|e| database_error(&e, format!("Error getting property flags: {e:?}")))?
         {
             self.prop_perm_memo.cache_perms(holder, perms.clone());
             return Ok(perms);
@@ -1846,7 +1827,7 @@ impl WorldStateTransaction {
             .object_propflags
             .with_domain_value(&canonical_holder, |perms| perms.clone())
             .map_err(|e| {
-                WorldStateError::DatabaseError(format!(
+                database_error(&e, format!(
                     "Error getting canonical property flags: {e:?}"
                 ))
             })?
@@ -1881,9 +1862,7 @@ impl WorldStateTransaction {
             let found = self
                 .object_propdefs
                 .with_domain_value(&ancestor, |props| props.find(&uuid))
-                .map_err(|e| {
-                    WorldStateError::DatabaseError(format!("Error getting properties: {e:?}"))
-                })?;
+                .map_err(|e| database_error(&e, format!("Error getting properties: {e:?}")))?;
             if let Some(prop) = found.flatten() {
                 return Ok(prop);
             }
@@ -1993,9 +1972,7 @@ impl WorldStateTransaction {
                         .object_propvalues
                         .get(&ObjAndUUIDHolder::new(&search_obj, propdef.uuid()))
                         .map_err(|e| {
-                            WorldStateError::DatabaseError(format!(
-                                "Error getting property value: {e:?}"
-                            ))
+                            database_error(&e, format!("Error getting property value: {e:?}"))
                         })?;
                     if let Some(value) = value {
                         return Ok((propdef, value, perms, true));
@@ -2148,9 +2125,10 @@ impl WorldStateTransaction {
 
 impl WorldStateTransaction {
     pub fn get_last_move(&self, obj: &Obj) -> Result<Var, WorldStateError> {
-        let r = self.object_last_move.get(obj).map_err(|e| {
-            WorldStateError::DatabaseError(format!("Error getting last_move: {e:?}"))
-        })?;
+        let r = self
+            .object_last_move
+            .get(obj)
+            .map_err(|e| database_error(&e, format!("Error getting last_move: {e:?}")))?;
         Ok(r.unwrap_or_else(v_empty_map))
     }
 
@@ -2168,9 +2146,8 @@ impl WorldStateTransaction {
             (Var::from(source_key.to_string()), Var::from(old_location)),
         ]);
 
-        upsert(&mut self.object_last_move, *obj, last_move_map).map_err(|e| {
-            WorldStateError::DatabaseError(format!("Error setting last_move: {e:?}"))
-        })?;
+        upsert(&mut self.object_last_move, *obj, last_move_map)
+            .map_err(|e| database_error(&e, format!("Error setting last_move: {e:?}")))?;
         Ok(())
     }
 
@@ -2286,17 +2263,13 @@ impl WorldStateTransaction {
                 .object_parent
                 .scan(&|_domain, codomain| *codomain == *old_obj)
                 .map_err(|e| {
-                    WorldStateError::DatabaseError(format!(
-                        "Error scanning parent relations: {e:?}"
-                    ))
+                    database_error(&e, format!("Error scanning parent relations: {e:?}"))
                 })?;
             for (child, _) in parent_refs {
                 edit.object_parent
                     .update_with(&child, |_old_parent| Some(new_obj))
                     .map_err(|e| {
-                        WorldStateError::DatabaseError(format!(
-                            "Error updating parent relation: {e:?}"
-                        ))
+                        database_error(&e, format!("Error updating parent relation: {e:?}"))
                     })?;
             }
 
@@ -2305,17 +2278,13 @@ impl WorldStateTransaction {
                 .object_location
                 .scan(&|_domain, codomain| *codomain == *old_obj)
                 .map_err(|e| {
-                    WorldStateError::DatabaseError(format!(
-                        "Error scanning location relations: {e:?}"
-                    ))
+                    database_error(&e, format!("Error scanning location relations: {e:?}"))
                 })?;
             for (content, _) in location_refs {
                 edit.object_location
                     .update_with(&content, |_old_location| Some(new_obj))
                     .map_err(|e| {
-                        WorldStateError::DatabaseError(format!(
-                            "Error updating location relation: {e:?}"
-                        ))
+                        database_error(&e, format!("Error updating location relation: {e:?}"))
                     })?;
             }
 
@@ -2324,15 +2293,13 @@ impl WorldStateTransaction {
                 .object_owner
                 .scan(&|_domain, codomain| *codomain == *old_obj)
                 .map_err(|e| {
-                    WorldStateError::DatabaseError(format!("Error scanning owner relations: {e:?}"))
+                    database_error(&e, format!("Error scanning owner relations: {e:?}"))
                 })?;
             for (owned, _) in owner_refs {
                 edit.object_owner
                     .update_with(&owned, |_old_owner| Some(new_obj))
                     .map_err(|e| {
-                        WorldStateError::DatabaseError(format!(
-                            "Error updating owner relation: {e:?}"
-                        ))
+                        database_error(&e, format!("Error updating owner relation: {e:?}"))
                     })?;
             }
 
@@ -2341,42 +2308,32 @@ impl WorldStateTransaction {
             // Update old_obj's parent relationship
             if let Ok(Some(parent)) = edit.object_parent.get(old_obj) {
                 edit.object_parent.delete(old_obj).map_err(|e| {
-                    WorldStateError::DatabaseError(format!(
-                        "Error deleting old object parent: {e:?}"
-                    ))
+                    database_error(&e, format!("Error deleting old object parent: {e:?}"))
                 })?;
                 edit.object_parent.upsert(new_obj, parent).map_err(|e| {
-                    WorldStateError::DatabaseError(format!(
-                        "Error setting new object parent: {e:?}"
-                    ))
+                    database_error(&e, format!("Error setting new object parent: {e:?}"))
                 })?;
             }
 
             // Update old_obj's location relationship
             if let Ok(Some(location)) = edit.object_location.get(old_obj) {
                 edit.object_location.delete(old_obj).map_err(|e| {
-                    WorldStateError::DatabaseError(format!(
-                        "Error deleting old object location: {e:?}"
-                    ))
+                    database_error(&e, format!("Error deleting old object location: {e:?}"))
                 })?;
                 edit.object_location
                     .upsert(new_obj, location)
                     .map_err(|e| {
-                        WorldStateError::DatabaseError(format!(
-                            "Error setting new object location: {e:?}"
-                        ))
+                        database_error(&e, format!("Error setting new object location: {e:?}"))
                     })?;
             }
 
             // Update old_obj's owner relationship
             if let Ok(Some(owner)) = edit.object_owner.get(old_obj) {
                 edit.object_owner.delete(old_obj).map_err(|e| {
-                    WorldStateError::DatabaseError(format!(
-                        "Error deleting old object owner: {e:?}"
-                    ))
+                    database_error(&e, format!("Error deleting old object owner: {e:?}"))
                 })?;
                 edit.object_owner.upsert(new_obj, owner).map_err(|e| {
-                    WorldStateError::DatabaseError(format!("Error setting new object owner: {e:?}"))
+                    database_error(&e, format!("Error setting new object owner: {e:?}"))
                 })?;
             }
 
@@ -2385,31 +2342,27 @@ impl WorldStateTransaction {
             // Move flags
             if let Ok(Some(flags)) = edit.object_flags.get(old_obj) {
                 edit.object_flags.delete(old_obj).map_err(|e| {
-                    WorldStateError::DatabaseError(format!(
-                        "Error deleting old object flags: {e:?}"
-                    ))
+                    database_error(&e, format!("Error deleting old object flags: {e:?}"))
                 })?;
                 edit.object_flags.upsert(new_obj, flags).map_err(|e| {
-                    WorldStateError::DatabaseError(format!("Error setting new object flags: {e:?}"))
+                    database_error(&e, format!("Error setting new object flags: {e:?}"))
                 })?;
             }
 
             // Move name
             if let Ok(Some(name)) = edit.object_name.get(old_obj) {
                 edit.object_name.delete(old_obj).map_err(|e| {
-                    WorldStateError::DatabaseError(format!("Error deleting old object name: {e:?}"))
+                    database_error(&e, format!("Error deleting old object name: {e:?}"))
                 })?;
                 edit.object_name.upsert(new_obj, name).map_err(|e| {
-                    WorldStateError::DatabaseError(format!("Error setting new object name: {e:?}"))
+                    database_error(&e, format!("Error setting new object name: {e:?}"))
                 })?;
             }
 
             // Move verb definitions
             if let Ok(Some(verbdefs)) = edit.object_verbdefs.get(old_obj) {
                 edit.object_verbdefs.delete(old_obj).map_err(|e| {
-                    WorldStateError::DatabaseError(format!(
-                        "Error deleting old object verbs: {e:?}"
-                    ))
+                    database_error(&e, format!("Error deleting old object verbs: {e:?}"))
                 })?;
 
                 // Create new VerbDefs with updated location for each verb
@@ -2431,9 +2384,7 @@ impl WorldStateTransaction {
                 edit.object_verbdefs
                     .upsert(new_obj, updated_verbdefs)
                     .map_err(|e| {
-                        WorldStateError::DatabaseError(format!(
-                            "Error setting new object verbs: {e:?}"
-                        ))
+                        database_error(&e, format!("Error setting new object verbs: {e:?}"))
                     })?;
 
                 // Move verb programs for each verb
@@ -2444,14 +2395,10 @@ impl WorldStateTransaction {
                     // Move verb program if it exists
                     if let Ok(Some(program)) = edit.object_verbs.get(&old_holder) {
                         edit.object_verbs.delete(&old_holder).map_err(|e| {
-                            WorldStateError::DatabaseError(format!(
-                                "Error deleting old verb program: {e:?}"
-                            ))
+                            database_error(&e, format!("Error deleting old verb program: {e:?}"))
                         })?;
                         edit.object_verbs.upsert(new_holder, program).map_err(|e| {
-                            WorldStateError::DatabaseError(format!(
-                                "Error setting new verb program: {e:?}"
-                            ))
+                            database_error(&e, format!("Error setting new verb program: {e:?}"))
                         })?;
                     }
                 }
@@ -2460,23 +2407,17 @@ impl WorldStateTransaction {
             // Move property definitions
             if let Ok(Some(propdefs)) = edit.object_propdefs.get(old_obj) {
                 edit.object_propdefs.delete(old_obj).map_err(|e| {
-                    WorldStateError::DatabaseError(format!(
-                        "Error deleting old object properties: {e:?}"
-                    ))
+                    database_error(&e, format!("Error deleting old object properties: {e:?}"))
                 })?;
                 edit.object_propdefs
                     .upsert(new_obj, propdefs.clone())
                     .map_err(|e| {
-                        WorldStateError::DatabaseError(format!(
-                            "Error setting new object properties: {e:?}"
-                        ))
+                        database_error(&e, format!("Error setting new object properties: {e:?}"))
                     })?;
 
                 // Update all property definitions in the inheritance hierarchy that reference old_obj as definer
                 let all_propdefs = edit.object_propdefs.get_all().map_err(|e| {
-                    WorldStateError::DatabaseError(format!(
-                        "Error scanning property definitions: {e:?}"
-                    ))
+                    database_error(&e, format!("Error scanning property definitions: {e:?}"))
                 })?;
 
                 for (obj, props) in all_propdefs {
@@ -2500,9 +2441,10 @@ impl WorldStateTransaction {
                         edit.object_propdefs
                             .upsert(obj, updated_defs)
                             .map_err(|e| {
-                                WorldStateError::DatabaseError(format!(
-                                    "Error updating property definer references: {e:?}"
-                                ))
+                                database_error(
+                                    &e,
+                                    format!("Error updating property definer references: {e:?}"),
+                                )
                             })?;
                     }
                 }
@@ -2513,22 +2455,18 @@ impl WorldStateTransaction {
                 .object_propvalues
                 .scan(&|holder, _value| &holder.obj() == old_obj)
                 .map_err(|e| {
-                    WorldStateError::DatabaseError(format!("Error scanning property values: {e:?}"))
+                    database_error(&e, format!("Error scanning property values: {e:?}"))
                 })?;
 
             for (old_holder, value) in all_prop_values {
                 let new_holder = ObjAndUUIDHolder::new(&new_obj, old_holder.uuid());
                 edit.object_propvalues.delete(&old_holder).map_err(|e| {
-                    WorldStateError::DatabaseError(format!(
-                        "Error deleting old property value: {e:?}"
-                    ))
+                    database_error(&e, format!("Error deleting old property value: {e:?}"))
                 })?;
                 edit.object_propvalues
                     .upsert(new_holder, value)
                     .map_err(|e| {
-                        WorldStateError::DatabaseError(format!(
-                            "Error setting new property value: {e:?}"
-                        ))
+                        database_error(&e, format!("Error setting new property value: {e:?}"))
                     })?;
             }
 
@@ -2536,41 +2474,33 @@ impl WorldStateTransaction {
             let all_prop_flags = edit
                 .object_propflags
                 .scan(&|holder, _flags| &holder.obj() == old_obj)
-                .map_err(|e| {
-                    WorldStateError::DatabaseError(format!("Error scanning property flags: {e:?}"))
-                })?;
+                .map_err(|e| database_error(&e, format!("Error scanning property flags: {e:?}")))?;
 
             for (old_holder, flags) in all_prop_flags {
                 let new_holder = ObjAndUUIDHolder::new(&new_obj, old_holder.uuid());
                 edit.object_propflags.delete(&old_holder).map_err(|e| {
-                    WorldStateError::DatabaseError(format!(
-                        "Error deleting old property flags: {e:?}"
-                    ))
+                    database_error(&e, format!("Error deleting old property flags: {e:?}"))
                 })?;
                 edit.object_propflags
                     .upsert(new_holder.clone(), flags)
                     .map_err(|e| {
-                        WorldStateError::DatabaseError(format!(
-                            "Error setting new property flags: {e:?}"
-                        ))
+                        database_error(&e, format!("Error setting new property flags: {e:?}"))
                     })?;
             }
 
             let metadata_entries = edit
                 .entity_metadata
                 .scan(&|metadata_key, _| metadata_key.references_obj(*old_obj))
-                .map_err(|e| {
-                    WorldStateError::DatabaseError(format!("Error scanning metadata: {e:?}"))
-                })?;
+                .map_err(|e| database_error(&e, format!("Error scanning metadata: {e:?}")))?;
             for (old_key, value) in metadata_entries {
                 let Some(new_key) = old_key.rehome_obj(*old_obj, new_obj) else {
                     continue;
                 };
                 edit.entity_metadata.delete(&old_key).map_err(|e| {
-                    WorldStateError::DatabaseError(format!("Error deleting old metadata: {e:?}"))
+                    database_error(&e, format!("Error deleting old metadata: {e:?}"))
                 })?;
                 edit.entity_metadata.upsert(new_key, value).map_err(|e| {
-                    WorldStateError::DatabaseError(format!("Error setting new metadata: {e:?}"))
+                    database_error(&e, format!("Error setting new metadata: {e:?}"))
                 })?;
             }
         }
@@ -2731,14 +2661,14 @@ impl WorldStateEdit<'_> {
         let keys = self
             .entity_metadata
             .scan(&|metadata_key, _| metadata_key.references_obj(*obj))
-            .map_err(|e| WorldStateError::DatabaseError(format!("Error scanning metadata: {e:?}")))?
+            .map_err(|e| database_error(&e, format!("Error scanning metadata: {e:?}")))?
             .into_iter()
             .map(|(metadata_key, _)| metadata_key)
             .collect::<Vec<_>>();
         for key in keys {
-            self.entity_metadata.delete(&key).map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error deleting metadata: {e:?}"))
-            })?;
+            self.entity_metadata
+                .delete(&key)
+                .map_err(|e| database_error(&e, format!("Error deleting metadata: {e:?}")))?;
         }
         Ok(())
     }
@@ -2751,14 +2681,14 @@ impl WorldStateEdit<'_> {
         let keys = self
             .entity_metadata
             .scan(&|metadata_key, _| metadata_key.is_property_key_for(*holder, uuid))
-            .map_err(|e| WorldStateError::DatabaseError(format!("Error scanning metadata: {e:?}")))?
+            .map_err(|e| database_error(&e, format!("Error scanning metadata: {e:?}")))?
             .into_iter()
             .map(|(metadata_key, _)| metadata_key)
             .collect::<Vec<_>>();
         for key in keys {
-            self.entity_metadata.delete(&key).map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error deleting metadata: {e:?}"))
-            })?;
+            self.entity_metadata
+                .delete(&key)
+                .map_err(|e| database_error(&e, format!("Error deleting metadata: {e:?}")))?;
         }
         Ok(())
     }
@@ -2771,14 +2701,14 @@ impl WorldStateEdit<'_> {
         let keys = self
             .entity_metadata
             .scan(&|metadata_key, _| metadata_key.is_verb_key_for(*holder, uuid))
-            .map_err(|e| WorldStateError::DatabaseError(format!("Error scanning metadata: {e:?}")))?
+            .map_err(|e| database_error(&e, format!("Error scanning metadata: {e:?}")))?
             .into_iter()
             .map(|(metadata_key, _)| metadata_key)
             .collect::<Vec<_>>();
         for key in keys {
-            self.entity_metadata.delete(&key).map_err(|e| {
-                WorldStateError::DatabaseError(format!("Error deleting metadata: {e:?}"))
-            })?;
+            self.entity_metadata
+                .delete(&key)
+                .map_err(|e| database_error(&e, format!("Error deleting metadata: {e:?}")))?;
         }
         Ok(())
     }

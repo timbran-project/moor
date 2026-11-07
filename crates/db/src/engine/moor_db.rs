@@ -30,7 +30,7 @@ use crate::{
     engine::relation_defs::define_relations,
     provider::{
         batch_writer::BatchWriter, fjall_format, fjall_provider::FjallProvider,
-        fjall_snapshot_loader::FjallSnapshotLoader,
+        fjall_snapshot_loader::FjallSnapshotLoader, property_value_provider::PropertyValueProvider,
         property_value_store::PROPERTY_VALUE_CHAIN_LIMITS,
     },
 };
@@ -72,7 +72,7 @@ define_relations! {
     object_verbdefs => Obj, VerbDefs,
     object_verbs => ObjAndUUIDHolder, ProgramType,
     object_propdefs => Obj, PropDefs,
-    object_propvalues => ObjAndUUIDHolder, Var,
+    object_propvalues => ObjAndUUIDHolder, Var [PropertyValueProvider],
     object_propflags => ObjAndUUIDHolder, PropPerms,
     entity_metadata == EntityMetadataKey, Var,
     object_last_move => Obj, Var,
@@ -565,6 +565,7 @@ impl Drop for MoorDB {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::provider::Provider;
     use crate::provider::property_value_store::{
         PropertyValueRecordKind, decode_property_value_record, decode_property_value_record_key,
     };
@@ -782,6 +783,99 @@ mod tests {
         assert!(matches!(tx.commit().unwrap(), CommitResult::Success { .. }));
         reopened.wait_for_persistence().unwrap();
         assert!(property_value_records(&reopened).is_empty());
+    }
+
+    #[test]
+    fn property_value_provider_reads_match_the_seeded_index() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let path = tempdir.path();
+        let db = MoorDB::try_open(Some(path), DatabaseConfig::default())
+            .unwrap()
+            .0;
+
+        let mut tx = db.start_transaction();
+        let mut properties = Vec::new();
+        for name in ["first", "second"] {
+            let object = tx
+                .create_object(
+                    ObjectKind::NextObjid,
+                    ObjAttrs::new(NOTHING, NOTHING, NOTHING, BitEnum::new(), name),
+                )
+                .unwrap();
+            for property in ["appended", "replaced", "cleared"] {
+                let uuid = tx
+                    .define_property(
+                        &object,
+                        &object,
+                        Symbol::mk(property),
+                        &object,
+                        BitEnum::new(),
+                        Some(v_list(&[v_int(1)])),
+                    )
+                    .unwrap();
+                properties.push((object, property, uuid));
+            }
+        }
+        assert!(matches!(tx.commit().unwrap(), CommitResult::Success { .. }));
+
+        for value in 2..5 {
+            let mut tx = db.start_transaction();
+            for (object, property, uuid) in &properties {
+                match *property {
+                    "appended" => {
+                        let current = tx.retrieve_property(object, *uuid).unwrap().0.unwrap();
+                        tx.set_property(object, *uuid, current.push(&v_int(value)).unwrap())
+                            .unwrap();
+                    }
+                    "replaced" => {
+                        tx.set_property(object, *uuid, v_list(&[v_int(value * 10)]))
+                            .unwrap();
+                    }
+                    _ => {}
+                }
+            }
+            assert!(matches!(tx.commit().unwrap(), CommitResult::Success { .. }));
+        }
+        let mut tx = db.start_transaction();
+        for (object, property, uuid) in &properties {
+            if *property == "cleared" {
+                tx.clear_property(object, *uuid).unwrap();
+            }
+        }
+        assert!(matches!(tx.commit().unwrap(), CommitResult::Success { .. }));
+        db.stop().unwrap();
+        drop(db);
+
+        let reopened = MoorDB::try_open(Some(path), DatabaseConfig::default())
+            .unwrap()
+            .0;
+        assert!(
+            property_value_records(&reopened)
+                .iter()
+                .any(|record| record.2 == PropertyValueRecordKind::ListAppend)
+        );
+        let root = reopened.snapshot_planes.load_root();
+        let provider = reopened.relations.object_propvalues.provider();
+        for (object, property, uuid) in &properties {
+            let key = ObjAndUUIDHolder::new(object, *uuid);
+            let seeded = root
+                .object_propvalues
+                .index_lookup(&key)
+                .map(|entry| (entry.ts, entry.value.clone()));
+            assert_eq!(provider.get(&key).unwrap(), seeded, "{object}.{property}");
+            assert_eq!(seeded.is_none(), *property == "cleared");
+        }
+
+        let mut scanned = provider.scan(&|_, _| true).unwrap();
+        let mut seeded = root
+            .object_propvalues
+            .iter()
+            .map(|(key, entry)| (entry.ts, key.clone(), entry.value.clone()))
+            .collect::<Vec<_>>();
+        scanned.sort_by_key(|(_, key, _)| (key.obj(), key.uuid()));
+        seeded.sort_by_key(|(_, key, _)| (key.obj(), key.uuid()));
+        assert_eq!(scanned, seeded);
+        assert_eq!(scanned.len(), 4);
     }
 
     #[test]

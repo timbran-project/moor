@@ -45,7 +45,6 @@ use crate::{
     provider::batch_writer::{BatchEncoder, BatchValue},
     tx::{EncodeFor, Error, RelationCodomain, RelationDomain, Timestamp},
 };
-use ahash::AHashMap;
 use byteview::ByteView;
 use fjall::Slice;
 use moor_common::model::WorldStateTimerOp;
@@ -66,12 +65,6 @@ where
 }
 
 const TIMESTAMP_BYTES: usize = std::mem::size_of::<u64>();
-
-type SeededPropertyValueIndex = (
-    Box<dyn crate::tx::RelationIndex<crate::ObjAndUUIDHolder, Var>>,
-    Timestamp,
-    AHashMap<crate::ObjAndUUIDHolder, super::property_value_store::PropertyValueChain>,
-);
 
 fn frame_value(payload: &[u8], timestamp: Timestamp) -> Slice {
     let mut framed = Vec::with_capacity(payload.len() + TIMESTAMP_BYTES);
@@ -162,58 +155,6 @@ where
 
     pub fn partition(&self) -> &fjall::Keyspace {
         &self.fjall_keyspace
-    }
-}
-
-impl FjallProvider<crate::ObjAndUUIDHolder, Var> {
-    pub(crate) fn encode_property_value_working_set(
-        &self,
-        working_set: crate::tx::WorkingSet<crate::ObjAndUUIDHolder, Var>,
-    ) -> Vec<super::batch_writer::BatchOp> {
-        use super::{
-            batch_writer::{BatchOp, BatchOpSource, BatchOpType},
-            property_value_store::prepare_property_value_working_set,
-        };
-
-        prepare_property_value_working_set(working_set)
-            .into_iter()
-            .map(|prepared| {
-                let object = prepared.property.obj();
-                let uuid = prepared.property.uuid();
-                BatchOp {
-                    partition: self.fjall_keyspace.clone(),
-                    op_type: BatchOpType::PropertyValue(prepared),
-                    source: BatchOpSource::Property {
-                        relation: self.relation_name,
-                        object,
-                        uuid,
-                    },
-                }
-            })
-            .collect()
-    }
-
-    pub(crate) fn seeded_property_value_index(&self) -> Result<SeededPropertyValueIndex, Error> {
-        use super::property_value_store::{PROPERTY_VALUE_CHAIN_LIMITS, PropertyValueScan};
-        use crate::tx::{HashRelationIndex, RelationIndex};
-
-        let mut index = HashRelationIndex::new();
-        let mut chains = AHashMap::new();
-        let mut max_timestamp = Timestamp(0);
-        for entry in PropertyValueScan::new(self.fjall_keyspace.iter(), PROPERTY_VALUE_CHAIN_LIMITS)
-        {
-            let (property, reconstructed) =
-                entry.map_err(|error| Error::RetrievalFailure(error.to_string()))?;
-            max_timestamp = max_timestamp.max(reconstructed.logical_timestamp);
-            chains.insert(property.clone(), reconstructed.chain);
-            index.insert_entry(
-                reconstructed.logical_timestamp,
-                property,
-                reconstructed.value,
-            );
-        }
-        index.set_provider_fully_loaded(true);
-        Ok((Box::new(index), max_timestamp, chains))
     }
 }
 

@@ -365,6 +365,149 @@ mod tests {
         }
     }
 
+    /// A provider that keeps each tuple's version, as the real backing store does.
+    #[derive(Clone)]
+    struct VersionedProvider {
+        data: Arc<Mutex<HashMap<TestDomain, (Timestamp, TestCodomain)>>>,
+    }
+
+    impl VersionedProvider {
+        fn new(rows: &[(u64, u64, u64)]) -> Self {
+            let data = rows
+                .iter()
+                .map(|(domain, ts, codomain)| {
+                    (
+                        TestDomain(*domain),
+                        (Timestamp(*ts), TestCodomain(*codomain)),
+                    )
+                })
+                .collect();
+            Self {
+                data: Arc::new(Mutex::new(data)),
+            }
+        }
+    }
+
+    impl Provider<TestDomain, TestCodomain> for VersionedProvider {
+        fn get(&self, domain: &TestDomain) -> Result<Option<(Timestamp, TestCodomain)>, Error> {
+            Ok(self.data.lock().unwrap().get(domain).cloned())
+        }
+
+        fn put(
+            &self,
+            ts: Timestamp,
+            domain: &TestDomain,
+            value: &TestCodomain,
+        ) -> Result<(), Error> {
+            self.data
+                .lock()
+                .unwrap()
+                .insert(domain.clone(), (ts, value.clone()));
+            Ok(())
+        }
+
+        fn del(&self, _ts: Timestamp, domain: &TestDomain) -> Result<(), Error> {
+            self.data.lock().unwrap().remove(domain);
+            Ok(())
+        }
+
+        fn scan<F>(
+            &self,
+            predicate: &F,
+        ) -> Result<Vec<(Timestamp, TestDomain, TestCodomain)>, Error>
+        where
+            F: Fn(&TestDomain, &TestCodomain) -> bool,
+        {
+            Ok(self
+                .data
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|(domain, (_, value))| predicate(domain, value))
+                .map(|(domain, (ts, value))| (*ts, domain.clone(), value.clone()))
+                .collect())
+        }
+
+        fn stop(&self) -> Result<(), Error> {
+            Ok(())
+        }
+    }
+
+    fn tx_at(visible: u64) -> Tx {
+        Tx {
+            ts: Timestamp(visible + 1),
+            visible_ts: Timestamp(visible),
+            snapshot_version: 0,
+        }
+    }
+
+    #[test]
+    fn stored_version_newer_than_the_snapshot_is_a_conflict() {
+        // Domain 1 was written after the snapshot; domain 2 before it.
+        let provider = Arc::new(VersionedProvider::new(&[(1, 5, 10), (2, 2, 20)]));
+        let relation = Relation::new_with_secondary(Symbol::mk("test"), provider);
+        let tx = tx_at(3);
+        fn conflict<T>(result: Result<T, Error>) -> bool {
+            matches!(result, Err(Error::Conflict(_)))
+        }
+
+        let mut lc = relation.start(&tx);
+        assert!(conflict(lc.get(&TestDomain(1))));
+        assert!(conflict(lc.with_domain_value(&TestDomain(1), |_| ())));
+        assert!(conflict(lc.has_domain(&TestDomain(1))));
+        assert!(conflict(lc.bulk_get(&[TestDomain(1)])));
+        assert!(conflict(lc.scan(&|_, _| true)));
+        assert!(conflict(lc.get_by_codomain(&TestCodomain(10))));
+        assert!(conflict(lc.insert(TestDomain(1), TestCodomain(11))));
+        assert!(conflict(lc.update(&TestDomain(1), TestCodomain(11))));
+        assert!(conflict(lc.upsert(TestDomain(1), TestCodomain(11))));
+        assert!(conflict(lc.delete(&TestDomain(1))));
+        assert!(conflict(lc.get_all()));
+
+        let lc = relation.start(&tx);
+        assert_eq!(lc.get(&TestDomain(2)).unwrap(), Some(TestCodomain(20)));
+        assert!(lc.has_domain(&TestDomain(2)).unwrap());
+        assert_eq!(lc.get(&TestDomain(3)).unwrap(), None);
+        assert!(!lc.has_domain(&TestDomain(3)).unwrap());
+    }
+
+    #[test]
+    fn indexed_domains_win_over_the_backing_store() {
+        // The index holds the snapshot's version of domain 1. The store holds an older version
+        // (persistence lags) of domain 1, and a version newer than the snapshot of domain 2,
+        // which the index also holds.
+        let provider = Arc::new(VersionedProvider::new(&[
+            (1, 2, 10),
+            (2, 9, 99),
+            (3, 1, 30),
+        ]));
+        let relation = Relation::new_with_secondary(Symbol::mk("test"), provider);
+        let mut index = secondary_index_factory::<TestDomain, TestCodomain>();
+        index.insert_entry(Timestamp(4), TestDomain(1), TestCodomain(11));
+        index.insert_entry(Timestamp(3), TestDomain(2), TestCodomain(21));
+        let tx = tx_at(5);
+
+        let expected = vec![
+            (TestDomain(1), TestCodomain(11)),
+            (TestDomain(2), TestCodomain(21)),
+            (TestDomain(3), TestCodomain(30)),
+        ];
+        let lc = relation.start_from_index(&tx, index.as_ref());
+        let mut scanned = lc.scan(&|_, _| true).unwrap();
+        scanned.sort_by_key(|(domain, _)| domain.0);
+        assert_eq!(scanned, expected);
+        assert_eq!(lc.get_by_codomain(&TestCodomain(10)).unwrap(), vec![]);
+        assert_eq!(
+            lc.get_by_codomain(&TestCodomain(11)).unwrap(),
+            vec![TestDomain(1)]
+        );
+
+        let mut lc = relation.start_from_index(&tx, index.as_ref());
+        let mut all = lc.get_all().unwrap();
+        all.sort_by_key(|(domain, _)| domain.0);
+        assert_eq!(all, expected);
+    }
+
     #[test]
     fn codomain_lookups_reach_rows_not_yet_loaded() {
         let mut backing = HashMap::new();
@@ -383,7 +526,7 @@ mod tests {
         let mut lc = relation.clone().start(&tx);
         lc.insert(TestDomain(3), TestCodomain(7)).unwrap();
         lc.update(&TestDomain(1), TestCodomain(9)).unwrap();
-        let mut found = lc.get_by_codomain(&TestCodomain(7));
+        let mut found = lc.get_by_codomain(&TestCodomain(7)).unwrap();
         found.sort_by_key(|domain| domain.0);
         assert_eq!(
             found,
@@ -949,12 +1092,12 @@ mod tests {
         r_tx.insert(domain3.clone(), codomain_b.clone()).unwrap();
 
         // Test get_by_codomain through transaction interface
-        let result_a = r_tx.get_by_codomain(&codomain_a);
+        let result_a = r_tx.get_by_codomain(&codomain_a).unwrap();
         assert_eq!(result_a.len(), 2);
         assert!(result_a.contains(&domain1));
         assert!(result_a.contains(&domain2));
 
-        let result_b = r_tx.get_by_codomain(&codomain_b);
+        let result_b = r_tx.get_by_codomain(&codomain_b).unwrap();
         assert_eq!(result_b.len(), 1);
         assert!(result_b.contains(&domain3));
 
@@ -973,12 +1116,12 @@ mod tests {
         };
         let r_tx2 = relation.clone().start(&tx2);
 
-        let committed_result_a = r_tx2.get_by_codomain(&codomain_a);
+        let committed_result_a = r_tx2.get_by_codomain(&codomain_a).unwrap();
         assert_eq!(committed_result_a.len(), 2);
         assert!(committed_result_a.contains(&domain1));
         assert!(committed_result_a.contains(&domain2));
 
-        let committed_result_b = r_tx2.get_by_codomain(&codomain_b);
+        let committed_result_b = r_tx2.get_by_codomain(&codomain_b).unwrap();
         assert_eq!(committed_result_b.len(), 1);
         assert!(committed_result_b.contains(&domain3));
     }
@@ -997,28 +1140,28 @@ mod tests {
         let key = TestDomain(1);
         let a = TestCodomain(10);
         let b = TestCodomain(20);
-        assert!(local.get_by_codomain(&a).is_empty());
+        assert!(local.get_by_codomain(&a).unwrap().is_empty());
         local.insert(key.clone(), a.clone()).unwrap();
-        assert_eq!(local.get_by_codomain(&a), vec![key.clone()]);
+        assert_eq!(local.get_by_codomain(&a).unwrap(), vec![key.clone()]);
         assert!(local.insert(key.clone(), b.clone()).is_err());
-        assert_eq!(local.get_by_codomain(&a), vec![key.clone()]);
+        assert_eq!(local.get_by_codomain(&a).unwrap(), vec![key.clone()]);
         local.update(&key, b.clone()).unwrap();
-        assert!(local.get_by_codomain(&a).is_empty());
-        assert_eq!(local.get_by_codomain(&b), vec![key.clone()]);
+        assert!(local.get_by_codomain(&a).unwrap().is_empty());
+        assert_eq!(local.get_by_codomain(&b).unwrap(), vec![key.clone()]);
         local.upsert_with(key.clone(), |_| None).unwrap();
-        assert_eq!(local.get_by_codomain(&b), vec![key.clone()]);
+        assert_eq!(local.get_by_codomain(&b).unwrap(), vec![key.clone()]);
         local.upsert_with(key.clone(), |_| Some(a.clone())).unwrap();
-        assert!(local.get_by_codomain(&b).is_empty());
-        assert_eq!(local.get_by_codomain(&a), vec![key.clone()]);
+        assert!(local.get_by_codomain(&b).unwrap().is_empty());
+        assert_eq!(local.get_by_codomain(&a).unwrap(), vec![key.clone()]);
         local.delete(&key).unwrap();
-        assert!(local.get_by_codomain(&a).is_empty());
+        assert!(local.get_by_codomain(&a).unwrap().is_empty());
         assert!(local.update(&key, b.clone()).unwrap().is_none());
         local.insert(key.clone(), b.clone()).unwrap();
-        assert_eq!(local.get_by_codomain(&b), vec![key.clone()]);
+        assert_eq!(local.get_by_codomain(&b).unwrap(), vec![key.clone()]);
         local
             .insert_guaranteed_unique(TestDomain(2), a.clone())
             .unwrap();
-        assert_eq!(local.get_by_codomain(&a), vec![TestDomain(2)]);
+        assert_eq!(local.get_by_codomain(&a).unwrap(), vec![TestDomain(2)]);
         let ws = local.working_set().unwrap();
         assert_eq!(ws.tuples_ref().get(&key).unwrap().write_ts, tx.ts);
         assert!(
