@@ -3,7 +3,7 @@
 # mooR
 
 [![Join Discord](https://img.shields.io/badge/Join-Discord-5865F2?logo=discord&logoColor=white)](https://discord.gg/Ec94y5983z)
-[![mooR Book](https://img.shields.io/badge/Read-mooR_Book-blue?logo=mdbook&logoColor=white)](https://timbran.org/book/2.0-dev/html/)
+[![mooR Book](https://img.shields.io/badge/Read-mooR_Book-blue?logo=mdbook&logoColor=white)](https://timbran.org/book/html/)
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-pink)](https://github.com/sponsors/rdaum)
 
 **mooR is infrastructure for social worlds and games that people build and program together.**
@@ -81,9 +81,8 @@ Then open [http://localhost:8080](http://localhost:8080) in a browser, or point 
 
 The scripts build in release mode; pass `--debug` for a faster first compile. For other ways to run
 mooR, including without Docker, see
-[Docker Compose Setup](https://timbran.org/book/2.0-dev/html/the-system/docker-compose-setup.html)
-and
-[Alternative Installation Methods](https://timbran.org/book/2.0-dev/html/the-system/alternative-installation-methods.html)
+[Docker Compose Setup](https://timbran.org/book/html/the-system/docker-compose-setup.html) and
+[Alternative Installation Methods](https://timbran.org/book/html/the-system/alternative-installation-methods.html)
 in the book.
 
 ## What mooR gives you
@@ -144,11 +143,11 @@ in the book.
 
 ## Learn more
 
-- [The mooR Book](https://timbran.org/book/2.0-dev/html/): the full documentation
-- [The MOO programming language](https://timbran.org/book/2.0-dev/html/the-moo-programming-language.html)
-- [Server architecture](https://timbran.org/book/2.0-dev/html/moor-architecture.html)
-- [Running a server](https://timbran.org/book/2.0-dev/html/the-system/running-the-server.html) and
-  the [deployment guide](deploy/README.md)
+- [The mooR Book](https://timbran.org/book/html/): the full documentation
+- [The MOO programming language](https://timbran.org/book/html/the-moo-programming-language.html)
+- [Server architecture](https://timbran.org/book/html/moor-architecture.html)
+- [Running a server](https://timbran.org/book/html/the-system/running-the-server.html) and the
+  [deployment guide](deploy/README.md)
 - [Discord](https://discord.gg/Ec94y5983z), for questions and discussion
 
 ## Contributing and bug reports
