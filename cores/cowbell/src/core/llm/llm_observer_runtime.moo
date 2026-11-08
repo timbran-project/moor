@@ -249,7 +249,9 @@ object LLM_OBSERVER_RUNTIME [
       endif
       this.agent = #-1;
     endif
-    this.history = {@this.history, ['kind -> job.kind, 'status -> job.state, 'finished_at -> time(), 'recovery_required -> job.recovery_required, 'error -> job.state == 'failed && typeof(job.result) == TYPE_STR ? job.result[1..min(length(job.result), 1024)] | ""]};
+    const result = typeof(job.result) == TYPE_STR ? job.result[1..min(length(job.result), 1024)] | "";
+    "The final reply never reaches the room; keep it here so owners can see what the model wrote.";
+    this.history = {@this.history, ['kind -> job.kind, 'status -> job.state, 'finished_at -> time(), 'recovery_required -> job.recovery_required, 'error -> job.state == 'failed ? result | "", 'reply -> job.state == 'complete ? result | ""]};
     length(this.history) > 20 && (this.history = listdelete(this.history, 1));
     this.current == job && (this.current = #-1);
     job:release();

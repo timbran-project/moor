@@ -96,7 +96,6 @@ object SYSOBJ [
   property llm_observer_job (owner: ARCH_WIZARD, flags: "r") = LLM_OBSERVER_JOB;
   property llm_observer_policy (owner: ARCH_WIZARD, flags: "r") = LLM_OBSERVER_POLICY;
   property llm_observer_runtime (owner: ARCH_WIZARD, flags: "r") = LLM_OBSERVER_RUNTIME;
-  property llm_observer_speech (owner: ARCH_WIZARD, flags: "r") = LLM_OBSERVER_SPEECH;
   property llm_presenter (owner: ARCH_WIZARD, flags: "r") = LLM_PRESENTER;
   property llm_programming_tools (owner: ARCH_WIZARD, flags: "r") = LLM_PROGRAMMING_TOOLS;
   property llm_project (owner: ARCH_WIZARD, flags: "r") = LLM_PROJECT;

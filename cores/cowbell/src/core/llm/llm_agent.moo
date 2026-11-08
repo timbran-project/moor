@@ -26,7 +26,7 @@ object LLM_AGENT [
   property min_messages_to_keep (owner: HACKER, flags: "c") = 15;
   property model_override (owner: HACKER, flags: "rc") = false;
   property pending_tools (owner: ARCH_WIZARD, flags: "c") = [];
-  property presented_text (owner: ARCH_WIZARD, flags: "rc") = {};
+  property presentations (owner: ARCH_WIZARD, flags: "rc") = 0;
   property project_state (owner: ARCH_WIZARD, flags: "") = #-1;
   property running (owner: ARCH_WIZARD, flags: "c") = false;
   property system_prompt (owner: HACKER, flags: "rc") = "";
@@ -150,7 +150,6 @@ object LLM_AGENT [
     const registered = typeof(tool) == TYPE_FLYWEIGHT;
     const failures = registered && maphaskey(this.consecutive_tool_failures, name) ? this.consecutive_tool_failures[name] | 0;
     let outcome = false;
-    let delivered = {};
     if (this.cancel_requested)
       outcome = $llm_tool_result:mk('cancelled, "Operation cancelled.", "cancelled");
     elseif (failures >= this.max_consecutive_failures)
@@ -162,7 +161,6 @@ object LLM_AGENT [
         let started = false;
         try
           const validated = $llm_tool_schema:arguments(parameters, tool.parameters);
-          delivered = { value for value in (mapvalues(validated)) if typeof(value) == TYPE_STR };
           if (valid(this.tool_callback) && respond_to(this.tool_callback, 'on_tool_call))
             $llm_agent:_invoke_request_callback(this, actor, "on_tool_call", {name, parameters});
           endif
@@ -188,9 +186,9 @@ object LLM_AGENT [
       this.pending_tools = mapdelete(this.pending_tools, id);
     endif
     if (outcome:is_success())
-      "Remember what presentation tools showed the room, so a caller can avoid repeating it.";
-      if (registered && `tool.effect ! E_PROPNF => 'unknown' == 'presentation && length(this.presented_text) < 64)
-        this.presented_text = {@this.presented_text, @delivered};
+      "Count what presentation tools showed the room this turn, so a caller knows whether the actor spoke.";
+      if (registered && `tool.effect ! E_PROPNF => 'unknown' == 'presentation)
+        this.presentations = this.presentations + 1;
       endif
       if (maphaskey(this.consecutive_tool_failures, name))
         this.consecutive_tool_failures = mapdelete(this.consecutive_tool_failures, name);
@@ -302,7 +300,7 @@ object LLM_AGENT [
     this.execution_status = 'running;
     this.cancel_requested = false;
     this.all_failed_iterations = 0;
-    this.presented_text = {};
+    this.presentations = 0;
     try
       this:needs_compaction() && this:compact_context(actor);
       this:add_message("user", input);

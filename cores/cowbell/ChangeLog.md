@@ -207,6 +207,12 @@ Cowbell entries.
 
 ### Changed
 
+- Room NPCs speak only through tools, so they no longer repeat themselves. `say` speaks to the room,
+  `directed_say` to one person, and `emote` acts; every room observer has these tools. The model's
+  final reply is private: it never reaches the room, and `@obs-status` shows the last one to the
+  NPC's owner. Prompts no longer use `SILENT`. Prompts written for the old behavior that tell the
+  NPC to put its speech in the final reply should say to use `say` instead. Configured NPCs get the
+  new rule on their next turn, without reconfiguring.
 - Rendering event text costs far less CPU, and listeners to one announcement share the rendered
   result, so chat and other announcements reach a room sooner. The output is unchanged.
 - `@changes` reviews parent and location changes, so an update that gives an object a new parent or
@@ -442,8 +448,6 @@ Cowbell entries.
   replaced. The greeting previously ignored it.
 
 - NPC speech no longer shows doubled quotes when the model wraps its whole reply in quotation marks.
-
-- NPCs no longer post a reply twice when they speak through a tool and then return the same text.
 
 - `$letter` and `$list_proto:english_list` now have core owners, so `@changes` can adopt and update
   them. They were owned by the test player and by a stray object number. `$login` is also a trusted

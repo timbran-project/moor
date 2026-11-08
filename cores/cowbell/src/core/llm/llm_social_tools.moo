@@ -11,7 +11,7 @@ object LLM_SOCIAL_TOOLS [
     "Return shared social inspection and presentation descriptors; each handler authenticates its actor.";
     const text = ["type" -> "string", "maxLength" -> 8192];
     const name = ["type" -> "string", "minLength" -> 1, "maxLength" -> 256];
-    return {$llm_agent_tool:mk("list_players", "List connected people and their activity.", ["type" -> "object", "properties" -> []], this, "list_players", 'inspection), $llm_agent_tool:mk("player_info", "Read a person's description and connection status.", ["type" -> "object", "properties" -> ["player_name" -> name], "required" -> {"player_name"}], this, "player_info", 'inspection), $llm_agent_tool:mk("emote", "Express a brief public action for a significant social moment.", ["type" -> "object", "properties" -> ["action" -> text], "required" -> {"action"}], this, "emote", 'presentation), $llm_agent_tool:mk("directed_say", "Address a person in the same room publicly.", ["type" -> "object", "properties" -> ["target_name" -> name, "message" -> text], "required" -> {"target_name", "message"}], this, "directed_say", 'presentation), $llm_agent_tool:mk("think", "Express a brief visible thought when useful for social context.", ["type" -> "object", "properties" -> ["thought" -> text], "required" -> {"thought"}], this, "think", 'presentation)};
+    return {$llm_agent_tool:mk("list_players", "List connected people and their activity.", ["type" -> "object", "properties" -> []], this, "list_players", 'inspection), $llm_agent_tool:mk("player_info", "Read a person's description and connection status.", ["type" -> "object", "properties" -> ["player_name" -> name], "required" -> {"player_name"}], this, "player_info", 'inspection), $llm_agent_tool:mk("emote", "Express a brief public action for a significant social moment.", ["type" -> "object", "properties" -> ["action" -> text], "required" -> {"action"}], this, "emote", 'presentation), $llm_agent_tool:mk("say", "Say something aloud to everyone in the room. Speech reaches the room only through say or directed_say.", ["type" -> "object", "properties" -> ["message" -> text], "required" -> {"message"}], this, "say", 'presentation), $llm_agent_tool:mk("directed_say", "Say something aloud to one person in the same room; everyone present hears it.", ["type" -> "object", "properties" -> ["target_name" -> name, "message" -> text], "required" -> {"target_name", "message"}], this, "directed_say", 'presentation), $llm_agent_tool:mk("think", "Express a brief visible thought when useful for social context.", ["type" -> "object", "properties" -> ["thought" -> text], "required" -> {"thought"}], this, "think", 'presentation)};
   endmethod
 
   method context owner: ARCH_WIZARD
@@ -25,6 +25,20 @@ object LLM_SOCIAL_TOOLS [
     return ['actor -> actor, 'room -> room, 'job -> job];
   endmethod
 
+  method speech_tools owner: ARCH_WIZARD
+    "Return only the presentation descriptors, for observers that need nothing else to take part in a room.";
+    return { tool for tool in ($llm_social_tools:get_tools()) if tool.effect == 'presentation };
+  endmethod
+
+  method equip owner: ARCH_WIZARD
+    "Give an agent the presentation tools it lacks. Descriptors it already has are left alone.";
+    const {agent} = args;
+    set_task_perms(caller_perms());
+    for tool in ($llm_social_tools:speech_tools())
+      maphaskey(agent.tools, tool.name) || agent:add_tool(tool.name, tool);
+    endfor
+  endmethod
+
   method check_context owner: ARCH_WIZARD
     "Recheck the captured job and room after callbacks, without selecting a replacement job.";
     const {context} = args;
@@ -32,6 +46,7 @@ object LLM_SOCIAL_TOOLS [
     $llm_tool_provider:_require_tool_dispatch(actor, caller_perms());
     actor.location == context['room] && valid(context['room]) || raise(E_PERM, "Actor moved.");
     if (isa(actor, $llm_room_observer))
+      actor.enabled || raise(E_PERM, "Observer is switched off.");
       const job = context['job];
       $llm_observer_job:check(job);
       job.requester == actor && job.room == context['room] && job.state == 'running || raise(E_PERM);
@@ -107,6 +122,31 @@ object LLM_SOCIAL_TOOLS [
     return $llm_social_tools:present(context, 'think, parameters["thought"]);
   endmethod
 
+  method say owner: ARCH_WIZARD
+    "Speak aloud as the authenticated actor in the captured room.";
+    const {parameters, actor} = args;
+    const context = $llm_social_tools:context(actor, caller_perms());
+    set_task_perms(actor);
+    return $llm_social_tools:present(context, 'say, $llm_social_tools:unquoted(parameters["message"]));
+  endmethod
+
+  method unquoted owner: ARCH_WIZARD
+    "Say adds its own quotation marks; drop one pair the model wrapped around the whole message.";
+    const {text} = args;
+    typeof(text) == TYPE_STR || return text;
+    const trimmed = text:trim();
+    for pair in ({{"\"", "\""}, {"“", "”"}})
+      const {opening, closing} = pair;
+      if (length(trimmed) >= 2 && trimmed[1] == opening && trimmed[$] == closing)
+        const inner = trimmed[2..$ - 1];
+        if (!index(inner, opening) && !index(inner, closing))
+          return inner:trim();
+        endif
+      endif
+    endfor
+    return text;
+  endmethod
+
   method directed_say owner: ARCH_WIZARD
     "Resolve the recipient once, then reject movement or revoked work before public delivery.";
     const {parameters, actor} = args;
@@ -123,9 +163,12 @@ object LLM_SOCIAL_TOOLS [
     $llm_tool_provider:_require_tool_dispatch(actor, caller_perms());
     $llm_social_tools:check_context(context);
     typeof(text) == TYPE_STR && value_bytes(text) <= 8192 || raise(E_INVARG, "Invalid social output.");
+    length(text:trim()) > 0 || raise(E_INVARG, "Social output is empty.");
     set_task_perms(actor);
     let event = false;
-    if (kind == 'emote)
+    if (kind == 'say)
+      event = actor:mk_say_event(text);
+    elseif (kind == 'emote)
       event = actor:mk_emote_event(text);
     elseif (kind == 'think)
       event = actor:mk_think_event(text);

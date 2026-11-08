@@ -91,12 +91,14 @@ object LLM_OBSERVER_JOB [
       return;
     endif
     this:bind_agent(runtime.agent);
+    "Fill in missing speech tools after persona setup, so a persona's own say or emote is kept.";
+    $llm_social_tools:equip(this.agent);
     length(this.agent.pending_tools) == 0 || raise(E_INVARG, "Unresolved tool outcomes require an explicit reset after inspection.");
     if (this.kind in {'observation, 'nudge})
       const ready = $llm_observer_policy:ready(observer);
       $llm_observer_job:check(this);
       if (!ready)
-        this:_finish('complete, "SILENT");
+        this:_finish('complete, "");
         return;
       endif
     endif
@@ -115,7 +117,7 @@ object LLM_OBSERVER_JOB [
       $llm_observer_job:check(this);
     endfor
     if (this.kind == 'observation && length(observations) == 0)
-      this:_finish('complete, "SILENT");
+      this:_finish('complete, "");
       return;
     endif
     let addressed = false;
@@ -134,27 +136,22 @@ object LLM_OBSERVER_JOB [
     endif
     $llm_observer_job:check(this);
     if (!engage)
-      this:_finish('complete, "SILENT");
+      this:_finish('complete, "");
       return;
     endif
     let prompt = observer.response_prompt;
     if (this.kind == 'ask)
       prompt = "Answer this direct question from the room: " + generate_json(["actor" -> tostr(this.questioner), "question" -> this.query]);
     endif
+    prompt = prompt + " " + $llm_room_observer:turn_reminder();
     value_bytes(prompt) <= 32768 || raise(E_QUOTA);
     this:_start_thinking();
     this:run(prompt, max(1, this.deadline - time()));
     $llm_observer_job:check(this);
     this:_stop_thinking();
     if (this.state == 'complete)
-      const speech = $llm_observer_speech:mk(this.result);
-      "Models often say a line with a tool and then return it as the reply; the room heard it once.";
-      const presented = { $llm_observer_speech:mk(text).text for text in (this.agent.presented_text) };
-      if (length(speech.text) && speech.text in presented)
-        runtime.last_spoke_at = time();
-      elseif (speech:announce(observer, this.room))
-        runtime.last_spoke_at = time();
-      endif
+      "Tools are the only way into the room. The final reply stays in the job result for diagnostics.";
+      this.agent.presentations > 0 && (runtime.last_spoke_at = time());
       this:_trim_observations(true);
       if (valid(this.questioner))
         const usage = this.agent.last_token_usage;

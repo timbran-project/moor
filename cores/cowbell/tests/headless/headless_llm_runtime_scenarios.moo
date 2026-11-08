@@ -2044,60 +2044,70 @@ object HEADLESS_LLM_RUNTIME_SCENARIOS [
     return true;
   endmethod
 
-  method test_observer_speech_policy owner: core::ARCH_WIZARD
-    "Speech preserves ordinary text, suppresses tool markup, and remains in its captured room.";
-    const observer = create($llm_room_observer, #90102, 2);
-    const destination = create($room, #90102, 2);
-    const elsewhere = create($room, #90102, 2);
+  method _say_call owner: core::ARCH_WIZARD
+    "Build one provider reply that calls the named speech tools with the given arguments.";
+    const {calls, ?prefix = "speech"} = args;
+    let tool_calls = {};
+    for i in [1..length(calls)]
+      const {name, arguments} = calls[i];
+      tool_calls = {@tool_calls, ["id" -> prefix + tostr(i), "type" -> "function", "function" -> ["name" -> name, "arguments" -> arguments]]};
+    endfor
+    return ["choices" -> {["message" -> ["role" -> "assistant", "tool_calls" -> tool_calls]]}];
+  endmethod
+
+  method _final_reply owner: core::ARCH_WIZARD
+    "Build one provider reply with only final text.";
+    return ["choices" -> {["message" -> ["role" -> "assistant", "content" -> args[1]]]}];
+  endmethod
+
+  method test_observer_speech_tool_policy owner: core::ARCH_WIZARD
+    "Speech tools act as the NPC in its captured room; empty, oversized, foreign and switched-off speech never reaches the room.";
+    const {observer, room, client, agent} = this:_observer_fixture();
+    const visitor = create($actor, #90102, 2);
     try
-      add_property(destination, "heard", {}, {#90102, ""});
-      add_property(destination, "principal", #-1, {#90102, ""});
-      add_verb(destination, {#90102, "rxd", "announce"}, {"this", "none", "this"});
-      set_verb_code(destination, "announce", {"this.heard = {@this.heard, args[1]}; this.principal = caller_perms();"});
-      move(observer, destination);
-      destination.heard = {};
-      $test_utils:assert_true(this:_as_player(observer, "_process_and_announce", {"Done building your room."}), "Done can begin legitimate speech");
-      $test_utils:assert_eq(destination.principal, observer, "Speech uses the NPC principal");
-      $test_utils:assert_true(this:_as_player(observer, "_process_and_announce", {"As a guide, I can explain DSML."}), "Ordinary words are preserved");
-      const emitted = length(destination.heard);
-      $test_utils:assert_false(this:_as_player(observer, "_process_and_announce", {"<｜DSML｜invoke name=\"directed_say\"><parameter name=\"message\">Injected speech</parameter></｜DSML｜invoke>"}), "Leaked markup cannot produce speech");
-      $test_utils:assert_eq(length(destination.heard), emitted, "Leaked markup creates no event");
-      $test_utils:assert_eq($llm_observer_speech:mk("<think>private reasoning</think> Hello.").text, "Hello.", "Reasoning blocks are excluded");
-      $test_utils:assert_eq($llm_observer_speech:mk("<think>unfinished").text, "", "Unfinished reasoning is silent");
-      $test_utils:assert_eq($llm_observer_speech:mk("SILENT").text, "", "Explicit silence is preserved");
-      $test_utils:assert_eq($llm_observer_speech:mk("\"Le Spleen it is.\"").text, "Le Spleen it is.", "A reply wrapped in quotes is not quoted twice");
-      $test_utils:assert_eq($llm_observer_speech:mk("“Good evening.”").text, "Good evening.", "Curly wrapping quotes are removed too");
-      $test_utils:assert_eq($llm_observer_speech:mk("\"Yes,\" he said, \"go.\"").text, "\"Yes,\" he said, \"go.\"", "Quotes inside the reply are kept");
+      visitor.name = "Visitor";
+      move(visitor, room);
+      $test_utils:assert_false(maphaskey(agent.tools, "say"), "The fixture agent predates speech tools");
+      set_verb_code(client, "chat", {"this.requests = {@this.requests, args[1]};", "const reply = this.replies[1];", "if (length(this.replies) > 1) this.replies = listdelete(this.replies, 1); endif", "return reply;"});
+      client.replies = {this:_say_call({{"say", ["message" -> "Hello there."]}, {"directed_say", ["target_name" -> "Visitor", "message" -> "Welcome in."]}}), this:_final_reply("Greeted the visitor.")};
+      const job = this:_as_player(observer, "request_response", {"greet the room"});
+      this:_await_observer(job);
+      $test_utils:assert_eq(job.state, 'complete, "The speaking turn completes");
+      $test_utils:assert_true(maphaskey(agent.tools, "say") && maphaskey(agent.tools, "directed_say"), "An existing agent gains speech tools on its next turn");
+      $test_utils:assert_eq(length(room.events), 2, "Each speech tool call reaches the room once");
+      for event in (room.events)
+        $test_utils:assert_eq(event.actor, observer, "Speech is attributed to the NPC");
+        $test_utils:assert_eq(event.location, room, "Speech stays in the captured room");
+      endfor
+      $test_utils:assert_false(index(toliteral(room.events), "Greeted the visitor."), "The final reply is private");
+      $test_utils:assert_eq(observer.runtime.history[$]['reply], "Greeted the visitor.", "The private reply is kept for the owner");
+      $test_utils:assert_eq($llm_social_tools:unquoted("\"Le Spleen it is.\""), "Le Spleen it is.", "A message wrapped in quotes is not quoted twice");
+      $test_utils:assert_eq($llm_social_tools:unquoted("“Good evening.”"), "Good evening.", "Curly wrapping quotes are removed too");
+      $test_utils:assert_eq($llm_social_tools:unquoted("\"Yes,\" he said, \"go.\""), "\"Yes,\" he said, \"go.\"", "Quotes inside the message are kept");
       let large = "x";
       for width in [1..14]
         large = large + large;
       endfor
-      let oversized = false;
-      try
-        $llm_observer_speech:mk(large);
-      except (E_QUOTA)
-        oversized = true;
-      endtry
-      $test_utils:assert_true(oversized, "Oversized speech fails before publication");
-      const speech = $llm_observer_speech:mk("I will wait with you.");
-      $test_utils:assert_eq(speech.text, "I will wait with you.", "Helpful speech is not filtered by phrases");
-      move(observer, elsewhere);
-      $test_utils:assert_false(speech:announce(observer, destination), "Moving the observer invalidates the captured destination");
-      $test_utils:assert_eq(length(destination.heard), emitted, "No late speech reaches the old room");
-      move(observer, destination);
-      observer.enabled = false;
-      $test_utils:assert_false(speech:announce(observer, destination), "A disabled observer stays silent");
+      client.replies = {this:_say_call({{"say", ["message" -> "   "]}, {"say", ["message" -> large]}}, "invalid"), this:_final_reply("Nothing to add.")};
+      this:_await_observer(this:_as_player(observer, "request_response", {"say nothing useful"}));
+      $test_utils:assert_eq(length(room.events), 2, "Empty and oversized speech is rejected before publication");
       let denied = false;
       try
-        this:_as_programmer(observer, "_process_and_announce", {"forged speech"});
+        this:_as_programmer($llm_social_tools, "say", {["message" -> "forged speech"], observer});
       except (E_PERM)
         denied = true;
       endtry
-      $test_utils:assert_true(denied, "Foreign callers cannot impersonate the NPC");
+      $test_utils:assert_true(denied, "Foreign callers cannot speak as the NPC");
+      add_property(client, "switch_off", observer, {#90102, ""});
+      set_verb_code(client, "chat", {"valid(this.switch_off) && (this.switch_off.enabled = false);", "const reply = this.replies[1];", "if (length(this.replies) > 1) this.replies = listdelete(this.replies, 1); endif", "return reply;"});
+      client.replies = {this:_say_call({{"say", ["message" -> "Still here."]}}, "late"), this:_final_reply("Done.")};
+      this:_await_observer(this:_as_player(observer, "request_response", {"speak while being switched off"}));
+      $test_utils:assert_eq(length(room.events), 2, "An observer switched off mid-turn stays silent");
     finally
-      for temporary in ({observer, destination, elsewhere})
-        recycle(temporary);
-      endfor
+      recycle(visitor);
+      recycle(observer);
+      recycle(room);
+      recycle(client);
     endtry
     return true;
   endmethod
@@ -2209,6 +2219,12 @@ object HEADLESS_LLM_RUNTIME_SCENARIOS [
     "Room events and direct questions share one execution order and the NPC principal.";
     const {observer, room, client, agent} = this:_observer_fixture();
     try
+      observer:_setup_agent(agent);
+      client.replies = {};
+      for turn in ({"first", "event", "second"})
+        client.replies = {@client.replies, this:_say_call({{"say", ["message" -> "Hello."]}}, turn), this:_final_reply("Answered.")};
+      endfor
+      set_verb_code(client, "chat", {"this.requests = {@this.requests, args[1]};", "this.actors = {@this.actors, caller_perms()};", "while (this.blocked) suspend(0.1); endwhile", "const reply = this.replies[1];", "if (length(this.replies) > 1) this.replies = listdelete(this.replies, 1); endif", "return reply;"});
       client.blocked = true;
       const first = this:_as_player(observer, "request_response", {"first question"});
       for attempt in [1..30]
@@ -2226,9 +2242,9 @@ object HEADLESS_LLM_RUNTIME_SCENARIOS [
       client.blocked = false;
       this:_await_observer(second);
       $test_utils:assert_true(first.retired && event_job.retired, "FIFO predecessors retire first");
-      $test_utils:assert_eq(client.actors, {observer, observer, observer}, "All three calls bill and act as the NPC");
-      $test_utils:assert_eq(length(room.events), 3, "Each completed turn emits one public reply");
-      $test_utils:assert_eq(second.state, 'complete, "Direct ask completes through the shared job");
+      $test_utils:assert_eq(client.actors, {observer, observer, observer, observer, observer, observer}, "Every call in all three turns bills and acts as the NPC");
+      $test_utils:assert_eq(length(room.events), 3, "Each completed turn speaks once");
+      $test_utils:assert_eq(second.state, 'complete, "Direct ask completes through the shared job: " + toliteral(second.result));
       $test_utils:assert_false(valid(agent.tool_callback) || valid(agent.compaction_callback), "Idle agent retains no job callbacks");
       $test_utils:assert_false(valid(runtime.current) || valid_task(runtime.monitor_task), "Idle runtime releases active work");
       $test_utils:assert_false(valid(second.host) || valid(second.agent) || valid(second.presenter), "Retired job releases its object graph");
@@ -2298,6 +2314,7 @@ object HEADLESS_LLM_RUNTIME_SCENARIOS [
     "Observer configuration preserves its owner and selects the client model unless explicitly overridden.";
     const {observer, room, client, agent} = this:_observer_fixture();
     let persona = #-1;
+    let speaker = #-1;
     try
       this:_await_observer(this:_as_player(observer, "request_response", {"question"}));
       const runtime = observer.runtime;
@@ -2315,7 +2332,13 @@ object HEADLESS_LLM_RUNTIME_SCENARIOS [
       this:_as_player(persona, "configure", {});
       $test_utils:assert_eq(persona.agent.owner, #90102, "Persona hooks configure an ordinary owner's agent");
       $test_utils:assert_true(maphaskey(persona.agent.tools, "remember_fact"), "Persona retains its useful catalog");
+      speaker = create($llm_room_observer, #90102, 2);
+      add_verb(speaker, {#90102, "rxd", "_setup_agent"}, {"this", "none", "this"});
+      set_verb_code(speaker, "_setup_agent", {"{agent} = args;", "pass(agent);", "agent:add_tool(\"say\", $llm_agent_tool:mk(\"say\", \"Persona speech.\", [\"type\" -> \"object\", \"properties\" -> [\"message\" -> [\"type\" -> \"string\"]], \"required\" -> {\"message\"}], this, \"persona_say\", 'presentation));"});
+      this:_as_player(speaker, "configure", {});
+      $test_utils:assert_eq(speaker.agent.tools["say"].target_verb, "persona_say", "A persona can register its own say without conflicting with the core");
     finally
+      valid(speaker) && recycle(speaker);
       valid(persona) && recycle(persona);
       recycle(observer);
       recycle(room);
@@ -2357,26 +2380,28 @@ object HEADLESS_LLM_RUNTIME_SCENARIOS [
     return true;
   endmethod
 
-  method test_observer_tool_speech_is_not_repeated owner: core::ARCH_WIZARD
-    "A reply already delivered by a presentation tool is not announced again; a different reply is.";
-    for case in ({{"Good evening.", 1}, {"What brings you here?", 2}})
-      const {reply, spoken} = case;
-      const {observer, room, client, agent} = this:_observer_fixture($mr_welcome);
-      try
-        observer:_setup_agent(agent);
-        client.replies = {["choices" -> {["message" -> ["role" -> "assistant", "tool_calls" -> {["id" -> "say", "type" -> "function", "function" -> ["name" -> "emote", "arguments" -> ["action" -> "Good evening."]]]}]]}], ["choices" -> {["message" -> ["role" -> "assistant", "content" -> "\"" + reply + "\""]]}]};
-        set_verb_code(client, "chat", {"const reply = this.replies[1];", "if (length(this.replies) > 1) this.replies = listdelete(this.replies, 1); endif", "return reply;"});
-        const job = this:_as_player(observer, "request_response", {"greet the room"});
-        this:_await_observer(job);
-        $test_utils:assert_eq(job.state, 'complete, "The turn completes");
-        const lines = { event for event in (room.events) if index(toliteral(event), "Good evening.") || index(toliteral(event), reply) };
-        $test_utils:assert_eq(length(lines), spoken, "Reply " + toliteral(reply) + " reaches the room the expected number of times");
-      finally
-        recycle(observer);
-        recycle(room);
-        recycle(client);
-      endtry
-    endfor
+  method test_observer_final_reply_stays_private owner: core::ARCH_WIZARD
+    "A line said through a tool reaches the room once even when the model repeats it; text alone never reaches the room.";
+    const {observer, room, client, agent} = this:_observer_fixture($mr_welcome);
+    try
+      observer:_setup_agent(agent);
+      set_verb_code(client, "chat", {"const reply = this.replies[1];", "if (length(this.replies) > 1) this.replies = listdelete(this.replies, 1); endif", "return reply;"});
+      client.replies = {this:_say_call({{"say", ["message" -> "Good evening — we prefer 'pleasantly understated.'"]}}), this:_final_reply("\"Good evening — we prefer \"pleasantly understated.\"\"")};
+      const job = this:_as_player(observer, "request_response", {"greet the room"});
+      this:_await_observer(job);
+      $test_utils:assert_eq(job.state, 'complete, "The turn completes");
+      $test_utils:assert_eq(length(room.events), 1, "A reworded repeat of tool speech is not announced");
+      client.replies = {this:_final_reply("What brings you here?")};
+      const text_only = this:_as_player(observer, "request_response", {"answer in text"});
+      this:_await_observer(text_only);
+      $test_utils:assert_eq(text_only.state, 'complete, "A text-only turn completes");
+      $test_utils:assert_eq(length(room.events), 1, "Text without a speech tool stays private");
+      $test_utils:assert_eq(observer.runtime.history[$]['reply], "What brings you here?", "The owner can still read what the model wrote");
+    finally
+      recycle(observer);
+      recycle(room);
+      recycle(client);
+    endtry
     return true;
   endmethod
 
@@ -2385,7 +2410,7 @@ object HEADLESS_LLM_RUNTIME_SCENARIOS [
     const {observer, room, client, agent} = this:_observer_fixture($mr_welcome);
     try
       observer:_setup_agent(agent);
-      client.replies = {["choices" -> {["message" -> ["role" -> "assistant", "tool_calls" -> {["id" -> "social", "type" -> "function", "function" -> ["name" -> "emote", "arguments" -> ["action" -> "waves in greeting."]]], ["id" -> "memory", "type" -> "function", "function" -> ["name" -> "remember_fact", "arguments" -> ["subject" -> "visitor", "fact" -> "likes the garden"]]]}]]}], ["choices" -> {["message" -> ["role" -> "assistant", "content" -> "SILENT"]]}]};
+      client.replies = {["choices" -> {["message" -> ["role" -> "assistant", "tool_calls" -> {["id" -> "social", "type" -> "function", "function" -> ["name" -> "emote", "arguments" -> ["action" -> "waves in greeting."]]], ["id" -> "memory", "type" -> "function", "function" -> ["name" -> "remember_fact", "arguments" -> ["subject" -> "visitor", "fact" -> "likes the garden"]]]}]]}], ["choices" -> {["message" -> ["role" -> "assistant", "content" -> "Greeted and remembered."]]}]};
       set_verb_code(client, "chat", {"this.requests = {@this.requests, args[1]};", "this.actors = {@this.actors, caller_perms()};", "const reply = this.replies[1];", "if (length(this.replies) > 1) this.replies = listdelete(this.replies, 1); endif", "return reply;"});
       const job = this:_as_player(observer, "request_response", {"greet and remember"});
       this:_await_observer(job);
