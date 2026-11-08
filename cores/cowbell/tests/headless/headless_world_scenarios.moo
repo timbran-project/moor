@@ -337,6 +337,35 @@ object HEADLESS_WORLD_SCENARIOS [
     endtry
   endmethod
 
+  method test_locked_passage_skips_items_it_cannot_inspect owner: core::ARCH_WIZARD
+    "A carried item with an unreadable key field is not the traveler's key, so the door tries the next item.";
+    const from_room = create($room, #90100, 2);
+    const to_room = create($room, #90100, 2);
+    const traveler = create($actor, #90101, 2);
+    const decoy = create($thing, #90100, 2);
+    const key = create($thing, #90101, 2);
+    try
+      add_property(decoy, "room", to_room, {#90100, ""});
+      add_property(key, "room", to_room, {#90101, "r"});
+      move(key, traveler);
+      move(decoy, traveler);
+      const rule = $rule_engine:parse_expression("property_is(object: input.Key, field: 'room, value: input.To)", 'unlock_rule, $rule_engine:passage_scope());
+      const passage = $passage:mk(from_room, "north", {}, "", true, to_room, "out", {}, "", true):with_locked(true):with_unlock_rule(rule);
+      const decoy_access = this:call_as_programmer($passage, "policy_access", passage, traveler, from_room, decoy);
+      $test_utils:assert_false(decoy_access['allowed], "An item the traveler cannot inspect does not open the door");
+      const access = this:call_as_programmer($passage, "policy_access", passage, traveler, from_room);
+      $test_utils:assert_true(access['allowed], "The real key still opens the door beside an uninspectable item");
+      $test_utils:assert_eq(access['key], key, "The matching key is the one reported");
+    finally
+      recycle(decoy);
+      recycle(key);
+      recycle(traveler);
+      recycle(from_room);
+      recycle(to_room);
+    endtry
+    return true;
+  endmethod
+
   method test_passage_helpers_reject_hostile_self_call owner: core::ARCH_WIZARD
     "An ordinary child cannot choose a wizard principal for inherited relation helpers.";
     const area = create($area, #90101, 2);

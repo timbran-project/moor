@@ -865,7 +865,14 @@ object PASSAGE [
         continue;
       endif
       inputs['Key] = candidate;
-      if ($rule_engine:evaluate(rule, inputs)['success])
+      "A carried item the accessor can't inspect is not their key. Try the next one.";
+      let result;
+      try
+        result = $rule_engine:evaluate(rule, inputs);
+      except (E_PERM)
+        continue;
+      endtry
+      if (result['success])
         return ['allowed -> valid(candidate) && candidate.location == who, 'key -> candidate];
       endif
     endfor
