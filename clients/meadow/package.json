@@ -1,6 +1,6 @@
 {
   "name": "meadow",
-  "version": "2.0.0-dev",
+  "version": "2.1.0-dev",
   "private": true,
   "description": "Modern web client for mooR - a 21st century LambdaMOO implementation",
   "main": "dist/index.js",
@@ -79,8 +79,8 @@
   "dependencies": {
     "@djot/djot": "^0.3.2",
     "@monaco-editor/react": "^4.7.0",
-    "@moor/schema": "2.0.0-dev",
-    "@moor/web-sdk": "2.0.0-dev",
+    "@moor/schema": "2.1.0-dev",
+    "@moor/web-sdk": "2.1.0-dev",
     "@tauri-apps/api": "^2.9.1",
     "age-encryption": "^0.2.4",
     "ansi_up": "^6.0.6",
