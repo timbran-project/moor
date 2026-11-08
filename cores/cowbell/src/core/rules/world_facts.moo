@@ -57,9 +57,19 @@ object WORLD_FACTS [
     elseif (name == 'wearing)
       matches = !!(values['item] in `values['actor].wearing ! E_PROPNF, E_PERM => {}');
     elseif (name == 'property_is)
-      matches = equal(values['object].(tostr(values['field])), values['value]);
+      "An object without the property does not match. Unreadable properties still raise E_PERM.";
+      try
+        matches = equal(values['object].(tostr(values['field])), values['value]);
+      except (E_PROPNF)
+        matches = false;
+      endtry
     elseif (name == 'property_at_least)
-      const value = values['object].(tostr(values['field]));
+      let value;
+      try
+        value = values['object].(tostr(values['field]));
+      except (E_PROPNF)
+        return ['rows -> {}, 'complete -> true];
+      endtry
       typeof(value) == TYPE_INT || raise(E_TYPE, "Expected an integer property");
       matches = value >= values['minimum];
     elseif (name == 'occupants)
@@ -67,5 +77,33 @@ object WORLD_FACTS [
       return ['rows -> { ['object -> item] for item in (contents[1..min(length(contents), limit)]) }, 'complete -> length(contents) <= limit];
     endif
     return ['rows -> matches ? {[]} | {}, 'complete -> true];
+  endmethod
+
+  method test_missing_properties_do_not_match owner: HACKER
+    "A key rule tried against a carried item without the property fails quietly, so the next item can match.";
+    const room = create($thing);
+    const plain = create($thing);
+    const key = create($thing);
+    add_property(key, "room", room, {key.owner, "r"});
+    const rule = $rule_engine:parse_expression("property_is(object: input.Key, field: 'room, value: input.To)", 'test_key, $rule_engine:passage_scope());
+    let inputs = ['Accessor -> player, 'From -> room, 'To -> room, 'Passage -> 0];
+    let plain_result = false;
+    let key_result = false;
+    let minimum_result = false;
+    try
+      inputs['Key] = plain;
+      plain_result = $rule_engine:evaluate(rule, inputs)['success];
+      inputs['Key] = key;
+      key_result = $rule_engine:evaluate(rule, inputs)['success];
+      minimum_result = this:query('property_at_least, ['object -> plain, 'field -> 'room, 'minimum -> 1], 1)['rows];
+    finally
+      room:destroy();
+      plain:destroy();
+      key:destroy();
+    endtry
+    $test_utils:assert_true(!plain_result, "an item without the property should not match");
+    $test_utils:assert_true(key_result, "an item with the matching property should match");
+    $test_utils:assert_eq(minimum_result, {}, "property_at_least should not match a missing property");
+    return true;
   endmethod
 endobject
