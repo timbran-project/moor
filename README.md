@@ -13,12 +13,15 @@ places and things, and program how those things behave, while the world is runni
 using it. Nothing is rebuilt or redeployed. A change takes effect as soon as it is made, and the
 world keeps everything between visits.
 
-Many people can play, build and program at once without tripping over each other. Each action either
-happens completely or not at all, so one person's half-finished change never breaks what someone
-else is doing. The server uses every processor core of the machine it runs on.
+Many people can play, build and program at once without tripping over each other. mooR does its
+bestEach action either happens completely or not at all, so one person's half-finished change never
+breaks what someone else is doing.
 
-Worlds can be textual or graphical. People connect through a friendly web interface or a classic MUD
-client, and other ways in are added as "hosts", which translate a network protocol for the world.
+Worlds can be textual (like a MUD) or even graphical. People can connect through a friendly web
+interface or a classic MUD client, and other ways in are added as "hosts", which translate a network
+protocol for the world. mooR's underlying object model lets you build what you want, while providing
+a set of common services and infrastructure (security, scheduling, transactions, notifications,
+etc.) that make world building possible.
 
 The programs in a mooR world are written in MOO, a small language designed for this kind of world.
 It comes from [LambdaMOO](https://en.wikipedia.org/wiki/LambdaMOO), one of the first online worlds

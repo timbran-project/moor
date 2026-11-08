@@ -4395,7 +4395,7 @@ dependencies = [
 
 [[package]]
 name = "moor-builtin-docs-macro"
-version = "2.0.0-dev"
+version = "2.1.0-dev"
 dependencies = [
  "quote",
  "syn 2.0.119",
@@ -4403,7 +4403,7 @@ dependencies = [
 
 [[package]]
 name = "moor-common"
-version = "2.0.0-dev"
+version = "2.1.0-dev"
 dependencies = [
  "byteview",
  "eyre",
@@ -4432,7 +4432,7 @@ dependencies = [
 
 [[package]]
 name = "moor-compiler"
-version = "2.0.0-dev"
+version = "2.1.0-dev"
 dependencies = [
  "ariadne",
  "base64 0.22.1",
@@ -4456,7 +4456,7 @@ dependencies = [
 
 [[package]]
 name = "moor-curl-worker"
-version = "2.0.0-dev"
+version = "2.1.0-dev"
 dependencies = [
  "clap",
  "clap_derive",
@@ -4478,7 +4478,7 @@ dependencies = [
 
 [[package]]
 name = "moor-daemon"
-version = "2.0.0-dev"
+version = "2.1.0-dev"
 dependencies = [
  "age",
  "ahash",
@@ -4525,7 +4525,7 @@ dependencies = [
 
 [[package]]
 name = "moor-db"
-version = "2.0.0-dev"
+version = "2.1.0-dev"
 dependencies = [
  "ahash",
  "arc-swap",
@@ -4559,7 +4559,7 @@ dependencies = [
 
 [[package]]
 name = "moor-emh"
-version = "2.0.0-dev"
+version = "2.1.0-dev"
 dependencies = [
  "clap",
  "clap_derive",
@@ -4583,7 +4583,7 @@ dependencies = [
 
 [[package]]
 name = "moor-file-worker"
-version = "2.0.0-dev"
+version = "2.1.0-dev"
 dependencies = [
  "cap-std",
  "clap",
@@ -4602,7 +4602,7 @@ dependencies = [
 
 [[package]]
 name = "moor-git-worker"
-version = "2.0.0-dev"
+version = "2.1.0-dev"
 dependencies = [
  "async-trait",
  "clap",
@@ -4632,7 +4632,7 @@ dependencies = [
 
 [[package]]
 name = "moor-kernel"
-version = "2.0.0-dev"
+version = "2.1.0-dev"
 dependencies = [
  "age",
  "ahash",
@@ -4697,7 +4697,7 @@ dependencies = [
 
 [[package]]
 name = "moor-loadsim"
-version = "2.0.0-dev"
+version = "2.1.0-dev"
 dependencies = [
  "clap",
  "clap_derive",
@@ -4708,7 +4708,7 @@ dependencies = [
 
 [[package]]
 name = "moor-model-checker"
-version = "2.0.0-dev"
+version = "2.1.0-dev"
 dependencies = [
  "clap",
  "clap_derive",
@@ -4738,7 +4738,7 @@ dependencies = [
 
 [[package]]
 name = "moor-moot"
-version = "2.0.0-dev"
+version = "2.1.0-dev"
 dependencies = [
  "anstream",
  "anstyle",
@@ -4752,11 +4752,11 @@ dependencies = [
 
 [[package]]
 name = "moor-native-verb"
-version = "2.0.0-dev"
+version = "2.1.0-dev"
 
 [[package]]
 name = "moor-objdef"
-version = "2.0.0-dev"
+version = "2.1.0-dev"
 dependencies = [
  "eyre",
  "moor-common",
@@ -4774,7 +4774,7 @@ dependencies = [
 
 [[package]]
 name = "moor-runtime-api"
-version = "2.0.0-dev"
+version = "2.1.0-dev"
 dependencies = [
  "async-trait",
  "clap",
@@ -4794,7 +4794,7 @@ dependencies = [
 
 [[package]]
 name = "moor-schema"
-version = "2.0.0-dev"
+version = "2.1.0-dev"
 dependencies = [
  "byteview",
  "micromeasure",
@@ -4810,7 +4810,7 @@ dependencies = [
 
 [[package]]
 name = "moor-schema-macros"
-version = "2.0.0-dev"
+version = "2.1.0-dev"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4819,7 +4819,7 @@ dependencies = [
 
 [[package]]
 name = "moor-server"
-version = "2.0.0-dev"
+version = "2.1.0-dev"
 dependencies = [
  "async-trait",
  "clap",
@@ -4854,7 +4854,7 @@ dependencies = [
 
 [[package]]
 name = "moor-telnet-host"
-version = "2.0.0-dev"
+version = "2.1.0-dev"
 dependencies = [
  "bytes",
  "clap",
@@ -4891,7 +4891,7 @@ dependencies = [
 
 [[package]]
 name = "moor-textdump"
-version = "2.0.0-dev"
+version = "2.1.0-dev"
 dependencies = [
  "base64 0.22.1",
  "moor-common",
@@ -4907,7 +4907,7 @@ dependencies = [
 
 [[package]]
 name = "moor-var"
-version = "2.0.0-dev"
+version = "2.1.0-dev"
 dependencies = [
  "ahash",
  "arcstr",
@@ -4930,7 +4930,7 @@ dependencies = [
 
 [[package]]
 name = "moor-vm"
-version = "2.0.0-dev"
+version = "2.1.0-dev"
 dependencies = [
  "moor-common",
  "moor-compiler",
@@ -4945,7 +4945,7 @@ dependencies = [
 
 [[package]]
 name = "moor-web-host"
-version = "2.0.0-dev"
+version = "2.1.0-dev"
 dependencies = [
  "async-trait",
  "axum",
@@ -4989,7 +4989,7 @@ dependencies = [
 
 [[package]]
 name = "moor-zmq-client"
-version = "2.0.0-dev"
+version = "2.1.0-dev"
 dependencies = [
  "async-trait",
  "chrono",
@@ -5018,7 +5018,7 @@ dependencies = [
 
 [[package]]
 name = "moorc"
-version = "2.0.0-dev"
+version = "2.1.0-dev"
 dependencies = [
  "clap",
  "clap_derive",
@@ -5041,7 +5041,7 @@ dependencies = [
 
 [[package]]
 name = "mootop"
-version = "2.0.0-dev"
+version = "2.1.0-dev"
 dependencies = [
  "clap",
  "clap_derive",
