@@ -6,329 +6,180 @@
 [![mooR Book](https://img.shields.io/badge/Read-mooR_Book-blue?logo=mdbook&logoColor=white)](https://timbran.org/book/2.0-dev/html/)
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-pink)](https://github.com/sponsors/rdaum)
 
-**mooR** is a network-accessible, multi-user, programmable system for building online social
-environments, games, and collaborative spaces. Think of it as a virtual world where participants can
-not only interact with each other, but also program and modify the environment itself.
+**mooR is infrastructure for social worlds and games that people build and program together.**
 
-mooR is a modern, from-scratch rewrite of [LambdaMOO](https://en.wikipedia.org/wiki/MOO),
-maintaining full compatibility with existing LambdaMOO 1.8.x databases while adding significant
-enhancements.
+A mooR world is shared and persistent. People meet in it, play in it, and shape it: they create
+places and things, and program how those things behave, while the world is running and others are
+using it. Nothing is rebuilt or redeployed. A change takes effect as soon as it is made, and the
+world keeps everything between visits.
 
-> **Which version should I use?**
->
-> Use the `v2.0-release` branch. mooR 2.0 is in code freeze ahead of its release, which is planned
-> for the coming days or weeks. Cowbell, LambdaCore and the Meadow clients work against it. Please
-> report bugs against `v2.0-release`.
->
-> ```bash
-> git clone -b v2.0-release https://github.com/timbran-project/moor.git
-> ```
->
-> 2.0 has no release packages or container images yet; build it from the branch, as the
-> [Quick Start](#quick-start) scripts do. The 1.0 series (`1.0.2` and `v1.0-release`) is no longer
-> supported. `main` is where development after 2.0 happens.
->
-> See the [Status](#status) section below for the branch policy.
+Many people can play, build and program at once without tripping over each other. Each action either
+happens completely or not at all, so one person's half-finished change never breaks what someone
+else is doing. The server uses every processor core of the machine it runs on.
 
-📖 **For comprehensive documentation, see our [mooR Book](https://timbran.org/book/html/).**
+Worlds can be textual or graphical. People connect through a friendly web interface or a classic MUD
+client, and other ways in are added as "hosts", which translate a network protocol for the world.
 
-> **Repository migration (July 2026):** Development, issues, and pull requests have moved back
-> GitHub (from Codeberg), but into a new
-> [timbran-project organization](https://github.com/timbran-project/moor). Here's
-> [why](https://timbran.org/catching-up-with-moor.html#we-moved-back-to-github). The
-> [`1.0.2` release](https://github.com/timbran-project/moor/releases/tag/1.0.2) was the final
-> release built using the previous hosting and repository layout. Its release artifacts have been
-> mirrored from Codeberg to GitHub along with the `1.0.0` and `1.0.1` releases.
+The programs in a mooR world are written in MOO, a small language designed for this kind of world.
+It comes from [LambdaMOO](https://en.wikipedia.org/wiki/LambdaMOO), one of the first online worlds
+built by its own users (see [MOO](https://en.wikipedia.org/wiki/MOO)). mooR is a new server, written
+from scratch, that extends the language and can import existing LambdaMOO databases. It has been in
+development since 2022.
 
-## What is a MOO? And Why?
+<table>
+  <tr>
+    <td><img src="./doc/meadow-timbran-session.png" alt="A conversation in the lobby of the Timbran Hotel, in the Meadow web client"/></td>
+    <td><img src="./doc/meadow-object-browser.png" alt="The object browser and verb editor in Meadow, editing a verb while the world runs"/></td>
+  </tr>
+  <tr>
+    <td align="center">Playing in the Timbran Hotel</td>
+    <td align="center">Programming the same world from inside it</td>
+  </tr>
+</table>
 
-A MOO (Multi-User Object-Oriented) is a network-accessible, multi-user, programmable system for
-building online social environments, games, and collaborative spaces. Think of it as a virtual world
-where participants can not only interact with each other, but also program and modify the
-environment itself.
+## Built with mooR
 
-MOOs offer a unique digital experience through:
+<!-- TODO: an image per entry, and links where they are public. -->
 
-- **Collaborative storytelling** where participants build a shared narrative
-- **Live programming** - modify the world while you're in it
-- **Community-driven development** through persistent interactions and relationships
-- **Rich interaction** that engages users through both traditional command-line and modern web
-  interfaces
-- **Complete customizability** - everything from objects to commands can be programmed
+- **[Cowbell](cores/cowbell/README.md)**: a starting world and object library for communities. It
+  ships with this repository, and has a web-native interface through the Meadow client.
+- **[Timbran Hotel](https://moo.timbran.org)**: a public community world running on Cowbell. Visit
+  it to see mooR in use.
+- **A Minecraft server (prototype)**: ordinary Minecraft clients connect to a mooR world. The world,
+  its players and the game rules live in MOO, allowing many users to connect build and edit the same
+  persistent world. (Currently private prototype and its source is not published at this time)
 
-What _mainly_ sets MOOs apart is their emphasis on live programming and community-driven content
-creation - imagine if Minecraft's creative mode, Discord's community features, and a code editor all
-lived in the same space. (Or for the more nerdy, imagine if a system like Smalltalk or similar could
-be connected to by multiple people in real time, each contributing to a shared codebase.)
+  <img src="./doc/minecraft-proto.png" alt="The Timbran Hotel lobby and Henri the cat, seen from a Minecraft client, with the room description in the chat" width="600"/>
 
-mooR is a modern, from-scratch rewrite of all of the above. It will happily import an existing
-LambdaMOO (or some ToastStunt) database, but offers significant enhancements and modern conveniences
-and is intended on bringing the whole experience into the future.
+## Which version should I use?
 
-To see a live running instance, visit our demonstrator community at
-["Timbran Hotel"](https://moo.timbran.org).
+Use the `v2.0-release` branch. mooR 2.0 is in code freeze, and a formal `2.0.0` release will follow
+in the coming days or weeks. Cowbell, LambdaCore and the Meadow clients work against it. Please
+report bugs against it.
 
-<p align="center"><img src="./doc/timbran-lobby.png" alt="The Timbran Hotel Lobby" width="600"/></p>
+2.0 has no release packages or container images yet, so build it from the branch as shown below. The
+1.0 series is no longer supported. `main` is where development after 2.0 happens. See
+[Branch policy](#branch-policy).
 
-## Key Features & Enhancements
+## Try it
 
-**Runtime improvements:**
+You need Docker. Clone the 2.0 branch and start a world:
 
-- Fully multithreaded architecture for modern multicore systems
-- Web frontend client
-- Directory-based import/export format for version control integration
-- Modular architecture for easier extension
+```bash
+git clone -b v2.0-release https://github.com/timbran-project/moor.git
+cd moor
+./scripts/start-moor-cowbell.sh       # Cowbell, a modern starting world
+./scripts/start-moor-lambdacore.sh    # or LambdaCore, the classic LambdaMOO core
+```
 
-**Language enhancements:**
+Then open [http://localhost:8080](http://localhost:8080) in a browser, or point a MUD client at
+`localhost`, port `8888`. Each core keeps its data in its own directory (`run-cowbell/`,
+`run-lambda-moor/`).
 
-- UTF-8 strings, 64-bit integers, binary values
-- Proper boolean values (`true`/`false`)
-- Maps: associative containers (`["key" -> "value"]`)
-- Lexically scoped variables with `begin`/`end` blocks
-- List/range comprehensions (`{x * 2 for x in [1..5]}`)
-- Lambda functions: anonymous functions with closures (`{x, y} => x + y`)
-- Symbol literals ('mysymbol) like Lisp/Scheme (optional)
-- UUID object identifiers (optional)
-- Anonymous objects with automatic garbage collection (optional)
-- Lightweight immutable objects ("flyweights") (optional)
+The scripts build in release mode; pass `--debug` for a faster first compile. For other ways to run
+mooR, including without Docker, see
+[Docker Compose Setup](https://timbran.org/book/2.0-dev/html/the-system/docker-compose-setup.html)
+and
+[Alternative Installation Methods](https://timbran.org/book/2.0-dev/html/the-system/alternative-installation-methods.html)
+in the book.
 
-**Modern infrastructure:**
+## What mooR gives you
 
-- Fast, durable, transactional database
-- Support for multiple client protocols (web, telnet)
-- Easy deployment via Docker
+**For people building worlds and games**
 
-## Status
+- Live programming/building: objects, verbs and commands change while the world runs, with no
+  restart.
+- Each action happens completely or not at all. When two people's actions collide, mooR runs one of
+  them again, so neither sees the other's work half done.
+- Coarse and fine-grained task permissions, and time and tick-based sandboxing; mooR is designed so
+  that another person's contribute code shouldn't harm your experience or other's.
+- A nice web client (Meadow) with an in-world code editor / IDE tools
+- As well as support for classic MUD clients over "telnet".
+- A fancy task scheduler.
+- External "workers" that let MOO code reach outside the world over HTTP, Git and files, with
+  wizard-controlled permissions.
 
-mooR 2.0 is in code freeze on the `v2.0-release` branch, and a formal `2.0.0` release will follow in
-the coming days or weeks. Until then the branch takes bug fixes only. mooR runs databases imported
-from LambdaMOO with real-world workloads and has passed extensive stress and performance testing.
+**For programmers**
 
-**Branch policy**:
+- The MOO programming language extended with UTF-8 strings, 64-bit integers, booleans, maps,
+  symbols, binary values, lexically scoped variables, list comprehensions, and lambdas with closures
+  (`{x, y} => x + y`), and more.
+- Friendly import/export format, worlds as source: the `objdef` format exports a world to a
+  directory of text files that work well with Git, and Cowbell's `@changes` reviews and applies
+  changes from those files inside the world.
+- Native verbs: compiled code called from MOO through a C ABI.
+- An HTTP and WebSocket API for building clients, with an OpenAPI description.
 
-- `v2.0-release` branch: the 2.0 release line, for bug fixes, stability work, and releases. Database
+**For running a server**
+
+- Multithreaded. Every task is a transaction in a database with optimistic concurrency and snapshot
+  isolation; conflicting tasks are retried. mooR scales out across cores to handle load on modern
+  hardware.
+- Flexible deployment options -- from a single `moor` server that does everything to a clustered
+  deployment where "hosts" (network front ends) live in separate processes that can be
+  load-balanced, sandboxed, etc.
+- Container images and Debian packages (for 2.0, from the formal release).
+- Extensive observability & telemetry: Metrics through e.g. prometheus to track what's going down on
+  your server, and profiling (via eBPF-driven `mootop`) to see live which verbs and tasks use the
+  server's CPU.
+
+**For existing MOOs**
+
+- Imports LambdaMOO 1.8.x databases, and some ToastStunt databases.
+- Keeps LambdaMOO behaviour where MOO code depends on it, such as which tasks keep their changes.
+
+## What's in this repository
+
+| Directory                       | Contents                                                                                  |
+| ------------------------------- | ----------------------------------------------------------------------------------------- |
+| [`crates/`](crates/README.md)   | The server: compiler, VM, database, scheduler, RPC daemon, and the telnet and web "hosts" |
+| [`cores/`](cores/)              | Worlds: [Cowbell](cores/cowbell/README.md), [Snore](cores/snore/README.md), LambdaCore    |
+| [`clients/`](clients/README.md) | [Meadow](clients/meadow/README.md) web client, the Flutter client, the web SDK            |
+| [`tools/`](tools/)              | `moorc` compiler, `mootop`, load testing and other tools                                  |
+| [`deploy/`](deploy/README.md)   | Deployment examples: single process, clustered, Kubernetes, Debian packages               |
+| [`book/`](book/)                | Source for the mooR Book                                                                  |
+
+## Learn more
+
+- [The mooR Book](https://timbran.org/book/2.0-dev/html/): the full documentation
+- [The MOO programming language](https://timbran.org/book/2.0-dev/html/the-moo-programming-language.html)
+- [Server architecture](https://timbran.org/book/2.0-dev/html/moor-architecture.html)
+- [Running a server](https://timbran.org/book/2.0-dev/html/the-system/running-the-server.html) and
+  the [deployment guide](deploy/README.md)
+- [Discord](https://discord.gg/Ec94y5983z), for questions and discussion
+
+## Contributing and bug reports
+
+File bugs and feature requests on the
+[issue tracker](https://github.com/timbran-project/moor/issues). Report bugs against `v2.0-release`,
+and include the commit you are running, steps to reproduce, what you expected and what happened, and
+any relevant logs.
+
+To contribute code, cores or documentation, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Supporting mooR
+
+mooR is an independent project. I (Ryan Daum) started it in November 2022 and have written most of
+its more than 4,500 commits, with help from other contributors. If you use it, or want it to keep
+growing, please consider [sponsoring the project on GitHub](https://github.com/sponsors/rdaum).
+Sponsorship pays for development time and for running the public Timbran Hotel world.
+
+If your organization wants to build on mooR (or something like it!) I also offer consulting, support
+and alternative licensing through Timbran Consulting. See [License](#license).
+
+## Branch policy
+
+- `v2.0-release`: the 2.0 release line, for bug fixes, stability work, and releases. Database
   formats, network APIs and MOO language behaviour are frozen.
-- `main` branch: `2.1.0-dev`, development after 2.0. Changes there stay cautious for now.
-- Bug fixes land on `main` first, then are cherry-picked to `v2.0-release` when safe
-- Release tags, packages, and published images for 2.0 are cut from `v2.0-release`
-- `v1.0-release` and the `1.0.x` releases are no longer supported
-
-**Repository**: The primary mooR repository is
-[github.com/timbran-project/moor](https://github.com/timbran-project/moor). File issues and submit
-pull requests on GitHub. GitHub hosts the `1.0.0` through `1.0.2` releases and their package
-artifacts. Codeberg retains the repository history from before the migration, but new development
-takes place on GitHub.
-
-mooR is now a monorepo. The Rust server and tools live under `crates/` and `tools/`, Cowbell lives
-under `cores/cowbell/`, the Meadow clients live under `clients/`, and deployment assets live under
-`deploy/`.
-
-## Quick Start
-
-The easiest way to get started and see what we've made is by using our quick-start scripts. These
-scripts handle Docker setup, resource isolation, npm workspace dependencies, and feature flag
-configuration.
-
-### Try out mooR with a Core
-
-Choose one of the bundled, pre-configured cores to explore:
-
-- **Cowbell** (Modern core with web-native features):
-  ```bash
-  ./scripts/start-moor-cowbell.sh
-  ```
-- **LambdaCore** (Classic LambdaMOO core, with slight modifications for a better experience in
-  mooR):
-  ```bash
-  ./scripts/start-moor-lambdacore.sh
-  ```
-
-By default, these scripts use a higher performance **release** build. For a faster initial compile
-during mooR development (but slower runtime performance), you can use the `--debug` flag:
-
-```bash
-./scripts/start-moor-cowbell.sh --debug
-```
-
-### Accessing the System
-
-Once started, the services are available at:
-
-- **Web Client**: [http://localhost:8080](http://localhost:8080)
-- **Telnet Interface**: `telnet localhost 8888`
-
-The system isolates runtime data for each core in its own directory (`run-cowbell/` or
-`run-lambda-moor/`), ensuring you can switch between them without database pollution.
-
-[Snore Core](cores/snore/README.md) is a LambdaCore fork for mooR, with familiar MOO behavior and
-updated internals: _just boring enough_. Its local Rust launcher serves telnet on `127.0.0.1:8888`
-and keeps state in `cores/snore/gen.monolith/`:
-
-```sh
-./cores/snore/run-monolith.sh
-```
-
----
-
-## What the services are
-
-This starts two containers:
-
-- **moor**: The combined backend, telnet host, web host, and embedded curl worker
-- **moor-frontend**: Web client served via nginx on port 8080
-
-Connect via:
-
-- **Web**: [http://localhost:8080](http://localhost:8080)
-- **Telnet**: `telnet localhost 8888`
-
-The server comes pre-loaded with an extraction of LambdaCore, providing a ready-to-explore virtual
-world.
-
-For more detailed setup instructions, see the
-[Docker Compose Setup](https://timbran.org/book/html/the-system/docker-compose-setup.html) section
-in the mooR Book.
-
-### Alternative: Frontend Development Setup
-
-For frontend development and testing, you can run the single-process `moor` server and web client
-without Docker:
-
-```bash
-npm run full:dev
-```
-
-This starts the `moor` single-process binary and web development server, accessible at
-[http://localhost:3000](http://localhost:3000). The `moor` process runs the daemon, telnet host, and
-web host together while Vite provides hot-reloading for frontend development. See
-[the in-tree Meadow documentation](clients/meadow/README.md) for details.
-
-## Deployment Options
-
-mooR provides multiple deployment configurations to suit different use cases:
-
-### Development & Single-Process Deployments
-
-The root `docker-compose.yml` is designed for development and single-process deployments. The
-backend runs as one `moor` process, with nginx serving the Meadow frontend.
-
-The recommended way to start this setup is via the core-specific scripts, which handle all
-environment isolation and permissions for you.
-
-To start in the background:
-
-```bash
-./scripts/start-moor-cowbell.sh -d
-```
-
-(Any additional flags like `-d` are passed directly to `docker compose up`).
-
-Data for these deployments is consolidated under core-specific directories (e.g., `./run-cowbell/`),
-keeping your project root clean.
-
-### Testing Clustered Configuration
-
-The `deploy/clustered/docker-compose.tcp.yml` file is an example configuration that demonstrates
-TCP-based communication with CURVE encryption. It runs on a single machine but shows what a
-multi-machine clustered setup would look like:
-
-```bash
-docker compose -f deploy/clustered/docker-compose.tcp.yml up -d
-```
-
-This uses TCP with CURVE encryption and enrollment tokens for host authentication. It's useful for
-testing the clustered setup locally before deploying across actual separate machines.
-
-For actual multi-machine production deployments, use Kubernetes (see future documentation) or deploy
-Debian packages on separate servers.
-
-### Production Deployment Configurations
-
-The `deploy/` directory contains deployment examples:
-
-- **`single-process/basic/`**: Combined backend with telnet, embedded web API, and curl worker
-- **`single-process/web/`**: Combined backend plus nginx serving Meadow, with curl worker enabled
-- **`clustered/telnet-only/`**: Split-process telnet setup
-- **`clustered/web-basic/`**: Split-process web deployment with HTTP
-- **`clustered/web-ssl/`**: Split-process web deployment with HTTPS/TLS support
-- **`debian-packages/`**: Native Debian/Ubuntu packages with systemd (no Docker)
-
-Published container images are available from GitHub Container Registry. The
-`ghcr.io/timbran-project/moor` image contains the backend binaries and compiled Meadow assets;
-`ghcr.io/timbran-project/moor-frontend` provides Meadow in nginx for deployments that need a
-standalone frontend image. Version and `latest` tags are multi-platform for AMD64 and ARM64.
-
-See each deployment's README for specific setup instructions. If you run into problems with these
-scripts, please file an issue on our
-[GitHub issue tracker](https://github.com/timbran-project/moor/issues) as they may fall out of date
-with the latest changes.
-
-For testing the current state of these deployment scenarios:
-
-```bash
-cd deploy
-./test-all.sh  # Test all deployment configurations
-```
-
-## For Developers & Contributors
-
-mooR offers several opportunities for contribution. For detailed contribution guidelines, see
-[CONTRIBUTING.md](CONTRIBUTING.md).
-
-**Core Development** (Rust):
-
-- Server architecture improvements
-- New builtin functions
-- Performance optimizations
-- Protocol extensions
-
-**World Building** (MOO language):
-
-- Creating new cores and experiences
-- Porting existing MOO content
-- Building modern web-enabled interfaces
-
-**Documentation & Testing**:
-
-- Expanding the mooR Book
-- Creating tutorials and examples
-- Stress testing and bug reports
-
-### Getting Involved
-
-- **Issues**: Check our [GitHub Issues](https://github.com/timbran-project/moor/issues) for current
-  needs
-- **Discussion**: Join our [Discord](https://discord.gg/Ec94y5983z) community
-- **Experience**: Visit the [Timbran Hotel](https://moo.timbran.org) and explore and code
-- **Development**: See the [mooR Book](https://timbran.org/book/html/) for architecture details
-- **Support**: Consider [sponsoring the project](https://github.com/sponsors/rdaum) to help with
-  ongoing development
-
-## Bug Reports
-
-Found a bug or have a feature request? Please file an issue on our
-[GitHub issue tracker](https://github.com/timbran-project/moor/issues). Please report bugs against
-the `v2.0-release` branch, and say which commit you are running. Reports from `main` are welcome
-too. The 1.0 series is no longer supported.
-
-When reporting bugs, please include:
-
-- Steps to reproduce the issue
-- Expected vs actual behavior
-- Your system information (OS, Docker version if applicable)
-- Version number and commit tag/hash
-- Relevant log output or error messages
-
-## Resources
-
-- 📖 **[Complete Documentation](https://timbran.org/book/html/)** - The comprehensive mooR Book
-- 🏗️ **[Server Architecture](https://timbran.org/book/html/moor-architecture.html)** - Technical
-  overview
-- 💻
-  **[MOO Programming Language](https://timbran.org/book/html/the-moo-programming-language.html)** -
-  Language reference
-- 🚀 **[Running a Server](https://timbran.org/book/html/the-system/running-the-server.html)** -
-  Deployment guide
+- `main`: `2.1.0-dev`, development after 2.0. Changes there stay cautious for now.
+- Bug fixes land on `main` first, then are cherry-picked to `v2.0-release` when safe.
+- Release tags, packages, and published images for 2.0 are cut from `v2.0-release`.
+- `v1.0-release` and the `1.0.x` releases are no longer supported.
+
+Development moved from Codeberg to
+[github.com/timbran-project/moor](https://github.com/timbran-project/moor) in July 2026
+([why](https://timbran.org/catching-up-with-moor.html#we-moved-back-to-github)). Codeberg keeps the
+earlier history, and GitHub hosts the `1.0.0` to `1.0.2` releases.
 
 ## License
 

@@ -2,7 +2,7 @@
 
 A rich and beautiful web & mobile client for interacting with mooR worlds.
 
-<p align="center"><img src="./doc/timbran-lobby.png" alt="The Timbran Hotel Lobby" width="600"/></p>
+<p align="center"><img src="../../doc/meadow-timbran-session.png" alt="A conversation in the lobby of the Timbran Hotel, in Meadow" width="600"/></p>
 
 ## Overview
 
@@ -71,15 +71,13 @@ authoring persistent worlds and building objects in the MOO using modern develop
   - Can create new objects and edit existing ones, add new verbs and properties, and edit them using
     the GUI without using the MOO command line.
 
-<p align="center"><img src="./doc/browser.png" alt="The Meadow Object Browser" width="600"/></p>
-
 - **Monaco-powered Editor:** The same core editor that powers **VS Code**, featuring:
   - Syntax highlighting for MOO code.
   - Dynamic autocompletion based on the live world state.
   - Integrated compiler feedback and error reporting.
   - Verb editor highlights compile errors.
 
-<p align="center"><img src="./doc/verb-editor.png" alt="The Meadow Verb Editor" width="600"/></p>
+<p align="center"><img src="../../doc/meadow-object-browser.png" alt="The Meadow object browser, with the verb editor open on a verb" width="600"/></p>
 
 ## Project Structure
 
