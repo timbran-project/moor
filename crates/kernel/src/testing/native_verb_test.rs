@@ -246,6 +246,78 @@ mod tests {
         Ok(call.ret(call.list(&[call.result().expect("double's result"), next.into()])))
     }
 
+    static SCHEDULER_ATTEMPTS: std::sync::atomic::AtomicUsize =
+        std::sync::atomic::AtomicUsize::new(0);
+
+    fn scheduler_conflicted(call: &Call) -> Result<Done> {
+        let object = NativeObj::number(0);
+        let property = call.sym("counter");
+        let next = call.property(object, property)?.int(call)? + 1;
+        call.set_property(object, property, next.into())?;
+        if SCHEDULER_ATTEMPTS.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 0 {
+            return Err(moor_native_verb::Stop::Conflict);
+        }
+        Ok(call.ret(next))
+    }
+
+    #[test]
+    fn native_conflict_restarts_a_stopped_vm_through_the_scheduler() {
+        use crate::{
+            config::Config,
+            tasks::{NoopTasksDb, scheduler::Scheduler},
+        };
+        use moor_common::{
+            model::ObjectRef,
+            tasks::{NoopSystemControl, Session, SessionError, SessionFactory, TaskEnding},
+        };
+        use moor_var::{Obj, v_empty_str};
+        use std::{sync::atomic::Ordering, time::Duration};
+
+        struct Factory;
+        impl SessionFactory for Factory {
+            fn mk_background_session(
+                self: Arc<Self>,
+                _: &Obj,
+            ) -> std::result::Result<Arc<dyn Session>, SessionError> {
+                Ok(Arc::new(NoopClientSession::new()))
+            }
+        }
+        SCHEDULER_ATTEMPTS.store(0, Ordering::SeqCst);
+        let db = world_with(vec![("retry", native("scheduler_conflicted"))]);
+        let config = Config {
+            native_verbs: native_verbs().native_verbs.clone(),
+            ..Default::default()
+        };
+        let scheduler = Scheduler::new(
+            semver::Version::new(0, 0, 0),
+            Box::new(db),
+            Box::new(NoopTasksDb {}),
+            Arc::new(config),
+            Arc::new(NoopSystemControl::default()),
+            None,
+            None,
+        );
+        let client = scheduler.client().unwrap();
+        let threads = scheduler.start(Arc::new(Factory)).unwrap();
+        let handle = client
+            .submit_verb_task(
+                &SYSTEM_OBJECT,
+                &ObjectRef::Id(SYSTEM_OBJECT),
+                Symbol::mk("retry"),
+                List::mk_list(&[]),
+                v_empty_str(),
+                &SYSTEM_OBJECT,
+                Arc::new(NoopClientSession::new()),
+            )
+            .unwrap();
+        let result = handle.receiver().recv_timeout(Duration::from_secs(2));
+        client.submit_shutdown("test complete").unwrap();
+        threads.join().unwrap();
+        let (_, outcome) = result.expect("a native conflict retry must complete");
+        assert!(matches!(outcome.ending, TaskEnding::Completed(value) if value == v_int(42)));
+        assert_eq!(SCHEDULER_ATTEMPTS.load(Ordering::SeqCst), 2);
+    }
+
     fn explode(_call: &Call) -> Result<Done> {
         panic!("boom")
     }
@@ -265,6 +337,7 @@ mod tests {
             "outlive" => outlive,
             "busy" => busy,
             "conflicted" => conflicted,
+            "scheduler_conflicted" => scheduler_conflicted,
             "busy_then_suspend" => busy_then_suspend,
             "slow" => slow,
             "suspend_then_relay" => suspend_then_relay,

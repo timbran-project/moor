@@ -672,6 +672,13 @@ impl VmHost {
         self.vm_exec_state = state.clone();
     }
 
+    /// Start a retry: restore the snapshot taken at the last commit and run from it again. The
+    /// attempt that conflicted may have stopped the VM, as a native verb's conflict does.
+    pub(crate) fn retry_from(&mut self, state: &ExecState) {
+        self.restore_state(state);
+        self.running = true;
+    }
+
     pub fn is_running(&self) -> bool {
         self.running
     }
