@@ -14,6 +14,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.1 series (`main` branch)
 
+### Fixed
+
+- `GET /auth/validate` no longer opens and closes a connection to check a token. When a player had
+  no other connection, as when a browser came back after its connection expired, closing it was
+  their last disconnection, so the world ran its disconnect hooks and could announce that the player
+  had left just as they returned. Meadow checks its token on every page load and after a failed
+  reconnect. The check now uses a new `ValidateAuth` request that runs no hooks.
+
 ## Unreleased 2.0 series (`v2.0-release` branch)
 
 - Every reply for a task that ran (eval, verb calls, captured commands, web hooks, and the task

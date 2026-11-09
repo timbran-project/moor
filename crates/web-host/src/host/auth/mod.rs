@@ -36,11 +36,10 @@ use axum::{
 };
 use moor_common::model::ObjectRef;
 use moor_runtime_api::{
-    AuthToken, ClientToken,
+    AuthToken, ClientToken, RpcError, RpcMessageError,
     api::{ClientReply, ClientRequest, RuntimeClient},
     api_codec::encode_client_success_bytes,
 };
-use moor_schema::rpc as moor_rpc;
 use serde_derive::Deserialize;
 use std::{net::SocketAddr, sync::Arc};
 use tracing::{debug, error, warn};
@@ -87,96 +86,6 @@ impl FromRequestParts<WebHost> for StatelessAuth {
             auth_token,
             client_id,
             rpc_client,
-        })
-    }
-}
-
-/// RAII guard that detaches an ephemeral connection when dropped.
-struct DetachGuard {
-    client_id: Uuid,
-    client_token: ClientToken,
-    host: WebHost,
-}
-
-impl Drop for DetachGuard {
-    fn drop(&mut self) {
-        let rpc_client = self.host.create_rpc_client();
-        let client_id = self.client_id;
-        let client_token = self.client_token.clone();
-        tokio::spawn(async move {
-            let _ = rpc_client
-                .client_call(
-                    client_id,
-                    ClientRequest::Detach {
-                        client_token,
-                        disconnected: true,
-                    },
-                )
-                .await;
-        });
-    }
-}
-
-/// Auth extractor for ephemeral (attach + detach) RPC calls.
-/// Creates a real daemon connection that is automatically cleaned up when
-/// the `EphemeralAuth` value is dropped (on handler return or early error).
-pub struct EphemeralAuth {
-    pub auth_token: AuthToken,
-    pub player: moor_var::Obj,
-    pub player_flags: u16,
-    pub client_id: Uuid,
-    pub client_token: ClientToken,
-    pub rpc_client: Arc<dyn RuntimeClient>,
-    _guard: DetachGuard,
-}
-
-impl FromRequestParts<WebHost> for EphemeralAuth {
-    type Rejection = StatusCode;
-
-    async fn from_request_parts(
-        parts: &mut Parts,
-        state: &WebHost,
-    ) -> Result<Self, Self::Rejection> {
-        let auth_token = extract_auth_token_header(&parts.headers)?;
-
-        // Extract peer address from ConnectInfo stored in extensions.
-        // Missing ConnectInfo means the router is misconfigured (no .into_make_service_with_connect_info).
-        let addr = parts
-            .extensions
-            .get::<ConnectInfo<SocketAddr>>()
-            .map(|ci| ci.0)
-            .ok_or_else(|| {
-                error!("ConnectInfo<SocketAddr> missing from request extensions");
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
-
-        let (player, client_id, client_token, rpc_client, player_flags) = state
-            .attach_authenticated(
-                auth_token.clone(),
-                Some(moor_rpc::ConnectType::NoConnect),
-                addr,
-            )
-            .await
-            .map_err(|e| match e {
-                WsHostError::AuthenticationFailed => StatusCode::UNAUTHORIZED,
-                WsHostError::StaleConnection => StatusCode::UNAUTHORIZED,
-                WsHostError::RpcError(_) => StatusCode::SERVICE_UNAVAILABLE,
-            })?;
-
-        let guard = DetachGuard {
-            client_id,
-            client_token: client_token.clone(),
-            host: state.clone(),
-        };
-
-        Ok(EphemeralAuth {
-            auth_token,
-            player,
-            player_flags,
-            client_id,
-            client_token,
-            rpc_client,
-            _guard: guard,
         })
     }
 }
@@ -303,18 +212,49 @@ fn auth_token_from_login_reply(reply: &ClientReply) -> Result<AuthToken, StatusC
 }
 
 /// Validate an auth token by round-tripping to the daemon.
-/// If `EphemeralAuth` extraction succeeds, the token is valid — return 200.
-/// The `DetachGuard` handles cleanup automatically.
+///
+/// This opens no connection. A connection opened and closed here would be the player's last when
+/// they have no other, and closing it would run the world's disconnect hooks.
 /// Returns:
 ///   200 — token is valid
 ///   401 — token is invalid or expired
 ///   503 — daemon is unreachable
-pub async fn validate_auth_handler(auth: EphemeralAuth) -> impl IntoResponse {
+pub async fn validate_auth_handler(
+    StatelessAuth {
+        auth_token,
+        client_id,
+        rpc_client,
+    }: StatelessAuth,
+) -> impl IntoResponse {
+    let reply = rpc_client
+        .client_call(client_id, ClientRequest::ValidateAuth { auth_token })
+        .await;
+    let (player, player_flags) = match reply {
+        Ok(ClientReply::AttachResult {
+            success: true,
+            player: Some(player),
+            player_flags,
+            ..
+        }) => (player, player_flags),
+        Ok(ClientReply::AttachResult { .. })
+        | Err(RpcError::Daemon(RpcMessageError::PermissionDenied))
+        | Err(RpcError::AuthenticationError(_)) => {
+            return StatusCode::UNAUTHORIZED.into_response();
+        }
+        Ok(other) => {
+            error!(?other, "Unexpected reply to auth validation");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+        Err(e) => {
+            warn!(error = ?e, "Unable to validate auth token");
+            return StatusCode::SERVICE_UNAVAILABLE.into_response();
+        }
+    };
     debug!("Auth token validated via daemon");
     match Response::builder()
         .status(StatusCode::OK)
-        .header("X-Moor-Player", ObjectRef::Id(auth.player).to_curie())
-        .header("X-Moor-Player-Flags", auth.player_flags.to_string())
+        .header("X-Moor-Player", ObjectRef::Id(player).to_curie())
+        .header("X-Moor-Player-Flags", player_flags.to_string())
         .body(Body::empty())
     {
         Ok(response) => response,

@@ -27,9 +27,10 @@ mod tests {
     use crate::testing::{MockTransport, test_env};
     use moor_common::model::ObjectRef;
     use moor_common::tasks::{Event, TaskOutcome};
+    use moor_runtime_api::RpcMessageError;
     use moor_runtime_api::{
         AuthToken, BatchAction, ClientToken, mk_batch_world_state_msg, mk_command_msg,
-        mk_connection_establish_msg, mk_eval_msg, mk_login_command_msg,
+        mk_connection_establish_msg, mk_eval_msg, mk_login_command_msg, mk_validate_auth_msg,
         task_outcome_to_flatbuffer_struct, ws_list_objects, ws_request_system_property,
         ws_resolve_object, ws_update_property,
     };
@@ -951,6 +952,55 @@ mod tests {
         );
 
         (client_id, client_token, auth_token, player_obj)
+    }
+
+    /// Checking a token opens no connection, so it can never be a player's last one and run
+    /// their disconnect hooks.
+    #[test]
+    fn test_validate_auth_opens_no_connection() {
+        let env = setup_test_environment_with_real_scheduler();
+        wait_for_scheduler_ready(&env.scheduler_client);
+        let (_client_id, _client_token, auth_token, player) = login_as_wizard(&env);
+        let before = env.connections.client_ids_for(player).unwrap();
+
+        let reply = env
+            .transport
+            .process_client_message(
+                env.message_handler.as_ref(),
+                env.scheduler_client.clone(),
+                Uuid::new_v4(),
+                mk_validate_auth_msg(&auth_token),
+            )
+            .expect("A valid token should validate");
+        let moor_rpc::DaemonToClientReplyUnion::AttachResult(result) = reply.reply else {
+            panic!("Expected AttachResult, got {reply:?}");
+        };
+        assert!(result.success);
+        assert!(
+            result.client_token.is_none(),
+            "No connection, so no client token"
+        );
+        let moor_rpc::ObjUnion::ObjId(obj_id) = &result.player.as_ref().unwrap().obj else {
+            panic!("Unexpected obj variant");
+        };
+        assert_eq!(Obj::mk_id(obj_id.id), player);
+        assert_ne!(result.player_flags, 0, "The player's flags are reported");
+        assert_eq!(
+            env.connections.client_ids_for(player).unwrap(),
+            before,
+            "Validation must not add or remove connections"
+        );
+
+        let refused = env.transport.process_client_message(
+            env.message_handler.as_ref(),
+            env.scheduler_client.clone(),
+            Uuid::new_v4(),
+            mk_validate_auth_msg(&AuthToken("not-a-token".to_string())),
+        );
+        assert!(
+            matches!(refused, Err(RpcMessageError::PermissionDenied)),
+            "A bogus token should be refused: {refused:?}"
+        );
     }
 
     #[test]

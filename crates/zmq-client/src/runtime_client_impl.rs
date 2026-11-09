@@ -36,9 +36,9 @@ use moor_runtime_api::{
     mk_program_msg, mk_properties_msg, mk_reattach_msg, mk_register_host_msg,
     mk_request_current_presentations_msg, mk_request_history_msg, mk_request_metrics_msg,
     mk_request_sys_prop_msg, mk_requested_input_msg, mk_resolve_msg, mk_retrieve_msg,
-    mk_set_client_attribute_msg, mk_set_event_log_pubkey_msg, mk_update_property_msg, mk_verbs_msg,
-    read_reply_result, rpc_message_error_from_ref, task_outcome_from_ref, uuid_fb,
-    verb_program_error_from_ref,
+    mk_set_client_attribute_msg, mk_set_event_log_pubkey_msg, mk_update_property_msg,
+    mk_validate_auth_msg, mk_verbs_msg, read_reply_result, rpc_message_error_from_ref,
+    task_outcome_from_ref, uuid_fb, verb_program_error_from_ref,
 };
 use moor_schema::{convert, rpc as moor_rpc};
 use moor_var::Var;
@@ -413,6 +413,7 @@ fn encode_client_request(
         ClientRequest::GetEventLogPublicKey { auth_token } => {
             mk_get_event_log_pubkey_msg(&auth_token)
         }
+        ClientRequest::ValidateAuth { auth_token } => mk_validate_auth_msg(&auth_token),
         ClientRequest::SetEventLogPublicKey {
             auth_token,
             public_key,
