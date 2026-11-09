@@ -542,6 +542,30 @@ object HEADLESS_WORLD_SCENARIOS [
     endtry
   endmethod
 
+  method test_connecting_without_show_room_refreshes_only_the_panel owner: core::ARCH_WIZARD
+    "A connection that isn't a real arrival gets only the room panel; a real arrival, a telnet connection, and any caller that doesn't say, see the room.";
+    const room = create($room, #90100, 2);
+    const who = create($root, #90100, 2);
+    add_property(who, "shown", {}, {#90100, "rw"});
+    for name in ({"emit_room_look", "emit_room_snapshot_state"})
+      add_verb(who, {#90100, "rxd", name}, {"this", "none", "this"});
+      set_verb_code(who, name, {"this.shown = {@this.shown, verb};"});
+    endfor
+    try
+      room:confunc(who, false, false, false);
+      $test_utils:assert_eq(who.shown, {"emit_room_snapshot_state"}, "a reconnect only refreshes the panel");
+      who.shown = {};
+      room:confunc(who, false, false, true);
+      $test_utils:assert_eq(who.shown, {"emit_room_look"}, "show_room shows the room");
+      who.shown = {};
+      room:confunc(who, false, false);
+      $test_utils:assert_eq(who.shown, {"emit_room_look"}, "callers that don't say still show the room");
+    finally
+      recycle(who);
+      recycle(room);
+    endtry
+  endmethod
+
   method test_inspection_transfer_reachability owner: core::ARCH_WIZARD
     "Old inspection actions must neither take remote items nor bypass container access.";
     const room = create($room, #90100, 2);

@@ -208,16 +208,17 @@ object ROOM [
   endverb
 
   method confunc owner: HACKER
-    "Called when a player connects in this room.";
-    "Args: who, ?is_new_player, ?should_announce";
-    {who, ?is_new_player = false, ?should_announce = true} = args;
-    "Only announce if should_announce is true (not a quick reconnect)";
+    "Called when a player's connection opens in this room. Args: who, ?is_new_player, ?should_announce, ?show_room. Without show_room, the player gets only the room panel: a browser coming back restores what was said from history.";
+    let {who, ?is_new_player = false, ?should_announce = true, ?show_room = true} = args;
     if (should_announce)
       arrival_event = who:mk_connected_event(is_new_player):with_audience('utility);
       this:announce(arrival_event);
     endif
-    "Always show the room to the connecting player";
-    `who:emit_room_look(this) ! ANY';
+    if (show_room)
+      `who:emit_room_look(this) ! ANY';
+    else
+      `who:emit_room_snapshot_state(who, this) ! ANY';
+    endif
   endmethod
 
   method disfunc owner: HACKER
