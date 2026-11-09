@@ -221,9 +221,14 @@ object SYSOBJ [
     is_new_player = verb == "user_created" && !last_conn;
     "Existing players with another connection are already awake.";
     "New players still need setup when HTTP authentication overlaps the first WebSocket.";
+    "A connection that isn't a real arrival only refreshes the room panel. Telnet has no history to restore, so a telnet connection always sees the room.";
+    let telnet = false;
+    for option in (`connection_options(connection()) ! ANY => {}')
+      tostr(option[1]) == "host_type" && option[2] == "telnet" && (telnet = true);
+    endfor
     if (length(connections(user)) > 1 && !is_new_player)
       set_task_perms(user);
-      `user:emit_room_look(user.location) ! ANY';
+      `user.location:confunc(user, false, false, telnet) ! E_INVIND, E_VERBNF';
       return;
     endif
     "First connection. Announce it only for a new player or one who has been away.";
@@ -243,7 +248,7 @@ object SYSOBJ [
     should_announce && this:_presence(user, is_new_player ? 'created | 'connected);
     "Drop to user perms for confunc.";
     set_task_perms(user);
-    `user.location:confunc(user, is_new_player, should_announce) ! E_INVIND, E_VERBNF';
+    `user.location:confunc(user, is_new_player, should_announce, should_announce || telnet) ! E_INVIND, E_VERBNF';
     `user:anyconfunc() ! E_VERBNF';
     "Greet new players after room confunc.";
     if (is_new_player)
