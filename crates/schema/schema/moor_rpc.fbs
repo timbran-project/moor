@@ -831,7 +831,8 @@ union HostClientToDaemonMessageUnion {
     ReplayClientEvents,
     VerifiedOAuthLogin,
     EventStreamRequest,
-    ClientData
+    ClientData,
+    ValidateAuth
 }
 
 table ConnectionEstablish {
@@ -1035,6 +1036,12 @@ table Detach {
 }
 
 table GetEventLogPublicKey {
+    auth_token: AuthToken (required);
+}
+
+// Check an auth token without opening a connection. The reply is an AttachResult with no
+// client token.
+table ValidateAuth {
     auth_token: AuthToken (required);
 }
 

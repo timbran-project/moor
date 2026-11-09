@@ -509,6 +509,16 @@ pub fn mk_get_event_log_pubkey_msg(auth_token: &AuthToken) -> rpc::HostClientToD
     }
 }
 
+/// Build a ValidateAuth message
+#[inline]
+pub fn mk_validate_auth_msg(auth_token: &AuthToken) -> rpc::HostClientToDaemonMessage {
+    rpc::HostClientToDaemonMessage {
+        message: rpc::HostClientToDaemonMessageUnion::ValidateAuth(Box::new(rpc::ValidateAuth {
+            auth_token: auth_token_fb(auth_token),
+        })),
+    }
+}
+
 /// Build a SetEventLogPublicKey message
 #[inline]
 pub fn mk_set_event_log_pubkey_msg(

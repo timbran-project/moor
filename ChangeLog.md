@@ -640,6 +640,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- `GET /auth/validate` no longer opens and closes a connection to check a token. When a player had
+  no other connection, as when a browser came back after its connection expired, closing it was
+  their last disconnection, so the world ran its disconnect hooks and could announce that the player
+  had left just as they returned. Meadow checks its token on every page load and after a failed
+  reconnect. The check now uses a new `ValidateAuth` request that runs no hooks.
 - A task whose changes committed now also keeps the messages it sent with `task_send()` and the
   schedules it created or stopped, even if its output could not be delivered. A task that completed
   or suspended used to lose them when the server failed to commit its session output, as did a task

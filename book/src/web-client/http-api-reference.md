@@ -110,14 +110,15 @@ verb is `:do_login_command("create", …)`.
 
 **Validate an auth token**
 
-Round-trips to the daemon to verify the token is still valid. An ephemeral attach/detach is
-performed; the connection is cleaned up automatically.
+Round-trips to the daemon to verify the token is still valid. No connection is opened, so the check
+never runs `user_connected` or `user_disconnected`.
 
 Requires: `X-Moor-Auth-Token`
 
 **Responses**
 
-- **200**: Token is valid (empty body)
+- **200**: Token is valid (empty body). The `X-Moor-Player` header gives the player, and
+  `X-Moor-Player-Flags` gives the player's flags.
 - **401**: Missing or invalid auth token
 - **503**: Daemon is unreachable
 

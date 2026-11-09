@@ -641,6 +641,11 @@ pub enum ClientRequest {
     GetEventLogPublicKey {
         auth_token: AuthToken,
     },
+    /// Check an auth token without opening a connection. Replies with an `AttachResult` that has
+    /// no client token.
+    ValidateAuth {
+        auth_token: AuthToken,
+    },
     SetEventLogPublicKey {
         auth_token: AuthToken,
         public_key: String,
