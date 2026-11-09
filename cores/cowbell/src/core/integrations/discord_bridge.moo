@@ -113,11 +113,11 @@ object DISCORD_BRIDGE [
   endmethod
 
   method presence_event owner: ARCH_WIZARD
-    "Post a first connection, a new player or a last disconnection, once per quiet period.";
+    "Post a new player, or an arrival once per quiet period. Departures are never posted: a lost connection is not a departure.";
     caller == #0 || caller_perms().wizard || raise(E_PERM);
     const {user, kind} = args;
     this.enabled && valid(user) && is_player(user) || return false;
-    kind in {'created, 'connected, 'disconnected} || raise(E_INVARG);
+    kind in {'created, 'connected} || raise(E_INVARG);
     const key = tostr(user, " ", kind);
     const last = `this.presence[key] ! E_RANGE => 0';
     kind != 'created && time() - last < this.presence_quiet_seconds && return false;
@@ -128,7 +128,7 @@ object DISCORD_BRIDGE [
     endfor
     this.presence = presence;
     const name = user:name();
-    const text = kind == 'created ? "A new guest, " + name + ", has arrived for the first time." | kind == 'connected ? name + " has arrived at " + this.world_name + "." | name + " has left.";
+    const text = kind == 'created ? "A new guest, " + name + ", has arrived for the first time." | name + " has arrived at " + this.world_name + ".";
     this:_queue(text);
     return true;
   endmethod

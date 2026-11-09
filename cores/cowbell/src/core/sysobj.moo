@@ -231,7 +231,8 @@ object SYSOBJ [
     quiet_period = `$login.connection_quiet_period ! E_PROPNF => 7200';
     time_since_last = last_conn > 0 ? time() - last_conn | quiet_period + 1;
     should_announce = is_new_player || time_since_last > quiet_period;
-    this:_presence(user, is_new_player ? 'created | 'connected);
+    "Presence listeners hear the same arrivals the room does.";
+    should_announce && this:_presence(user, is_new_player ? 'created | 'connected);
     "Set up new players before dropping perms (mailbox, welcome letter).";
     if (is_new_player)
       `$login:setup_new_player(user) ! E_VERBNF';
@@ -256,7 +257,7 @@ object SYSOBJ [
   endmethod
 
   method "user_disconnected user_client_disconnected" owner: ARCH_WIZARD
-    "Called when a user disconnects (only when last connection is removed).";
+    "Called when a user's last connection is removed. Browsers and phones lose connections all the time while their player is still here, so nothing here tells anyone else; it only records the time and runs the disconnect hooks.";
     callers() && !caller_perms().wizard && return E_PERM;
     user = args[1];
     if (user < #0)
@@ -266,7 +267,6 @@ object SYSOBJ [
     length(connections(user)) > 0 && return;
     "Set last_disconnected before calling disfunc so it reads consistently.";
     `user.last_disconnected = time() ! E_PROPNF, E_PERM';
-    this:_presence(user, 'disconnected);
     set_task_perms(user);
     "Room disfunc and player disfunc run inline, no fork.";
     `user.location:disfunc(user) ! E_INVIND, E_VERBNF';
@@ -274,11 +274,15 @@ object SYSOBJ [
   endmethod
 
   method user_reconnected owner: ARCH_WIZARD
-    "Record a server reconnect without room output. Wizard callers may invoke this for administration.";
+    "Record a reconnect. Wizard callers may invoke this for administration.";
     callers() && !caller_perms().wizard && return E_PERM;
     const {user} = args;
     if (user < #0)
       return;
+    endif
+    "The web host also labels a returning browser's new connection a reconnect. As the only connection, it is a connection like any other, so it gets the room, package hooks and notices.";
+    if (length(connections(user)) == 1)
+      return this:user_connected(user);
     endif
     `user.last_connected = time() ! E_PROPNF, E_PERM';
   endmethod
@@ -599,7 +603,7 @@ object SYSOBJ [
   endmethod
 
   method _presence owner: ARCH_WIZARD
-    "Tell presence listeners about a new player, a first connection or a last disconnection.";
+    "Tell presence listeners about a new player or an announced arrival.";
     caller == this || raise(E_PERM);
     const {user, kind} = args;
     "Each listener runs in its own task, so a slow or failing one cannot hold up a login.";

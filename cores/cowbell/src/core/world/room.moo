@@ -221,10 +221,8 @@ object ROOM [
   endmethod
 
   method disfunc owner: HACKER
-    "Called when a player disconnects from this room.";
-    "By the time this runs, all connections are gone (daemon handles soft detach).";
-    discon_event = player:mk_disconnected_event():with_audience('utility);
-    this:announce(discon_event);
+    "Called when a player's last connection to this room closes. Announces nothing: browsers and phones lose connections all the time while their player is still here, so losing a connection is nobody else's business. Children may react.";
+    return;
   endmethod
 
   method enterfunc owner: HACKER
