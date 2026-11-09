@@ -354,15 +354,16 @@ impl Session for NoopClientSession {
         Ok(0.0)
     }
 
+    // Like the daemon, a session with no connections reports none, rather than an error.
     fn connections(&self, _player: Option<Obj>) -> Result<Vec<Obj>, SessionError> {
-        Err(SessionError::NoConnectionForPlayer(SYSTEM_OBJECT))
+        Ok(vec![])
     }
 
     fn connection_details(
         &self,
         _player: Option<Obj>,
     ) -> Result<Vec<ConnectionDetails>, SessionError> {
-        Err(SessionError::NoConnectionForPlayer(SYSTEM_OBJECT))
+        Ok(vec![])
     }
 
     fn connection_attributes(&self, _obj: Obj) -> Result<Var, SessionError> {
