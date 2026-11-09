@@ -106,7 +106,7 @@ Cowbell entries.
   polling stops when Discord refuses the bot token, until the bridge is configured again.
 
 - `#0.presence_listeners` lists objects whose `presence_event(user, kind)` is called, each in its
-  own task, when a player is created, first connects, or last disconnects.
+  own task, when a player is created or when their arrival is announced in the room.
 
 - Wizards can use `@audit-names` to inspect all stored object names and aliases for invisible names,
   control characters, directional formatting, and malformed values. Reports include object IDs and
@@ -207,6 +207,12 @@ Cowbell entries.
 
 ### Changed
 
+- Losing a connection no longer tells anyone. Browsers and phones drop their connection whenever a
+  tab sleeps, a laptop closes or the network changes, so the room no longer hears "goes to sleep"
+  and the Discord bridge no longer posts "has left". Rooms that override `disfunc` can still react.
+  The Discord bridge posts an arrival only when the room announces one, once per quiet period, and
+  always for a new player. A browser that comes back after its connection expired now gets the room,
+  package hooks and mail notices, as any other connection does.
 - Room NPCs speak only through tools, so they no longer repeat themselves. `say` speaks to the room,
   `directed_say` to one person, and `emote` acts; every room observer has these tools. The model's
   final reply is private: it never reaches the room, and `@obs-status` shows the last one to the
