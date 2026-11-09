@@ -226,13 +226,8 @@ object SYSOBJ [
       `user:emit_room_look(user.location) ! ANY';
       return;
     endif
-    "First connection. Decide whether to announce.";
-    "Use the last connection time to avoid repeat announcements during short reconnects.";
-    quiet_period = `$login.connection_quiet_period ! E_PROPNF => 7200';
-    time_since_last = last_conn > 0 ? time() - last_conn | quiet_period + 1;
-    should_announce = is_new_player || time_since_last > quiet_period;
-    "Presence listeners hear the same arrivals the room does.";
-    should_announce && this:_presence(user, is_new_player ? 'created | 'connected);
+    "First connection. Announce it only for a new player or one who has been away.";
+    should_announce = is_new_player || this:_was_away(user);
     "Set up new players before dropping perms (mailbox, welcome letter).";
     if (is_new_player)
       `$login:setup_new_player(user) ! E_VERBNF';
@@ -244,6 +239,8 @@ object SYSOBJ [
     finally
       clear_object_metadata(user, 'cowbell_connecting);
     endtry
+    "Presence listeners hear new players and announced arrivals, once packages have put the player where they arrive.";
+    should_announce && this:_presence(user, is_new_player ? 'created | 'connected);
     "Drop to user perms for confunc.";
     set_task_perms(user);
     `user.location:confunc(user, is_new_player, should_announce) ! E_INVIND, E_VERBNF';
@@ -271,6 +268,15 @@ object SYSOBJ [
     "Room disfunc and player disfunc run inline, no fork.";
     `user.location:disfunc(user) ! E_INVIND, E_VERBNF';
     `user:disfunc() ! E_VERBNF';
+  endmethod
+
+  method _was_away owner: ARCH_WIZARD
+    "Whether user has been away for $login.connection_quiet_period. They were last here when their last connection closed or when they last connected, whichever is later, so a player connected for hours whose connection drops and returns has not been away.";
+    caller == this || caller_perms().wizard || raise(E_PERM);
+    const {user} = args;
+    const quiet_period = `$login.connection_quiet_period ! E_PROPNF => 7200';
+    const last_seen = max(`user.last_connected ! E_PROPNF => 0', `user.last_disconnected ! E_PROPNF => 0');
+    return last_seen == 0 || time() - last_seen > quiet_period;
   endmethod
 
   method user_reconnected owner: ARCH_WIZARD

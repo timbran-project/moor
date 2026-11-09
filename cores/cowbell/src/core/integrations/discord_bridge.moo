@@ -35,7 +35,7 @@ object DISCORD_BRIDGE [
   property webhook_url (owner: ARCH_WIZARD, flags: "") = "";
   property world_name (owner: ARCH_WIZARD, flags: "") = "the MOO";
 
-  override description (owner: ARCH_WIZARD, flags: "rc") = "Relays what Discord speakers hear, and who arrives and leaves, to a Discord channel through its webhook, and speaks the channel's messages through the speakers. Uses the curl worker: posts go to the channel webhook and the bot reads the channel by polling.";
+  override description (owner: ARCH_WIZARD, flags: "rc") = "Relays what Discord speakers hear, new players, and arrivals in the speakers' rooms, to a Discord channel through its webhook, and speaks the channel's messages through the speakers. Uses the curl worker: posts go to the channel webhook and the bot reads the channel by polling.";
 
   method configure owner: ARCH_WIZARD
     "Set the channel's webhook, the bot token and the channel id, then start polling and listening for presence.";
@@ -113,11 +113,12 @@ object DISCORD_BRIDGE [
   endmethod
 
   method presence_event owner: ARCH_WIZARD
-    "Post a new player, or an arrival once per quiet period. Departures are never posted: a lost connection is not a departure.";
+    "Post every new player, and an arrival, once per quiet period, only in a room with one of this bridge's speakers. Arrivals elsewhere in the world are not the channel's business, and departures are never posted: a lost connection is not a departure.";
     caller == #0 || caller_perms().wizard || raise(E_PERM);
     const {user, kind} = args;
     this.enabled && valid(user) && is_player(user) || return false;
     kind in {'created, 'connected} || raise(E_INVARG);
+    kind == 'connected && !this:_hears(user.location) && return false;
     const key = tostr(user, " ", kind);
     const last = `this.presence[key] ! E_RANGE => 0';
     kind != 'created && time() - last < this.presence_quiet_seconds && return false;
@@ -131,6 +132,17 @@ object DISCORD_BRIDGE [
     const text = kind == 'created ? "A new guest, " + name + ", has arrived for the first time." | name + " has arrived at " + this.world_name + ".";
     this:_queue(text);
     return true;
+  endmethod
+
+  method _hears owner: ARCH_WIZARD
+    "Whether one of this bridge's speakers is in the room.";
+    caller == this || raise(E_PERM);
+    const {room} = args;
+    valid(room) || return false;
+    for speaker in (this.speakers)
+      valid(speaker) && speaker.location == room && return true;
+    endfor
+    return false;
   endmethod
 
   method _poll owner: ARCH_WIZARD
