@@ -200,8 +200,8 @@ impl TaskLifecycle {
 
         let task_id = task.task_id;
 
-        // Restore the VM state from its last snapshot
-        task.vm_host.restore_state(&task.retry_state);
+        // Run again from the VM's last snapshot.
+        task.vm_host.retry_from(&task.retry_state);
         task.reclaim_program_cache();
         task.vm_host.reset_time();
 
