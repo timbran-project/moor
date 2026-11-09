@@ -306,6 +306,7 @@ object DISCORD_SCENARIOS [
   method test_old_presence_and_members_are_dropped owner: core::ARCH_WIZARD
     "Presence entries past the quiet period and members unseen for the member period are dropped; a list of members still works.";
     const saved = this:_setup();
+    const old_location = #90102.location;
     const room = create($room);
     const speaker = create($discord_speaker);
     speaker.name = "Bakelite radio";
@@ -314,6 +315,7 @@ object DISCORD_SCENARIOS [
       move(this, room);
       $discord_bridge:add_speaker(speaker);
       $discord_bridge.presence = ["#1 connected" -> time() - 7200, "#2 connected" -> time()];
+      move(#90102, room);
       $discord_bridge:presence_event(#90102, 'connected);
       $test_utils:assert_eq(mapkeys($discord_bridge.presence), {"#2 connected", tostr(#90102, " connected")}, "the old entry is gone");
       $discord_bridge.channel_members = {"7", "8"};
@@ -326,6 +328,7 @@ object DISCORD_SCENARIOS [
       $discord_bridge:_poll();
       $test_utils:assert_eq(mapkeys($discord_bridge.channel_members), {"8", "9"}, "a member unseen for 90 days is gone");
     finally
+      move(#90102, old_location);
       this:_teardown(saved);
       recycle(speaker);
       recycle(room);
@@ -361,10 +364,16 @@ object DISCORD_SCENARIOS [
   endmethod
 
   method test_presence_is_posted_once_per_quiet_period owner: core::ARCH_WIZARD
-    "Arrivals post once per quiet period; a new player always posts; departures are never posted.";
+    "Arrivals in a speaker's room post once per quiet period; departures are never posted.";
     const saved = this:_setup();
     const old_name = #90102.name;
+    const old_location = #90102.location;
+    const room = create($room);
+    const speaker = create($discord_speaker);
     try
+      move(speaker, room);
+      $discord_bridge:add_speaker(speaker);
+      move(#90102, room);
       #90102.name = "Quillon";
       $test_utils:assert_true($discord_bridge:presence_event(#90102, 'connected), "first arrival posts");
       $test_utils:assert_false($discord_bridge:presence_event(#90102, 'connected), "a quick reconnect does not");
@@ -374,7 +383,64 @@ object DISCORD_SCENARIOS [
       $test_utils:assert_eq(this.posts[1]["content"], "Quillon has arrived at Test World.", "only the arrival is posted");
     finally
       #90102.name = old_name;
+      move(#90102, old_location);
       this:_teardown(saved);
+      recycle(speaker);
+      recycle(room);
+    endtry
+    return true;
+  endmethod
+
+  method test_arrivals_elsewhere_are_not_posted owner: core::ARCH_WIZARD
+    "An arrival in a room without one of the bridge's speakers is not posted; a new player is, wherever they are.";
+    const saved = this:_setup();
+    const old_name = #90102.name;
+    const old_location = #90102.location;
+    const lobby = create($room);
+    const elsewhere = create($room);
+    const speaker = create($discord_speaker);
+    try
+      move(speaker, lobby);
+      $discord_bridge:add_speaker(speaker);
+      move(#90102, elsewhere);
+      #90102.name = "Quillon";
+      $test_utils:assert_false($discord_bridge:presence_event(#90102, 'connected), "an arrival away from the speakers is not posted");
+      $test_utils:assert_true($discord_bridge:presence_event(#90102, 'created), "a new player is posted wherever they are");
+      $discord_bridge:_flush();
+      $test_utils:assert_eq(length(this.posts), 1, "one post");
+      $test_utils:assert_eq(this.posts[1]["content"], "A new guest, Quillon, has arrived for the first time.", "only the new player");
+    finally
+      #90102.name = old_name;
+      move(#90102, old_location);
+      this:_teardown(saved);
+      recycle(speaker);
+      recycle(elsewhere);
+      recycle(lobby);
+    endtry
+    return true;
+  endmethod
+
+  method test_only_a_player_who_was_away_arrives owner: core::ARCH_WIZARD
+    "A connection counts as an arrival only when the player was last here more than the quiet period ago, by their last connection or last disconnection, whichever is later.";
+    const old_connected = #90102.last_connected;
+    const old_disconnected = #90102.last_disconnected;
+    const quiet = $login.connection_quiet_period;
+    try
+      #90102.last_connected = 0;
+      #90102.last_disconnected = 0;
+      $test_utils:assert_true(#0:_was_away(#90102), "a player never seen was away");
+      #90102.last_connected = time() - quiet - 600;
+      #90102.last_disconnected = time() - 60;
+      $test_utils:assert_false(#0:_was_away(#90102), "a long session whose connection just dropped was not away");
+      #90102.last_connected = time() - 60;
+      #90102.last_disconnected = time() - quiet - 600;
+      $test_utils:assert_false(#0:_was_away(#90102), "a recent connection was not away");
+      #90102.last_connected = time() - quiet - 3600;
+      #90102.last_disconnected = time() - quiet - 600;
+      $test_utils:assert_true(#0:_was_away(#90102), "gone longer than the quiet period was away");
+    finally
+      #90102.last_connected = old_connected;
+      #90102.last_disconnected = old_disconnected;
     endtry
     return true;
   endmethod
