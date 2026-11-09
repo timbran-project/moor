@@ -742,6 +742,18 @@ impl RuntimeApi for RpcMessageHandler {
                 self.program_verb_typed(scheduler_client, &player, &object, verb, code)
             }
 
+            ClientRequest::ValidateAuth { auth_token } => {
+                // Opens no connection, so checking a token never runs connection hooks.
+                let player = self.validate_auth_token(auth_token, None)?;
+                let player_flags = require_player_flags(&scheduler_client, &player)?;
+                Ok(ClientReply::AttachResult {
+                    success: true,
+                    client_token: None,
+                    player: Some(player),
+                    player_flags,
+                })
+            }
+
             ClientRequest::GetEventLogPublicKey { auth_token } => {
                 let player = self.validate_auth_token(auth_token, None)?;
                 let public_key = self.event_log.get_pubkey(player);

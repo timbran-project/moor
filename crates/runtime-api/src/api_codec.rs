@@ -1058,6 +1058,13 @@ pub fn decode_client_request(
                 .and_then(|r| auth_token_from_ref(r).rpc_err())?;
             Ok(ClientRequest::GetEventLogPublicKey { auth_token })
         }
+        U::ValidateAuth(req) => {
+            let auth_token = req
+                .auth_token()
+                .rpc_err()
+                .and_then(|r| auth_token_from_ref(r).rpc_err())?;
+            Ok(ClientRequest::ValidateAuth { auth_token })
+        }
         U::SetEventLogPublicKey(req) => {
             let auth_token = req
                 .auth_token()
