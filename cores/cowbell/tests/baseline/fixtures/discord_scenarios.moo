@@ -333,18 +333,45 @@ object DISCORD_SCENARIOS [
     return true;
   endmethod
 
+  method test_a_last_disconnection_tells_no_one owner: core::ARCH_WIZARD
+    "A player's last connection closing announces nothing in their room and posts nothing to Discord.";
+    const saved = this:_setup();
+    const room = create($room);
+    const old_location = #90102.location;
+    const old_disconnected = #90102.last_disconnected;
+    try
+      add_property(room, "heard", {}, {$arch_wizard, ""});
+      add_verb(room, {$arch_wizard, "rxd", "announce"}, {"this", "none", "this"});
+      set_verb_code(room, "announce", {"this.heard = {@this.heard, args};"});
+      move(#90102, room);
+      $test_utils:assert_eq(`connections(#90102) ! E_INVARG => {}', {}, "the player has no connections");
+      $user_disconnected(#90102);
+      "Presence listeners run in forked tasks; let any that were started finish.";
+      suspend(0.01);
+      $test_utils:assert_eq(room.heard, {}, "the room hears nothing");
+      $test_utils:assert_eq($discord_bridge.outbox, {}, "nothing is queued for Discord");
+      $test_utils:assert_true(#90102.last_disconnected > 0, "the disconnection time is still recorded");
+    finally
+      move(#90102, old_location);
+      #90102.last_disconnected = old_disconnected;
+      this:_teardown(saved);
+      recycle(room);
+    endtry
+    return true;
+  endmethod
+
   method test_presence_is_posted_once_per_quiet_period owner: core::ARCH_WIZARD
-    "Arrivals and departures post once per quiet period; a new player always posts.";
+    "Arrivals post once per quiet period; a new player always posts; departures are never posted.";
     const saved = this:_setup();
     const old_name = #90102.name;
     try
       #90102.name = "Quillon";
       $test_utils:assert_true($discord_bridge:presence_event(#90102, 'connected), "first arrival posts");
       $test_utils:assert_false($discord_bridge:presence_event(#90102, 'connected), "a quick reconnect does not");
-      $test_utils:assert_true($discord_bridge:presence_event(#90102, 'disconnected), "a departure posts");
+      $test_utils:assert_eq(`$discord_bridge:presence_event(#90102, 'disconnected) ! E_INVARG => E_INVARG', E_INVARG, "a departure is not a presence event");
       $discord_bridge:_flush();
       $test_utils:assert_eq(this.posts[1]["username"], "Test World", "posted as the world");
-      $test_utils:assert_eq(this.posts[1]["content"], "Quillon has arrived at Test World.\nQuillon has left.", "one post for the run");
+      $test_utils:assert_eq(this.posts[1]["content"], "Quillon has arrived at Test World.", "only the arrival is posted");
     finally
       #90102.name = old_name;
       this:_teardown(saved);
