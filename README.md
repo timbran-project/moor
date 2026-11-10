@@ -48,6 +48,11 @@ development since 2022.
   ships with this repository, and has a web-native interface through the Meadow client.
 - **[Timbran Hotel](https://moo.timbran.org)**: a public community world running on Cowbell. Visit
   it to see mooR in use.
+- **[Torchship](https://torchship.org)**: a text-based roleplaying game for adults, set on a
+  half-built colony ship hanging over a dead Earth.
+
+  <img src="./doc/torchship.png" alt="The Torchship front page: the game's title, a launch countdown, and a short description of the world" width="600"/>
+
 - **A Minecraft server (prototype)**: ordinary Minecraft clients connect to a mooR world. The world,
   its players and the game rules live in MOO, allowing many users to connect build and edit the same
   persistent world. (Currently private prototype and its source is not published at this time)
