@@ -181,6 +181,110 @@ fn captured_output_survives_conflict_retry() {
     assert_eq!(value, v_str("successful attempt"));
 }
 
+/// Output told before an in-task `commit()` belongs to the transaction that committed. A conflict
+/// in the next transaction retries only that one, so it must not take the earlier output with it.
+#[test]
+fn output_before_commit_survives_later_conflict_retry() {
+    let verb = Symbol::mk("boundary_retry");
+    let database = setup_database(&[TestVerb {
+        name: verb,
+        program: compile(
+            "notify(player, \"before boundary\"); commit(); v = this.conflict_counter; \
+             notify(player, \"after boundary\"); this.conflict_counter = v; return 42;",
+            CompileOptions::default(),
+        )
+        .unwrap(),
+        argspec: VerbArgsSpec::this_none_this(),
+    }]);
+    {
+        let mut tx = database.new_world_state().unwrap();
+        tx.define_property(
+            &system_permissions(),
+            &SYSTEM_OBJECT,
+            &SYSTEM_OBJECT,
+            Symbol::mk("conflict_counter"),
+            &SYSTEM_OBJECT,
+            PropFlag::all_flags(),
+            Some(v_int(0)),
+        )
+        .unwrap();
+        tx.commit().unwrap();
+    }
+    let database_probe = database.clone();
+    let armed = Arc::new(AtomicBool::new(false));
+    let (started_send, started_recv) = flume::bounded(1);
+    let (release_send, release_recv) = flume::bounded(1);
+    let (client, _scheduler) = start_scheduler(Box::new(SequencedGateDatabase {
+        inner: database,
+        armed: armed.clone(),
+        started: started_send,
+        release: release_recv,
+    }));
+
+    armed.store(true, Ordering::SeqCst);
+    let session = Arc::new(MockClientSession::new());
+    let submit_client = client.clone();
+    let submit_session = session.clone();
+    let submit = std::thread::spawn(move || {
+        submit_client.submit_verb_task(
+            &SYSTEM_OBJECT,
+            &ObjectRef::Id(SYSTEM_OBJECT),
+            verb,
+            List::mk_list(&[]),
+            v_empty_str(),
+            &SYSTEM_OBJECT,
+            submit_session,
+        )
+    });
+
+    // Park the first transaction, then re-arm so the one commit() opens parks too.
+    started_recv
+        .recv_timeout(Duration::from_secs(5))
+        .expect("the first transaction should reach the gate");
+    armed.store(true, Ordering::SeqCst);
+    release_send.send(()).unwrap();
+    started_recv
+        .recv_timeout(Duration::from_secs(5))
+        .expect("the transaction commit() opens should reach the gate");
+    // A write the parked snapshot cannot see makes its commit conflict.
+    let mut competing = database_probe.new_world_state().unwrap();
+    competing
+        .update_property(
+            &system_permissions(),
+            &SYSTEM_OBJECT,
+            Symbol::mk("conflict_counter"),
+            &v_int(1000),
+        )
+        .unwrap();
+    assert!(matches!(
+        competing.commit().unwrap(),
+        CommitResult::Success { .. }
+    ));
+    // The retry runs from commit(), opening one more transaction; let it through.
+    armed.store(true, Ordering::SeqCst);
+    release_send.send(()).unwrap();
+    started_recv
+        .recv_timeout(Duration::from_secs(10))
+        .expect("the retry should reach the gate");
+    release_send.send(()).unwrap();
+
+    let handle = submit.join().unwrap().unwrap();
+    assert_eq!(wait_result(&handle), Ok(v_int(42)));
+    let told: Vec<Var> = session
+        .committed()
+        .iter()
+        .filter_map(|event| match event.event() {
+            moor_common::tasks::Event::Notify { value, .. } => Some(value.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        told,
+        vec![v_str("before boundary"), v_str("after boundary")],
+        "output told before commit() must survive the later retry, once"
+    );
+}
+
 /// A database that counts `new_world_state()` calls, so a test can wait
 /// for a specific transaction (identified by ordinal) to open without
 /// blocking it.
