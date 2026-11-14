@@ -14,6 +14,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.0 series (`v2.0-release` branch)
 
+- Output a task sends before a `commit()`, `suspend(0)` or `fork` is delivered when that boundary
+  commits. Before, it waited for the task's end, and a conflict retry after the boundary threw it
+  away, so players silently missed lines that had already happened.
 - Every reply for a task that ran (eval, verb calls, captured commands, web hooks, and the task
   events a connected client receives) now carries the task's outcome: how it ended (completed,
   suspended, aborted and why, or result lost) and whether its last transaction was kept. As in

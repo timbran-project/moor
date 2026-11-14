@@ -496,7 +496,8 @@ impl Default for MockClientSession {
 impl Session for MockClientSession {
     fn commit(&self) -> Result<(), SessionError> {
         let mut inner = self.inner.write().unwrap();
-        inner.committed = std::mem::take(&mut inner.received);
+        let received = std::mem::take(&mut inner.received);
+        inner.committed.extend(received);
         Ok(())
     }
 
