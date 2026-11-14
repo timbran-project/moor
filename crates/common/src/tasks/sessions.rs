@@ -450,6 +450,7 @@ impl SystemControl for NoopSystemControl {
 struct Inner {
     received: Vec<NarrativeEvent>,
     committed: Vec<NarrativeEvent>,
+    fail_commits: bool,
 }
 
 /// An input request captured by [`MockClientSession`].
@@ -466,6 +467,7 @@ impl MockClientSession {
             inner: RwLock::new(Inner {
                 received: vec![],
                 committed: vec![],
+                fail_commits: false,
             }),
             system: Arc::new(Default::default()),
             input_requests: Arc::new(Default::default()),
@@ -485,6 +487,10 @@ impl MockClientSession {
     pub fn input_requests(&self) -> Vec<MockInputRequest> {
         self.input_requests.read().unwrap().clone()
     }
+    /// Make every later commit fail, as a session whose client has gone away does.
+    pub fn fail_commits(&self) {
+        self.inner.write().unwrap().fail_commits = true;
+    }
 }
 
 impl Default for MockClientSession {
@@ -496,6 +502,11 @@ impl Default for MockClientSession {
 impl Session for MockClientSession {
     fn commit(&self) -> Result<(), SessionError> {
         let mut inner = self.inner.write().unwrap();
+        if inner.fail_commits {
+            return Err(SessionError::CommitError(
+                "mock session commit failure".into(),
+            ));
+        }
         let received = std::mem::take(&mut inner.received);
         inner.committed.extend(received);
         Ok(())
@@ -511,6 +522,7 @@ impl Session for MockClientSession {
             inner: RwLock::new(Inner {
                 received: vec![],
                 committed: vec![],
+                fail_commits: false,
             }),
             system: self.system.clone(),
             input_requests: self.input_requests.clone(),

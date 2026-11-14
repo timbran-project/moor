@@ -143,6 +143,10 @@ impl Task {
                 error!("Failed to begin transaction after fork commit: {e:?}");
                 self.terminal_outcome(TerminalCompletion::RenewalFailed)
             }
+            Renewal::SessionFailed(e) => {
+                error!("Failed to commit session at transaction boundary: {e:?}");
+                self.terminal_outcome(TerminalCompletion::RenewalFailed)
+            }
         }
     }
 
@@ -559,6 +563,10 @@ impl Task {
                     error!("Failed to begin new transaction for task_recv: {e:?}");
                     return self.terminal_outcome(TerminalCompletion::RenewalFailed);
                 }
+                Renewal::SessionFailed(e) => {
+                    error!("Failed to commit session at transaction boundary: {e:?}");
+                    return self.terminal_outcome(TerminalCompletion::RenewalFailed);
+                }
             }
         }
 
@@ -596,6 +604,10 @@ impl Task {
                 }
                 Renewal::BeginFailed(e) => {
                     error!("Failed to begin new transaction for immediate resume: {e:?}");
+                    return self.terminal_outcome(TerminalCompletion::RenewalFailed);
+                }
+                Renewal::SessionFailed(e) => {
+                    error!("Failed to commit session at transaction boundary: {e:?}");
                     return self.terminal_outcome(TerminalCompletion::RenewalFailed);
                 }
             }

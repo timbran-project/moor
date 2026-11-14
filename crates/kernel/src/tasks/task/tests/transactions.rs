@@ -595,6 +595,52 @@ fn test_suspend_zero_transaction_renewal_failure_aborts_cleanly() {
     ));
 }
 
+/// The world state committed at `commit()`, but the output that goes with it could not be
+/// published. The task stops there, keeping what it committed, as a suspend does.
+#[test]
+fn session_failure_at_commit_boundary_aborts_and_keeps_changes() {
+    let database = setup_database(&[]);
+    let database_probe = database.clone();
+    let (client, _scheduler) = start_scheduler(Box::new(database));
+
+    let session = Arc::new(MockClientSession::new());
+    session.fail_commits();
+    let handle = client
+        .submit_eval_task(
+            &SYSTEM_OBJECT,
+            &SYSTEM_OBJECT,
+            "add_property(#0, \"boundary_marker\", 1, {#0, \"rw\"}); commit(); \
+             #0.boundary_marker = 2; return 123;"
+                .to_string(),
+            None,
+            session,
+            Arc::new(FeaturesConfig::default()),
+        )
+        .unwrap();
+
+    let outcome = wait_result(&handle).unwrap_err();
+    assert!(matches!(
+        outcome,
+        TaskOutcome {
+            kept: Kept::Yes,
+            ending: TaskEnding::Aborted(AbortReason::Internal(_)),
+        }
+    ));
+    let tx = database_probe.new_world_state().unwrap();
+    let marker = tx
+        .retrieve_property(
+            &system_permissions(),
+            &SYSTEM_OBJECT,
+            Symbol::mk("boundary_marker"),
+        )
+        .unwrap();
+    assert_eq!(
+        marker,
+        v_int(1),
+        "the work before commit() is kept, and nothing after it ran"
+    );
+}
+
 #[test]
 fn resumed_input_survives_conflict_retry() {
     let verb = Symbol::mk("resume_retry");
