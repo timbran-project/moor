@@ -284,6 +284,11 @@ impl Task {
             result,
             Ok(RenewedTransaction::Continued { .. }) | Err(TransactionRenewalError::Begin(_))
         );
+        // Output told so far belongs to the transaction that just committed. Publish it now: a
+        // conflict in the next transaction rolls the session back, and must not take it along.
+        if committed && let Err(error) = session.commit() {
+            warn!(?error, "Could not commit session after transaction renewal");
+        }
         let proceed = if committed {
             claim.committed().finish()
         } else {
