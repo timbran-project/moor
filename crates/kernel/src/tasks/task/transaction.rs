@@ -26,7 +26,7 @@ use crate::{
 };
 use moor_common::{
     model::{CommitResult, ConflictInfo, ConflictTarget, WorldState, WorldStateError},
-    tasks::Session,
+    tasks::{Session, SessionError},
 };
 use moor_compiler::to_literal;
 use tracing::warn;
@@ -55,6 +55,8 @@ pub(super) enum Renewal<R> {
     Conflict(Option<ConflictInfo>),
     CommitFailed(WorldStateError),
     BeginFailed(WorldStateError),
+    /// The transaction committed, but its output could not be published. The task cannot go on.
+    SessionFailed(SessionError),
     Cancelled,
 }
 
@@ -284,11 +286,6 @@ impl Task {
             result,
             Ok(RenewedTransaction::Continued { .. }) | Err(TransactionRenewalError::Begin(_))
         );
-        // Output told so far belongs to the transaction that just committed. Publish it now: a
-        // conflict in the next transaction rolls the session back, and must not take it along.
-        if committed && let Err(error) = session.commit() {
-            warn!(?error, "Could not commit session after transaction renewal");
-        }
         let proceed = if committed {
             claim.committed().finish()
         } else {
@@ -296,7 +293,25 @@ impl Task {
         };
         if proceed {
             return match result {
-                Ok(RenewedTransaction::Continued { value, .. }) => Renewal::Continued(value),
+                Ok(RenewedTransaction::Continued { value, .. }) => {
+                    // Output told so far belongs to the transaction that just committed. Publish
+                    // it now: a conflict in the next transaction rolls the session back, and must
+                    // not take it along. When the next transaction fails to begin, terminal
+                    // completion commits the session instead.
+                    match session.commit() {
+                        Ok(()) => Renewal::Continued(value),
+                        Err(error) => {
+                            // Nothing has run in the new transaction yet.
+                            if let Err(rollback_error) = rollback_current_transaction() {
+                                warn!(
+                                    ?rollback_error,
+                                    "Could not roll back transaction after session commit failure"
+                                );
+                            }
+                            Renewal::SessionFailed(error)
+                        }
+                    }
+                }
                 Ok(RenewedTransaction::Conflict(info)) => Renewal::Conflict(info),
                 Err(TransactionRenewalError::Commit(error)) => Renewal::CommitFailed(error),
                 Err(TransactionRenewalError::Begin(error)) => Renewal::BeginFailed(error),
