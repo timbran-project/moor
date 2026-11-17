@@ -1,0 +1,23 @@
+// Tests for the PASETO v4.local builtins with a caller-supplied key.
+// The key is 32 bytes of 0x07, base64-encoded.
+
+@programmer
+
+// A token made by this server reads back to the same claims
+; key = "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="; return paseto_verify_local(paseto_make_local(["sub" -> "wizard", "n" -> 3], key), key)["sub"];
+"wizard"
+
+; key = "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc="; return paseto_verify_local(paseto_make_local(["sub" -> "wizard", "n" -> 3], key), key)["n"];
+3
+
+// A token made before the move to pasetors, by rusty_paseto 0.10.1, still verifies
+; return paseto_verify_local("v4.local.A7Nk3YOeosNEgA6UymT-tJZOJ1VCAe9ZG9U1lVyrIGOkY-1443Clr_tRq5wsDqPlBsd2YCSM-ngB4-ofWFoI8tsmRGUffbEiwg1VmdADLPg", "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=");
+["sub" -> "wizard"]
+
+// The wrong key is refused
+; return paseto_verify_local("v4.local.A7Nk3YOeosNEgA6UymT-tJZOJ1VCAe9ZG9U1lVyrIGOkY-1443Clr_tRq5wsDqPlBsd2YCSM-ngB4-ofWFoI8tsmRGUffbEiwg1VmdADLPg", "CAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg=");
+E_INVARG
+
+// So is a token that is not a PASETO token
+; return paseto_verify_local("v4.local.not-a-token", "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=");
+E_INVARG

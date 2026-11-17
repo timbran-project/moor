@@ -16,9 +16,7 @@ use moor_runtime_api::{
     AuthToken, ClientToken, MOOR_AUTH_TOKEN_FOOTER, MOOR_SESSION_TOKEN_FOOTER, RpcMessageError,
 };
 use moor_var::Obj;
-use rusty_paseto::core::{
-    Footer, Paseto, PasetoAsymmetricPrivateKey, PasetoAsymmetricPublicKey, Payload, Public, V4,
-};
+use pasetors::{Public, token::UntrustedToken, version4::PublicToken, version4::V4};
 use serde_json::json;
 use std::time::Instant;
 use tracing::debug;
@@ -41,18 +39,12 @@ impl RpcMessageHandler {
                 return Ok(*o);
             }
         }
-        let pk: PasetoAsymmetricPublicKey<V4, Public> =
-            PasetoAsymmetricPublicKey::from(&self.public_key);
-        let verified_token = Paseto::<V4, Public>::try_verify(
-            token.0.as_str(),
-            &pk,
-            Footer::from(MOOR_AUTH_TOKEN_FOOTER),
-            None,
-        )
-        .map_err(|e| {
-            debug!(error = ?e, "Unable to parse/validate token");
-            RpcMessageError::PermissionDenied
-        })?;
+        let verified_token = self
+            .verify_public_token(token.0.as_str(), MOOR_AUTH_TOKEN_FOOTER)
+            .map_err(|e| {
+                debug!(error = ?e, "Unable to parse/validate token");
+                RpcMessageError::PermissionDenied
+            })?;
 
         let verified_token = serde_json::from_str::<serde_json::Value>(verified_token.as_str())
             .map_err(|e| {
@@ -96,40 +88,44 @@ impl RpcMessageHandler {
         Ok(token_player)
     }
 
-    pub(crate) fn make_client_token(&self, client_id: Uuid) -> ClientToken {
-        let privkey: PasetoAsymmetricPrivateKey<V4, Public> =
-            PasetoAsymmetricPrivateKey::from(&self.private_key);
-        let token = Paseto::<V4, Public>::default()
-            .set_footer(Footer::from(MOOR_SESSION_TOKEN_FOOTER))
-            .set_payload(Payload::from(
-                json!({
-                    "client_id": client_id.to_string(),
-                    "iss": "moor",
-                    "aud": "moor_connection",
-                })
-                .to_string()
-                .as_str(),
-            ))
-            .try_sign(&privkey)
-            .expect("Unable to build Paseto token");
+    /// Signs a v4.public token with the daemon's key. The footer names the token's kind.
+    fn sign_public_token(&self, payload: &serde_json::Value, footer: &str) -> String {
+        PublicToken::sign(
+            &self.private_key,
+            payload.to_string().as_bytes(),
+            Some(footer.as_bytes()),
+            None,
+        )
+        .expect("Unable to build Paseto token")
+    }
 
-        ClientToken(token)
+    /// Verifies a v4.public token signed by the daemon and returns its payload. The footer must
+    /// match exactly.
+    fn verify_public_token(
+        &self,
+        token: &str,
+        footer: &str,
+    ) -> Result<String, pasetors::errors::Error> {
+        let untrusted = UntrustedToken::<Public, V4>::try_from(token)?;
+        let trusted =
+            PublicToken::verify(&self.public_key, &untrusted, Some(footer.as_bytes()), None)?;
+        Ok(trusted.payload().to_string())
+    }
+
+    pub(crate) fn make_client_token(&self, client_id: Uuid) -> ClientToken {
+        let payload = json!({
+            "client_id": client_id.to_string(),
+            "iss": "moor",
+            "aud": "moor_connection",
+        });
+        ClientToken(self.sign_public_token(&payload, MOOR_SESSION_TOKEN_FOOTER))
     }
 
     pub(crate) fn make_auth_token(&self, oid: &Obj) -> AuthToken {
-        let privkey = PasetoAsymmetricPrivateKey::from(&self.private_key);
-        let token = Paseto::<V4, Public>::default()
-            .set_footer(Footer::from(MOOR_AUTH_TOKEN_FOOTER))
-            .set_payload(Payload::from(
-                json!({
-                    "player": oid.to_string(),
-                })
-                .to_string()
-                .as_str(),
-            ))
-            .try_sign(&privkey)
-            .expect("Unable to build Paseto token");
-        AuthToken(token)
+        let payload = json!({
+            "player": oid.to_string(),
+        });
+        AuthToken(self.sign_public_token(&payload, MOOR_AUTH_TOKEN_FOOTER))
     }
 
     pub(crate) fn validate_client_token_impl(
@@ -149,18 +145,12 @@ impl RpcMessageHandler {
             }
         }
 
-        let pk: PasetoAsymmetricPublicKey<V4, Public> =
-            PasetoAsymmetricPublicKey::from(&self.public_key);
-        let verified_token = Paseto::<V4, Public>::try_verify(
-            token.0.as_str(),
-            &pk,
-            Footer::from(MOOR_SESSION_TOKEN_FOOTER),
-            None,
-        )
-        .map_err(|e| {
-            debug!(error = ?e, "Unable to parse/validate client token");
-            RpcMessageError::PermissionDenied
-        })?;
+        let verified_token = self
+            .verify_public_token(token.0.as_str(), MOOR_SESSION_TOKEN_FOOTER)
+            .map_err(|e| {
+                debug!(error = ?e, "Unable to parse/validate client token");
+                RpcMessageError::PermissionDenied
+            })?;
 
         let verified_token = serde_json::from_str::<serde_json::Value>(verified_token.as_str())
             .map_err(|e| {

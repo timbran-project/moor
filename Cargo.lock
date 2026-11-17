@@ -1329,6 +1329,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "ct-codecs"
+version = "1.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8fd9f3db6f2cfef61c10613071955154ffdc9e515daebff26de4b54e35038fdd"
+
+[[package]]
 name = "ctr"
 version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1356,7 +1362,7 @@ dependencies = [
  "cpufeatures 0.2.17",
  "curve25519-dalek-derive",
  "digest 0.10.7",
- "fiat-crypto",
+ "fiat-crypto 0.2.9",
  "rustc_version",
  "subtle",
  "zeroize",
@@ -1670,6 +1676,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ed25519-compact"
+version = "2.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9547879431a90e352a35863a54416d92898a787b9af09e6ae2e09a96bd78be80"
+dependencies = [
+ "getrandom 0.4.3",
+]
+
+[[package]]
 name = "ed25519-dalek"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1753,17 +1768,6 @@ name = "equivalent"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "00d174d5400e5e8fd687ad1049e2f578285fa914201b1af7e8b112a4546bd826"
-
-[[package]]
-name = "erased-serde"
-version = "0.4.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e59b668157f32d3459d4bd634861a06ffa2503a461ca5f0916b9f0252605e66"
-dependencies = [
- "serde",
- "serde_core",
- "typeid",
-]
 
 [[package]]
 name = "errno"
@@ -1865,6 +1869,12 @@ name = "fiat-crypto"
 version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
+
+[[package]]
+name = "fiat-crypto"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "64cd1e32ddd350061ae6edb1b082d7c54915b5c672c389143b9a63403a109f24"
 
 [[package]]
 name = "filetime"
@@ -3710,15 +3720,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a6cb138bb79a146c1bd460005623e142ef0181e3d0219cb493e02f7d08a35695"
 
 [[package]]
-name = "iso8601"
-version = "0.6.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ffd3254cf2b0fc53e38414bdba99719f3e269db8a6519731b68a3a90040c41b"
-dependencies = [
- "nom 8.0.0",
-]
-
-[[package]]
 name = "itertools"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4359,10 +4360,10 @@ dependencies = [
  "moor-var",
  "oneshot",
  "papaya",
+ "pasetors",
  "planus",
  "r0z",
  "rand 0.10.4",
- "rusty_paseto",
  "semver",
  "serde",
  "serde_json",
@@ -4524,12 +4525,12 @@ dependencies = [
  "onig",
  "papaya",
  "parking_lot",
+ "pasetors",
  "planus",
  "pretty_assertions",
  "probe",
  "rand 0.10.4",
  "ripemd",
- "rusty_paseto",
  "scraper",
  "semver",
  "serde",
@@ -4636,8 +4637,8 @@ dependencies = [
  "moor-common",
  "moor-schema",
  "moor-var",
+ "pasetors",
  "planus",
- "rusty_paseto",
  "serde",
  "thiserror 2.0.21",
  "tokio",
@@ -4693,8 +4694,8 @@ dependencies = [
  "moor-var",
  "moor-web-host",
  "oneshot",
+ "pasetors",
  "r0z",
- "rusty_paseto",
  "semver",
  "serde",
  "signal-hook 0.4.6",
@@ -4859,7 +4860,6 @@ dependencies = [
  "planus",
  "r0z",
  "r0z-async",
- "rusty_paseto",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -5159,6 +5159,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7e036b411754132fd6b74e94b74e9a13c5cf606fa93d1885c35860d3060820b1"
 
 [[package]]
+name = "orion"
+version = "0.18.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce166f9a98c32a49ccf0684ea3be1a99cdebc0694d96e487ee5df844591a3403"
+dependencies = [
+ "cmov",
+ "fiat-crypto 0.3.0",
+ "subtle",
+]
+
+[[package]]
 name = "owo-colors"
 version = "4.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5279,6 +5290,20 @@ dependencies = [
  "redox_syscall",
  "smallvec",
  "windows-link",
+]
+
+[[package]]
+name = "pasetors"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8ec9d69d491936c29fa2684dcb50d4c7503a405f4e972066e344ff2a4f639195"
+dependencies = [
+ "ct-codecs",
+ "ed25519-compact",
+ "getrandom 0.4.3",
+ "orion",
+ "subtle",
+ "zeroize",
 ]
 
 [[package]]
@@ -6339,30 +6364,6 @@ dependencies = [
  "quick-error",
  "tempfile",
  "wait-timeout",
-]
-
-[[package]]
-name = "rusty_paseto"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b899b089a55222bea8ae753faff5554e7c616548c432adfefc444f06507fa26"
-dependencies = [
- "base64 0.22.1",
- "blake2",
- "chacha20 0.9.1",
- "digest 0.10.7",
- "ed25519-dalek",
- "erased-serde",
- "hex",
- "iso8601",
- "rand_core 0.9.5",
- "ring",
- "serde",
- "serde_json",
- "subtle",
- "thiserror 2.0.21",
- "time",
- "zeroize",
 ]
 
 [[package]]
@@ -7740,12 +7741,6 @@ name = "typed-path"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ce898823d8cd0f028662d2f349694b1af0a5cc9be83f1d213a00d3147445e1e"
-
-[[package]]
-name = "typeid"
-version = "1.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc7d623258602320d5c55d1bc22793b57daff0ec7efc270ea7d55ce1d5f5471c"
 
 [[package]]
 name = "typenum"

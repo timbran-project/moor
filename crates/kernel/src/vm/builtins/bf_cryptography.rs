@@ -25,9 +25,14 @@ use argon2::{Algorithm, Argon2, Params, PasswordHasher, PasswordVerifier, Versio
 use base32::Alphabet;
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use hmac::{Hmac, KeyInit, Mac};
+use pasetors::{
+    Local,
+    keys::SymmetricKey,
+    token::UntrustedToken,
+    version4::{LocalToken, V4},
+};
 use rand::RngExt;
 use rand::distr::Alphanumeric;
-use rusty_paseto::core::{Key, Local, Paseto, PasetoNonce, PasetoSymmetricKey, Payload, V4};
 use serde_json::Value as JsonValue;
 use sha1::Sha1;
 use sha2::{Sha256, Sha512};
@@ -1013,17 +1018,11 @@ fn bf_paseto_make_local(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         .map_err(|e| BfErr::ErrValue(E_INVARG.msg(format!("Failed to serialize claims: {}", e))))?;
 
     // Create the token
-    let key = PasetoSymmetricKey::<V4, Local>::from(Key::<32>::from(&symmetric_key));
-    let nonce_key = Key::<32>::try_new_random()
-        .map_err(|e| BfErr::ErrValue(E_INVARG.msg(format!("Failed to generate nonce: {}", e))))?;
-    let nonce = PasetoNonce::<V4, Local>::from(&nonce_key);
-
-    let token = Paseto::<V4, Local>::builder()
-        .set_payload(Payload::from(claims_str.as_str()))
-        .try_encrypt(&key, &nonce)
-        .map_err(|e| {
-            BfErr::ErrValue(E_INVARG.msg(format!("Failed to create PASETO token: {}", e)))
-        })?;
+    let key = SymmetricKey::<V4>::from(&symmetric_key)
+        .map_err(|e| BfErr::ErrValue(E_INVARG.msg(format!("Invalid PASETO key: {:?}", e))))?;
+    let token = LocalToken::encrypt(&key, claims_str.as_bytes(), None, None).map_err(|e| {
+        BfErr::ErrValue(E_INVARG.msg(format!("Failed to create PASETO token: {:?}", e)))
+    })?;
 
     Ok(Ret(v_string(token)))
 }
@@ -1058,14 +1057,16 @@ fn bf_paseto_verify_local(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr>
     };
 
     // Verify and decrypt the token
-    let key = PasetoSymmetricKey::<V4, Local>::from(Key::<32>::from(&symmetric_key));
-    let verified_token = Paseto::<V4, Local>::try_decrypt(token_str.as_str(), &key, None, None)
+    let key = SymmetricKey::<V4>::from(&symmetric_key)
+        .map_err(|e| BfErr::ErrValue(E_INVARG.msg(format!("Invalid PASETO key: {:?}", e))))?;
+    let verified_token = UntrustedToken::<Local, V4>::try_from(token_str.as_str())
+        .and_then(|untrusted| LocalToken::decrypt(&key, &untrusted, None, None))
         .map_err(|e| {
-            BfErr::ErrValue(E_INVARG.msg(format!("Failed to verify PASETO token: {}", e)))
+            BfErr::ErrValue(E_INVARG.msg(format!("Failed to verify PASETO token: {:?}", e)))
         })?;
 
     // Parse the claims JSON
-    let claims_str = &verified_token;
+    let claims_str = verified_token.payload();
 
     let claims_json: JsonValue = serde_json::from_str(claims_str).map_err(|e| {
         BfErr::ErrValue(E_INVARG.msg(format!("Failed to parse token claims: {}", e)))

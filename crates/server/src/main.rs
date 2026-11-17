@@ -679,7 +679,13 @@ fn load_or_create_keypair(
     public_key_path: &PathBuf,
     private_key_path: &PathBuf,
     generate: bool,
-) -> Result<(rusty_paseto::core::Key<64>, rusty_paseto::core::Key<32>), Report> {
+) -> Result<
+    (
+        pasetors::keys::AsymmetricSecretKey<pasetors::version4::V4>,
+        pasetors::keys::AsymmetricPublicKey<pasetors::version4::V4>,
+    ),
+    Report,
+> {
     if public_key_path.exists() && private_key_path.exists() {
         info!(
             "Loading existing keypair from {} / {}",

@@ -16,7 +16,10 @@ use ed25519_dalek::{
     pkcs8::{DecodePrivateKey, DecodePublicKey},
 };
 use moor_schema::{fb_read, rpc};
-use rusty_paseto::core::Key;
+use pasetors::{
+    keys::{AsymmetricPublicKey, AsymmetricSecretKey},
+    version4::V4,
+};
 use std::path::Path;
 use thiserror::Error;
 
@@ -43,19 +46,28 @@ pub enum KeyError {
 }
 
 /// Parse a public and private key from the given PEM strings.
-pub fn parse_keypair(public_key: &str, private_key: &str) -> Result<(Key<64>, Key<32>), KeyError> {
+pub fn parse_keypair(
+    public_key: &str,
+    private_key: &str,
+) -> Result<(AsymmetricSecretKey<V4>, AsymmetricPublicKey<V4>), KeyError> {
     let private_key =
         SigningKey::from_pkcs8_pem(private_key).map_err(|_| KeyError::KeyParseError)?;
     let public_key =
         VerifyingKey::from_public_key_pem(public_key).map_err(|_| KeyError::KeyParseError)?;
 
-    let priv_key: Key<64> = Key::from(private_key.to_keypair_bytes());
-    let pub_key: Key<32> = Key::from(public_key.to_bytes());
+    // The secret key is the 64-byte Ed25519 keypair (seed, then public key).
+    let priv_key = AsymmetricSecretKey::<V4>::from(&private_key.to_keypair_bytes())
+        .map_err(|_| KeyError::IncorrectKeyFormat("private key".to_string()))?;
+    let pub_key = AsymmetricPublicKey::<V4>::from(&public_key.to_bytes())
+        .map_err(|_| KeyError::IncorrectKeyFormat("public key".to_string()))?;
     Ok((priv_key, pub_key))
 }
 
 /// Load a keypair from the given public and private key (PEM) files.
-pub fn load_keypair(public_key: &Path, private_key: &Path) -> Result<(Key<64>, Key<32>), KeyError> {
+pub fn load_keypair(
+    public_key: &Path,
+    private_key: &Path,
+) -> Result<(AsymmetricSecretKey<V4>, AsymmetricPublicKey<V4>), KeyError> {
     let (Some(pubkey_pem), Some(privkey_pem)) = (
         std::fs::read_to_string(public_key).ok(),
         std::fs::read_to_string(private_key).ok(),

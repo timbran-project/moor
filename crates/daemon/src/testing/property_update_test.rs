@@ -27,7 +27,7 @@ use moor_runtime_api::{
     api::{ClientReply, ClientRequest},
 };
 use moor_var::{Obj, Symbol, Var, v_int};
-use rusty_paseto::core::{Footer, Paseto, PasetoAsymmetricPrivateKey, Payload, Public, V4};
+use pasetors::version4::PublicToken;
 use std::{path::PathBuf, sync::Arc, time::Duration};
 use uuid::Uuid;
 struct Fixture {
@@ -119,15 +119,15 @@ fn exercise(core: &str) {
         .unwrap();
     let (_, key) = test_env::create_test_keys();
     let token = AuthToken(
-        Paseto::<V4, Public>::default()
-            .set_footer(Footer::from(MOOR_AUTH_TOKEN_FOOTER))
-            .set_payload(Payload::from(
-                serde_json::json!({"player": actor.to_string()})
-                    .to_string()
-                    .as_str(),
-            ))
-            .try_sign(&PasetoAsymmetricPrivateKey::from(&key))
-            .unwrap(),
+        PublicToken::sign(
+            &key,
+            serde_json::json!({"player": actor.to_string()})
+                .to_string()
+                .as_bytes(),
+            Some(MOOR_AUTH_TOKEN_FOOTER.as_bytes()),
+            None,
+        )
+        .unwrap(),
     );
     let update = |property: &str| {
         fixture.call(

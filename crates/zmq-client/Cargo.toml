@@ -37,7 +37,6 @@ futures-util.workspace = true
 tokio.workspace = true
 
 # Authentication & Security
-rusty_paseto.workspace = true
 
 # Error Handling & Logging
 eyre.workspace = true

@@ -40,7 +40,10 @@ use moor_common::tasks::{Session, SessionError, SessionFactory};
 use moor_common::threading::spawn_efficient;
 use moor_kernel::{SchedulerClient, config::Config};
 use moor_var::Obj;
-use rusty_paseto::prelude::Key;
+use pasetors::{
+    keys::{AsymmetricPublicKey, AsymmetricSecretKey},
+    version4::V4,
+};
 use tracing::{error, info};
 use uuid::Uuid;
 
@@ -67,8 +70,8 @@ impl RpcServer {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         kill_switch: Arc<AtomicBool>,
-        public_key: Key<32>,
-        private_key: Key<64>,
+        public_key: AsymmetricPublicKey<V4>,
+        private_key: AsymmetricSecretKey<V4>,
         connections: Arc<dyn ConnectionRegistry>,
         event_log: Arc<dyn EventLogOps>,
         transport: Arc<dyn Transport>,
