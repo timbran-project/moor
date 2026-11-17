@@ -33,7 +33,10 @@ use moor_kernel::{
     },
 };
 use moor_textdump::{TextdumpImportOptions, textdump_load};
-use rusty_paseto::prelude::Key;
+use pasetors::{
+    keys::{AsymmetricPublicKey, AsymmetricSecretKey},
+    version4::V4,
+};
 use semver::Version;
 use tempfile::TempDir;
 
@@ -82,7 +85,7 @@ pub fn setup_tracing() {
         .try_init();
 }
 
-pub fn create_test_keys() -> (Key<32>, Key<64>) {
+pub fn create_test_keys() -> (AsymmetricPublicKey<V4>, AsymmetricSecretKey<V4>) {
     const SIGNING_KEY: &str = r#"-----BEGIN PRIVATE KEY-----
 MC4CAQAwBQYDK2VwBCIEILrkKmddHFUDZqRCnbQsPoW/Wsp0fLqhnv5KNYbcQXtk
 -----END PRIVATE KEY-----

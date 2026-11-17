@@ -55,7 +55,10 @@ use moor_runtime_api::{
     api_codec::encode_client_event_bytes,
 };
 use moor_var::{Obj, SYSTEM_OBJECT, Symbol, Var};
-use rusty_paseto::prelude::Key;
+use pasetors::{
+    keys::{AsymmetricPublicKey, AsymmetricSecretKey},
+    version4::V4,
+};
 use tracing::{error, warn};
 
 pub(crate) static USER_CONNECTED_SYM: LazyLock<Symbol> =
@@ -154,8 +157,8 @@ pub trait MessageHandler: RuntimeApi + Send + Sync {
 /// Implementation of message handler that contains the actual business logic
 pub struct RpcMessageHandler {
     pub(crate) config: Arc<Config>,
-    pub(crate) public_key: Key<32>,
-    pub(crate) private_key: Key<64>,
+    pub(crate) public_key: AsymmetricPublicKey<V4>,
+    pub(crate) private_key: AsymmetricSecretKey<V4>,
 
     pub(crate) connections: Arc<dyn ConnectionRegistry>,
     pub(crate) task_monitor: Arc<TaskMonitor>,
@@ -212,8 +215,8 @@ impl RpcMessageHandler {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         config: Arc<Config>,
-        public_key: Key<32>,
-        private_key: Key<64>,
+        public_key: AsymmetricPublicKey<V4>,
+        private_key: AsymmetricSecretKey<V4>,
         connections: Arc<dyn ConnectionRegistry>,
         hosts: Arc<RwLock<Hosts>>,
         mailbox_sender: Sender<SessionActions>,

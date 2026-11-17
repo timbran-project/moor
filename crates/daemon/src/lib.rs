@@ -50,8 +50,11 @@ use moor_kernel::{
 use moor_objdef::ObjectDefinitionLoader;
 use moor_textdump::{TextdumpImportOptions, textdump_load};
 use moor_var::{List, Obj, SYSTEM_OBJECT, Symbol, Var, v_empty_str};
+use pasetors::{
+    keys::{AsymmetricPublicKey, AsymmetricSecretKey},
+    version4::V4,
+};
 use rand::RngExt;
-use rusty_paseto::core::Key;
 use sha2::{Digest, Sha256};
 
 mod allowed_hosts;
@@ -113,8 +116,8 @@ pub struct DaemonEndpoints {
 
 #[derive(Clone)]
 pub struct DaemonKeys {
-    pub private_key: Key<64>,
-    pub public_key: Key<32>,
+    pub private_key: AsymmetricSecretKey<V4>,
+    pub public_key: AsymmetricPublicKey<V4>,
     pub curve_keypair: CurveKeyPair,
     pub enrollment_token_path: PathBuf,
     pub allowed_hosts_dir: PathBuf,
@@ -583,7 +586,7 @@ pub fn run(runtime_config: DaemonRuntimeConfig, runtime: DaemonRuntime) -> Resul
 
     // Derive symmetric key for PASETO V4.Local tokens from the Ed25519 private key
     let mut hasher = Sha256::new();
-    hasher.update(private_key.as_slice());
+    hasher.update(private_key.as_bytes());
     let server_symmetric_key: [u8; 32] = hasher.finalize().into();
 
     // Initialize the server's symmetric key in the kernel
