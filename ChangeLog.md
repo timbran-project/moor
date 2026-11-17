@@ -14,6 +14,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.0 series (`v2.0-release` branch)
 
+- The web host no longer rate-limits `/auth/connect` and `/auth/create`. Rate limiting belongs in
+  the reverse proxy, and the nginx configurations in `deploy/` now limit both endpoints to 5
+  requests a second per client address, with bursts of 10. A configuration that still has a
+  `rate_limit` section loads, and a warning says it is ignored. The old limiter, when enabled,
+  allowed one request every N seconds instead of N a second.
 - Error guards run faster. Entering a guard for literal error codes or for `ANY` costs less, and so
   does catching an error in a catch expression with no default, such as `` `x.name ! E_PROPNF' ``.
   Existing verbs get the improvement without recompilation.

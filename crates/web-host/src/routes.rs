@@ -11,74 +11,18 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Route table construction, request body limits, CORS, and auth rate limiting.
-
-use std::{
-    net::{IpAddr, SocketAddr},
-    sync::Arc,
-};
+//! Route table construction, request body limits and CORS.
 
 use axum::{
     Router,
     extract::DefaultBodyLimit,
     routing::{get, post, put},
 };
-use ipnet::IpNet;
 use serde_derive::{Deserialize, Serialize};
-use tower_governor::{GovernorLayer, errors::GovernorError, governor::GovernorConfigBuilder};
 use tower_http::cors::{AllowHeaders, AllowMethods, AllowOrigin, CorsLayer};
 use tracing::info;
 
 use crate::host::{self, OAuth2State, WebHost};
-
-/// Rate-limit key extractor that only trusts forwarding headers from configured
-/// trusted proxy CIDRs. Falls back to peer IP when no trusted proxy is present.
-#[derive(Clone, Debug)]
-struct TrustedProxyKeyExtractor {
-    trusted_cidrs: Arc<Vec<IpNet>>,
-}
-
-impl tower_governor::key_extractor::KeyExtractor for TrustedProxyKeyExtractor {
-    type Key = IpAddr;
-
-    fn extract<T>(&self, req: &axum::http::Request<T>) -> Result<Self::Key, GovernorError> {
-        let peer_ip = req
-            .extensions()
-            .get::<axum::extract::ConnectInfo<SocketAddr>>()
-            .map(|ci| ci.0.ip())
-            .ok_or(GovernorError::UnableToExtractKey)?;
-
-        if self.trusted_cidrs.is_empty()
-            || !self
-                .trusted_cidrs
-                .iter()
-                .any(|cidr| cidr.contains(&peer_ip))
-        {
-            return Ok(peer_ip);
-        }
-
-        if let Some(ip) = req
-            .headers()
-            .get("x-forwarded-for")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|s| s.split(',').next())
-            .and_then(|s| s.trim().parse::<IpAddr>().ok())
-        {
-            return Ok(ip);
-        }
-
-        if let Some(ip) = req
-            .headers()
-            .get("x-real-ip")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|s| s.trim().parse::<IpAddr>().ok())
-        {
-            return Ok(ip);
-        }
-
-        Ok(peer_ip)
-    }
-}
 
 /// CORS middleware configuration.
 /// Disabled by default; when enabled, explicit origins must be provided.
@@ -100,45 +44,32 @@ pub struct CorsConfig {
     pub allowed_headers: Vec<String>,
 }
 
-/// Rate limiting configuration for auth endpoints.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RateLimitConfig {
-    #[serde(default)]
-    pub enabled: bool,
-    /// Sustained requests per second.
-    #[serde(default = "RateLimitConfig::default_rps")]
-    pub requests_per_second: u64,
-    /// Token bucket capacity.
-    #[serde(default = "RateLimitConfig::default_burst")]
-    pub burst_size: u32,
-}
+/// A removed configuration setting. It serializes as `null` and accepts any value, so files that
+/// still set it load, and the host can warn that it is ignored.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct RemovedSetting;
 
-impl RateLimitConfig {
-    fn default_rps() -> u64 {
-        5
-    }
-
-    fn default_burst() -> u32 {
-        10
+impl serde::Serialize for RemovedSetting {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_none()
     }
 }
 
-impl Default for RateLimitConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            requests_per_second: Self::default_rps(),
-            burst_size: Self::default_burst(),
-        }
+impl<'de> serde::Deserialize<'de> for RemovedSetting {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        serde::de::IgnoredAny::deserialize(deserializer).map(|_| RemovedSetting)
     }
 }
+
+/// Logged when a configuration still carries the removed `rate_limit` section.
+pub const RATE_LIMIT_REMOVED: &str = "The rate_limit setting has been removed and is ignored; \
+     rate-limit the /auth/connect and /auth/create endpoints in the reverse proxy instead";
 
 /// HTTP routing options shared by every listener.
 #[derive(Debug, Clone)]
 pub struct RouteOptions {
     pub enable_webhooks: bool,
     pub cors: CorsConfig,
-    pub rate_limit: RateLimitConfig,
 }
 
 pub fn mk_routes(
@@ -146,30 +77,11 @@ pub fn mk_routes(
     oauth2_state: Option<OAuth2State>,
     options: &RouteOptions,
 ) -> eyre::Result<Router> {
-    let rate_limit_config = &options.rate_limit;
-    let trusted_proxy_cidrs = web_host.trusted_proxy_cidrs.clone();
-    let mut auth_routes = Router::new()
+    let auth_routes = Router::new()
         .route("/auth/connect", post(host::connect_auth_handler))
         .route("/auth/create", post(host::create_auth_handler))
         .layer(DefaultBodyLimit::max(64 * 1024))
         .with_state(web_host.clone());
-
-    if rate_limit_config.enabled {
-        let key_extractor = TrustedProxyKeyExtractor {
-            trusted_cidrs: trusted_proxy_cidrs,
-        };
-        let governor_conf = GovernorConfigBuilder::default()
-            .per_second(rate_limit_config.requests_per_second)
-            .burst_size(rate_limit_config.burst_size)
-            .key_extractor(key_extractor)
-            .finish()
-            .ok_or_else(|| eyre::eyre!("Failed to build rate limiter config"))?;
-        auth_routes = auth_routes.layer(GovernorLayer::new(Arc::new(governor_conf)));
-        info!(
-            "Rate limiting enabled on auth endpoints: {}/s burst={}",
-            rate_limit_config.requests_per_second, rate_limit_config.burst_size
-        );
-    }
 
     let mut webhost_router = Router::new()
         .route("/ws/attach/connect", get(host::ws_connect_attach_handler))
