@@ -257,7 +257,7 @@ pub fn child_main(directory: &Path) -> eyre::Result<()> {
     // gix receives one pack per request. Limit the pack and every other individual temporary file.
     set_limit(libc::RLIMIT_FSIZE, request.limits.max_fetch_bytes as u64)?;
     set_limit(libc::RLIMIT_CORE, 0)?;
-    let _ = rustls::crypto::ring::default_provider().install_default();
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
     let result = crate::backend::execute(&request, &directory.join("repository"))
         .unwrap_or_else(|error| error.value());
     std::io::stdout().write_all(&encode_var_cbor(&result)?)?;

@@ -315,16 +315,16 @@ fn form_encode(value: &str) -> String {
     url::form_urlencoded::byte_serialize(value.as_bytes()).collect()
 }
 
-// Keep outbound trust on WebPKI roots and select Ring independently of process initialization.
+// Keep outbound trust on WebPKI roots and select aws-lc independently of process initialization.
 fn http_client_builder() -> reqwest::ClientBuilder {
     let roots = rustls::RootCertStore {
         roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
     };
     let tls = rustls::ClientConfig::builder_with_provider(std::sync::Arc::new(
-        rustls::crypto::ring::default_provider(),
+        rustls::crypto::aws_lc_rs::default_provider(),
     ))
     .with_safe_default_protocol_versions()
-    .expect("Ring supports the default TLS protocol versions")
+    .expect("aws-lc supports the default TLS protocol versions")
     .with_root_certificates(roots)
     .with_no_client_auth();
     reqwest::Client::builder().tls_backend_preconfigured(tls)
