@@ -84,7 +84,7 @@ fn save_keypair(keypair: &CurveKeyPair, secret_path: &Path, public_path: &Path) 
         "# mooR Daemon CURVE Secret Key\n\
          # Generated: {}\n\
          secret={}\n",
-        chrono::Utc::now().to_rfc3339(),
+        jiff::Timestamp::now(),
         keypair.secret
     );
 
@@ -92,7 +92,7 @@ fn save_keypair(keypair: &CurveKeyPair, secret_path: &Path, public_path: &Path) 
         "# mooR Daemon CURVE Public Key\n\
          # Generated: {}\n\
          public={}\n",
-        chrono::Utc::now().to_rfc3339(),
+        jiff::Timestamp::now(),
         keypair.public
     );
 

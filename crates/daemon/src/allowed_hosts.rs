@@ -152,7 +152,7 @@ impl AllowedHostsRegistry {
              public={}\n",
             service_type,
             hostname,
-            chrono::Utc::now().to_rfc3339(),
+            jiff::Timestamp::now(),
             public_key
         );
 

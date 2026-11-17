@@ -121,7 +121,7 @@ pub fn save_identity(
         service_type: service_type.to_string(),
         hostname: hostname.to_string(),
         daemon_curve_public_key: daemon_public_key.to_string(),
-        enrolled_at: chrono::Utc::now().to_rfc3339(),
+        enrolled_at: jiff::Timestamp::now().to_string(),
     };
 
     let content =
@@ -171,7 +171,7 @@ fn save_keypair(
          # Generated: {}\n\
          secret={}\n",
         service_type,
-        chrono::Utc::now().to_rfc3339(),
+        jiff::Timestamp::now(),
         keypair.secret
     );
 
@@ -180,7 +180,7 @@ fn save_keypair(
          # Generated: {}\n\
          public={}\n",
         service_type,
-        chrono::Utc::now().to_rfc3339(),
+        jiff::Timestamp::now(),
         keypair.public
     );
 
@@ -250,7 +250,7 @@ mod tests {
             service_type: "web-host".to_string(),
             hostname: "test-host".to_string(),
             daemon_curve_public_key: "a".repeat(40),
-            enrolled_at: chrono::Utc::now().to_rfc3339(),
+            enrolled_at: jiff::Timestamp::now().to_string(),
         };
 
         let json = serde_json::to_string(&identity).unwrap();

@@ -12,7 +12,7 @@ rust-version.workspace = true
 description = "Functions and structures for compilation and decompilation of MOO source, including opcode declarations and builtin declarations"
 
 [dev-dependencies]
-chrono.workspace = true
+jiff.workspace = true
 md5.workspace = true
 micromeasure.workspace = true
 pretty_assertions.workspace = true

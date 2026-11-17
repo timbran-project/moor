@@ -14,6 +14,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.0 series (`v2.0-release` branch)
 
+- `ctime()` no longer crashes the server when the host's timezone cannot be found or is not
+  recognized. It now uses UTC in that case. The timezone abbreviation now matches the time shown:
+  before, the time followed `TZ` while the abbreviation came from the system setting, and near a
+  daylight saving change the abbreviation could be wrong. A time too large to represent now raises
+  `E_INVARG`.
+- Duration settings in the configuration file, such as `checkpoint_interval` and `gc_interval`, no
+  longer accept months or years (`1M`, `1y`). Use days or weeks instead (`30d`, `4w`).
 - Output a task sends before a `commit()`, `suspend(0)` or `fork` is delivered when that boundary
   commits. Before, it waited for the task's end, and a conflict retry after the boundary threw it
   away, so players silently missed lines that had already happened.

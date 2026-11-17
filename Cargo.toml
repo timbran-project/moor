@@ -125,7 +125,6 @@ clap_derive = "4.5"
 # Serialization & Data Formats
 csv = "1.4"
 edn-format = "3.3"
-humantime = "2.3"
 minicbor = { version = "2", features = ["alloc", "derive"] }
 planus = { version = "1.3", default-features = false, features = ["std", "vtable-cache"] }
 serde = { version = "1.0", features = ["derive", "rc"] }
@@ -185,9 +184,7 @@ sha2 = "0.11"
 ssh-key = "0.6"
 
 # Time & Locale
-chrono = "0.4"
-chrono-tz = "0.10"
-iana-time-zone = "0.1"
+jiff = "0.2"
 
 # Text Processing & Regex
 arcstr = "1.2"

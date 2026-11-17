@@ -213,16 +213,21 @@ impl ImportExportConfig {
     }
 }
 
-// Use humantime to parse durations from strings
+/// Parses durations such as "10ms", "600s", "1h 30m" or "2 days". Days and weeks count as 24 hours
+/// and 7 days; months and years are rejected.
 fn parse_duration<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
     let opt: Option<String> = Option::deserialize(deserializer)?;
-    match opt {
-        Some(s) => humantime::parse_duration(&s)
-            .map(Some)
-            .map_err(serde::de::Error::custom),
-        None => Ok(None),
-    }
+    let Some(s) = opt else {
+        return Ok(None);
+    };
+    let span: jiff::Span = s.trim().parse().map_err(serde::de::Error::custom)?;
+    let duration = span
+        .to_duration(jiff::SpanRelativeTo::days_are_24_hours())
+        .map_err(serde::de::Error::custom)?;
+    Duration::try_from(duration)
+        .map(Some)
+        .map_err(serde::de::Error::custom)
 }
