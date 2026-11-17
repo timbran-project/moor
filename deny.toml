@@ -13,8 +13,6 @@ ignore = [
     # Age 0.12 reaches crypto-bigint 0.5 through hpke and p256, and no 0.5 release is fixed.
     # Remove once Age moves to elliptic-curve 0.14.
     { id = "RUSTSEC-2026-0387", reason = "Age uses P-256 only for its tag and post-quantum recipient types; mooR's age_encrypt and age_decrypt accept X25519 and SSH keys only, and the event log uses X25519, so the affected arithmetic is unreachable" },
-    # Remove once mooR's own OAuth2 code exchange and EDN writer replace oauth2 and edn-format.
-    { id = "RUSTSEC-2026-0543", reason = "Temporary exception: chrono is unmaintained; mooR no longer uses it directly, and it comes only through oauth2 (web-host) and edn-format (Elle test tooling), both of which are being replaced" },
 ]
 
 [bans]

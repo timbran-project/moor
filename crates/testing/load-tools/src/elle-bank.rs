@@ -16,10 +16,10 @@
 
 use clap::Parser;
 use clap_derive::Parser;
-use edn_format::{Keyword, Value};
 use moor_common::model::{CommitResult, TaskPermissions, WorldStateSource};
 use moor_common::util::BitEnum;
 use moor_db::TxDB;
+use moor_edn::{Keyword, Value};
 use moor_model_checker::elle_common::{self, EdnEvent};
 use moor_var::{Obj, Symbol, v_int};
 use rand::RngExt;
