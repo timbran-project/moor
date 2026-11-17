@@ -20,7 +20,7 @@ use moor_runtime_api::client_args::{RpcClientArgs, RpcClientConfig};
 use moor_web_host::{
     DEFAULT_CLIENT_DATA_RATE, HostRuntime, WebHostConfig, ZmqWebHostConfig,
     host::OAuth2Config,
-    routes::{CorsConfig, RateLimitConfig},
+    routes::{CorsConfig, RATE_LIMIT_REMOVED, RemovedSetting},
     webrtc::WebRtcConfig,
 };
 use serde_derive::{Deserialize, Serialize};
@@ -29,7 +29,7 @@ use tokio::{
     select,
     signal::unix::{SignalKind, signal},
 };
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 static VERSION_STRING: LazyLock<String> = LazyLock::new(|| {
     format!(
@@ -83,9 +83,10 @@ struct Args {
     #[arg(skip)]
     pub cors: CorsConfig,
 
+    /// Removed. Accepted so older configuration files still load; startup warns when it is set.
     #[serde(default)]
     #[arg(skip)]
-    pub rate_limit: RateLimitConfig,
+    pub rate_limit: Option<RemovedSetting>,
 
     /// Trusted proxy CIDRs. Only connections from these CIDRs will have
     /// X-Forwarded-For / X-Real-IP headers honoured. Default empty = trust nothing.
@@ -144,6 +145,9 @@ async fn main() -> Result<(), eyre::Error> {
         eprintln!("Unable to configure logging: {e}");
         std::process::exit(1);
     });
+    if args.rate_limit.is_some() {
+        warn!("{RATE_LIMIT_REMOVED}");
+    }
     let kill_switch = Arc::new(AtomicBool::new(false));
 
     let mut hup_signal = match signal(SignalKind::hangup()) {
@@ -170,7 +174,6 @@ async fn main() -> Result<(), eyre::Error> {
             enable_webhooks: args.enable_webhooks,
             oauth2: args.oauth2,
             cors: args.cors,
-            rate_limit: args.rate_limit,
             trusted_proxy_cidrs: args.trusted_proxy_cidrs,
             webrtc: args.webrtc,
             client_data_rate: args.client_data_rate,

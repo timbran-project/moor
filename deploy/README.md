@@ -414,7 +414,10 @@ monitor logs for suspicious activity.
 
 1. **SSL/TLS**: Always use HTTPS for internet-facing deployments
 2. **Certificate monitoring**: Monitor certificate expiration
-3. **Rate limiting**: Implement rate limiting on web endpoints
+3. **Rate limiting**: Rate-limit the web endpoints in the reverse proxy; the web host has no limiter
+   of its own. The nginx configurations here limit `/auth/connect` and `/auth/create` to 5 requests
+   a second per client address, with bursts of 10. Behind another proxy or load balancer, set the
+   client address with nginx's realip module, or every client shares one limit.
 4. **Intrusion detection**: Consider IDS/IPS for public servers
 5. **Regular audits**: Audit user permissions and access logs
 

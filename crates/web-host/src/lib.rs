@@ -37,7 +37,7 @@ use moor_var::SYSTEM_OBJECT;
 use moor_zmq_client::{
     HostRpcArgs, process_hosts_events_with_services, start_host_session_with_services,
 };
-use routes::{CorsConfig, RateLimitConfig, RouteOptions};
+use routes::{CorsConfig, RouteOptions};
 use tokio::select;
 use tracing::{error, info};
 use uuid::Uuid;
@@ -54,7 +54,6 @@ pub struct WebHostConfig {
     pub enable_webhooks: bool,
     pub oauth2: OAuth2Config,
     pub cors: CorsConfig,
-    pub rate_limit: RateLimitConfig,
     pub trusted_proxy_cidrs: Vec<String>,
     pub webrtc: WebRtcConfig,
     /// Client data messages each connection may send per second; 0 is unlimited.
@@ -134,7 +133,6 @@ async fn run_with_host_services(
     let route_options = RouteOptions {
         enable_webhooks: config.enable_webhooks,
         cors: config.cors.clone(),
-        rate_limit: config.rate_limit.clone(),
     };
     let (mut listeners_server, listeners_channel, listeners) = Listeners::new(
         runtime.kill_switch.clone(),

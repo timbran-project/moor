@@ -41,7 +41,7 @@ use moor_telnet_host::{HostRuntime as TelnetHostRuntime, TelnetHostConfig, Telne
 use moor_web_host::{
     WebHostConfig,
     host::OAuth2Config,
-    routes::{CorsConfig, RateLimitConfig},
+    routes::{CorsConfig, RATE_LIMIT_REMOVED, RemovedSetting},
     webrtc::WebRtcConfig,
 };
 use serde::{Deserialize, Serialize};
@@ -337,7 +337,8 @@ struct WebServiceConfig {
     enable_webhooks: bool,
     oauth2: OAuth2Config,
     cors: CorsConfig,
-    rate_limit: RateLimitConfig,
+    /// Removed. Accepted so older configuration files still load; startup warns when it is set.
+    rate_limit: Option<RemovedSetting>,
     trusted_proxy_cidrs: Vec<String>,
     webrtc: WebRtcConfig,
     client_data_rate: u32,
@@ -351,7 +352,7 @@ impl Default for WebServiceConfig {
             enable_webhooks: true,
             oauth2: OAuth2Config::default(),
             cors: CorsConfig::default(),
-            rate_limit: RateLimitConfig::default(),
+            rate_limit: None,
             trusted_proxy_cidrs: vec![],
             webrtc: WebRtcConfig::default(),
             client_data_rate: moor_web_host::DEFAULT_CLIENT_DATA_RATE,
@@ -566,6 +567,9 @@ async fn run() -> Result<(), Report> {
         }));
     }
 
+    if services_config.web.rate_limit.is_some() {
+        warn!("{RATE_LIMIT_REMOVED}");
+    }
     if services_config.web.enabled {
         let web_config = WebHostConfig {
             listen_address: services_config.web.listen_address,
@@ -574,7 +578,6 @@ async fn run() -> Result<(), Report> {
             enable_webhooks: services_config.web.enable_webhooks,
             oauth2: services_config.web.oauth2,
             cors: services_config.web.cors,
-            rate_limit: services_config.web.rate_limit,
             trusted_proxy_cidrs: services_config.web.trusted_proxy_cidrs,
             webrtc: services_config.web.webrtc,
             client_data_rate: services_config.web.client_data_rate,
@@ -887,6 +890,23 @@ mod tests {
         assert_eq!(config.services.git_worker.limits.max_seconds, 10);
         assert_eq!(config.services.git_worker.limits.max_entries, 4096);
         assert!(load("services:\n  git_worker:\n    limits:\n      max_second: 10\n").is_err());
+    }
+
+    #[test]
+    fn removed_rate_limit_section_still_loads() {
+        let config = load(
+            "services:\n  web:\n    rate_limit:\n      enabled: true\n      requests_per_second: 5\n      burst_size: 10\n",
+        )
+        .unwrap();
+        assert!(config.services.web.rate_limit.is_some());
+        assert!(
+            load("services:\n  web: {}\n")
+                .unwrap()
+                .services
+                .web
+                .rate_limit
+                .is_none()
+        );
     }
 
     #[test]
