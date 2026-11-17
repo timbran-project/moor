@@ -16,6 +16,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The web host no longer rate-limits `/auth/connect` and `/auth/create`. Rate limiting belongs in
+  the reverse proxy, and the nginx configurations in `deploy/` now limit both endpoints to 5
+  requests a second per client address, with bursts of 10. A configuration that still has a
+  `rate_limit` section loads, and a warning says it is ignored. The old limiter, when enabled,
+  allowed one request every N seconds instead of N a second.
 - Duration settings in the configuration file, such as `checkpoint_interval` and `gc_interval`, no
   longer accept months or years (`1M`, `1y`). Use days or weeks instead (`30d`, `4w`).
 

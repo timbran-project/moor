@@ -63,7 +63,6 @@ reqwest = { workspace = true, features = ["json"] }
 rustls.workspace = true
 str0m.workspace = true
 tower-http.workspace = true
-tower_governor.workspace = true
 webpki-roots.workspace = true
 
 # Async Runtime & Concurrency

@@ -322,7 +322,10 @@ testing, temporarily modify `nginx-ssl.conf`.
 
 6. **Telnet security**: Consider disabling telnet or restricting by IP if not needed
 
-7. **Rate limiting**: Consider adding rate limiting in nginx for public endpoints
+7. **Rate limiting**: `nginx-ssl.conf` limits `/auth/connect` and `/auth/create` to 5 requests a
+   second per client address, with bursts of 10. If another proxy or load balancer sits in front of
+   this nginx, set the client address with the realip module (`set_real_ip_from`, `real_ip_header`),
+   or every client shares one limit
 
 ## Monitoring
 
