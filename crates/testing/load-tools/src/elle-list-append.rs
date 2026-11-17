@@ -24,13 +24,13 @@
 
 use clap::Parser;
 use clap_derive::{Parser, ValueEnum};
-use edn_format::{Keyword, Value};
 use moor_common::{
     model::{CommitResult, ObjAttrs, ObjFlag, ObjectKind, TaskPermissions, WorldStateSource},
     tasks::{Kept, TaskEnding},
     util::BitEnum,
 };
 use moor_db::{Database, TxDB};
+use moor_edn::{Keyword, Value};
 use moor_kernel::{
     SchedulerClient,
     config::{Config, FeaturesConfig},

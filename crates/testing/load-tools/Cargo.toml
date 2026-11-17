@@ -77,7 +77,7 @@ color-eyre.workspace = true
 eyre.workspace = true
 
 # EDN format for Elle
-edn-format.workspace = true
+moor-edn = { path = "../edn" }
 
 # Random operations
 rand.workspace = true

@@ -34,9 +34,9 @@ name = "objdef_export_benches"
 harness = false
 
 [dev-dependencies]
-edn-format.workspace = true
 eyre.workspace = true
 micromeasure.workspace = true
+moor-edn = { path = "../testing/edn" }
 shuttle.workspace = true
 tempfile.workspace = true
 
