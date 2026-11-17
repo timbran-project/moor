@@ -152,15 +152,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e9d4ee0d472d1cd2e28c97dfa124b3d8d992e10eb0a035f33f5d12e3a177ba3b"
 
 [[package]]
-name = "android_system_properties"
-version = "0.1.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae221649c9976a6f6c56ae1facf410f3ddb33cc661c4b7b61020a912d4237fbc"
-dependencies = [
- "libc",
-]
-
-[[package]]
 name = "ansi-str"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -536,17 +527,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32637268377fc7b10a8c6d51de3e7fba1ce5dd371a96e342b34e6078db558e7f"
 
 [[package]]
-name = "bigdecimal"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a6773ddc0eafc0e509fb60e48dff7f450f8e674a0686ae8605e8d9901bd5eefa"
-dependencies = [
- "num-bigint",
- "num-integer",
- "num-traits",
-]
-
-[[package]]
 name = "bit-set"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -882,19 +862,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "chrono"
-version = "0.4.45"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1aa79e62e7697b8e29b513a68abacf485adcd1fe8284a4316c5ae868e6633327"
-dependencies = [
- "iana-time-zone",
- "js-sys",
- "num-traits",
- "wasm-bindgen",
- "windows-link",
-]
-
-[[package]]
 name = "chunked_transfer"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1139,7 +1106,7 @@ dependencies = [
  "moor-objdef",
  "moor-var",
  "semver",
- "uuid 1.29.2",
+ "uuid",
 ]
 
 [[package]]
@@ -1718,22 +1685,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "edn-format"
-version = "3.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22313f5794126f6d36a04f468ab167514161d9e1915152392e2e6a6ca2adece4"
-dependencies = [
- "bigdecimal",
- "chrono",
- "internship",
- "itertools 0.10.5",
- "num-bigint",
- "ordered-float",
- "thiserror 1.0.69",
- "uuid 0.8.2",
-]
-
-[[package]]
 name = "ego-tree"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1864,7 +1815,7 @@ dependencies = [
  "libc",
  "parking_lot",
  "ryu",
- "uuid 1.29.2",
+ "uuid",
 ]
 
 [[package]]
@@ -3537,30 +3488,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iana-time-zone"
-version = "0.1.65"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e31bc9ad994ba00e440a8aa5c9ef0ec67d5cb5e5cb0cc7f8b744a35b389cc470"
-dependencies = [
- "android_system_properties",
- "core-foundation-sys",
- "iana-time-zone-haiku",
- "js-sys",
- "log",
- "wasm-bindgen",
- "windows-core",
-]
-
-[[package]]
-name = "iana-time-zone-haiku"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f31827a206f56af32e590ba56d5d2d085f558508192593743f16b2306495269f"
-dependencies = [
- "cc",
-]
-
-[[package]]
 name = "icu_collections"
 version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3740,15 +3667,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "internship"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b75b80c06d9124692b2927086ed75c8721d4061f9c159d9675d3f6d63729b597"
-dependencies = [
- "serde",
-]
-
-[[package]]
 name = "interval-heap"
 version = "0.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3852,15 +3770,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ffd3254cf2b0fc53e38414bdba99719f3e269db8a6519731b68a3a90040c41b"
 dependencies = [
  "nom 8.0.0",
-]
-
-[[package]]
-name = "itertools"
-version = "0.10.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0fd2260e829bddf4cb6ea802289de2f86d6a7a690192fbe91b3f46e0f2c8473"
-dependencies = [
- "either",
 ]
 
 [[package]]
@@ -4387,7 +4296,7 @@ dependencies = [
  "portable-atomic",
  "smallvec",
  "tagptr",
- "uuid 1.29.2",
+ "uuid",
 ]
 
 [[package]]
@@ -4420,7 +4329,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "triomphe",
- "uuid 1.29.2",
+ "uuid",
  "vergen",
  "vergen-gitcl",
  "yaml_serde",
@@ -4469,7 +4378,7 @@ dependencies = [
  "rustls",
  "tokio",
  "tracing",
- "uuid 1.29.2",
+ "uuid",
  "webpki-roots",
 ]
 
@@ -4516,7 +4425,7 @@ dependencies = [
  "tempfile",
  "tracing",
  "tracing-subscriber",
- "uuid 1.29.2",
+ "uuid",
  "zerocopy",
 ]
 
@@ -4527,7 +4436,6 @@ dependencies = [
  "ahash",
  "arc-swap",
  "byteview",
- "edn-format",
  "eyre",
  "fast-telemetry",
  "fjall",
@@ -4535,6 +4443,7 @@ dependencies = [
  "imbl",
  "micromeasure",
  "moor-common",
+ "moor-edn",
  "moor-schema",
  "moor-var",
  "oneshot",
@@ -4550,9 +4459,13 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "tracing",
- "uuid 1.29.2",
+ "uuid",
  "zerocopy",
 ]
+
+[[package]]
+name = "moor-edn"
+version = "2.1.0-dev"
 
 [[package]]
 name = "moor-emh"
@@ -4575,7 +4488,7 @@ dependencies = [
  "tempfile",
  "tracing",
  "tracing-subscriber",
- "uuid 1.29.2",
+ "uuid",
 ]
 
 [[package]]
@@ -4594,7 +4507,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
- "uuid 1.29.2",
+ "uuid",
 ]
 
 [[package]]
@@ -4624,7 +4537,7 @@ dependencies = [
  "tiny_http",
  "tokio",
  "tracing",
- "uuid 1.29.2",
+ "uuid",
 ]
 
 [[package]]
@@ -4685,7 +4598,7 @@ dependencies = [
  "thiserror 2.0.21",
  "tracing",
  "triomphe",
- "uuid 1.29.2",
+ "uuid",
  "xml-rs",
 ]
 
@@ -4708,13 +4621,13 @@ dependencies = [
  "clap_derive",
  "color-eyre",
  "csv",
- "edn-format",
  "eyre",
  "futures",
  "micromeasure",
  "moor-common",
  "moor-compiler",
  "moor-db",
+ "moor-edn",
  "moor-kernel",
  "moor-runtime-api",
  "moor-schema",
@@ -4727,7 +4640,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
- "uuid 1.29.2",
+ "uuid",
 ]
 
 [[package]]
@@ -4763,7 +4676,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "tracing",
- "uuid 1.29.2",
+ "uuid",
 ]
 
 [[package]]
@@ -4783,7 +4696,7 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tracing",
- "uuid 1.29.2",
+ "uuid",
 ]
 
 [[package]]
@@ -4799,7 +4712,7 @@ dependencies = [
  "serde",
  "thiserror 2.0.21",
  "triomphe",
- "uuid 1.29.2",
+ "uuid",
 ]
 
 [[package]]
@@ -4843,7 +4756,7 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tracing",
- "uuid 1.29.2",
+ "uuid",
 ]
 
 [[package]]
@@ -4880,7 +4793,7 @@ dependencies = [
  "tokio-rustls",
  "tokio-util",
  "tracing",
- "uuid 1.29.2",
+ "uuid",
 ]
 
 [[package]]
@@ -4934,7 +4847,7 @@ dependencies = [
  "smallvec",
  "strum",
  "tracing",
- "uuid 1.29.2",
+ "uuid",
 ]
 
 [[package]]
@@ -4977,7 +4890,7 @@ dependencies = [
  "tracing",
  "url",
  "urlencoding",
- "uuid 1.29.2",
+ "uuid",
  "webpki-roots",
 ]
 
@@ -5007,7 +4920,7 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tracing",
- "uuid 1.29.2",
+ "uuid",
 ]
 
 [[package]]
@@ -5044,7 +4957,7 @@ dependencies = [
  "ratatui",
  "serde",
  "serde_json",
- "uuid 1.29.2",
+ "uuid",
 ]
 
 [[package]]
@@ -5311,15 +5224,6 @@ name = "openssl-probe"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7e036b411754132fd6b74e94b74e9a13c5cf606fa93d1885c35860d3060820b1"
-
-[[package]]
-name = "ordered-float"
-version = "2.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68f19d67e5a2795c94e73e0bb1cc1a7edeb2e28efd39e2e1c9b7a40c1108b11c"
-dependencies = [
- "num-traits",
-]
 
 [[package]]
 name = "owo-colors"
@@ -8194,15 +8098,6 @@ checksum = "3a3b425286980a367278453f3b6d28cdcb134b574e5a35824a6ff5eebad50bb6"
 
 [[package]]
 name = "uuid"
-version = "0.8.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc5cf98d8186244414c848017f0e2676b3fcb46807f6668a97dfe67359a3c4b7"
-dependencies = [
- "getrandom 0.2.17",
-]
-
-[[package]]
-name = "uuid"
 version = "1.29.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bed99139f7dac9b5cfe5f17be4d66dc7079a34dee1d74bcc77217119240e267c"
@@ -8478,41 +8373,6 @@ name = "winapi-x86_64-pc-windows-gnu"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
-
-[[package]]
-name = "windows-core"
-version = "0.62.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8e83a14d34d0623b51dce9581199302a221863196a1dde71a7663a4c2be9deb"
-dependencies = [
- "windows-implement",
- "windows-interface",
- "windows-link",
- "windows-result",
- "windows-strings",
-]
-
-[[package]]
-name = "windows-implement"
-version = "0.60.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "053e2e040ab57b9dc951b72c264860db7eb3b0200ba345b4e4c3b14f67855ddf"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.119",
-]
-
-[[package]]
-name = "windows-interface"
-version = "0.59.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f316c4a2570ba26bbec722032c4099d8c8bc095efccdc15688708623367e358"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.119",
-]
 
 [[package]]
 name = "windows-link"

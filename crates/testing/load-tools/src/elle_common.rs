@@ -13,9 +13,9 @@
 
 //! Shared utilities for Elle consistency model checkers
 
-use edn_format::{Keyword, Value};
 use moor_common::model::{CommitResult, ObjAttrs, ObjectKind};
 use moor_db::{Database, TxDB};
+use moor_edn::{Keyword, Value};
 use moor_var::{Obj, Symbol};
 use std::{
     collections::BTreeMap, fs::File, io::Write as _, path::PathBuf, sync::Arc, thread,
@@ -148,7 +148,7 @@ pub fn write_edn_history(events: &[EdnEvent], output_path: &PathBuf) -> Result<(
     for (i, event) in events.iter().enumerate() {
         let map = event.to_edn_map(i);
         let edn_value = Value::Map(map);
-        output_document.push_str(&format!("{}\n", edn_format::emit_str(&edn_value)));
+        output_document.push_str(&format!("{}\n", moor_edn::emit_str(&edn_value)));
     }
 
     let mut file = File::create(output_path)?;

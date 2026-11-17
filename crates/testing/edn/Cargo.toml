@@ -1,0 +1,13 @@
+[package]
+name = "moor-edn"
+version = "2.1.0-dev"
+authors.workspace = true
+categories.workspace = true
+edition.workspace = true
+keywords.workspace = true
+license.workspace = true
+publish = false
+readme.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "The EDN subset used by mooR's Elle and Jepsen history tooling."

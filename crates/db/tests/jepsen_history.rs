@@ -13,7 +13,7 @@
 
 //! Replays an EDN list-append history against a list-valued relation entry per key.
 
-use edn_format::{Keyword, ParserOptions, Value};
+use moor_edn::{Keyword, Value};
 use std::path::Path;
 
 #[derive(Debug, Clone)]
@@ -47,9 +47,7 @@ pub struct Entry {
 pub fn parse_edn(path: &Path) -> Vec<Entry> {
     let mut ops = vec![];
     let file = std::fs::read_to_string(path).unwrap();
-    let parser = edn_format::Parser::from_str(&file, ParserOptions::default());
-    for x in parser {
-        let x = x.unwrap();
+    for x in moor_edn::parse_str(&file).unwrap() {
         let Value::Map(m) = x else {
             panic!("expected value: {x:?}");
         };
