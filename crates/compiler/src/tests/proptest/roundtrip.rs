@@ -637,7 +637,7 @@ fn strip_outer_parens(text: &str) -> Option<String> {
 
 /// Save a failure snapshot to disk for debugging.
 fn save_failure(source: &str, error: &str, seed: &str) {
-    let timestamp = chrono::Utc::now().format("%Y-%m-%d-%H%M%S");
+    let timestamp = jiff::Timestamp::now().strftime("%Y-%m-%d-%H%M%S");
     let hash = &format!("{:x}", md5::compute(source))[..8];
     let filename = format!("{}-{}.txt", timestamp, hash);
 

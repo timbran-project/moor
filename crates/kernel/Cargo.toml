@@ -113,10 +113,7 @@ sha2.workspace = true
 ssh-key.workspace = true
 
 # Time & Locale
-chrono.workspace = true
-chrono-tz.workspace = true
-humantime.workspace = true
-iana-time-zone.workspace = true
+jiff.workspace = true
 
 # Text Processing & Regex
 natord.workspace = true

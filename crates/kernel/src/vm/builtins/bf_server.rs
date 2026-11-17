@@ -18,9 +18,7 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-use chrono::{DateTime, Local, TimeZone};
-use chrono_tz::{OffsetName, Tz};
-use iana_time_zone::get_timezone;
+use jiff::{Timestamp, tz::TimeZone};
 use tracing::{error, info};
 
 use crate::{
@@ -517,33 +515,23 @@ fn bf_ctime(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     if bf_args.args.len() > 1 {
         return Err(ErrValue(E_ARGS.msg("ctime() requires 0 or 1 arguments")));
     }
-    let time = if bf_args.args.is_empty() {
-        SystemTime::now()
+    let timestamp = if bf_args.args.is_empty() {
+        Timestamp::now()
     } else {
         let Some(time) = bf_args.args[0].as_integer() else {
             return Err(ErrValue(
                 E_TYPE.msg("ctime() requires an integer as the first argument"),
             ));
         };
-        if time < 0 {
-            SystemTime::UNIX_EPOCH - Duration::from_secs(time.unsigned_abs())
-        } else {
-            SystemTime::UNIX_EPOCH + Duration::from_secs(time.unsigned_abs())
-        }
+        Timestamp::from_second(time)
+            .map_err(|_| ErrValue(E_INVARG.msg("ctime() time is out of range")))?
     };
 
-    let date_time: DateTime<Local> = chrono::DateTime::from(time);
-    let tz_str = get_timezone().unwrap();
-    let tz: Tz = tz_str.parse().unwrap();
-    let offset = tz.offset_from_local_date(&date_time.date_naive()).unwrap();
-    let abbreviation = offset.abbreviation().unwrap_or("??");
-    let datetime_str = format!(
-        "{} {}",
-        date_time.format("%a %b %d %H:%M:%S %Y"),
-        abbreviation
-    );
+    // The system zone falls back to UTC when it cannot be determined.
+    let zoned = timestamp.to_zoned(TimeZone::system());
+    let datetime_str = zoned.strftime("%a %b %d %H:%M:%S %Y %Z").to_string();
 
-    Ok(Ret(v_string(datetime_str.to_string())))
+    Ok(Ret(v_string(datetime_str)))
 }
 /// Usage: `none raise(err code [, str message [, any value]])`
 /// Raises an error that can be caught by try-except. Message defaults to the error's

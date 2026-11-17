@@ -346,6 +346,9 @@ runtime:
   perf_timing_hot_path_shift: 6
 ```
 
+Durations take a number and a unit, such as `10ms`, `30s`, `5m`, `1h 30m`, `2d` or `1w`. A day is 24
+hours. Months and years are not accepted.
+
 For exact timing during benchmarking or profiling runs:
 
 ```yaml
