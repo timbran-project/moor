@@ -13,12 +13,11 @@
 
 //! OAuth2 authentication support for web-host
 
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-use moor_runtime_api::{AuthToken, ClientToken};
-use oauth2::{
-    AuthUrl, AuthorizationCode, ClientId, ClientSecret, CsrfToken, RedirectUrl, Scope,
-    TokenResponse, TokenUrl, basic::BasicClient,
+use base64::{
+    Engine as _,
+    engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
 };
+use moor_runtime_api::{AuthToken, ClientToken};
 use serde_derive::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -281,28 +280,39 @@ impl PendingOAuth2Store {
     }
 }
 
-// Type alias for a fully-configured OAuth2 client with auth and token URLs set
-type ConfiguredClient = oauth2::Client<
-    oauth2::StandardErrorResponse<oauth2::basic::BasicErrorResponseType>,
-    oauth2::StandardTokenResponse<oauth2::EmptyExtraTokenFields, oauth2::basic::BasicTokenType>,
-    oauth2::StandardTokenIntrospectionResponse<
-        oauth2::EmptyExtraTokenFields,
-        oauth2::basic::BasicTokenType,
-    >,
-    oauth2::StandardRevocableToken,
-    oauth2::StandardErrorResponse<oauth2::RevocationErrorResponseType>,
-    oauth2::EndpointSet,    // HasAuthUrl
-    oauth2::EndpointNotSet, // HasDeviceAuthUrl
-    oauth2::EndpointNotSet, // HasIntrospectionUrl
-    oauth2::EndpointNotSet, // HasRevocationUrl
-    oauth2::EndpointSet,    // HasTokenUrl
->;
+/// A provider's endpoints and credentials, checked when the manager is built.
+struct ProviderClient {
+    client_id: String,
+    client_secret: String,
+    auth_url: url::Url,
+    token_url: url::Url,
+    redirect_url: String,
+    scopes: Vec<String>,
+}
+
+/// The token endpoint's answer to an authorization code (RFC 6749 section 5.1). Only the access
+/// token is used.
+#[derive(Deserialize)]
+struct TokenResponse {
+    access_token: String,
+}
+
+/// The token endpoint's error answer (RFC 6749 section 5.2).
+#[derive(Deserialize)]
+struct TokenErrorResponse {
+    error: String,
+    error_description: Option<String>,
+}
 
 /// OAuth2 manager handles provider configurations and authentication flows
 pub struct OAuth2Manager {
     config: OAuth2Config,
-    clients: HashMap<String, ConfiguredClient>,
+    clients: HashMap<String, ProviderClient>,
     http_client: reqwest::Client,
+}
+
+fn form_encode(value: &str) -> String {
+    url::form_urlencoded::byte_serialize(value.as_bytes()).collect()
 }
 
 // Keep outbound trust on WebPKI roots and select Ring independently of process initialization.
@@ -318,36 +328,6 @@ fn http_client_builder() -> reqwest::ClientBuilder {
     .with_root_certificates(roots)
     .with_no_client_auth();
     reqwest::Client::builder().tls_backend_preconfigured(tls)
-}
-
-// Keep OAuth2's HTTP transport independent of its built-in Reqwest integration.
-struct OAuthHttpClient<'a>(&'a reqwest::Client);
-
-impl<'c> oauth2::AsyncHttpClient<'c> for OAuthHttpClient<'_> {
-    type Error = oauth2::HttpClientError<reqwest::Error>;
-    type Future = std::pin::Pin<
-        Box<
-            dyn std::future::Future<Output = Result<oauth2::HttpResponse, Self::Error>>
-                + Send
-                + Sync
-                + 'c,
-        >,
-    >;
-
-    fn call(&'c self, request: oauth2::HttpRequest) -> Self::Future {
-        Box::pin(async move {
-            let response = self
-                .0
-                .execute(request.try_into().map_err(Box::new)?)
-                .await
-                .map_err(Box::new)?;
-            let mut result = oauth2::http::Response::builder()
-                .status(response.status())
-                .version(response.version());
-            *result.headers_mut().expect("valid HTTP response") = response.headers().clone();
-            Ok(result.body(response.bytes().await.map_err(Box::new)?.to_vec())?)
-        })
-    }
 }
 
 impl OAuth2Manager {
@@ -370,25 +350,23 @@ impl OAuth2Manager {
         for (provider_name, provider_config) in &config.providers {
             debug!("Initializing OAuth2 provider: {}", provider_name);
 
-            let client_id = ClientId::new(provider_config.client_id.clone());
-            let client_secret = ClientSecret::new(provider_config.client_secret.clone());
-
-            let auth_url = AuthUrl::new(provider_config.auth_url.clone())
+            let auth_url = url::Url::parse(&provider_config.auth_url)
                 .map_err(|e| eyre::eyre!("Invalid auth URL for {}: {}", provider_name, e))?;
-
-            let token_url = TokenUrl::new(provider_config.token_url.clone())
+            let token_url = url::Url::parse(&provider_config.token_url)
                 .map_err(|e| eyre::eyre!("Invalid token URL for {}: {}", provider_name, e))?;
-
             let redirect_url =
                 format!("{}/auth/oauth2/{}/callback", config.base_url, provider_name);
-            let redirect_url = RedirectUrl::new(redirect_url)
+            url::Url::parse(&redirect_url)
                 .map_err(|e| eyre::eyre!("Invalid redirect URL for {}: {}", provider_name, e))?;
 
-            let client = BasicClient::new(client_id)
-                .set_client_secret(client_secret)
-                .set_auth_uri(auth_url)
-                .set_token_uri(token_url)
-                .set_redirect_uri(redirect_url);
+            let client = ProviderClient {
+                client_id: provider_config.client_id.clone(),
+                client_secret: provider_config.client_secret.clone(),
+                auth_url,
+                token_url,
+                redirect_url,
+                scopes: provider_config.scopes.clone(),
+            };
 
             clients.insert(provider_name.clone(), client);
         }
@@ -434,40 +412,37 @@ impl OAuth2Manager {
                 .any(|prefix| redirect_uri.starts_with(prefix))
     }
 
-    /// Generate an authorization URL for a provider
-    pub fn get_authorization_url(
-        &self,
-        provider: &str,
-    ) -> Result<(String, CsrfToken), eyre::Error> {
+    /// Build the authorization URL for a provider. Returns the URL and the random `state` value
+    /// it carries, which the callback must present again.
+    pub fn get_authorization_url(&self, provider: &str) -> Result<(String, String), eyre::Error> {
         let client = self
             .clients
             .get(provider)
             .ok_or_else(|| eyre::eyre!("Unknown OAuth2 provider: {}", provider))?;
 
-        let provider_config = self
-            .config
-            .providers
-            .get(provider)
-            .ok_or_else(|| eyre::eyre!("Provider config not found: {}", provider))?;
-
-        // Build authorization URL with scopes
-        let mut auth_request = client.authorize_url(CsrfToken::new_random);
-
-        for scope in &provider_config.scopes {
-            auth_request = auth_request.add_scope(Scope::new(scope.clone()));
+        let state = URL_SAFE_NO_PAD.encode(rand::random::<[u8; 16]>());
+        let mut auth_url = client.auth_url.clone();
+        {
+            let mut query = auth_url.query_pairs_mut();
+            query
+                .append_pair("response_type", "code")
+                .append_pair("client_id", &client.client_id)
+                .append_pair("state", &state)
+                .append_pair("redirect_uri", &client.redirect_url);
+            if !client.scopes.is_empty() {
+                query.append_pair("scope", &client.scopes.join(" "));
+            }
         }
-
-        let (auth_url, csrf_token) = auth_request.url();
 
         debug!(
             "Generated authorization URL for provider {}: {}",
             provider, auth_url
         );
 
-        Ok((auth_url.to_string(), csrf_token))
+        Ok((auth_url.into(), state))
     }
 
-    /// Exchange authorization code for access token
+    /// Exchange an authorization code for an access token (RFC 6749 section 4.1.3).
     pub async fn exchange_code(&self, provider: &str, code: String) -> Result<String, eyre::Error> {
         let client = self
             .clients
@@ -476,17 +451,57 @@ impl OAuth2Manager {
 
         debug!("Exchanging authorization code for access token");
 
-        let token_result = client
-            .exchange_code(AuthorizationCode::new(code))
-            .request_async(&OAuthHttpClient(&self.http_client))
+        // Client credentials are form-encoded before Basic encoding (RFC 6749 section 2.3.1).
+        let credentials = format!(
+            "{}:{}",
+            form_encode(&client.client_id),
+            form_encode(&client.client_secret)
+        );
+        let body = url::form_urlencoded::Serializer::new(String::new())
+            .append_pair("grant_type", "authorization_code")
+            .append_pair("code", &code)
+            .append_pair("redirect_uri", &client.redirect_url)
+            .finish();
+
+        let response = self
+            .http_client
+            .post(client.token_url.clone())
+            .header(
+                "Authorization",
+                format!("Basic {}", STANDARD.encode(credentials)),
+            )
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("Accept", "application/json")
+            .body(body)
+            .send()
             .await
             .map_err(|e| eyre::eyre!("Token exchange failed: {}", e))?;
 
-        let access_token = token_result.access_token().secret().clone();
+        let status = response.status();
+        let body = response
+            .bytes()
+            .await
+            .map_err(|e| eyre::eyre!("Token exchange failed: {}", e))?;
+        if !status.is_success() {
+            return Err(match serde_json::from_slice::<TokenErrorResponse>(&body) {
+                Ok(error) => eyre::eyre!(
+                    "Token exchange failed: {} {}{}",
+                    status,
+                    error.error,
+                    error
+                        .error_description
+                        .map(|d| format!(": {d}"))
+                        .unwrap_or_default()
+                ),
+                Err(_) => eyre::eyre!("Token exchange failed: {}", status),
+            });
+        }
+        let token: TokenResponse = serde_json::from_slice(&body)
+            .map_err(|e| eyre::eyre!("Token exchange failed: invalid token response: {}", e))?;
 
         debug!("Successfully exchanged code for access token");
 
-        Ok(access_token)
+        Ok(token.access_token)
     }
 
     /// Fetch user information from provider using access token

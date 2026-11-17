@@ -176,7 +176,6 @@ base64 = "0.22"
 ed25519-dalek = { version = "2.2", features = ["pkcs8", "pem", "signature"] }
 hmac = "0.13"
 md-5 = "0.11" # For MOO's "string_hash"
-oauth2 = { version = "5.0", default-features = false }
 ripemd = "0.2"
 rusty_paseto = { version = "0.10" }
 sha1 = "0.11"
