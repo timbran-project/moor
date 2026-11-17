@@ -249,8 +249,7 @@ pub async fn oauth2_authorize_handler(
     }
 
     match oauth2_state.manager.get_authorization_url(&provider) {
-        Ok((auth_url, csrf_token)) => {
-            let state = csrf_token.secret().clone();
+        Ok((auth_url, state)) => {
             let browser_nonce = uuid::Uuid::new_v4().to_string();
             oauth2_state.pending.store_csrf_token(
                 &provider,
@@ -325,8 +324,7 @@ pub async fn oauth2_app_start_handler(
     }
 
     match oauth2_state.manager.get_authorization_url(&provider) {
-        Ok((auth_url, csrf_token)) => {
-            let state = csrf_token.secret().clone();
+        Ok((auth_url, state)) => {
             oauth2_state.pending.store_csrf_token(
                 &provider,
                 &state,

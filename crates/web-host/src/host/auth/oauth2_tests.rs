@@ -11,16 +11,13 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{
-    OAuth2Config, OAuth2Manager, OAuth2ProviderConfig, OAuthHttpClient, http_client_builder,
-};
+use super::{OAuth2Config, OAuth2Manager, OAuth2ProviderConfig, http_client_builder};
 use axum::{
     Json, Router,
-    http::HeaderMap,
+    http::{HeaderMap, StatusCode},
     response::Redirect,
     routing::{get, post},
 };
-use oauth2::AsyncHttpClient;
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -49,6 +46,12 @@ async fn exchanges_tokens_fetches_user_info_and_rejects_redirects() {
                     url::form_urlencoded::parse(body.as_bytes()).collect::<HashMap<_, _>>();
                 assert_eq!(fields.get("code").unwrap(), "test-code");
                 assert_eq!(fields.get("grant_type").unwrap(), "authorization_code");
+                assert!(
+                    fields
+                        .get("redirect_uri")
+                        .unwrap()
+                        .ends_with("/auth/oauth2/github/callback")
+                );
                 Json(serde_json::json!({"access_token": "test-token", "token_type": "bearer"}))
             }),
         )
@@ -62,6 +65,15 @@ async fn exchanges_tokens_fetches_user_info_and_rejects_redirects() {
         .route(
             "/redirect",
             post(|| async { Redirect::temporary("/token") }),
+        )
+        .route(
+            "/denied",
+            post(|| async {
+                (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({"error": "invalid_grant"})),
+                )
+            }),
         );
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base = format!("http://{}", listener.local_addr().unwrap());
@@ -77,13 +89,31 @@ async fn exchanges_tokens_fetches_user_info_and_rejects_redirects() {
                 auth_url: format!("{base}/authorize"),
                 token_url: format!("{base}/token"),
                 user_info_url: format!("{base}/userinfo"),
-                scopes: vec![],
+                scopes: vec!["read:user".into(), "user:email".into()],
             },
         )]),
         ..Default::default()
     };
     tokio::time::timeout(Duration::from_secs(5), async {
         let manager = OAuth2Manager::new(config.clone()).unwrap();
+        let (auth_url, state) = manager.get_authorization_url("github").unwrap();
+        let auth_url = url::Url::parse(&auth_url).unwrap();
+        assert_eq!(auth_url.path(), "/authorize");
+        let query = auth_url
+            .query_pairs()
+            .into_owned()
+            .collect::<HashMap<_, _>>();
+        assert_eq!(query["response_type"], "code");
+        assert_eq!(query["client_id"], "test-client");
+        assert_eq!(query["state"], state);
+        assert_eq!(query["scope"], "read:user user:email");
+        assert_eq!(
+            query["redirect_uri"],
+            format!("{base}/auth/oauth2/github/callback")
+        );
+        let (_, other_state) = manager.get_authorization_url("github").unwrap();
+        assert_ne!(state, other_state);
+
         let user = manager
             .complete_oauth2_flow("github", "test-code".into())
             .await
@@ -91,7 +121,7 @@ async fn exchanges_tokens_fetches_user_info_and_rejects_redirects() {
         assert_eq!(user.external_id, "42");
         assert_eq!(user.username.as_deref(), Some("fixture-user"));
 
-        let mut redirected = config;
+        let mut redirected = config.clone();
         redirected.providers.get_mut("github").unwrap().token_url = format!("{base}/redirect");
         let manager = OAuth2Manager::new(redirected).unwrap();
         assert!(
@@ -100,6 +130,15 @@ async fn exchanges_tokens_fetches_user_info_and_rejects_redirects() {
                 .await
                 .is_err()
         );
+
+        let mut denied = config;
+        denied.providers.get_mut("github").unwrap().token_url = format!("{base}/denied");
+        let manager = OAuth2Manager::new(denied).unwrap();
+        let error = manager
+            .exchange_code("github", "test-code".into())
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("invalid_grant"));
     })
     .await
     .expect("OAuth exchange timed out");
@@ -164,102 +203,4 @@ async fn https_requires_a_trusted_certificate() {
     })
     .await
     .expect("HTTPS exchange timed out");
-}
-
-#[tokio::test]
-async fn oauth_adapter_preserves_http_data_and_transport_errors() {
-    use axum::http::{Response, StatusCode, Version};
-
-    let app = Router::new()
-        .route(
-            "/echo",
-            post(|headers: HeaderMap, body: String| async move {
-                assert_eq!(headers["x-request-marker"], "request-value");
-                assert_eq!(body, "raw request body");
-                Response::builder()
-                    .status(StatusCode::CREATED)
-                    .header("x-response-marker", "first")
-                    .header("x-response-marker", "second")
-                    .body(axum::body::Body::from("raw response body"))
-                    .unwrap()
-            }),
-        )
-        .route(
-            "/denied",
-            post(|| async {
-                (
-                    StatusCode::UNAUTHORIZED,
-                    Json(serde_json::json!({"error": "invalid_grant"})),
-                )
-            }),
-        )
-        .route(
-            "/slow",
-            post(|| async {
-                tokio::time::sleep(Duration::from_secs(1)).await;
-                "too late"
-            }),
-        );
-    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let base = format!("http://{}", listener.local_addr().unwrap());
-    let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
-    let manager = OAuth2Manager::new(OAuth2Config::default()).unwrap();
-    tokio::time::timeout(Duration::from_secs(5), async {
-        let request = oauth2::http::Request::builder()
-            .method("POST")
-            .uri(format!("{base}/echo"))
-            .header("x-request-marker", "request-value")
-            .body(b"raw request body".to_vec())
-            .unwrap();
-        let response = OAuthHttpClient(&manager.http_client)
-            .call(request)
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::CREATED);
-        assert_eq!(response.version(), Version::HTTP_11);
-        assert_eq!(
-            response
-                .headers()
-                .get_all("x-response-marker")
-                .iter()
-                .map(|v| v.to_str().unwrap())
-                .collect::<Vec<_>>(),
-            ["first", "second"]
-        );
-        assert_eq!(response.body(), b"raw response body");
-
-        let request = oauth2::http::Request::builder()
-            .method("POST")
-            .uri(format!("{base}/denied"))
-            .body(Vec::new())
-            .unwrap();
-        let response = OAuthHttpClient(&manager.http_client)
-            .call(request)
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-        assert_eq!(
-            serde_json::from_slice::<serde_json::Value>(response.body()).unwrap()["error"],
-            "invalid_grant"
-        );
-
-        let mut short_timeout = manager;
-        short_timeout.http_client = http_client_builder()
-            .timeout(Duration::from_millis(25))
-            .build()
-            .unwrap();
-        let request = oauth2::http::Request::builder()
-            .method("POST")
-            .uri(format!("{base}/slow"))
-            .body(Vec::new())
-            .unwrap();
-        let error = OAuthHttpClient(&short_timeout.http_client)
-            .call(request)
-            .await
-            .unwrap_err();
-        assert!(matches!(error, oauth2::HttpClientError::Reqwest(e) if e.is_timeout()));
-    })
-    .await
-    .expect("OAuth adapter tests timed out");
-    server.abort();
 }
