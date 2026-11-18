@@ -114,7 +114,7 @@ impl Http for BoundedHttp {
         url: &str,
         base_url: &str,
         headers: impl IntoIterator<Item = impl AsRef<str>>,
-    ) -> Result<http::GetResponse<Self::Headers, Self::ResponseBody>, http::Error> {
+    ) -> gix::Result<http::GetResponse<Self::Headers, Self::ResponseBody>> {
         let response = self.inner.get(url, base_url, headers)?;
         Ok(http::GetResponse {
             headers: self.budget.wrap(response.headers),
@@ -127,8 +127,7 @@ impl Http for BoundedHttp {
         base_url: &str,
         headers: impl IntoIterator<Item = impl AsRef<str>>,
         body: http::PostBodyDataKind,
-    ) -> Result<http::PostResponse<Self::Headers, Self::ResponseBody, Self::PostBody>, http::Error>
-    {
+    ) -> gix::Result<http::PostResponse<Self::Headers, Self::ResponseBody, Self::PostBody>> {
         let response = self.inner.post(url, base_url, headers, body)?;
         Ok(http::PostResponse {
             headers: self.budget.wrap(response.headers),
@@ -136,10 +135,7 @@ impl Http for BoundedHttp {
             post_body: response.post_body,
         })
     }
-    fn configure(
-        &mut self,
-        config: &dyn std::any::Any,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    fn configure(&mut self, config: &dyn std::any::Any) -> gix::Result<()> {
         self.inner.configure(config)
     }
 }
