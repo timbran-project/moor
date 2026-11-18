@@ -26,7 +26,7 @@ RUN npm ci
 RUN npm run web:build
 
 # nginx-based frontend image
-FROM nginx:alpine AS frontend
+FROM nginx:1.31.9-alpine AS frontend
 COPY --from=build /app/clients/meadow/dist /usr/share/nginx/html
 COPY clients/meadow/nginx.conf /etc/nginx/nginx.conf
 EXPOSE 80
