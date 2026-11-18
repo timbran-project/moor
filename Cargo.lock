@@ -5784,9 +5784,9 @@ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
 name = "r0z"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c990aea999fde34b11f7772df5e706c9f9b9ad12cadd291629a62c914ad23e19"
+checksum = "e03e217c0e19c56cd170f95546e28c2e9d77bdb8263a36ad43692ce38091300c"
 dependencies = [
  "bitflags 2.13.2",
  "libc",
@@ -5795,9 +5795,9 @@ dependencies = [
 
 [[package]]
 name = "r0z-async"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1e37ed298e97843b41ea0e317d4b13d2fe9ebd126d0cbc2a32e1bb5cd2032e2"
+checksum = "1811687ac38642109da8ff22bfb6654d4d1df566e2abb32c2f2dc4a0e515c85c"
 dependencies = [
  "futures",
  "log",
@@ -5808,9 +5808,9 @@ dependencies = [
 
 [[package]]
 name = "r0z-sys"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "164a3113057344f32b57ec51d51b40ce5f24b1ddeaf6b6dfaa4a8f424772b406"
+checksum = "8167fea1e1e55ddf1081b1dac55fa636be63cccba461a4fb7679cc5ba5fc228d"
 dependencies = [
  "cc",
  "libc",
@@ -5819,7 +5819,6 @@ dependencies = [
  "pkg-config",
  "tar",
  "tempfile",
- "ureq",
  "vcpkg",
  "zeromq-src",
  "zip",
@@ -6283,7 +6282,6 @@ dependencies = [
  "aws-lc-rs",
  "log",
  "once_cell",
- "ring",
  "rustls-pki-types",
  "rustls-webpki",
  "subtle",
@@ -7860,34 +7858,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
 
 [[package]]
-name = "ureq"
-version = "3.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ac5cecf619ca81f66a96482db09687c9f7465af65f4300a8c30cca05bd5a59d"
-dependencies = [
- "base64 0.23.1",
- "log",
- "percent-encoding",
- "rustls",
- "rustls-pki-types",
- "ureq-proto",
- "utf8-zero",
- "webpki-roots",
-]
-
-[[package]]
-name = "ureq-proto"
-version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "622dce33c252115466d83f63e9744a18f12b4406aae51a01c15ad8fcf1185eb3"
-dependencies = [
- "base64 0.23.1",
- "http",
- "httparse",
- "log",
-]
-
-[[package]]
 name = "url"
 version = "2.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7904,12 +7874,6 @@ name = "urlencoding"
 version = "2.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "daf8dba3b7eb870caf1ddeed7bc9d2a049f3cfdfae7cb521b087cc33ae4c49da"
-
-[[package]]
-name = "utf8-zero"
-version = "0.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8c0a043c9540bae7c578c88f91dda8bd82e59ae27c21baca69c8b191aaf5a6e"
 
 [[package]]
 name = "utf8_iter"
