@@ -1715,9 +1715,9 @@ checksum = "0b5343afd4a8365a643ac588dab4cf234a190c7f6c88c9f6dd6ffe00837661b7"
 
 [[package]]
 name = "escargot"
-version = "0.5.15"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11c3aea32bc97b500c9ca6a72b768a26e558264303d101d3409cf6d57a9ed0cf"
+checksum = "189159de09e965c688ce1bfae3d974b8fc6826e2eaefcb6e0d40f337ec98492b"
 dependencies = [
  "log",
  "serde",
@@ -1737,9 +1737,9 @@ dependencies = [
 
 [[package]]
 name = "fast-telemetry"
-version = "0.10.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c13ae6c41d1d4e2cee8b8bec2121e689718b8f6af7800948229c37ef80533b25"
+checksum = "b7547ae2262e7c29e4cd81d9df4deb2029baec25daabc408c1049048701321c6"
 dependencies = [
  "crossbeam-utils",
  "fast-telemetry-macros",
@@ -1752,9 +1752,9 @@ dependencies = [
 
 [[package]]
 name = "fast-telemetry-macros"
-version = "0.10.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58045fa8f3e9756e63aa7b8e50cf18f6fd3fa9b65e9a039809d4102e7323056f"
+checksum = "4e3812907352ebddfa791886377c6cb44a3fbae1b4fbca77a8037948116ce89e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3864,9 +3864,9 @@ dependencies = [
 
 [[package]]
 name = "libloading"
-version = "0.8.9"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7c4b02199fee7c5d21a5ae7d8cfa79a6ef5bb2fc834d6e9058e89c825efdc55"
+checksum = "a1832accd5a4ca2795ace4d05d15c4039be15b62d3b950eff99746a990e3cc10"
 dependencies = [
  "cfg-if",
  "windows-link",
@@ -6211,12 +6211,11 @@ dependencies = [
 
 [[package]]
 name = "rustyline"
-version = "18.0.1"
+version = "19.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "53f6a737db68eb1a8ccff86b584b2fc13eca6a7bb6f78ebc7c529547e3ab9684"
+checksum = "56e1d6bd81c2d5feafd2419138df9183c45a10a492c4e873b8b0acb8eb2b549e"
 dependencies = [
  "bitflags 2.13.2",
- "cfg-if",
  "clipboard-win",
  "home",
  "libc",
@@ -6483,9 +6482,9 @@ dependencies = [
 
 [[package]]
 name = "serial_test"
-version = "3.5.0"
+version = "4.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "699f4197115b8a7e7ff19c9a315a4bd6fffec26cc4626ef45ecaea389e081c6d"
+checksum = "a6df5ed973ad8d834e09f824f9e9f449af6b9a3745f78dec7cc752770bd3bf11"
 dependencies = [
  "futures-executor",
  "futures-util",
@@ -6497,13 +6496,13 @@ dependencies = [
 
 [[package]]
 name = "serial_test_derive"
-version = "3.5.0"
+version = "4.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94e153fc76e1c6a068703d6d29c508a0b15c061c4b7e43da59cc097bc342673c"
+checksum = "a22144e767da4ddd8416dbf383700542ffd8a5dc493dfecedfe1fe3ad03c98ae"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.119",
+ "syn 3.0.10",
 ]
 
 [[package]]

@@ -115,7 +115,7 @@ debug = false
 # Core Runtime & System
 cap-std = "4.0"
 libc = "0.2"
-libloading = "0.8"
+libloading = "0.9"
 mimalloc = "0.1"
 probe = "0.5"
 signal-hook = "0.4"
@@ -234,16 +234,16 @@ vergen-gitcl = { version = "10", default-features = false }
 zerocopy = { version = "0.8", features = ["derive"] }
 
 # Telemetry
-fast-telemetry = "0.10"
+fast-telemetry = "0.11"
 
 # Testing & Development
 cc = "1.2"
-escargot = "0.5"
+escargot = "1.0"
 glob = "0.3"
 md5 = "0.8"
 pretty_assertions = "1.4"
 proptest = "1.5"
-serial_test = "3.2"
+serial_test = "4.0"
 tempfile = "3.23"
 test-case = "3.3"
 test_each_file = "0.3"
@@ -255,4 +255,4 @@ anstyle = "1.0"
 colored = "3.0"
 crossterm = "0.29"
 ratatui = { version = "0.30", default-features = false, features = ["crossterm_0_29"] }
-rustyline = "18.0"
+rustyline = "19.0"
