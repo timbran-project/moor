@@ -230,7 +230,6 @@ rand = "0.10"
 semver = { version = "1.0", features = ["serde"] }
 strum = { version = "0.28", features = ["derive"] }
 url = "2.5"
-urlencoding = "2.1"
 uuid = { version = "1.23", features = ["v4", "v7", "serde"] }
 vergen = { version = "10", default-features = false, features = ["cargo"] }
 vergen-gitcl = { version = "10", default-features = false }

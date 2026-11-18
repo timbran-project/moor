@@ -13,7 +13,9 @@
 
 //! HTTP handlers for OAuth2 authentication endpoints.
 
-use super::oauth2::{FlowBinding, OAuth2Manager, PendingOAuth2Code, PendingOAuth2Store};
+use super::oauth2::{
+    FlowBinding, OAuth2Manager, PendingOAuth2Code, PendingOAuth2Store, form_encode,
+};
 use crate::host::WebHost;
 use axum::{
     Json,
@@ -483,7 +485,7 @@ pub async fn oauth2_callback_handler(
                 let redirect_url = format!(
                     "/#oauth2_code={}&oauth2_display={}",
                     code,
-                    urlencoding::encode(&display_str),
+                    form_encode(&display_str),
                 );
                 Redirect::to(&redirect_url).into_response()
             }

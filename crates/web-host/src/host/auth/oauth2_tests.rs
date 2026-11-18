@@ -204,3 +204,38 @@ async fn https_requires_a_trusted_certificate() {
     .await
     .expect("HTTPS exchange timed out");
 }
+
+#[test]
+fn display_hint_is_form_encoded_for_the_hash_fragment() {
+    // The Meadow client reads the fragment with URLSearchParams, which decodes
+    // application/x-www-form-urlencoded: '+' is a space and '%' starts an escape.
+    let display = serde_json::json!({
+        "email": "a+b@example.com",
+        "name": "Ada Lovelace-Smith",
+        "username": "ada ~x&y=z",
+        "provider": "github",
+    })
+    .to_string();
+
+    let encoded = crate::host::auth::oauth2::form_encode(&display);
+
+    assert!(
+        !encoded.contains('&'),
+        "& must not split the fragment: {encoded}"
+    );
+    assert!(!encoded.contains('='), "= inside the value must be escaped");
+    assert!(!encoded.contains('#'), "# must not end the fragment early");
+    assert!(encoded.contains("%2B"), "+ must be escaped, not a space");
+    assert!(encoded.contains("%26"), "& must be escaped");
+    assert!(encoded.contains("%7E"), "~ must be escaped");
+
+    let pairs: Vec<(String, String)> =
+        url::form_urlencoded::parse(format!("v={encoded}").as_bytes())
+            .map(|(key, value)| (key.into_owned(), value.into_owned()))
+            .collect();
+    let decoded = pairs
+        .into_iter()
+        .find_map(|(key, value)| (key == "v").then_some(value))
+        .expect("one value");
+    assert_eq!(decoded, display);
+}

@@ -311,7 +311,8 @@ pub struct OAuth2Manager {
     http_client: reqwest::Client,
 }
 
-fn form_encode(value: &str) -> String {
+/// Percent-encodes a value for use in a URL query or fragment.
+pub(super) fn form_encode(value: &str) -> String {
     url::form_urlencoded::byte_serialize(value.as_bytes()).collect()
 }
 

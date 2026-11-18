@@ -4753,7 +4753,6 @@ dependencies = [
  "tower-http 0.7.1",
  "tracing",
  "url",
- "urlencoding",
  "uuid",
  "webpki-roots",
 ]
