@@ -122,7 +122,7 @@ COPY --from=backend-build /moor-build/target-final/moor-emh /moor/moor-emh
 EXPOSE 8080
 
 # nginx-based frontend image
-FROM --platform=linux/arm64 nginx:alpine AS frontend
+FROM --platform=linux/arm64 nginx:1.31.9-alpine AS frontend
 COPY --from=frontend-build /moor-frontend/clients/meadow/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/nginx.conf
 EXPOSE 80
