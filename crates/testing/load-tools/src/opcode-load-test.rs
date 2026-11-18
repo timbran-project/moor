@@ -43,7 +43,6 @@ use moor_model_checker::{DirectSession, DirectSessionFactory, NoopSystemControl}
 use moor_var::{
     List, NOTHING, Obj, Symbol, Variant, program::ProgramType, v_empty_str, v_int, v_obj,
 };
-use tabled::{Table, Tabled};
 use tracing::info;
 
 #[derive(Clone, Parser, Debug)]
@@ -76,24 +75,30 @@ struct Args {
     debug: bool,
 }
 
-#[derive(Tabled)]
 struct BenchmarkRow {
-    #[tabled(rename = "Invocations")]
     invocations: usize,
-    #[tabled(rename = "Loop Iters")]
     loop_iterations: String,
-    #[tabled(rename = "Opcodes")]
     opcodes: String,
-    #[tabled(rename = "Wall Time")]
     wall_time: String,
-    #[tabled(rename = "Per-Opcode")]
     per_opcode: String,
-    #[tabled(rename = "Op Throughput")]
     op_throughput: String,
-    #[tabled(rename = "Per-Iter")]
     per_iteration: String,
-    #[tabled(rename = "Iter Throughput")]
     iter_throughput: String,
+}
+
+impl BenchmarkRow {
+    fn to_row(&self) -> Vec<String> {
+        vec![
+            self.invocations.to_string(),
+            self.loop_iterations.to_string(),
+            self.opcodes.to_string(),
+            self.wall_time.to_string(),
+            self.per_opcode.to_string(),
+            self.op_throughput.to_string(),
+            self.per_iteration.to_string(),
+            self.iter_throughput.to_string(),
+        ]
+    }
 }
 
 /// Generates MOO code for an opcode test verb with a tight arithmetic loop.
@@ -423,7 +428,25 @@ async fn run_workload(
     });
 
     clear_screen();
-    eprintln!("{}", Table::new(&table_rows));
+    eprintln!(
+        "{}",
+        moor_common::util::table::render_table(
+            &[
+                "Invocations".to_string(),
+                "Loop Iters".to_string(),
+                "Opcodes".to_string(),
+                "Wall Time".to_string(),
+                "Per-Opcode".to_string(),
+                "Op Throughput".to_string(),
+                "Per-Iter".to_string(),
+                "Iter Throughput".to_string(),
+            ],
+            &table_rows
+                .iter()
+                .map(BenchmarkRow::to_row)
+                .collect::<Vec<_>>()
+        )
+    );
 
     Ok(())
 }

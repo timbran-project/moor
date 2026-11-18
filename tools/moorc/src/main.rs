@@ -48,7 +48,6 @@ use std::{
     sync::{Arc, LazyLock},
     time::Duration,
 };
-use tabled::{Table, Tabled, settings::Style};
 use tracing::{error, info, warn};
 
 static VERSION_STRING: LazyLock<String> = LazyLock::new(|| {
@@ -289,11 +288,8 @@ fn collect_moot_files(input: &str) -> Result<Vec<PathBuf>, eyre::Report> {
     Ok(files)
 }
 
-#[derive(Tabled)]
 struct TestFailure {
-    #[tabled(rename = "Test")]
     test: String,
-    #[tabled(rename = "Failure")]
     failure: String,
 }
 
@@ -303,7 +299,19 @@ fn print_test_failure_summary(failures: &[TestFailure]) {
     }
 
     error!("Test failure summary ({}):", failures.len());
-    eprintln!("\n{}", Table::new(failures).with(Style::sharp()));
+    let rows: Vec<Vec<String>> = failures
+        .iter()
+        .map(|failure| vec![failure.test.clone(), failure.failure.clone()])
+        .collect();
+    let header = ["Test".to_string(), "Failure".to_string()];
+    eprintln!(
+        "\n{}",
+        moor_common::util::table::render_styled_table(
+            &header,
+            &rows,
+            moor_common::util::table::TableStyle::Sharp,
+        )
+    );
 }
 
 fn run_tests(

@@ -30,7 +30,6 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
-use tabled::{Table, Tabled, settings::Style};
 use tracing::info;
 
 pub(crate) fn print_help() {
@@ -284,19 +283,15 @@ pub(crate) fn cmd_props(
         .request_properties(wizard, wizard, &obj_ref, false)
         .map_err(|e| eyre!("Failed to get properties: {:?}", e))?;
 
-    #[derive(Tabled)]
-    struct PropertyRow {
-        property: String,
-    }
-
-    let rows: Vec<PropertyRow> = props
+    let rows: Vec<Vec<String>> = props
         .iter()
-        .map(|(prop, _)| PropertyRow {
-            property: prop.name().as_string().to_string(),
-        })
+        .map(|(prop, _)| vec![prop.name().as_string().to_string()])
         .collect();
     println!("{}", format!("Properties on {}", obj.to_literal()).bold());
-    println!("{}", Table::new(rows).with(Style::rounded()));
+    println!(
+        "{}",
+        moor_common::util::table::render_table(&["Property".to_string()], &rows)
+    );
     println!("{} properties", props.len());
     Ok(())
 }
@@ -316,21 +311,19 @@ pub(crate) fn cmd_verbs(
         .request_verbs(wizard, wizard, &obj_ref, false)
         .map_err(|e| eyre!("Failed to get verbs: {:?}", e))?;
 
-    #[derive(Tabled)]
-    struct VerbRow {
-        verb: String,
-    }
-
-    let rows: Vec<VerbRow> = verbs
+    let rows: Vec<Vec<String>> = verbs
         .iter()
         .filter_map(|verb| {
-            verb.names().first().map(|name| VerbRow {
-                verb: name.as_string().to_string(),
-            })
+            verb.names()
+                .first()
+                .map(|name| vec![name.as_string().to_string()])
         })
         .collect();
     println!("{}", format!("Verbs on {}", obj.to_literal()).bold());
-    println!("{}", Table::new(rows).with(Style::rounded()));
+    println!(
+        "{}",
+        moor_common::util::table::render_table(&["Verb".to_string()], &rows)
+    );
     println!("{} verbs", verbs.len());
     Ok(())
 }

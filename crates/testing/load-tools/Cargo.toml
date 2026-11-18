@@ -90,7 +90,6 @@ futures.workspace = true
 micromeasure.workspace = true
 r0z-async.workspace = true
 semver.workspace = true
-tabled.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 uuid.workspace = true

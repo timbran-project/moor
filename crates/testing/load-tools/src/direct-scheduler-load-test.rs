@@ -32,7 +32,6 @@ use moor_common::{
     threading::{ThreadClass, pin_current_thread_to_class},
     util::{BitEnum, estimated_total_nanos},
 };
-use tabled::{Table, Tabled};
 
 use moor_compiler::compile;
 use moor_db::{Database, TxDB, db_counters};
@@ -154,56 +153,62 @@ const LOAD_TEST_VERB: &str = r#"
 return 1;
 "#;
 
-#[derive(Tabled)]
 struct BenchmarkRow {
-    #[tabled(rename = "Conc")]
     concurrency: usize,
-    #[tabled(rename = "Tasks")]
     tasks: usize,
-    #[tabled(rename = "Verb Calls")]
     verb_calls: usize,
-    #[tabled(rename = "Per-Verb")]
     per_verb_call: String,
-    #[tabled(rename = "Amort/Verb")]
     amort_per_verb: String,
-    #[tabled(rename = "Wall Time")]
     wall_time: String,
-    #[tabled(rename = "Total Thru")]
     total_throughput: String,
-    #[tabled(rename = "Per-Thread Thru")]
     per_thread_throughput: String,
-    #[tabled(rename = "Pkg Energy")]
     package_energy: String,
-    #[tabled(rename = "Pkg Power")]
     package_power: String,
-    #[tabled(rename = "Idle Power")]
     idle_power: String,
-    #[tabled(rename = "Dyn Power")]
     dynamic_power: String,
-    #[tabled(rename = "Energy/Verb")]
     energy_per_verb: String,
-    #[tabled(rename = "Dyn Energy/Verb")]
     dynamic_energy_per_verb: String,
-    #[tabled(rename = "submit p50")]
     submit_p50: String,
-    #[tabled(rename = "submit p95")]
     submit_p95: String,
-    #[tabled(rename = "submit p99")]
     submit_p99: String,
-    #[tabled(rename = "submit max")]
     submit_max: String,
-    #[tabled(rename = "setup avg")]
     setup_avg: String,
-    #[tabled(rename = "find avg")]
     find_avg: String,
-    #[tabled(rename = "sched_msg avg")]
     sched_msg_avg: String,
-    #[tabled(rename = "queue avg")]
     resume_queue_avg: String,
-    #[tabled(rename = "handoff avg")]
     thread_handoff_avg: String,
-    #[tabled(rename = "submit->run avg")]
     submit_to_first_run_avg: String,
+}
+
+impl BenchmarkRow {
+    fn to_row(&self) -> Vec<String> {
+        vec![
+            self.concurrency.to_string(),
+            self.tasks.to_string(),
+            self.verb_calls.to_string(),
+            self.per_verb_call.to_string(),
+            self.amort_per_verb.to_string(),
+            self.wall_time.to_string(),
+            self.total_throughput.to_string(),
+            self.per_thread_throughput.to_string(),
+            self.package_energy.to_string(),
+            self.package_power.to_string(),
+            self.idle_power.to_string(),
+            self.dynamic_power.to_string(),
+            self.energy_per_verb.to_string(),
+            self.dynamic_energy_per_verb.to_string(),
+            self.submit_p50.to_string(),
+            self.submit_p95.to_string(),
+            self.submit_p99.to_string(),
+            self.submit_max.to_string(),
+            self.setup_avg.to_string(),
+            self.find_avg.to_string(),
+            self.sched_msg_avg.to_string(),
+            self.resume_queue_avg.to_string(),
+            self.thread_handoff_avg.to_string(),
+            self.submit_to_first_run_avg.to_string(),
+        ]
+    }
 }
 
 fn setup_test_database(
@@ -1018,7 +1023,41 @@ async fn load_test_workload(
 
         // Clear screen and redraw table
         eprint!("\x1B[2J\x1B[1;1H"); // ANSI clear screen and move to top
-        eprintln!("{}", Table::new(&table_rows));
+        eprintln!(
+            "{}",
+            moor_common::util::table::render_table(
+                &[
+                    "Conc".to_string(),
+                    "Tasks".to_string(),
+                    "Verb Calls".to_string(),
+                    "Per-Verb".to_string(),
+                    "Amort/Verb".to_string(),
+                    "Wall Time".to_string(),
+                    "Total Thru".to_string(),
+                    "Per-Thread Thru".to_string(),
+                    "Pkg Energy".to_string(),
+                    "Pkg Power".to_string(),
+                    "Idle Power".to_string(),
+                    "Dyn Power".to_string(),
+                    "Energy/Verb".to_string(),
+                    "Dyn Energy/Verb".to_string(),
+                    "submit p50".to_string(),
+                    "submit p95".to_string(),
+                    "submit p99".to_string(),
+                    "submit max".to_string(),
+                    "setup avg".to_string(),
+                    "find avg".to_string(),
+                    "sched_msg avg".to_string(),
+                    "queue avg".to_string(),
+                    "handoff avg".to_string(),
+                    "submit->run avg".to_string(),
+                ],
+                &table_rows
+                    .iter()
+                    .map(BenchmarkRow::to_row)
+                    .collect::<Vec<_>>()
+            )
+        );
 
         results.push(r);
     }

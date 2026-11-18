@@ -44,7 +44,6 @@ use moor_kernel::{
 use moor_model_checker::bench_common::{calculate_percentiles, clear_screen, setup_db_path};
 use moor_model_checker::{DirectSession, DirectSessionFactory, NoopSystemControl};
 use moor_var::{List, NOTHING, Obj, Symbol, program::ProgramType, v_empty_str, v_int, v_obj};
-use tabled::{Table, Tabled};
 use tracing::info;
 
 #[derive(Clone, Parser, Debug)]
@@ -110,28 +109,34 @@ struct Args {
     swamp_duration_seconds: u64,
 }
 
-#[derive(Tabled)]
 struct BenchmarkRow {
-    #[tabled(rename = "Conc")]
     concurrency: usize,
-    #[tabled(rename = "Tasks")]
     tasks: usize,
-    #[tabled(rename = "Prop Ops")]
     prop_ops: String,
-    #[tabled(rename = "Wall Time")]
     wall_time: String,
-    #[tabled(rename = "Prop/s")]
     prop_throughput: String,
-    #[tabled(rename = "Per-Thread")]
     per_thread_throughput: String,
-    #[tabled(rename = "p50")]
     p50: String,
-    #[tabled(rename = "p95")]
     p95: String,
-    #[tabled(rename = "p99")]
     p99: String,
-    #[tabled(rename = "max")]
     max: String,
+}
+
+impl BenchmarkRow {
+    fn to_row(&self) -> Vec<String> {
+        vec![
+            self.concurrency.to_string(),
+            self.tasks.to_string(),
+            self.prop_ops.to_string(),
+            self.wall_time.to_string(),
+            self.prop_throughput.to_string(),
+            self.per_thread_throughput.to_string(),
+            self.p50.to_string(),
+            self.p95.to_string(),
+            self.p99.to_string(),
+            self.max.to_string(),
+        ]
+    }
 }
 
 /// Generates MOO code for a property write test verb.
@@ -539,7 +544,27 @@ async fn run_benchmark(
             args.num_prop_iterations,
             args.read_ratio * 100.0
         );
-        eprintln!("{}", Table::new(&table_rows));
+        eprintln!(
+            "{}",
+            moor_common::util::table::render_table(
+                &[
+                    "Conc".to_string(),
+                    "Tasks".to_string(),
+                    "Prop Ops".to_string(),
+                    "Wall Time".to_string(),
+                    "Prop/s".to_string(),
+                    "Per-Thread".to_string(),
+                    "p50".to_string(),
+                    "p95".to_string(),
+                    "p99".to_string(),
+                    "max".to_string(),
+                ],
+                &table_rows
+                    .iter()
+                    .map(BenchmarkRow::to_row)
+                    .collect::<Vec<_>>()
+            )
+        );
 
         // Scale up concurrency
         let mut next_concurrency = concurrency * 1.25;

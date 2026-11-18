@@ -43,7 +43,6 @@ use moor_model_checker::bench_common::{
 };
 use moor_var::{NOTHING, Obj, Symbol, v_int};
 use rand::{RngExt, SeedableRng, rngs::SmallRng, rngs::StdRng, seq::SliceRandom};
-use tabled::{Table, Tabled};
 use tracing::info;
 
 #[derive(Clone, Parser, Debug)]
@@ -145,66 +144,72 @@ struct Args {
     swamp_duration_seconds: u64,
 }
 
-#[derive(Tabled)]
 struct BenchmarkRow {
-    #[tabled(rename = "Conc")]
     concurrency: usize,
-    #[tabled(rename = "Commits")]
     commits: usize,
-    #[tabled(rename = "Read/s")]
     read_throughput: String,
-    #[tabled(rename = "Write/s")]
     write_throughput: String,
-    #[tabled(rename = "Wall Time")]
     wall_time: String,
-    #[tabled(rename = "Commit/s")]
     commit_throughput: String,
-    #[tabled(rename = "Per-Thrd")]
     per_thread_throughput: String,
-    #[tabled(rename = "Conflict%")]
     conflict_pct: String,
-    #[tabled(rename = "Retry/Commit")]
     retries_per_commit: String,
-    #[tabled(rename = "Commit Phase")]
     commit_phase_share: String,
-    #[tabled(rename = "Avg Check")]
     avg_check: String,
-    #[tabled(rename = "Avg Apply")]
     avg_apply: String,
-    #[tabled(rename = "Idx Ins")]
     avg_index_insert: String,
-    #[tabled(rename = "BW Pressure")]
     batch_writer_backpressure: u64,
-    #[tabled(rename = "BW Block")]
     avg_batch_writer_block: String,
-    #[tabled(rename = "Idle Maint")]
     idle_maintenance: String,
-    #[tabled(rename = "Settle")]
     maintenance_settle: String,
-    #[tabled(rename = "WB End")]
     write_buffer_end: String,
-    #[tabled(rename = "Flush End")]
     outstanding_flushes_end: String,
-    #[tabled(rename = "Comp End/Δ")]
     compactions_completed: String,
-    #[tabled(rename = "p50")]
     p50: String,
-    #[tabled(rename = "p95")]
     p95: String,
-    #[tabled(rename = "p99")]
     p99: String,
-    #[tabled(rename = "max")]
     max: String,
-    #[tabled(rename = "Pkg Power")]
     package_power: String,
-    #[tabled(rename = "Idle Power")]
     idle_power: String,
-    #[tabled(rename = "Dyn Power")]
     dynamic_power: String,
-    #[tabled(rename = "Energy/Commit")]
     energy_per_commit: String,
-    #[tabled(rename = "Dyn Energy/Commit")]
     dynamic_energy_per_commit: String,
+}
+
+impl BenchmarkRow {
+    fn to_row(&self) -> Vec<String> {
+        vec![
+            self.concurrency.to_string(),
+            self.commits.to_string(),
+            self.read_throughput.to_string(),
+            self.write_throughput.to_string(),
+            self.wall_time.to_string(),
+            self.commit_throughput.to_string(),
+            self.per_thread_throughput.to_string(),
+            self.conflict_pct.to_string(),
+            self.retries_per_commit.to_string(),
+            self.commit_phase_share.to_string(),
+            self.avg_check.to_string(),
+            self.avg_apply.to_string(),
+            self.avg_index_insert.to_string(),
+            self.batch_writer_backpressure.to_string(),
+            self.avg_batch_writer_block.to_string(),
+            self.idle_maintenance.to_string(),
+            self.maintenance_settle.to_string(),
+            self.write_buffer_end.to_string(),
+            self.outstanding_flushes_end.to_string(),
+            self.compactions_completed.to_string(),
+            self.p50.to_string(),
+            self.p95.to_string(),
+            self.p99.to_string(),
+            self.max.to_string(),
+            self.package_power.to_string(),
+            self.idle_power.to_string(),
+            self.dynamic_power.to_string(),
+            self.energy_per_commit.to_string(),
+            self.dynamic_energy_per_commit.to_string(),
+        ]
+    }
 }
 
 /// Test objects and their properties
@@ -947,7 +952,46 @@ fn run_benchmark(
             args.read_ratio * 100.0,
             args.max_writes_per_level,
         );
-        eprintln!("{}", Table::new(&table_rows));
+        eprintln!(
+            "{}",
+            moor_common::util::table::render_table(
+                &[
+                    "Conc".to_string(),
+                    "Commits".to_string(),
+                    "Read/s".to_string(),
+                    "Write/s".to_string(),
+                    "Wall Time".to_string(),
+                    "Commit/s".to_string(),
+                    "Per-Thrd".to_string(),
+                    "Conflict%".to_string(),
+                    "Retry/Commit".to_string(),
+                    "Commit Phase".to_string(),
+                    "Avg Check".to_string(),
+                    "Avg Apply".to_string(),
+                    "Idx Ins".to_string(),
+                    "BW Pressure".to_string(),
+                    "BW Block".to_string(),
+                    "Idle Maint".to_string(),
+                    "Settle".to_string(),
+                    "WB End".to_string(),
+                    "Flush End".to_string(),
+                    "Comp End/Δ".to_string(),
+                    "p50".to_string(),
+                    "p95".to_string(),
+                    "p99".to_string(),
+                    "max".to_string(),
+                    "Pkg Power".to_string(),
+                    "Idle Power".to_string(),
+                    "Dyn Power".to_string(),
+                    "Energy/Commit".to_string(),
+                    "Dyn Energy/Commit".to_string(),
+                ],
+                &table_rows
+                    .iter()
+                    .map(BenchmarkRow::to_row)
+                    .collect::<Vec<_>>()
+            )
+        );
     }
 
     Ok(results)

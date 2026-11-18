@@ -4341,7 +4341,6 @@ dependencies = [
  "moor-var",
  "rustyline",
  "semver",
- "tabled",
  "tempfile",
  "tracing",
  "tracing-subscriber",
@@ -4488,7 +4487,6 @@ dependencies = [
  "r0z-async",
  "rand 0.10.4",
  "semver",
- "tabled",
  "tempfile",
  "tokio",
  "tracing",
@@ -4786,7 +4784,6 @@ dependencies = [
  "moor-textdump",
  "moor-var",
  "semver",
- "tabled",
  "tempfile",
  "tracing",
 ]
@@ -7009,20 +7006,7 @@ dependencies = [
  "ansi-str",
  "ansitok",
  "papergrid",
- "tabled_derive",
  "testing_table",
-]
-
-[[package]]
-name = "tabled_derive"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7dca1937322a1e892b1a65f6a6736183bb0a29d3b4234d1d53bc436dff9beb76"
-dependencies = [
- "heck",
- "proc-macro2",
- "quote",
- "syn 2.0.119",
 ]
 
 [[package]]

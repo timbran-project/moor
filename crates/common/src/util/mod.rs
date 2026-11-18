@@ -19,6 +19,7 @@ mod metric_entries;
 mod metrics_file;
 mod metrics_snapshot;
 mod prometheus_text;
+pub mod table;
 mod time;
 mod timing_policy;
 mod token_bucket;
