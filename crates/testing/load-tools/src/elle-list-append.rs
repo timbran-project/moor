@@ -485,7 +485,6 @@ fn percentile(sorted: &[Duration], fraction: f64) -> Duration {
 }
 
 fn main() -> Result<(), eyre::Error> {
-    color_eyre::install()?;
     let args = Args::parse();
     if args.num_active_keys == 0 || args.max_txn_length == 0 || args.max_writes_per_key == 0 {
         return Err(eyre::eyre!(

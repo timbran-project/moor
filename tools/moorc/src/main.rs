@@ -346,7 +346,6 @@ fn run_tests(
 }
 
 fn main() -> Result<(), eyre::Report> {
-    color_eyre::install().unwrap();
     let args: Args = Args::parse();
 
     moor_common::tracing::init_tracing_simple(args.debug).unwrap_or_else(|e| {

@@ -76,7 +76,6 @@ fn main() -> eyre::Result<()> {
             .ok_or_else(|| eyre::eyre!("Missing job directory"))?;
         return child_main(std::path::Path::new(&directory));
     }
-    color_eyre::install()?;
     let args = Args::parse();
     moor_common::tracing::init_tracing(args.debug)?;
     tokio::runtime::Builder::new_multi_thread()

@@ -689,8 +689,6 @@ impl Validator for MooAdminHelper {}
 impl Helper for MooAdminHelper {}
 
 fn main() -> Result<(), Report> {
-    color_eyre::install()?;
-
     let args = Args::parse();
     let version = semver::Version::parse(build::PKG_VERSION)
         .map_err(|e| eyre!("Invalid moor version '{}': {}", build::PKG_VERSION, e))?;

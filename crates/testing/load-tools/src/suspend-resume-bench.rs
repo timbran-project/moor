@@ -113,8 +113,6 @@ fn setup_bench_database(database: &TxDB) -> Result<Obj, eyre::Error> {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), eyre::Error> {
-    color_eyre::install()?;
-
     let args: Args = Args::parse();
     moor_common::tracing::init_tracing(false).unwrap_or_else(|e| {
         eprintln!("Unable to configure logging: {e}");

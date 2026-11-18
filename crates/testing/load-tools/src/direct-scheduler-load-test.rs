@@ -1029,7 +1029,6 @@ async fn load_test_workload(
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), eyre::Error> {
-    color_eyre::install().expect("Unable to install color_eyre");
     let args: Args = Args::parse();
     if args.measurement_duration_seconds == Some(0) {
         return Err(eyre::eyre!(

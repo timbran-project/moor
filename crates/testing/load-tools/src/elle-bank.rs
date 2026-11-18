@@ -243,7 +243,6 @@ fn workload_thread(
 }
 
 fn main() -> Result<(), eyre::Error> {
-    color_eyre::install()?;
     let args: Args = Args::parse();
 
     println!("Bank Elle workload");

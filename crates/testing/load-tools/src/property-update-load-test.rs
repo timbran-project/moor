@@ -1147,7 +1147,6 @@ fn run_swamp_mode(
 }
 
 fn main() -> Result<(), eyre::Error> {
-    color_eyre::install().expect("Unable to install color_eyre");
     let args: Args = Args::parse();
     if !(0.0..=1.0).contains(&args.read_ratio) {
         return Err(eyre::eyre!("--read-ratio must be between 0 and 1"));

@@ -41,7 +41,6 @@ clap.workspace = true
 clap_derive.workspace = true
 
 # Error Handling & Logging
-color-eyre.workspace = true
 eyre.workspace = true
 tracing.workspace = true
 

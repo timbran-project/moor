@@ -430,7 +430,6 @@ async fn run_workload(
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), eyre::Error> {
-    color_eyre::install().expect("Unable to install color_eyre");
     let args: Args = Args::parse();
 
     moor_common::tracing::init_tracing(args.debug).unwrap_or_else(|e| {

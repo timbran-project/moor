@@ -78,7 +78,6 @@ struct Args {
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), eyre::Error> {
-    color_eyre::install()?;
     let args: Args = Args::parse();
 
     moor_common::tracing::init_tracing(args.debug).expect("Unable to configure logging");

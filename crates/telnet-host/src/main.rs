@@ -104,7 +104,6 @@ struct Args {
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), eyre::Error> {
-    color_eyre::install()?;
     let cli_args = Args::parse();
     let config_file = cli_args.config_file.clone();
     let args = moor_common::config::apply_yaml_config_file_with_flattened_sections(

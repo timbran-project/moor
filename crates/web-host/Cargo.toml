@@ -70,7 +70,6 @@ futures-util.workspace = true
 tokio.workspace = true
 
 # Error Handling & Logging
-color-eyre.workspace = true
 eyre.workspace = true
 thiserror.workspace = true
 tracing.workspace = true

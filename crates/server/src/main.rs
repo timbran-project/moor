@@ -404,8 +404,6 @@ fn main() -> Result<(), Report> {
 }
 
 async fn run() -> Result<(), Report> {
-    color_eyre::install()?;
-
     let args = Args::parse();
     eprintln!("Initializing...\n{VERSION_BANNER_MSG}");
     tracing::init_tracing(args.debug).map_err(|e| eyre!("Unable to configure logging: {e}"))?;

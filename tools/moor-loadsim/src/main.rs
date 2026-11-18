@@ -892,7 +892,6 @@ fn run(common: &Common, scenario: &Scenario) -> eyre::Result<()> {
 }
 
 fn main() -> eyre::Result<()> {
-    color_eyre::install()?;
     let cli = Cli::parse();
     let common = match &cli.scenario {
         Scenario::ScheduledTasks(args) => &args.common,

@@ -23,7 +23,6 @@ clap.workspace = true
 clap_derive.workspace = true
 
 ## General.
-color-eyre.workspace = true
 eyre.workspace = true
 
 ## Asynchronous transaction processing & networking

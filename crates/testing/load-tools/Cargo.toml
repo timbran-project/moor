@@ -73,7 +73,6 @@ clap.workspace = true
 clap_derive.workspace = true
 
 # Error Handling
-color-eyre.workspace = true
 eyre.workspace = true
 
 # EDN format for Elle
