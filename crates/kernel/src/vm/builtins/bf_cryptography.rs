@@ -20,7 +20,7 @@ use age::{
     secrecy::{ExposeSecret, SecretString},
     x25519::{Identity, Recipient},
 };
-use argon2::password_hash::{SaltString, rand_core::OsRng};
+use argon2::password_hash::phc::SaltString;
 use argon2::{Algorithm, Argon2, Params, PasswordHasher, PasswordVerifier, Version};
 use base32::Alphabet;
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
@@ -526,13 +526,13 @@ fn bf_argon2(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 
     let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
 
-    let salt_string = SaltString::encode_b64(salt.as_bytes()).map_err(|e| {
-        warn!("Failed to encode salt: {}", e);
+    let salt_bytes = argon2::password_hash::phc::Salt::from_b64(salt).map_err(|e| {
+        warn!("Failed to decode salt: {}", e);
         BfErr::Code(E_INVARG)
     })?;
 
     let hash = argon2
-        .hash_password(password.as_bytes(), &salt_string)
+        .hash_password_with_salt(password.as_bytes(), &salt_bytes)
         .map_err(|e| {
             warn!("Failed to hash password: {}", e);
             BfErr::Code(E_INVARG)
@@ -606,9 +606,8 @@ fn bf_salt(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         return Err(BfErr::Code(E_ARGS));
     }
 
-    let mut rng_core = OsRng;
-    let salt = SaltString::generate(&mut rng_core);
-    let salt = v_str(salt.as_str());
+    let salt = SaltString::generate();
+    let salt = v_str(salt.as_ref());
     Ok(Ret(salt))
 }
 
@@ -1399,6 +1398,9 @@ mod tests {
         assert!(matches!(identity, age::ssh::Identity::Encrypted(_)));
     }
 
+    const OLD_ARGON2_HASH: &str = "$argon2id$v=19$m=4096,t=3,p=1$MDEyMzQ1Njc4OWFiY2RlZg$yKu3VvxpnGuioOMoo23yIk+ovTMwsjQzEGrIn1aXYmc";
+    const OLD_ARGON2_SALT: &str = "MDEyMzQ1Njc4OWFiY2RlZg";
+
     #[test]
     fn invalid_key_text_is_refused() {
         assert!(
@@ -1408,5 +1410,42 @@ mod tests {
         let mut buffer =
             std::io::Cursor::new("-----BEGIN OPENSSH PRIVATE KEY-----\nzzz".as_bytes());
         assert!(age::ssh::Identity::from_buffer(&mut buffer, None).is_err());
+    }
+
+    fn default_params() -> argon2::Params {
+        argon2::Params::new(4096, 3, 1, None).unwrap()
+    }
+
+    #[test]
+    fn a_hash_from_argon2_0_5_still_verifies() {
+        // OLD_ARGON2_HASH was made by argon2 0.5.3 from OLD_ARGON2_SALT and
+        // "correct horse".
+        let argon2 = argon2::Argon2::new(
+            argon2::Algorithm::Argon2id,
+            argon2::Version::V0x13,
+            default_params(),
+        );
+        use argon2::PasswordVerifier;
+        argon2
+            .verify_password(b"correct horse", OLD_ARGON2_HASH)
+            .expect("old hashes must keep verifying");
+        assert!(argon2.verify_password(b"wrong", OLD_ARGON2_HASH).is_err());
+    }
+
+    #[test]
+    fn the_salt_argument_produces_the_same_hash_text() {
+        // bf_argon2 decodes the salt text to bytes, so the same salt and
+        // password give byte-identical output to argon2 0.5.
+        use argon2::PasswordHasher;
+        let argon2 = argon2::Argon2::new(
+            argon2::Algorithm::Argon2id,
+            argon2::Version::V0x13,
+            default_params(),
+        );
+        let salt = argon2::password_hash::phc::Salt::from_b64(OLD_ARGON2_SALT).unwrap();
+        let hash = argon2
+            .hash_password_with_salt(b"correct horse", &salt)
+            .unwrap();
+        assert_eq!(hash.to_string(), OLD_ARGON2_HASH);
     }
 }
