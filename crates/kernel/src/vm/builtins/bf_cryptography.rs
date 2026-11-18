@@ -36,7 +36,6 @@ use rand::distr::Alphanumeric;
 use serde_json::Value as JsonValue;
 use sha1::Sha1;
 use sha2::{Sha256, Sha512};
-use ssh_key::public::PublicKey;
 use std::{io::Read, sync::LazyLock};
 use tracing::{error, warn};
 
@@ -175,12 +174,7 @@ fn bf_age_encrypt(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             recipients.push(Box::new(x25519_recipient) as Box<dyn AgeRecipient>);
             continue;
         }
-        let ssh_key = PublicKey::from_openssh(&recipient_str).map_err(|_| {
-            warn!("Failed to parse SSH key");
-            BfErr::ErrValue(E_INVARG.msg("age_encrypt() failed to parse SSH key"))
-        })?;
-
-        let ssh_recipient = age::ssh::Recipient::from_str(&ssh_key.to_string()).map_err(|_| {
+        let ssh_recipient = age::ssh::Recipient::from_str(&recipient_str).map_err(|_| {
             warn!("Failed to create age recipient from SSH key");
             BfErr::ErrValue(
                 E_INVARG.msg("age_encrypt() failed to create age recipient from SSH key"),
@@ -300,26 +294,14 @@ fn bf_age_decrypt(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
                 identities.push(Box::new(identity) as Box<dyn age::Identity>);
             }
             Err(_) => {
-                // Try to parse as an SSH private key
-                match ssh_key::PrivateKey::from_openssh(&key_str) {
-                    Ok(ssh_key) => {
-                        // Convert to OpenSSH format string
-                        let ssh_key_str = ssh_key
-                            .to_openssh(ssh_key::LineEnding::LF)
-                            .unwrap_or_default();
-                        // Use from_buffer to create the identity
-                        match age::ssh::Identity::from_buffer(
-                            std::io::Cursor::new(ssh_key_str),
-                            None,
-                        ) {
-                            Ok(ssh_identity) => {
-                                identities.push(Box::new(ssh_identity) as Box<dyn age::Identity>);
-                            }
-                            Err(_) => {
-                                warn!("Failed to create age identity from SSH key");
-                                // Continue to try other keys
-                            }
-                        }
+                // Try to parse as an SSH private key. age reads the key
+                // itself, so the text goes over as-is.
+                match age::ssh::Identity::from_buffer(
+                    std::io::Cursor::new(key_str.as_bytes()),
+                    None,
+                ) {
+                    Ok(ssh_identity) => {
+                        identities.push(Box::new(ssh_identity) as Box<dyn age::Identity>);
                     }
                     Err(_) => {
                         warn!("Invalid private key format");
@@ -1353,4 +1335,78 @@ pub(crate) fn register_bf_cryptography(builtins: &mut [BuiltinFunction]) {
     builtins[offset_for_builtin("hotp")] = bf_hotp;
     builtins[offset_for_builtin("totp")] = bf_totp;
     builtins[offset_for_builtin("random_bytes")] = bf_random_bytes;
+}
+
+#[cfg(test)]
+mod tests {
+    use age::{Decryptor, Encryptor};
+    use std::{io::Read, str::FromStr};
+
+    // A throwaway Ed25519 key pair, generated with ssh-keygen for these tests.
+    const ED25519_PUBLIC: &str = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIN9VEzl4m9IJg0/j7Fu1a+9DM/L5fk9UaGEsX84BHw86 moor test";
+    const ED25519_PRIVATE: &str = "\
+-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW\nQyNTUxOQAAACDfVRM5eJvSCYNP4+xbtWvvQzPy+X5PVGhhLF/OAR8POgAAAJCbxTdfm8U3\nXwAAAAtzc2gtZWQyNTUxOQAAACDfVRM5eJvSCYNP4+xbtWvvQzPy+X5PVGhhLF/OAR8POg\nAAAECmNUyvy1v2hfArHsRnduaHIgoHHEmslB2vt+LLxhaFbN9VEzl4m9IJg0/j7Fu1a+9D\nM/L5fk9UaGEsX84BHw86AAAACW1vb3IgdGVzdAECAwQ=\n-----END OPENSSH PRIVATE KEY-----";
+
+    const ENCRYPTED_PRIVATE: &str = "\
+-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAACmFlczI1Ni1jdHIAAAAGYmNyeXB0AAAAGAAAABDKNfdyqN\nYBiR8uz5QO7qiYAAAAGAAAAAEAAAAzAAAAC3NzaC1lZDI1NTE5AAAAII6YG6rm97XEljMO\nTBd4OfRaKu3RZHqrShXmbiBuJ7sgAAAAkBdGhO7K8eEAmoayaMXrJDI4xpD3bAHpZNHsv3\nQSUJm0hTZ8G41XhEn66Njnr6Wv85p/iDAbPuCBxfXGViJA3oI6jJQftQBKsugPJJng8BCZ\nZkDu+VQn0oVh1lvTG/3AlROH7+pqCqQTELwJ1IOrcC+9LEdaKlNmG+oTW5oESkyOj0oV7M\nMmgNk1u9oUfyXsgg==\n-----END OPENSSH PRIVATE KEY-----";
+
+    fn encrypt_to(recipient: &str, message: &str) -> Vec<u8> {
+        let recipient = age::ssh::Recipient::from_str(recipient).expect("recipient parses");
+        let encryptor =
+            Encryptor::with_recipients(std::iter::once(&recipient as &dyn age::Recipient)).unwrap();
+        let mut out = Vec::new();
+        let mut writer = encryptor.wrap_output(&mut out).unwrap();
+        std::io::Write::write_all(&mut writer, message.as_bytes()).unwrap();
+        writer.finish().unwrap();
+        out
+    }
+
+    #[test]
+    fn a_public_key_goes_to_age_unchanged() {
+        // The builtin no longer rewrites the key before handing it over. A key
+        // with a comment part parses, as it did through ssh-key's round trip.
+        let recipient = age::ssh::Recipient::from_str(ED25519_PUBLIC).expect("key parses");
+        assert_eq!(
+            recipient.to_string(),
+            ED25519_PUBLIC.trim_end_matches(" moor test")
+        );
+    }
+
+    #[test]
+    fn ssh_identity_text_is_read_by_age() {
+        // An OpenSSH private key file is handed to age byte for byte; the
+        // parser reads it, including the trailing newline a file has.
+        let mut buffer = std::io::Cursor::new(ED25519_PRIVATE.as_bytes());
+        let identity = age::ssh::Identity::from_buffer(&mut buffer, None).expect("identity parses");
+        let ciphertext = encrypt_to(ED25519_PUBLIC, "secret");
+        let decryptor = Decryptor::new_buffered(&ciphertext[..]).unwrap();
+        let mut reader = decryptor
+            .decrypt(std::iter::once(&identity as &dyn age::Identity))
+            .unwrap();
+        let mut plaintext = String::new();
+        reader.read_to_string(&mut plaintext).unwrap();
+        assert_eq!(plaintext, "secret");
+    }
+
+    #[test]
+    fn encrypted_private_key_asks_for_its_passphrase() {
+        // age reads passphrase-protected keys too; the builtin has no
+        // passphrase callback, so the parse fails rather than the key being
+        // rejected as unreadable. Either way it is not added to identities.
+        let mut buffer = std::io::Cursor::new(ENCRYPTED_PRIVATE.as_bytes());
+        let identity = age::ssh::Identity::from_buffer(&mut buffer, None)
+            .expect("an encrypted key parses into an Encrypted identity");
+        assert!(matches!(identity, age::ssh::Identity::Encrypted(_)));
+    }
+
+    #[test]
+    fn invalid_key_text_is_refused() {
+        assert!(
+            age::ssh::Recipient::from_str("not a key").is_err(),
+            "garbage must not parse as a recipient"
+        );
+        let mut buffer =
+            std::io::Cursor::new("-----BEGIN OPENSSH PRIVATE KEY-----\nzzz".as_bytes());
+        assert!(age::ssh::Identity::from_buffer(&mut buffer, None).is_err());
+    }
 }

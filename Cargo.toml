@@ -180,7 +180,6 @@ pasetors = { version = "0.8", default-features = false, features = ["v4"] }
 ripemd = "0.2"
 sha1 = "0.11"
 sha2 = "0.11"
-ssh-key = "0.6"
 
 # Time & Locale
 jiff = "0.2"
