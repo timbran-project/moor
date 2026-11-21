@@ -41,6 +41,10 @@ use moor_kernel::{
 };
 use moor_var::{List, NOTHING, SYSTEM_OBJECT, Symbol, program::ProgramType, v_empty_str, v_obj};
 
+// The daemon and server binaries use mimalloc, so measure with it.
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 const MAX_TICKS: usize = 100_000_000;
 const CHUNK_SIZE: usize = 1;
 

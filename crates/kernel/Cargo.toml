@@ -16,6 +16,7 @@ description = "The actual implementation of most of the moor system; virtual mac
 default = []
 
 [dev-dependencies]
+mimalloc.workspace = true
 moor-db = { path = "../db" }
 tempfile.workspace = true
 

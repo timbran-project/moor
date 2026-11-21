@@ -4563,6 +4563,7 @@ dependencies = [
  "log",
  "md-5",
  "micromeasure",
+ "mimalloc",
  "moor-builtin-docs-macro",
  "moor-common",
  "moor-compiler",
