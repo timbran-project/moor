@@ -18,6 +18,8 @@ default = []
 [dev-dependencies]
 mimalloc.workspace = true
 moor-db = { path = "../db" }
+moor-moot = { path = "../testing/moot", features = ["colors"] }
+moor-textdump = { path = "../textdump" }
 tempfile.workspace = true
 
 eyre.workspace = true
@@ -72,11 +74,9 @@ moor-builtin-docs-macro = { path = "../builtin-docs-macro" }
 moor-common = { path = "../common" }
 moor-compiler = { path = "../compiler" }
 moor-db = { path = "../db" }
-moor-moot = { path = "../testing/moot", features = ["colors"] }
 moor-native-verb = { path = "../native-verb" }
 moor-objdef = { path = "../objdef" }
 moor-schema = { path = "../schema" }
-moor-textdump = { path = "../textdump" }
 moor-var = { path = "../var", features = ["json"] }
 moor-vm = { path = "../vm" }
 

@@ -37,7 +37,6 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage,coverage_nightly)
 fast-telemetry.workspace = true
 # Internal Dependencies
 moor-common = { path = "../common" }
-moor-moot = { path = "../testing/moot", features = ["colors"] }
 moor-runtime-api = { path = "../runtime-api", features = ["task-client"] }
 moor-schema = { path = "../schema" }
 moor-var = { path = "../var", features = ["json"] }
@@ -80,5 +79,6 @@ uuid.workspace = true
 [dev-dependencies]
 escargot.workspace = true
 libc.workspace = true
+moor-moot = { path = "../testing/moot", features = ["colors"] }
 serial_test.workspace = true
 tempfile.workspace = true
