@@ -14,6 +14,7 @@
 use crate::environment::Environment;
 use crate::vm_unwind::FinallyReason;
 use moor_compiler::{Label, Op, Program};
+pub use moor_var::program::program::CatchType;
 use moor_var::{
     Error, Var,
     VarType::TYPE_NONE,
@@ -109,16 +110,13 @@ pub enum PcType {
     Lambda(Offset),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CatchType {
-    Any,
-    Errors(Vec<Error>),
-}
+// Most guards have a single arm, even when they match several error codes.
+pub type CatchHandlers = smallvec::SmallVec<[(CatchType, Label); 1]>;
 
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct FrameScratch {
     /// Scratch space for constructing the catch handlers for a forthcoming try scope.
-    pub catch_stack: Vec<(CatchType, Label)>,
+    pub catch_stack: CatchHandlers,
     /// Scratch space for holding finally-reasons to be popped off the stack when a finally block
     /// is ended.
     pub finally_stack: Vec<FinallyReason>,
@@ -134,7 +132,7 @@ pub enum ScopeType {
     /// "Label" regardless of whether the block of code succeeded or failed.
     /// Note that `return` and `exit` are not considered failures.
     TryFinally(Label),
-    TryCatch(Vec<(CatchType, Label)>),
+    TryCatch(CatchHandlers),
     If,
     Eif,
     While,
@@ -209,7 +207,7 @@ pub enum ForRangeScope {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ScopePayload {
-    TryCatch(Vec<(CatchType, Label)>),
+    TryCatch(CatchHandlers),
     ForSequence(ForSequenceScope),
     ForRange(ForRangeScope),
 }
@@ -227,6 +225,8 @@ pub enum ScopeKind {
     ForRange,
     Block,
     Comprehension,
+    /// A single catch arm held by the frame's program. The payload is its table index.
+    LiteralCatch,
 }
 
 /// A scope is a record of the current size of the valstack when it was created, and are
@@ -544,11 +544,13 @@ impl MooStackFrame {
     }
 
     #[inline]
-    pub fn take_catch_stack(&mut self) -> Vec<(CatchType, Label)> {
-        self.scratch
-            .as_mut()
-            .map(|scratch| std::mem::take(&mut scratch.catch_stack))
-            .unwrap_or_default()
+    pub fn take_catch_stack(&mut self, count: usize) -> CatchHandlers {
+        let pending = &mut self.scratch_mut().catch_stack;
+        if count >= pending.len() {
+            return std::mem::take(pending);
+        }
+        // A dynamic filter can itself contain a guard. Keep the enclosing guard's pending arms.
+        pending.drain(pending.len() - count..).collect()
     }
 
     #[inline]
@@ -611,7 +613,7 @@ impl MooStackFrame {
         }
 
         self.scratch = Some(Box::new(FrameScratch {
-            catch_stack,
+            catch_stack: catch_stack.into(),
             finally_stack,
             capture_stack,
         }));
@@ -757,7 +759,7 @@ impl MooStackFrame {
             }
 
             // Jump target is outside scope range - pop it
-            self.pop_scope();
+            self.discard_scope();
         }
     }
 
@@ -959,102 +961,16 @@ impl MooStackFrame {
         }
     }
 
-    fn take_scope_type(&mut self, scope: Scope) -> ScopeType {
-        match scope.kind {
-            ScopeKind::TryFinally => ScopeType::TryFinally(Label(scope.payload)),
-            ScopeKind::TryCatch => {
-                let payload = scope.payload as usize;
-                debug_assert_eq!(payload + 1, self.scope_payloads.len());
-                let ScopePayload::TryCatch(catches) = self
-                    .scope_payloads
-                    .pop()
-                    .expect("missing try/catch payload")
-                else {
-                    panic!("try/catch scope referenced non-catch payload");
-                };
-                ScopeType::TryCatch(catches)
-            }
-            ScopeKind::If => ScopeType::If,
-            ScopeKind::Eif => ScopeType::Eif,
-            ScopeKind::While => ScopeType::While,
-            ScopeKind::For => ScopeType::For,
-            ScopeKind::ForSequence => {
-                let payload = scope.payload as usize;
-                debug_assert_eq!(payload + 1, self.scope_payloads.len());
-                let ScopePayload::ForSequence(payload) = self
-                    .scope_payloads
-                    .pop()
-                    .expect("missing for-sequence payload")
-                else {
-                    panic!("for-sequence scope referenced non-sequence payload");
-                };
-                ScopeType::ForSequence {
-                    sequence: payload.sequence,
-                    current_index: payload.current_index,
-                    current_key: payload.current_key,
-                    value_bind: payload.value_bind,
-                    key_bind: payload.key_bind,
-                    end_label: payload.end_label,
-                }
-            }
-            ScopeKind::ForRange => {
-                let payload = scope.payload as usize;
-                debug_assert_eq!(payload + 1, self.scope_payloads.len());
-                let ScopePayload::ForRange(payload) = self
-                    .scope_payloads
-                    .pop()
-                    .expect("missing for-range payload")
-                else {
-                    panic!("for-range scope referenced non-range payload");
-                };
-                match payload {
-                    ForRangeScope::Int {
-                        current,
-                        end,
-                        loop_variable,
-                        end_label,
-                    } => ScopeType::ForRangeInt {
-                        current,
-                        end,
-                        loop_variable,
-                        end_label,
-                    },
-                    ForRangeScope::Float {
-                        current_bits,
-                        end_bits,
-                        loop_variable,
-                        end_label,
-                    } => ScopeType::ForRangeFloat {
-                        current_bits,
-                        end_bits,
-                        loop_variable,
-                        end_label,
-                    },
-                    ForRangeScope::Obj {
-                        current,
-                        end,
-                        loop_variable,
-                        end_label,
-                    } => ScopeType::ForRangeObj {
-                        current,
-                        end,
-                        loop_variable,
-                        end_label,
-                    },
-                }
-            }
-            ScopeKind::Block => ScopeType::Block,
-            ScopeKind::Comprehension => ScopeType::Comprehension,
-        }
-    }
-
     pub fn scope_type(&self, scope: &Scope) -> ScopeType {
         match scope.kind {
             ScopeKind::TryFinally => ScopeType::TryFinally(Label(scope.payload)),
-            ScopeKind::TryCatch => match &self.scope_payloads[scope.payload as usize] {
-                ScopePayload::TryCatch(catches) => ScopeType::TryCatch(catches.clone()),
-                _ => panic!("try/catch scope referenced non-catch payload"),
-            },
+            ScopeKind::LiteralCatch | ScopeKind::TryCatch => ScopeType::TryCatch(
+                self.try_catches_for_scope(scope)
+                    .expect("missing catch handlers")
+                    .iter()
+                    .cloned()
+                    .collect(),
+            ),
             ScopeKind::If => ScopeType::If,
             ScopeKind::Eif => ScopeType::Eif,
             ScopeKind::While => ScopeType::While,
@@ -1120,7 +1036,17 @@ impl MooStackFrame {
         }
     }
 
+    pub(crate) fn catch_label(&self, scope: &Scope, error: &Error) -> Option<Label> {
+        self.try_catches_for_scope(scope)?
+            .iter()
+            .find_map(|(catch, label)| catch.matches(error).then_some(*label))
+    }
+
     pub fn try_catches_for_scope(&self, scope: &Scope) -> Option<&[(CatchType, Label)]> {
+        if scope.kind == ScopeKind::LiteralCatch {
+            let arm = self.program_ref().0.literal_catches.arm(scope.payload);
+            return Some(std::slice::from_ref(&arm.handler));
+        }
         if scope.kind != ScopeKind::TryCatch {
             return None;
         }
@@ -1169,13 +1095,34 @@ impl MooStackFrame {
         );
     }
 
-    pub fn pop_scope(&mut self) -> Option<ScopeType> {
+    pub(crate) fn push_literal_catch(&mut self, arm: u16, end_label: Label, width: Option<u16>) {
+        self.push_scope_record(
+            ScopeKind::LiteralCatch,
+            arm,
+            Self::narrow_u16(self.valstack.len()),
+            self.pc,
+            self.label_position(end_label),
+            width.is_some(),
+        );
+        if let Some(width) = width {
+            self.environment.push_scope(usize::from(width));
+        }
+    }
+
+    pub(crate) fn discard_scope(&mut self) -> Option<ScopeKind> {
         let scope = self.scope_stack.pop()?;
         if scope.environment {
             self.environment.pop_scope();
         }
         self.valstack.truncate(scope.valstack_pos as usize);
-        Some(self.take_scope_type(scope))
+        if matches!(
+            scope.kind,
+            ScopeKind::TryCatch | ScopeKind::ForRange | ScopeKind::ForSequence
+        ) {
+            debug_assert_eq!(usize::from(scope.payload) + 1, self.scope_payloads.len());
+            self.scope_payloads.pop().expect("missing scope payload");
+        }
+        Some(scope.kind)
     }
 
     /// Enter a ForSequence scope that holds iteration state

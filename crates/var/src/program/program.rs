@@ -12,7 +12,7 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    ErrorCode, Symbol, Var,
+    Error, ErrorCode, Symbol, Var,
     program::{
         labels::{JumpLabel, Label, Offset},
         names::{Name, Names},
@@ -57,8 +57,93 @@ pub struct SourceDeclarations {
     pub forks: Vec<Vec<DeclarationSite>>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CatchType {
+    Any,
+    Errors(Vec<Error>),
+    Literal(std::sync::Arc<[Error]>),
+}
+
+impl CatchType {
+    pub fn matches(&self, error: &Error) -> bool {
+        let codes: &[Error] = match self {
+            Self::Any => return true,
+            Self::Literal(codes) => codes,
+            Self::Errors(codes) => codes,
+        };
+        codes.iter().any(|code| code.err_type() == error.err_type())
+    }
+}
+
+/// Decoded literal catch arms. The instruction stream remains the source of truth for
+/// persistence, decompilation, tick accounting and resuming at an intermediate instruction.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct LiteralCatches(Box<[LiteralCatch]>);
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct LiteralCatch {
+    fork: Option<Offset>,
+    pc: u16,
+    pub next_pc: u16,
+    pub handler: (CatchType, Label),
+}
+
+impl LiteralCatches {
+    pub fn from_vectors(main: &[Op], forks: &[(usize, Vec<Op>)]) -> Self {
+        let mut arms = Vec::new();
+        Self::collect_arms(&mut arms, None, main);
+        for (i, (_, ops)) in forks.iter().enumerate() {
+            if let Ok(i) = u16::try_from(i) {
+                Self::collect_arms(&mut arms, Some(Offset(i)), ops);
+            }
+        }
+        Self(arms.into_boxed_slice())
+    }
+
+    fn collect_arms(arms: &mut Vec<LiteralCatch>, fork: Option<Offset>, ops: &[Op]) {
+        for (end, op) in ops.iter().enumerate() {
+            let Op::PushCatchLabel(handler) = op else {
+                continue;
+            };
+            let Ok(next_pc) = u16::try_from(end + 1) else {
+                break;
+            };
+            let mut start = end;
+            let mut codes = Vec::new();
+            while let [.., Op::ImmErr(code), Op::ListAddTail] = &ops[..start] {
+                codes.push((*code).into());
+                start -= 2;
+            }
+            let [.., Op::ImmErr(first), Op::MakeSingletonList] = &ops[..start] else {
+                continue;
+            };
+            codes.push((*first).into());
+            codes.reverse();
+            arms.push(LiteralCatch {
+                fork,
+                pc: (start - 2) as u16,
+                next_pc,
+                handler: (CatchType::Literal(codes.into()), *handler),
+            });
+        }
+    }
+
+    pub fn at(&self, fork: Option<Offset>, pc: u16) -> Option<(usize, &LiteralCatch)> {
+        let i = self
+            .0
+            .binary_search_by_key(&(fork, pc), |arm| (arm.fork, arm.pc))
+            .ok()?;
+        Some((i, &self.0[i]))
+    }
+
+    pub fn arm(&self, index: u16) -> &LiteralCatch {
+        &self.0[usize::from(index)]
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct PrgInner {
+    pub literal_catches: LiteralCatches,
     /// All the literals referenced in this program.
     pub literals: Vec<Var>,
     /// All the jump offsets used in this program.
@@ -105,6 +190,7 @@ pub struct PrgInner {
 impl Program {
     pub fn new() -> Self {
         Program(Arc::new(PrgInner {
+            literal_catches: LiteralCatches::default(),
             literals: Vec::new(),
             jump_labels: Vec::new(),
             var_names: Names::new(0),

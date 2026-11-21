@@ -22,7 +22,7 @@ use moor_var::{
 
 use crate::exec_state::ExecState;
 use crate::moo_execute::ExecutionResult;
-use crate::{Activation, CatchType, Frame, MooStackFrame, ScopeKind, ScopeType, probes};
+use crate::{Activation, Frame, MooStackFrame, ScopeKind, probes};
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum FinallyReason {
@@ -214,15 +214,6 @@ impl ExecState {
         self.unwind_stack(FinallyReason::Raise(exception))
     }
 
-    fn catch_matches(catch: &CatchType, error: &Error) -> bool {
-        match catch {
-            CatchType::Any => true,
-            CatchType::Errors(errs) => errs
-                .iter()
-                .any(|candidate| candidate.err_type() == error.err_type()),
-        }
-    }
-
     fn catch_value(error: &Error, stack: &[Var]) -> Var {
         let value = error.value().cloned().unwrap_or(v_int(0));
         v_list(&[
@@ -238,17 +229,11 @@ impl ExecState {
             return false;
         };
 
-        for scope in frame.scope_stack.iter().rev() {
-            if let Some(catches) = frame.try_catches_for_scope(scope)
-                && catches
-                    .iter()
-                    .any(|catch| Self::catch_matches(&catch.0, error))
-            {
-                return true;
-            }
-        }
-
-        false
+        frame
+            .scope_stack
+            .iter()
+            .rev()
+            .any(|scope| frame.catch_label(scope, error).is_some())
     }
 
     fn handler_activation_index(&self, error: &Error) -> Option<usize> {
@@ -261,7 +246,7 @@ impl ExecState {
             })
     }
 
-    fn top_moo_activation_catch_label(&self, error: &Error) -> Option<(usize, Label)> {
+    fn top_moo_activation_catch_label(&self, error: &Error) -> Option<(usize, usize, Label)> {
         let (activation_idx, activation) = self
             .stack
             .iter()
@@ -272,21 +257,12 @@ impl ExecState {
             return None;
         };
 
-        for scope in frame.scope_stack.iter().rev() {
-            match scope.kind {
-                ScopeKind::TryFinally => return None,
-                ScopeKind::TryCatch => {
-                    let catches = frame
-                        .try_catches_for_scope(scope)
-                        .expect("try/catch scope without payload");
-                    for catch in catches {
-                        let found = Self::catch_matches(&catch.0, error);
-                        if found {
-                            return Some((activation_idx, catch.1));
-                        }
-                    }
-                }
-                _ => {}
+        for (index, scope) in frame.scope_stack.iter().enumerate().rev() {
+            if scope.kind == ScopeKind::TryFinally {
+                return None;
+            }
+            if let Some(label) = frame.catch_label(scope, error) {
+                return Some((activation_idx, index, label));
             }
         }
         None
@@ -305,7 +281,9 @@ impl ExecState {
     }
 
     fn catch_error_in_current_activation(&mut self, error: &Error) -> bool {
-        let Some((activation_idx, catch_label)) = self.top_moo_activation_catch_label(error) else {
+        let Some((activation_idx, scope_idx, catch_label)) =
+            self.top_moo_activation_catch_label(error)
+        else {
             return false;
         };
 
@@ -330,26 +308,19 @@ impl ExecState {
             return false;
         };
 
-        while let Some(scope) = frame.pop_scope() {
-            let ScopeType::TryCatch(catches) = scope else {
-                continue;
-            };
-            for catch in catches {
-                let found = Self::catch_matches(&catch.0, error);
-                if found && catch.1 == catch_label {
-                    frame.jump(&catch_label);
-                    if catch_discards_value {
-                        frame.pc += 1;
-                    } else {
-                        let stack = stack.as_ref().expect("catch stack value not built");
-                        frame.push(Self::catch_value(error, stack));
-                    }
-                    return true;
-                }
-            }
+        while frame.scope_stack.len() > scope_idx {
+            frame.discard_scope();
         }
-
-        false
+        frame.jump(&catch_label);
+        if catch_discards_value {
+            frame.pc += 1;
+        } else {
+            frame.push(Self::catch_value(
+                error,
+                stack.as_ref().expect("catch stack value not built"),
+            ));
+        }
+        true
     }
 
     fn unwind_activation(activation: &mut Activation, why: &FinallyReason) -> ActivationUnwind {
@@ -365,26 +336,23 @@ impl ExecState {
             return ActivationUnwind::Handled;
         }
 
-        while let Some(scope) = frame.pop_scope() {
-            match scope {
-                ScopeType::TryFinally(finally_label) => {
-                    frame.jump(&finally_label);
-                    frame.push_finally_reason(why.clone());
-                    return ActivationUnwind::Handled;
-                }
-                ScopeType::TryCatch(catches) => {
-                    if let FinallyReason::Raise(exception) = why
-                        && let Some((_, catch_label)) = catches
-                            .iter()
-                            .find(|(catch, _)| Self::catch_matches(catch, &exception.error))
-                    {
-                        frame.jump(catch_label);
-                        frame.push(Self::catch_value(&exception.error, &exception.stack));
-                        return ActivationUnwind::Handled;
-                    }
-                }
-                _ => {}
+        while let Some(scope) = frame.scope_stack.last() {
+            if scope.kind == ScopeKind::TryFinally {
+                let finally_label = Label(scope.payload);
+                frame.discard_scope();
+                frame.jump(&finally_label);
+                frame.push_finally_reason(why.clone());
+                return ActivationUnwind::Handled;
             }
+            if let FinallyReason::Raise(exception) = why
+                && let Some(label) = frame.catch_label(scope, &exception.error)
+            {
+                frame.discard_scope();
+                frame.jump(&label);
+                frame.push(Self::catch_value(&exception.error, &exception.stack));
+                return ActivationUnwind::Handled;
+            }
+            frame.discard_scope();
         }
 
         ActivationUnwind::PopActivation

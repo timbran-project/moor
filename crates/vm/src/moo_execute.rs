@@ -14,7 +14,7 @@
 use crate::{
     VmHost,
     config::FeaturesConfig,
-    moo_frame::{CatchType, ForRangeScope, MooStackFrame, PcType, ScopeType},
+    moo_frame::{CatchType, ForRangeScope, MooStackFrame, PcType, ScopeKind, ScopeType},
     scatter_assign::scatter_assign,
     vm_unwind::FinallyReason,
 };
@@ -864,10 +864,14 @@ pub fn moo_frame_execute<H: VmHost>(
     // The pointer remains valid for this execute call.
     let program = unsafe { &*program_ptr };
     let pc_type = f.pc_type;
-    let opcodes: &[Op] = match pc_type {
-        PcType::Main => program.main_vector(),
-        PcType::ForkVector(fork_vector) => program.fork_vector(fork_vector),
-        PcType::Lambda(lambda_offset) => program.lambda_program(lambda_offset).main_vector(),
+    let (code_program, fork) = match pc_type {
+        PcType::Main => (program, None),
+        PcType::ForkVector(offset) => (program, Some(offset)),
+        PcType::Lambda(offset) => (program.lambda_program(offset), None),
+    };
+    let opcodes: &[Op] = match fork {
+        None => code_program.main_vector(),
+        Some(offset) => code_program.fork_vector(offset),
     };
     let opcodes_ptr = opcodes.as_ptr();
     let opcodes_len = opcodes.len();
@@ -1231,6 +1235,37 @@ pub fn moo_frame_execute<H: VmHost>(
                 f.push(v_sym(*val));
             }
             Op::ImmErr(val) => {
+                if let Some((index, arm)) = code_program.0.literal_catches.at(fork, pc) {
+                    let remaining = usize::from(arm.next_pc - f.pc);
+                    // If the slice ends mid-setup, run the original instructions up to that PC.
+                    if remaining <= tick_slice_end - *tick_count {
+                        *tick_count += remaining;
+                        f.pc = arm.next_pc;
+                        // A single-arm guard can refer directly to the program for its lifetime.
+                        // At a slice boundary leave the pending handler visible to suspension.
+                        if *tick_count < tick_slice_end
+                            && !matches!(pc_type, PcType::Lambda(_))
+                            && let Ok(index) = u16::try_from(index)
+                            && let Some((end_label, width)) = match opcodes.get(usize::from(f.pc)) {
+                                Some(Op::TryCatch { end_label, .. }) => Some((*end_label, None)),
+                                Some(Op::TryExcept {
+                                    num_excepts: 1,
+                                    environment_width,
+                                    end_label,
+                                }) => Some((*end_label, Some(*environment_width))),
+                                _ => None,
+                            }
+                        {
+                            *tick_count += 1;
+                            f.pc += 1;
+                            f.push_literal_catch(index, end_label, width);
+                            continue;
+                        }
+                        let (catch, label) = arm.handler.clone();
+                        f.push_catch(catch, label);
+                        continue;
+                    }
+                }
                 f.push(v_err(*val));
             }
             Op::Imm(slot) => {
@@ -1880,21 +1915,23 @@ pub fn moo_frame_execute<H: VmHost>(
             }
             Op::TryCatch { end_label, .. } => {
                 let end_label = *end_label;
-                let catches = f.take_catch_stack();
+                let catches = f.take_catch_stack(1);
                 f.push_non_var_scope(ScopeType::TryCatch(catches), &end_label);
             }
             Op::TryExcept {
                 environment_width,
                 end_label,
-                ..
+                num_excepts,
             } => {
-                let catches = f.take_catch_stack();
+                let catches = f.take_catch_stack(usize::from(*num_excepts));
                 f.push_scope(ScopeType::TryCatch(catches), *environment_width, end_label);
             }
             Op::EndExcept(label) => {
                 let label = *label;
-                let handler = f.pop_scope().expect("Missing handler for try/catch/except");
-                let ScopeType::TryCatch(..) = handler else {
+                let handler = f
+                    .discard_scope()
+                    .expect("Missing handler for try/catch/except");
+                let (ScopeKind::TryCatch | ScopeKind::LiteralCatch) = handler else {
                     panic!("Handler is not a catch handler",);
                 };
                 f.jump(&label);
@@ -1903,8 +1940,10 @@ pub fn moo_frame_execute<H: VmHost>(
                 let label = *label;
 
                 let stack_top = f.pop();
-                let handler = f.pop_scope().expect("Missing handler for try/catch/except");
-                let ScopeType::TryCatch(_) = handler else {
+                let handler = f
+                    .discard_scope()
+                    .expect("Missing handler for try/catch/except");
+                let (ScopeKind::TryCatch | ScopeKind::LiteralCatch) = handler else {
                     panic!("Handler is not a catch handler",);
                 };
                 f.jump(&label);
@@ -1914,8 +1953,8 @@ pub fn moo_frame_execute<H: VmHost>(
                 // Execution of the block completed successfully, so we can just continue with
                 // fall-through into the FinallyContinue block
                 // Pop the scope that was pushed by TryFinally
-                let scope = f.pop_scope().expect("Missing scope for try/finally");
-                if !matches!(scope, ScopeType::TryFinally(_)) {
+                let scope = f.discard_scope().expect("Missing scope for try/finally");
+                if !matches!(scope, ScopeKind::TryFinally) {
                     panic!("EndFinally without TryFinally scope");
                 }
                 f.push_finally_reason(FinallyReason::Fallthrough);
@@ -1942,7 +1981,7 @@ pub fn moo_frame_execute<H: VmHost>(
                 f.push_scope(ScopeType::Block, *num_bindings, end_label);
             }
             Op::EndScope { .. } => {
-                let Some(..) = f.pop_scope() else {
+                let Some(..) = f.discard_scope() else {
                     panic!(
                         "EndScope without a scope @ {} ({})",
                         f.pc,

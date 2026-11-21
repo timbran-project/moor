@@ -42,6 +42,7 @@ mod tests {
 
     fn mk_program(main_vector: Vec<Op>, literals: Vec<Var>, var_names: Names) -> Program {
         Program(TArc::new(PrgInner {
+            literal_catches: Default::default(),
             lambda_entry_scope_count: 0,
             literals,
             jump_labels: vec![],
@@ -63,6 +64,52 @@ mod tests {
             fork_line_number_spans: vec![],
             source_declarations: None,
         }))
+    }
+
+    #[test]
+    fn literal_catch_preserves_each_tick_slice_boundary() {
+        use crate::vm::kernel_host::KernelHost;
+        use moor_vm::{
+            ExecutionResult, FeaturesConfig, FrameExecutionContext, MooStackFrame,
+            moo_frame_execute,
+        };
+        let program =
+            moor_compiler::compile("return `123 ! E_DIV, E_PERM => 0';", Default::default())
+                .unwrap();
+        let this = v_obj(SYSTEM_OBJECT);
+        let context = FrameExecutionContext::new(
+            system_permissions(),
+            SYSTEM_OBJECT,
+            &this,
+            Symbol::mk("test"),
+            SYSTEM_OBJECT,
+        );
+        let features = FeaturesConfig::default();
+        // The five setup instructions finish immediately before TryCatch.
+        for slice in 1..=6 {
+            let mut frame = MooStackFrame::new(program.clone());
+            let mut ticks = 0;
+            assert!(matches!(
+                moo_frame_execute(
+                    &mut KernelHost,
+                    slice,
+                    &mut ticks,
+                    &context,
+                    &mut frame,
+                    &features
+                ),
+                ExecutionResult::More
+            ));
+            assert_eq!((ticks, usize::from(frame.pc)), (slice, slice));
+            if slice == 6 {
+                assert!(frame.scratch.is_none());
+                assert!(frame.scope_payloads.is_empty());
+            }
+            assert!(
+                matches!(moo_frame_execute(&mut KernelHost, 20, &mut ticks, &context, &mut frame, &features), ExecutionResult::Return(v) if v == v_int(123))
+            );
+            assert_eq!(ticks, 9);
+        }
     }
 
     fn test_db_with_verbs(verbs: &[(&str, &Program)]) -> TxDB {

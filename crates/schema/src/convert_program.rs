@@ -825,6 +825,10 @@ pub fn decode_fb_program(fb_prog_ref: fb::StoredMooRProgramRef) -> Result<Progra
     }
 
     let program = Program(Arc::new(PrgInner {
+        literal_catches: moor_var::program::program::LiteralCatches::from_vectors(
+            &main_vector,
+            &fork_vectors,
+        ),
         lambda_entry_scope_count,
         literals,
         jump_labels,
@@ -1242,6 +1246,7 @@ mod tests {
 
     fn test_program() -> Program {
         Program(Arc::new(PrgInner {
+            literal_catches: Default::default(),
             lambda_entry_scope_count: 0,
             literals: Vec::new(),
             jump_labels: Vec::new(),

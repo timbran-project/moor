@@ -339,7 +339,6 @@ impl ExecState {
 impl ExecState {
     /// Push an error up the activation stack (set returned value), and raise it depending on the `d` flag
     pub fn push_error(&mut self, error: Error) -> ExecutionResult {
-        self.set_return_value(v_error(error.clone()));
         // Check 'd' bit of running verb. If it's set, we raise the error. Otherwise nope.
         let verb_frame = self.stack.iter().rev().find(|a| !a.is_builtin_frame());
         if let Some(activation) = verb_frame
@@ -357,6 +356,7 @@ impl ExecState {
         });
 
         warn!(error = ?error, verb = ?verb_this_name, "Pushing error from !d verb");
+        self.set_return_value(v_error(error));
         ExecutionResult::More
     }
 
