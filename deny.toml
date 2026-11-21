@@ -13,6 +13,18 @@ ignore = [
     # Age 0.12 reaches crypto-bigint 0.5 through hpke and p256, and no 0.5 release is fixed.
     # Remove once Age moves to elliptic-curve 0.14.
     { id = "RUSTSEC-2026-0387", reason = "Age uses P-256 only for its tag and post-quantum recipient types; mooR's age_encrypt and age_decrypt accept X25519 and SSH keys only, and the event log uses X25519, so the affected arithmetic is unreachable" },
+    # heapless 0.8 comes in through gix-hash's faster-hex 0.10, which declares it for builds without
+    # alloc. gix-hash 0.28 and gix 0.90 are the latest releases and pin faster-hex 0.10, so no update
+    # reaches the fixed heapless 0.9.4. Remove once gix-hash moves to a faster-hex that does.
+    { id = "RUSTSEC-2026-0574", reason = "faster-hex 0.10 uses heapless only when built without alloc; gix-hash enables its std feature, so mooR calls no heapless code" },
+    { id = "RUSTSEC-2026-0575", reason = "faster-hex 0.10 uses heapless only when built without alloc; gix-hash enables its std feature, so mooR calls no heapless code" },
+    { id = "RUSTSEC-2026-0576", reason = "faster-hex 0.10 uses heapless only when built without alloc; gix-hash enables its std feature, so mooR calls no heapless code" },
+    { id = "RUSTSEC-2026-0577", reason = "faster-hex 0.10 uses heapless only when built without alloc; gix-hash enables its std feature, so mooR calls no heapless code" },
+    { id = "RUSTSEC-2026-0578", reason = "faster-hex 0.10 uses heapless only when built without alloc; gix-hash enables its std feature, so mooR calls no heapless code" },
+    { id = "RUSTSEC-2026-0579", reason = "faster-hex 0.10 uses heapless only when built without alloc; gix-hash enables its std feature, so mooR calls no heapless code" },
+    { id = "RUSTSEC-2026-0580", reason = "faster-hex 0.10 uses heapless only when built without alloc; gix-hash enables its std feature, so mooR calls no heapless code" },
+    { id = "RUSTSEC-2026-0581", reason = "faster-hex 0.10 uses heapless only when built without alloc; gix-hash enables its std feature, so mooR calls no heapless code" },
+    { id = "RUSTSEC-2026-0582", reason = "faster-hex 0.10 uses heapless only when built without alloc; gix-hash enables its std feature, so mooR calls no heapless code" },
 ]
 
 [bans]
