@@ -847,6 +847,38 @@ mod tests {
     }
 
     #[test]
+    fn computed_catch_codes_match_only_their_errors() {
+        // One arm takes the codes as a list value; several arms convert them.
+        for (source, expected) in [
+            ("c = E_DIV; return `1 / 0 ! c => 9';", Some(9)),
+            ("c = E_PERM; return `1 / 0 ! c, E_DIV => 9';", Some(9)),
+            ("c = E_PERM; return `1 / 0 ! c => 9';", None),
+            // A code that is not an error matches nothing.
+            ("c = 5; return `1 / 0 ! c => 9';", None),
+            ("c = 0; return `1 / 0 ! c => 9';", None),
+            ("c = \"x\"; return `1 / 0 ! c, E_DIV => 9';", Some(9)),
+            (
+                "c = 5; try 1 / 0; except (c) return 1; except (E_DIV) return 9; endtry",
+                Some(9),
+            ),
+            (
+                "c = E_DIV; try 1 / 0; except (E_PERM) return 1; except (c) return 9; endtry",
+                Some(9),
+            ),
+            (
+                "c = 5; try 1 / 0; except (E_PERM) return 1; except (c) return 2; endtry",
+                None,
+            ),
+        ] {
+            let result = run_moo(source);
+            match expected {
+                Some(value) => assert_eq!(result, Ok(v_int(value)), "{source}"),
+                None => assert!(matches!(&result, Err(e) if e.error == E_DIV), "{source}"),
+            }
+        }
+    }
+
+    #[test]
     fn nested_guard_in_dynamic_filter_preserves_pending_literal_arm() {
         for (code, expected) in [("E_PERM", 1), ("E_DIV", 2)] {
             let source = format!(

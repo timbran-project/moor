@@ -110,6 +110,16 @@ pub enum PcType {
     Lambda(Offset),
 }
 
+/// The errors in a list of catch codes. A value that is not an error matches nothing, as in
+/// LambdaMOO.
+pub(crate) fn catch_list_errors(codes: &Var) -> impl Iterator<Item = &Error> {
+    codes
+        .as_list()
+        .into_iter()
+        .flat_map(|codes| codes.iter_ref())
+        .filter_map(Var::as_error)
+}
+
 // Most guards have a single arm, even when they match several error codes.
 pub type CatchHandlers = smallvec::SmallVec<[(CatchType, Label); 1]>;
 
@@ -208,6 +218,11 @@ pub enum ForRangeScope {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ScopePayload {
     TryCatch(CatchHandlers),
+    /// The evaluated error codes of a single arm, kept as the list value they arrived in.
+    CatchList {
+        codes: Var,
+        label: Label,
+    },
     ForSequence(ForSequenceScope),
     ForRange(ForRangeScope),
 }
@@ -229,6 +244,9 @@ pub enum ScopeKind {
     LiteralCatch,
     /// A single arm that catches any error. The payload is its handler label.
     AnyCatch,
+    /// A single arm whose error codes were computed at run time. The payload indexes a
+    /// `ScopePayload::CatchList`.
+    ListCatch,
 }
 
 /// A scope is a record of the current size of the valstack when it was created, and are
@@ -976,6 +994,11 @@ impl MooStackFrame {
             ScopeKind::AnyCatch => ScopeType::TryCatch(
                 std::iter::once((CatchType::Any, Label(scope.payload))).collect(),
             ),
+            ScopeKind::ListCatch => {
+                let (codes, label) = self.catch_list(scope);
+                let errors = catch_list_errors(codes).cloned().collect();
+                ScopeType::TryCatch(std::iter::once((CatchType::Errors(errors), label)).collect())
+            }
             ScopeKind::If => ScopeType::If,
             ScopeKind::Eif => ScopeType::Eif,
             ScopeKind::While => ScopeType::While,
@@ -1045,9 +1068,23 @@ impl MooStackFrame {
         if scope.kind == ScopeKind::AnyCatch {
             return Some(Label(scope.payload));
         }
+        if scope.kind == ScopeKind::ListCatch {
+            let (codes, label) = self.catch_list(scope);
+            return catch_list_errors(codes)
+                .any(|code| code.err_type() == error.err_type())
+                .then_some(label);
+        }
         self.try_catches_for_scope(scope)?
             .iter()
             .find_map(|(catch, label)| catch.matches(error).then_some(*label))
+    }
+
+    fn catch_list(&self, scope: &Scope) -> (&Var, Label) {
+        let ScopePayload::CatchList { codes, label } = &self.scope_payloads[scope.payload as usize]
+        else {
+            panic!("list catch scope referenced another payload");
+        };
+        (codes, *label)
     }
 
     pub fn try_catches_for_scope(&self, scope: &Scope) -> Option<&[(CatchType, Label)]> {
@@ -1103,8 +1140,8 @@ impl MooStackFrame {
         );
     }
 
-    /// Enter a single-arm guard whose handler needs no payload: `kind` is `LiteralCatch` or
-    /// `AnyCatch`. `width` is the environment width of a `try` statement.
+    /// Enter a single-arm guard of the given kind, whose payload is already in place. `width` is
+    /// the environment width of a `try` statement.
     pub(crate) fn push_static_catch(
         &mut self,
         kind: ScopeKind,
@@ -1125,6 +1162,21 @@ impl MooStackFrame {
         }
     }
 
+    /// Enter a single-arm guard whose error codes are the list value `codes`. `width` is the
+    /// environment width of a `try` statement.
+    pub(crate) fn push_list_catch(
+        &mut self,
+        codes: Var,
+        label: Label,
+        end_label: Label,
+        width: Option<u16>,
+    ) {
+        let payload = Self::narrow_u16(self.scope_payloads.len());
+        self.scope_payloads
+            .push(ScopePayload::CatchList { codes, label });
+        self.push_static_catch(ScopeKind::ListCatch, payload, end_label, width);
+    }
+
     pub(crate) fn discard_scope(&mut self) -> Option<ScopeKind> {
         let scope = self.scope_stack.pop()?;
         if scope.environment {
@@ -1133,7 +1185,10 @@ impl MooStackFrame {
         self.valstack.truncate(scope.valstack_pos as usize);
         if matches!(
             scope.kind,
-            ScopeKind::TryCatch | ScopeKind::ForRange | ScopeKind::ForSequence
+            ScopeKind::TryCatch
+                | ScopeKind::ListCatch
+                | ScopeKind::ForRange
+                | ScopeKind::ForSequence
         ) {
             debug_assert_eq!(usize::from(scope.payload) + 1, self.scope_payloads.len());
             self.scope_payloads.pop().expect("missing scope payload");
