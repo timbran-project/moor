@@ -324,6 +324,44 @@ benchmark_main!(
                 .bench("dispatch_comparison", run_program);
         });
 
+        runner.group::<VmBenchContext>("map_micro", |g| {
+            let g = g
+                .backend(|| Box::new(LinuxPerfBackend::new().with_compact_counters()))
+                .throughput(Throughput::per_operation(1, "opcodes"));
+            const RECORD: &str = r#"m = ["name" -> "x", "owner" -> #2, "location" -> #3, "kind" -> 'thing, "size" -> 4, "weight" -> 5.0, "tags" -> {}, "open" -> 0];"#;
+            g.factory(&|| VmBenchContext::with_program(&format!("while(1) {RECORD} endwhile")))
+                .bench("map_build_record", run_program);
+            g.factory(&|| {
+                VmBenchContext::with_program(&format!(r#"{RECORD} while(1) m["size"]; endwhile"#))
+            })
+            .bench("map_get_record", run_program);
+            g.factory(&|| {
+                VmBenchContext::with_program(&format!(
+                    r#"{RECORD} while(1) m["size"] = 7; endwhile"#
+                ))
+            })
+            .bench("map_set_record", run_program);
+            g.factory(&|| {
+                VmBenchContext::with_program(&format!(
+                    "{RECORD} while(1) for v, k in (m) endfor endwhile"
+                ))
+            })
+            .bench("map_iterate_record", run_program);
+            g.factory(&|| {
+                VmBenchContext::with_program(
+                    r#"m = []; for i in [1..1000] m[tostr("key", i)] = i; endfor
+                       while(1) for v, k in (m) endfor endwhile"#,
+                )
+            })
+            .bench("map_iterate_1k_string_keys", run_program);
+            g.factory(&|| {
+                VmBenchContext::with_program(
+                    r#"while(1) m = []; for i in [1..200] m[i] = i; endfor endwhile"#,
+                )
+            })
+            .bench("map_grow_to_200", run_program);
+        });
+
         runner.group::<VmBenchContext>("guard_micro", |g| {
             let g = g
                 .backend(|| Box::new(LinuxPerfBackend::new().with_compact_counters()))

@@ -27,6 +27,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   are cheaper to build, copy and append to. Editing the middle of a list, or adding to its front, is
   faster for lists of up to a few thousand items and slower for very long ones: two to three times
   slower for a list of 100,000 items.
+- Maps have a new implementation as well. A `for` loop over a map no longer searches for each next
+  key, which made loops over large maps slow. Copying a map, reading a key and setting a key are
+  cheaper. The order of keys is unchanged.
 - Error guards run faster. Entering a guard for literal error codes or for `ANY` costs less, and so
   does catching an error in a catch expression with no default, such as `` `x.name ! E_PROPNF' ``.
   Existing verbs get the improvement without recompilation.

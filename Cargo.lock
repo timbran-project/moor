@@ -4684,7 +4684,6 @@ dependencies = [
  "arcstr",
  "boxcar",
  "byteview",
- "imbl",
  "micromeasure",
  "minicbor",
  "papaya",

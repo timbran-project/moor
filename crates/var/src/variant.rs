@@ -407,13 +407,12 @@ impl Var {
         if len == 0 {
             return Self::mk_empty_list_with_hint(hint);
         }
-        // SAFETY: List is #[repr(transparent)] around Box<Vector>, exactly 8 bytes
+        // SAFETY: List is #[repr(transparent)] around one pointer, exactly 8 bytes
         let data: u64 = unsafe { std::mem::transmute(list) };
-        Self {
-            tag: TAG_LIST,
-            meta: Self::meta_with_len_and_hint(len, hint),
-            data,
-        }
+        // Built as two whole words. Written a field at a time, the value is stored in pieces and
+        // then read back as one, which stalls the processor on the read.
+        let meta = Self::meta_with_len_and_hint(len, hint);
+        Self::from_header_and_data(Self::header_with_meta(TAG_LIST, meta), data)
     }
 
     #[inline(always)]
@@ -446,13 +445,11 @@ impl Var {
     /// Create a Var from a Map with an operation hint
     pub fn from_map_with_hint(m: map::Map, hint: u8) -> Self {
         let len = m.len();
-        // SAFETY: Map is #[repr(transparent)] around Box<OrdMap>, exactly 8 bytes
+        // SAFETY: Map is #[repr(transparent)] around one pointer, exactly 8 bytes
         let data: u64 = unsafe { std::mem::transmute(m) };
-        Self {
-            tag: TAG_MAP,
-            meta: Self::meta_with_len_and_hint(len, hint),
-            data,
-        }
+        // Built as two whole words; see `from_list_with_hint`.
+        let meta = Self::meta_with_len_and_hint(len, hint);
+        Self::from_header_and_data(Self::header_with_meta(TAG_MAP, meta), data)
     }
 
     pub fn mk_error(e: Error) -> Self {
@@ -1890,6 +1887,32 @@ impl Ord for Var {
         }
         if self.tag == TAG_FLOAT && other.tag == TAG_INT {
             return int_float_cmp(other.data as i64, f64::from_bits(self.data)).reverse();
+        }
+
+        // Fast path: string cmp string, which is what most map keys are.
+        if self.tag == TAG_STR && other.tag == TAG_STR {
+            // The same storage is the same string.
+            if self.data == other.data {
+                return Ordering::Equal;
+            }
+            if self.meta[2] == 1 && other.meta[2] == 1 {
+                // SAFETY: a `TAG_STR` value's data word is a `Str`.
+                let (l, r) = unsafe {
+                    (
+                        &*(&self.data as *const u64 as *const string::Str),
+                        &*(&other.data as *const u64 as *const string::Str),
+                    )
+                };
+                return string::cmp_case_insensitive_ascii(l.as_str(), r.as_str());
+            }
+        }
+
+        // Fast path: symbol cmp symbol, the other common kind of map key.
+        if self.tag == TAG_SYM && other.tag == TAG_SYM {
+            // SAFETY: a `TAG_SYM` value's data word is a `Symbol`.
+            let l = unsafe { std::mem::transmute::<u64, Symbol>(self.data) };
+            let r = unsafe { std::mem::transmute::<u64, Symbol>(other.data) };
+            return l.cmp(&r);
         }
 
         // Slow path for other types

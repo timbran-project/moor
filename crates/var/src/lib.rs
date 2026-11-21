@@ -12,6 +12,7 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 mod binary;
+mod block;
 mod cbor;
 mod diff;
 pub mod encode;
