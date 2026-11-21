@@ -137,20 +137,18 @@ impl List {
     }
 
     #[inline]
-    pub fn push_owned(self, value: &Var) -> Var {
-        let mut v = *self.0;
-        v.push_back(value.clone());
-        Var::from_list_with_hint(List(Box::new(v)), OP_HINT_LIST_APPEND)
+    pub fn push_owned(mut self, value: &Var) -> Var {
+        self.0.push_back(value.clone());
+        Var::from_list_with_hint(self, OP_HINT_LIST_APPEND)
     }
 
     #[inline]
-    pub fn insert_owned(self, index: usize, value: &Var) -> Var {
-        let mut v = *self.0;
-        v.insert(index, value.clone());
-        Var::from_list(List(Box::new(v)))
+    pub fn insert_owned(mut self, index: usize, value: &Var) -> Var {
+        self.0.insert(index, value.clone());
+        Var::from_list(self)
     }
 
-    pub fn index_set_owned(self, index: usize, value: &Var) -> Result<Var, Error> {
+    pub fn index_set_owned(mut self, index: usize, value: &Var) -> Result<Var, Error> {
         if index >= self.len() {
             return Err(E_RANGE.with_msg(|| {
                 format!(
@@ -161,30 +159,25 @@ impl List {
             }));
         }
 
-        let mut v = *self.0;
-        v[index] = value.clone();
-        Ok(Var::from_list(List(Box::new(v))))
+        self.0[index] = value.clone();
+        Ok(Var::from_list(self))
     }
 
-    pub fn append_owned(self, other: &Var) -> Result<Var, Error> {
+    pub fn append_owned(mut self, other: &Var) -> Result<Var, Error> {
         let Some(other) = other.as_list() else {
             return Err(E_TYPE.msg("attempt to append non-list"));
         };
-        let mut v = *self.0;
         if other.len() <= SMALL_APPEND_MAX_ELEMENTS {
             for value in other.iter_ref() {
-                v.push_back(value.clone());
+                self.0.push_back(value.clone());
             }
         } else {
-            v.append(other.0.as_ref().clone());
+            self.0.append(other.0.as_ref().clone());
         }
-        Ok(Var::from_list_with_hint(
-            List(Box::new(v)),
-            OP_HINT_LIST_APPEND,
-        ))
+        Ok(Var::from_list_with_hint(self, OP_HINT_LIST_APPEND))
     }
 
-    pub fn remove_at_owned(self, index: usize) -> Result<Var, Error> {
+    pub fn remove_at_owned(mut self, index: usize) -> Result<Var, Error> {
         if index >= self.len() {
             return Err(E_RANGE.with_msg(|| {
                 format!(
@@ -195,9 +188,8 @@ impl List {
             }));
         }
 
-        let mut v = *self.0;
-        v.remove(index);
-        Ok(Var::from_list(List(Box::new(v))))
+        self.0.remove(index);
+        Ok(Var::from_list(self))
     }
 
     pub fn range_set_owned(self, from: isize, to: isize, with: &Var) -> Result<Var, Error> {
