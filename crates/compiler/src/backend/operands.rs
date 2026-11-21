@@ -244,6 +244,10 @@ impl ProgramOperandParts {
         line_number_spans: Vec<(usize, usize)>,
     ) -> Program {
         Program(Arc::new(PrgInner {
+            literal_catches: moor_var::program::program::LiteralCatches::from_vectors(
+                &main_vector,
+                &self.fork_vectors,
+            ),
             lambda_entry_scope_count: 0,
             literals: self.literals,
             jump_labels,

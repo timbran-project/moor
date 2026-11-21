@@ -229,7 +229,16 @@ impl WorldStateError {
             Self::DuplicateVerb(obj, verb) => E_INVARG.with_msg(|| format!("Verb already exists: {obj}:{verb}")),
             Self::DuplicatePropertyDefinition(obj, prop) => E_INVARG.with_msg(|| format!("Duplicate property definition: {obj}.{prop}")),
             Self::ChparentPropertyNameConflict(obj1, obj2, prop) => E_INVARG.with_msg(|| format!("Property name conflict: {obj1}-or-descendants and {obj2}-or-ancestors both define {prop}")),
-            Self::PropertyNotFound(obj, prop) => E_PROPNF.with_msg(|| format!("Property not found: {obj}.{prop}")),
+            Self::PropertyNotFound(obj, prop) => E_PROPNF.with_msg(|| {
+                use std::fmt::Write;
+                const PREFIX: &str = "Property not found: ";
+                // Reserve room for a numeric reference such as "#2147483647." before the name.
+                let mut message = String::with_capacity(PREFIX.len() + 12 + prop.len());
+                message.push_str(PREFIX);
+                write!(message, "{obj}.").expect("writing to String");
+                message.push_str(prop);
+                message
+            }),
             Self::PropertyDefinitionNotFound(obj, prop) => E_PROPNF.with_msg(|| format!("Property definition not found: {obj}.{prop}")),
             Self::PropertyTypeMismatch => E_TYPE.with_msg(|| "Property type mismatch".to_string()),
             Self::CannotClearPropertyOnDefiner(obj, prop) => E_INVARG.with_msg(|| format!("Cannot clear property on defining object: {obj}.{prop}")),

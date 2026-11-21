@@ -847,6 +847,24 @@ mod tests {
     }
 
     #[test]
+    fn nested_guard_in_dynamic_filter_preserves_pending_literal_arm() {
+        for (code, expected) in [("E_PERM", 1), ("E_DIV", 2)] {
+            let source = format!(
+                r#"
+                try
+                    raise({code});
+                except (E_PERM)
+                    return 1;
+                except (`E_DIV ! E_RANGE => E_TYPE')
+                    return 2;
+                endtry
+            "#
+            );
+            assert_eq!(run_moo(&source), Ok(v_int(expected)));
+        }
+    }
+
+    #[test]
     fn test_typed_catch_preserves_error_payload() {
         let result = run_moo(
             r#"

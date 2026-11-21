@@ -1950,7 +1950,7 @@ impl WorldStateTransaction {
         name: Symbol,
     ) -> Result<(PropDef, Var, PropPerms, bool), WorldStateError> {
         let Some(propdef) = self.find_property_by_name(obj, name) else {
-            return Err(WorldStateError::PropertyNotFound(*obj, name.to_string()));
+            return Err(WorldStateError::PropertyNotFound(*obj, name.as_string()));
         };
 
         // Now that we have the propdef, we can look for the value & owner.

@@ -442,22 +442,23 @@ pub(crate) fn catch_type_to_flatbuffer(
 ) -> Result<fb::CatchType, TaskConversionError> {
     use fb::*;
 
-    let catch_type = match catch {
-        KernelCatchType::Any => CatchTypeUnion::CatchAny(Box::new(CatchAny {})),
-        KernelCatchType::Errors(errors) => {
-            let fb_errors: Result<Vec<_>, _> = errors
-                .iter()
-                .map(|e| convert_schema::error_to_flatbuffer_struct(e))
-                .collect();
-            CatchTypeUnion::CatchErrors(Box::new(CatchErrors {
-                errors: fb_errors.map_err(|e| {
-                    TaskConversionError::EncodingError(format!("Error encoding errors: {e}"))
-                })?,
-            }))
+    let codes: &[moor_var::Error] = match catch {
+        KernelCatchType::Any => {
+            return Ok(CatchType {
+                catch_type: CatchTypeUnion::CatchAny(Box::new(CatchAny {})),
+            });
         }
+        KernelCatchType::Literal(codes) => codes,
+        KernelCatchType::Errors(codes) => codes,
     };
-
-    Ok(CatchType { catch_type })
+    let errors = codes
+        .iter()
+        .map(convert_schema::error_to_flatbuffer_struct)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| TaskConversionError::EncodingError(format!("Error encoding errors: {e}")))?;
+    Ok(CatchType {
+        catch_type: CatchTypeUnion::CatchErrors(Box::new(CatchErrors { errors })),
+    })
 }
 
 pub(crate) fn catch_type_from_ref(
@@ -814,7 +815,7 @@ pub(crate) fn scope_type_from_ref(
                     catch_handler_from_ref(h)
                 })
                 .collect();
-            Ok(KernelScopeType::TryCatch(handlers?))
+            Ok(KernelScopeType::TryCatch(handlers?.into()))
         }
         ScopeTypeUnionRef::ScopeIf(_) => Ok(KernelScopeType::If),
         ScopeTypeUnionRef::ScopeEif(_) => Ok(KernelScopeType::Eif),
@@ -2733,6 +2734,57 @@ mod tests {
         );
         let serialized = moo_stack_frame_to_flatbuffer(&frame);
         assert!(serialized.is_ok());
+    }
+
+    #[test]
+    fn suspended_frame_restores_pending_and_active_literal_handlers() {
+        use planus::{ReadAsRoot, WriteAsOffset};
+        let program = compile(
+            "return `1 ! E_DIV, E_PERM => 0';",
+            CompileOptions::default(),
+        )
+        .unwrap();
+        let (_, arm) = program.0.literal_catches.at(None, 0).unwrap();
+        let (catch, handler) = arm.handler.clone();
+        let mut frame = KernelMooStackFrame::new(program);
+        let this = moor_var::v_obj(moor_var::SYSTEM_OBJECT);
+        let context = moor_vm::FrameExecutionContext::new(
+            TaskPermissions::new(moor_var::SYSTEM_OBJECT, BitEnum::default()),
+            moor_var::SYSTEM_OBJECT,
+            &this,
+            moor_var::Symbol::mk("test"),
+            moor_var::SYSTEM_OBJECT,
+        );
+        let mut ticks = 0;
+        assert!(matches!(
+            moor_vm::moo_frame_execute(
+                &mut crate::vm::kernel_host::KernelHost,
+                6,
+                &mut ticks,
+                &context,
+                &mut frame,
+                &Default::default(),
+            ),
+            moor_vm::ExecutionResult::More
+        ));
+        assert_eq!(frame.scope_stack[0].kind, moor_vm::ScopeKind::LiteralCatch);
+        frame.push_catch(catch, handler);
+
+        let stored = moo_stack_frame_to_flatbuffer(&frame).unwrap();
+        let mut builder = planus::Builder::new();
+        let offset = stored.prepare(&mut builder);
+        let bytes = builder.finish(offset, None);
+        let restored =
+            moo_stack_frame_from_ref(fb::MooStackFrameRef::read_as_root(bytes).unwrap()).unwrap();
+        let expected = [(
+            KernelCatchType::Errors(vec![moor_var::E_DIV.into(), moor_var::E_PERM.into()]),
+            handler,
+        )];
+        assert_eq!(restored.catch_stack(), expected);
+        assert_eq!(
+            restored.scope_type(&restored.scope_stack[0]),
+            KernelScopeType::TryCatch(expected.into_iter().collect())
+        );
     }
 
     fn grant_samples() -> Vec<CapabilityGrant> {

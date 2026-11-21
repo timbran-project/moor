@@ -319,5 +319,31 @@ benchmark_main!(
             g.factory(&|| VmBenchContext::with_program("while(1) 1 == 1; endwhile"))
                 .bench("dispatch_comparison", run_program);
         });
+
+        runner.group::<VmBenchContext>("guard_micro", |g| {
+            let g = g
+                .backend(|| Box::new(LinuxPerfBackend::new().with_compact_counters()))
+                .throughput(Throughput::per_operation(1, "opcodes"));
+            g.factory(&|| VmBenchContext::with_program("while(1) 1; endwhile"))
+                .bench("guard_baseline_bare", run_program);
+            g.factory(&|| VmBenchContext::with_program("while(1) if (1) 1; endif endwhile"))
+                .bench("guard_baseline_if", run_program);
+            g.factory(&|| VmBenchContext::with_program("while(1) `1 ! E_DIV'; endwhile"))
+                .bench("guard_expr_literal", run_program);
+            g.factory(&|| {
+                VmBenchContext::with_program("while(1) `1 ! E_DIV, E_PERM, E_RANGE'; endwhile")
+            })
+            .bench("guard_expr_literal_three_codes", run_program);
+            g.factory(&|| VmBenchContext::with_program("while(1) `1 ! ANY'; endwhile"))
+                .bench("guard_expr_any", run_program);
+            g.factory(&|| VmBenchContext::with_program("c = E_DIV; while(1) `1 ! c'; endwhile"))
+                .bench("guard_expr_dynamic", run_program);
+            g.factory(&|| {
+                VmBenchContext::with_program("while(1) try 1; except (E_DIV) endtry endwhile")
+            })
+            .bench("guard_stmt_literal", run_program);
+            g.factory(&|| VmBenchContext::with_program("while(1) `1 / 0 ! E_DIV => 0'; endwhile"))
+                .bench("guard_expr_literal_raise", run_program);
+        });
     }
 );
