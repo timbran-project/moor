@@ -827,6 +827,21 @@ fn prepare_call_verb<H: VmHost>(
     )))
 }
 
+/// If `op` opens a guard with one arm, its end label and, for a `try` statement, its environment
+/// width.
+#[inline]
+fn single_arm_guard(op: Option<&Op>) -> Option<(Label, Option<u16>)> {
+    match op {
+        Some(Op::TryCatch { end_label, .. }) => Some((*end_label, None)),
+        Some(Op::TryExcept {
+            num_excepts: 1,
+            environment_width,
+            end_label,
+        }) => Some((*end_label, Some(*environment_width))),
+        _ => None,
+    }
+}
+
 /// Main VM opcode execution for MOO stack frames. The actual meat of the MOO virtual machine.
 pub fn moo_frame_execute<H: VmHost>(
     host: &mut H,
@@ -1246,19 +1261,12 @@ pub fn moo_frame_execute<H: VmHost>(
                         if *tick_count < tick_slice_end
                             && !matches!(pc_type, PcType::Lambda(_))
                             && let Ok(index) = u16::try_from(index)
-                            && let Some((end_label, width)) = match opcodes.get(usize::from(f.pc)) {
-                                Some(Op::TryCatch { end_label, .. }) => Some((*end_label, None)),
-                                Some(Op::TryExcept {
-                                    num_excepts: 1,
-                                    environment_width,
-                                    end_label,
-                                }) => Some((*end_label, Some(*environment_width))),
-                                _ => None,
-                            }
+                            && let Some((end_label, width)) =
+                                single_arm_guard(opcodes.get(usize::from(f.pc)))
                         {
                             *tick_count += 1;
                             f.pc += 1;
-                            f.push_literal_catch(index, end_label, width);
+                            f.push_static_catch(ScopeKind::LiteralCatch, index, end_label, width);
                             continue;
                         }
                         let (catch, label) = arm.handler.clone();
@@ -1898,6 +1906,17 @@ pub fn moo_frame_execute<H: VmHost>(
                     });
                     f.push_catch(CatchType::Errors(error_codes.into_iter().collect()), label);
                 } else if error_codes.as_integer() == Some(0) {
+                    // A single-arm guard for any error needs only its handler label. At a
+                    // slice boundary leave the pending handler visible to suspension.
+                    if *tick_count < tick_slice_end
+                        && let Some((end_label, width)) =
+                            single_arm_guard(opcodes.get(usize::from(f.pc)))
+                    {
+                        *tick_count += 1;
+                        f.pc += 1;
+                        f.push_static_catch(ScopeKind::AnyCatch, label.0, end_label, width);
+                        continue;
+                    }
                     f.push_catch(CatchType::Any, label);
                 } else {
                     panic!("Invalid error codes list");
@@ -1931,7 +1950,8 @@ pub fn moo_frame_execute<H: VmHost>(
                 let handler = f
                     .discard_scope()
                     .expect("Missing handler for try/catch/except");
-                let (ScopeKind::TryCatch | ScopeKind::LiteralCatch) = handler else {
+                let (ScopeKind::TryCatch | ScopeKind::LiteralCatch | ScopeKind::AnyCatch) = handler
+                else {
                     panic!("Handler is not a catch handler",);
                 };
                 f.jump(&label);
@@ -1943,7 +1963,8 @@ pub fn moo_frame_execute<H: VmHost>(
                 let handler = f
                     .discard_scope()
                     .expect("Missing handler for try/catch/except");
-                let (ScopeKind::TryCatch | ScopeKind::LiteralCatch) = handler else {
+                let (ScopeKind::TryCatch | ScopeKind::LiteralCatch | ScopeKind::AnyCatch) = handler
+                else {
                     panic!("Handler is not a catch handler",);
                 };
                 f.jump(&label);

@@ -2737,54 +2737,76 @@ mod tests {
     }
 
     #[test]
-    fn suspended_frame_restores_pending_and_active_literal_handlers() {
+    fn suspended_frame_restores_pending_and_active_static_handlers() {
         use planus::{ReadAsRoot, WriteAsOffset};
-        let program = compile(
-            "return `1 ! E_DIV, E_PERM => 0';",
-            CompileOptions::default(),
-        )
-        .unwrap();
-        let (_, arm) = program.0.literal_catches.at(None, 0).unwrap();
-        let (catch, handler) = arm.handler.clone();
-        let mut frame = KernelMooStackFrame::new(program);
-        let this = moor_var::v_obj(moor_var::SYSTEM_OBJECT);
-        let context = moor_vm::FrameExecutionContext::new(
-            TaskPermissions::new(moor_var::SYSTEM_OBJECT, BitEnum::default()),
-            moor_var::SYSTEM_OBJECT,
-            &this,
-            moor_var::Symbol::mk("test"),
-            moor_var::SYSTEM_OBJECT,
-        );
-        let mut ticks = 0;
-        assert!(matches!(
-            moor_vm::moo_frame_execute(
-                &mut crate::vm::kernel_host::KernelHost,
+        let literal =
+            KernelCatchType::Errors(vec![moor_var::E_DIV.into(), moor_var::E_PERM.into()]);
+        // Each guard's scope is entered by the instruction at the given tick.
+        for (source, ticks_to_scope, kind, expected_catch) in [
+            (
+                "return `1 ! E_DIV, E_PERM => 0';",
                 6,
-                &mut ticks,
-                &context,
-                &mut frame,
-                &Default::default(),
+                moor_vm::ScopeKind::LiteralCatch,
+                literal,
             ),
-            moor_vm::ExecutionResult::More
-        ));
-        assert_eq!(frame.scope_stack[0].kind, moor_vm::ScopeKind::LiteralCatch);
-        frame.push_catch(catch, handler);
+            (
+                "return `1 ! ANY => 0';",
+                3,
+                moor_vm::ScopeKind::AnyCatch,
+                KernelCatchType::Any,
+            ),
+        ] {
+            let program = compile(source, CompileOptions::default()).unwrap();
+            let handler = program
+                .main_vector()
+                .iter()
+                .find_map(|op| match op {
+                    moor_compiler::Op::PushCatchLabel(label) => Some(*label),
+                    _ => None,
+                })
+                .unwrap();
+            let pending = match program.0.literal_catches.at(None, 0) {
+                Some((_, arm)) => arm.handler.0.clone(),
+                None => KernelCatchType::Any,
+            };
+            let mut frame = KernelMooStackFrame::new(program);
+            let this = moor_var::v_obj(moor_var::SYSTEM_OBJECT);
+            let context = moor_vm::FrameExecutionContext::new(
+                TaskPermissions::new(moor_var::SYSTEM_OBJECT, BitEnum::default()),
+                moor_var::SYSTEM_OBJECT,
+                &this,
+                moor_var::Symbol::mk("test"),
+                moor_var::SYSTEM_OBJECT,
+            );
+            let mut ticks = 0;
+            assert!(matches!(
+                moor_vm::moo_frame_execute(
+                    &mut crate::vm::kernel_host::KernelHost,
+                    ticks_to_scope,
+                    &mut ticks,
+                    &context,
+                    &mut frame,
+                    &Default::default(),
+                ),
+                moor_vm::ExecutionResult::More
+            ));
+            assert_eq!(frame.scope_stack[0].kind, kind);
+            frame.push_catch(pending, handler);
 
-        let stored = moo_stack_frame_to_flatbuffer(&frame).unwrap();
-        let mut builder = planus::Builder::new();
-        let offset = stored.prepare(&mut builder);
-        let bytes = builder.finish(offset, None);
-        let restored =
-            moo_stack_frame_from_ref(fb::MooStackFrameRef::read_as_root(bytes).unwrap()).unwrap();
-        let expected = [(
-            KernelCatchType::Errors(vec![moor_var::E_DIV.into(), moor_var::E_PERM.into()]),
-            handler,
-        )];
-        assert_eq!(restored.catch_stack(), expected);
-        assert_eq!(
-            restored.scope_type(&restored.scope_stack[0]),
-            KernelScopeType::TryCatch(expected.into_iter().collect())
-        );
+            let stored = moo_stack_frame_to_flatbuffer(&frame).unwrap();
+            let mut builder = planus::Builder::new();
+            let offset = stored.prepare(&mut builder);
+            let bytes = builder.finish(offset, None);
+            let restored =
+                moo_stack_frame_from_ref(fb::MooStackFrameRef::read_as_root(bytes).unwrap())
+                    .unwrap();
+            let expected = [(expected_catch, handler)];
+            assert_eq!(restored.catch_stack(), expected);
+            assert_eq!(
+                restored.scope_type(&restored.scope_stack[0]),
+                KernelScopeType::TryCatch(expected.into_iter().collect())
+            );
+        }
     }
 
     fn grant_samples() -> Vec<CapabilityGrant> {
