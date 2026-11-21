@@ -14,7 +14,9 @@
 use crate::{
     VmHost,
     config::FeaturesConfig,
-    moo_frame::{CatchType, ForRangeScope, MooStackFrame, PcType, ScopeKind, ScopeType},
+    moo_frame::{
+        CatchType, ForRangeScope, MooStackFrame, PcType, ScopeKind, ScopeType, catch_list_errors,
+    },
     scatter_assign::scatter_assign,
     vm_unwind::FinallyReason,
 };
@@ -34,7 +36,7 @@ use moor_var::{
     Obj, SYSTEM_OBJECT, Sequence, Symbol, TypeClass, Var, VarType, Variant,
     program::names::{GlobalName, Name},
     v_arc_str, v_bool, v_bool_int, v_empty_list, v_empty_map, v_empty_str, v_err, v_error, v_float,
-    v_flyweight, v_int, v_list, v_map, v_none, v_obj, v_sym,
+    v_flyweight, v_int, v_list_iter, v_map, v_none, v_obj, v_sym,
 };
 use std::{sync::LazyLock, time::Duration};
 
@@ -1397,8 +1399,8 @@ pub fn moo_frame_execute<H: VmHost>(
                 f.push(v_error(code.msg(err_msg)));
             }
             Op::MakeSingletonList => {
-                let v = f.peek_top();
-                f.poke(0, v_list(std::slice::from_ref(v)));
+                let v = f.pop();
+                f.push(v_list_iter([v]));
             }
             Op::MakeMap => {
                 f.push(v_empty_map());
@@ -1897,14 +1899,20 @@ pub fn moo_frame_execute<H: VmHost>(
 
                 // The scope above us has to be a TryCatch, and we need to push into that scope
                 // the code list that we're going to execute.
-                if let Some(error_codes) = error_codes.as_list() {
-                    let error_codes = error_codes.iter().map(|v| {
-                        let Some(e) = v.as_error() else {
-                            panic!("Error codes list contains non-error code");
-                        };
-                        e.clone()
-                    });
-                    f.push_catch(CatchType::Errors(error_codes.into_iter().collect()), label);
+                if error_codes.as_list().is_some() {
+                    // A single-arm guard keeps the list as it is. At a slice boundary leave the
+                    // pending handler visible to suspension.
+                    if *tick_count < tick_slice_end
+                        && let Some((end_label, width)) =
+                            single_arm_guard(opcodes.get(usize::from(f.pc)))
+                    {
+                        *tick_count += 1;
+                        f.pc += 1;
+                        f.push_list_catch(error_codes, label, end_label, width);
+                        continue;
+                    }
+                    let errors = catch_list_errors(&error_codes).cloned().collect();
+                    f.push_catch(CatchType::Errors(errors), label);
                 } else if error_codes.as_integer() == Some(0) {
                     // A single-arm guard for any error needs only its handler label. At a
                     // slice boundary leave the pending handler visible to suspension.
@@ -1950,7 +1958,10 @@ pub fn moo_frame_execute<H: VmHost>(
                 let handler = f
                     .discard_scope()
                     .expect("Missing handler for try/catch/except");
-                let (ScopeKind::TryCatch | ScopeKind::LiteralCatch | ScopeKind::AnyCatch) = handler
+                let (ScopeKind::TryCatch
+                | ScopeKind::LiteralCatch
+                | ScopeKind::AnyCatch
+                | ScopeKind::ListCatch) = handler
                 else {
                     panic!("Handler is not a catch handler",);
                 };
@@ -1963,7 +1974,10 @@ pub fn moo_frame_execute<H: VmHost>(
                 let handler = f
                     .discard_scope()
                     .expect("Missing handler for try/catch/except");
-                let (ScopeKind::TryCatch | ScopeKind::LiteralCatch | ScopeKind::AnyCatch) = handler
+                let (ScopeKind::TryCatch
+                | ScopeKind::LiteralCatch
+                | ScopeKind::AnyCatch
+                | ScopeKind::ListCatch) = handler
                 else {
                     panic!("Handler is not a catch handler",);
                 };

@@ -29,6 +29,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- A guard whose error codes include a value that is not an error, such as `` `x ! c' `` with `c` set
+  to a number, no longer panics the task. As in LambdaMOO, such a value matches no error.
 - A `try` statement no longer loses its earlier `except` arms when a later arm's error codes contain
   a catch expression, such as ``except (`x ! E_RANGE => E_TYPE')``. Before, errors meant for the
   earlier arms were not caught.

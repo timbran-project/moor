@@ -2755,6 +2755,12 @@ mod tests {
                 moor_vm::ScopeKind::AnyCatch,
                 KernelCatchType::Any,
             ),
+            (
+                "c = E_DIV; return `1 ! c => 0';",
+                6,
+                moor_vm::ScopeKind::ListCatch,
+                KernelCatchType::Errors(vec![moor_var::E_DIV.into()]),
+            ),
         ] {
             let program = compile(source, CompileOptions::default()).unwrap();
             let handler = program
@@ -2765,9 +2771,10 @@ mod tests {
                     _ => None,
                 })
                 .unwrap();
-            let pending = match program.0.literal_catches.at(None, 0) {
-                Some((_, arm)) => arm.handler.0.clone(),
-                None => KernelCatchType::Any,
+            // A second handler, still pending when the frame is stored.
+            let (pending, expected_pending) = match program.0.literal_catches.at(None, 0) {
+                Some((_, arm)) => (arm.handler.0.clone(), expected_catch.clone()),
+                None => (KernelCatchType::Any, KernelCatchType::Any),
             };
             let mut frame = KernelMooStackFrame::new(program);
             let this = moor_var::v_obj(moor_var::SYSTEM_OBJECT);
@@ -2800,11 +2807,10 @@ mod tests {
             let restored =
                 moo_stack_frame_from_ref(fb::MooStackFrameRef::read_as_root(bytes).unwrap())
                     .unwrap();
-            let expected = [(expected_catch, handler)];
-            assert_eq!(restored.catch_stack(), expected);
+            assert_eq!(restored.catch_stack(), [(expected_pending, handler)]);
             assert_eq!(
                 restored.scope_type(&restored.scope_stack[0]),
-                KernelScopeType::TryCatch(expected.into_iter().collect())
+                KernelScopeType::TryCatch(std::iter::once((expected_catch, handler)).collect())
             );
         }
     }

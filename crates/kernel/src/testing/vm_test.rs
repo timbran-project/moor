@@ -83,9 +83,11 @@ mod tests {
         );
         let features = FeaturesConfig::default();
         // `scope_tick` is the tick of the instruction that opens the guard, after its setup.
-        for (source, scope_tick, total_ticks) in [
-            ("return `123 ! E_DIV, E_PERM => 0';", 6, 9),
-            ("return `123 ! ANY => 0';", 3, 6),
+        // `payloads` is how many scope payloads the open guard holds.
+        for (source, scope_tick, total_ticks, payloads) in [
+            ("return `123 ! E_DIV, E_PERM => 0';", 6, 9, 0),
+            ("return `123 ! ANY => 0';", 3, 6, 0),
+            ("c = E_DIV; return `123 ! c => 0';", 6, 9, 1),
         ] {
             let program = moor_compiler::compile(source, Default::default()).unwrap();
             for slice in 1..=scope_tick {
@@ -105,7 +107,7 @@ mod tests {
                 assert_eq!((ticks, usize::from(frame.pc)), (slice, slice));
                 if slice == scope_tick {
                     assert!(frame.scratch.is_none());
-                    assert!(frame.scope_payloads.is_empty());
+                    assert_eq!(frame.scope_payloads.len(), payloads);
                 }
                 assert!(matches!(
                     moo_frame_execute(&mut KernelHost, 20, &mut ticks, &context, &mut frame, &features),
