@@ -11,29 +11,707 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! MOO lists.
+//!
+//! A list is an immutable value: every edit yields a new list and leaves the original as it was.
+//! Most MOO lists are short and are built once, so a list of up to [`FLAT_MAX`] items is a single
+//! reference-counted block holding the items. A longer list is a persistent tree of such blocks,
+//! in which an edited list shares every block it did not touch with the list it came from.
+//!
+//! A `List` is one pointer wide. `Var` stores it in its data word.
+
 use crate::{
     Error, Sequence, Var,
     error::ErrorCode::{E_RANGE, E_TYPE},
-    v_list_iter,
+    v_list_iter, v_none,
     variant::OP_HINT_LIST_APPEND,
 };
 use std::{
+    alloc::{self, Layout},
     cmp::{max, min},
     fmt::{Debug, Formatter},
     hash::Hash,
+    mem::ManuallyDrop,
     ops::Index,
+    ptr::{self, NonNull},
+    sync::atomic::{self, AtomicUsize, Ordering},
 };
+use triomphe::Arc;
 
-/// List type wrapping imbl::Vector.
-/// We use Box rather than Arc because imbl::Vector already does its own
-/// structural sharing internally - Arc would be redundant reference counting.
-#[derive(Clone)]
+/// The most items a list holds in one block. A longer list is a tree.
+///
+/// The database compares up to this many items of an appended list against its base without the
+/// help of shared storage; see `append_suffix`.
+const FLAT_MAX: usize = 64;
+
+/// Each tree node has up to `1 << LEAF_BITS` children, and each leaf that many items.
+const LEAF_BITS: u32 = 5;
+const LEAF_WIDTH: usize = 1 << LEAF_BITS;
+const LEAF_MASK: usize = LEAF_WIDTH - 1;
+
+/// The least capacity a block grows to when an item is added to it.
+const MIN_GROWN_CAPACITY: usize = 4;
+
+#[repr(C)]
+struct BlockHeader {
+    refs: AtomicUsize,
+    len: u32,
+    capacity: u32,
+}
+
+// The items follow the header directly.
+const _: () = assert!(size_of::<BlockHeader>().is_multiple_of(align_of::<Var>()));
+const _: () = assert!(align_of::<BlockHeader>() >= align_of::<Var>());
+
+/// A reference-counted buffer of items: a header followed by room for `capacity` items, the first
+/// `len` of which are initialized.
+///
+/// Cloning shares the buffer. Every method that changes the items first makes the handle the only
+/// one to its buffer, copying the items if it was shared.
 #[repr(transparent)]
-pub struct List(Box<imbl::Vector<Var>>);
+struct Block(NonNull<BlockHeader>);
 
-const SMALL_APPEND_MAX_ELEMENTS: usize = 64;
+// SAFETY: a block owns `Var`s, which are `Send + Sync`, and its count is atomic.
+unsafe impl Send for Block {}
+unsafe impl Sync for Block {}
 
-/// Reason that a candidate list update cannot use append-only persistence.
+impl Block {
+    fn layout(capacity: usize) -> Layout {
+        let items = Layout::array::<Var>(capacity).expect("list block too large");
+        let (layout, offset) = Layout::new::<BlockHeader>()
+            .extend(items)
+            .expect("list block too large");
+        debug_assert_eq!(offset, size_of::<BlockHeader>());
+        layout.pad_to_align()
+    }
+
+    fn with_capacity(capacity: usize) -> Self {
+        let layout = Self::layout(capacity);
+        let header = BlockHeader {
+            refs: AtomicUsize::new(1),
+            len: 0,
+            capacity: u32::try_from(capacity).expect("list block too large"),
+        };
+        // SAFETY: the layout has the size of the header at least, so it is not zero-sized.
+        let ptr = unsafe { alloc::alloc(layout) }.cast::<BlockHeader>();
+        let Some(ptr) = NonNull::new(ptr) else {
+            alloc::handle_alloc_error(layout)
+        };
+        // SAFETY: `ptr` is valid for a header and suitably aligned.
+        unsafe { ptr.as_ptr().write(header) };
+        Self(ptr)
+    }
+
+    fn from_slice(values: &[Var]) -> Self {
+        let mut block = Self::with_capacity(values.len());
+        for value in values {
+            // SAFETY: the block is new, so unshared, and has room for every value.
+            unsafe { block.push_unchecked(value.clone()) };
+        }
+        block
+    }
+
+    #[inline]
+    fn header(&self) -> &BlockHeader {
+        // SAFETY: the pointer is to a live header for as long as this handle exists.
+        unsafe { self.0.as_ref() }
+    }
+
+    #[inline]
+    fn len(&self) -> usize {
+        self.header().len as usize
+    }
+
+    #[inline]
+    fn capacity(&self) -> usize {
+        self.header().capacity as usize
+    }
+
+    #[inline]
+    fn items(&self) -> *mut Var {
+        // SAFETY: the allocation extends at least to the end of the header.
+        unsafe { self.0.as_ptr().add(1).cast::<Var>() }
+    }
+
+    #[inline]
+    fn as_slice(&self) -> &[Var] {
+        // SAFETY: the first `len` items are initialized, and nothing writes to a shared block.
+        unsafe { std::slice::from_raw_parts(self.items(), self.len()) }
+    }
+
+    #[inline]
+    fn is_unique(&self) -> bool {
+        self.header().refs.load(Ordering::Acquire) == 1
+    }
+
+    /// Set the length.
+    ///
+    /// # Safety
+    /// The block must be unshared, and exactly the first `len` items initialized.
+    #[inline]
+    unsafe fn set_len(&mut self, len: usize) {
+        // SAFETY: the caller holds the only handle, so nothing else reads the header.
+        unsafe { (*self.0.as_ptr()).len = len as u32 };
+    }
+
+    /// Add an item at the end.
+    ///
+    /// # Safety
+    /// The block must be unshared and have spare capacity.
+    #[inline]
+    unsafe fn push_unchecked(&mut self, value: Var) {
+        let len = self.len();
+        debug_assert!(len < self.capacity());
+        // SAFETY: by the caller's contract slot `len` is in bounds, unused, and ours alone.
+        unsafe {
+            self.items().add(len).write(value);
+            self.set_len(len + 1);
+        }
+    }
+
+    /// Make this the only handle to its buffer, with room for at least `capacity` items.
+    fn make_unique(&mut self, capacity: usize) {
+        let len = self.len();
+        let capacity = capacity.max(len);
+        if !self.is_unique() {
+            let mut copy = Self::with_capacity(capacity);
+            for value in self.as_slice() {
+                // SAFETY: `copy` is new, so unshared, and has room for every item.
+                unsafe { copy.push_unchecked(value.clone()) };
+            }
+            *self = copy;
+            return;
+        }
+        if self.capacity() >= capacity {
+            return;
+        }
+        let old_layout = Self::layout(self.capacity());
+        let new_layout = Self::layout(capacity);
+        // SAFETY: the buffer was allocated with `old_layout`, and we hold the only handle to it.
+        // Moving it moves the header and the initialized items with it.
+        let ptr = unsafe { alloc::realloc(self.0.as_ptr().cast(), old_layout, new_layout.size()) }
+            .cast::<BlockHeader>();
+        let Some(ptr) = NonNull::new(ptr) else {
+            alloc::handle_alloc_error(new_layout)
+        };
+        self.0 = ptr;
+        // SAFETY: the header is live and ours alone.
+        unsafe { (*self.0.as_ptr()).capacity = capacity as u32 };
+    }
+
+    /// The items, for writing. Copies them first if the buffer is shared.
+    fn as_mut_slice(&mut self) -> &mut [Var] {
+        self.make_unique(0);
+        // SAFETY: the block is now unshared and its first `len` items are initialized.
+        unsafe { std::slice::from_raw_parts_mut(self.items(), self.len()) }
+    }
+
+    /// Make room to add one item to an unshared buffer, growing by doubling up to `limit` items.
+    fn reserve_one(&mut self, limit: usize) {
+        let len = self.len();
+        debug_assert!(len < limit);
+        if len < self.capacity() && self.is_unique() {
+            return;
+        }
+        let grown = (len * 2).clamp(MIN_GROWN_CAPACITY, limit).max(len + 1);
+        self.make_unique(grown.max(self.capacity()));
+    }
+
+    /// Add an item at the end. The block never grows past `limit` items.
+    fn push(&mut self, value: Var, limit: usize) {
+        self.reserve_one(limit);
+        // SAFETY: `reserve_one` left the block unshared with spare capacity.
+        unsafe { self.push_unchecked(value) };
+    }
+
+    /// Add copies of `values` at the end. The block must not grow past `limit` items.
+    fn extend_from_slice(&mut self, values: &[Var], limit: usize) {
+        let len = self.len() + values.len();
+        assert!(len <= limit);
+        // Keep a tail's full capacity, so that later pushes do not grow it again.
+        self.make_unique(len.max(self.capacity()));
+        // SAFETY: the block is unshared and was just given room for every value. The length is
+        // set once the copies are in place; if a clone panics, the copies made so far leak.
+        unsafe {
+            let mut slot = self.items().add(self.len());
+            for value in values {
+                slot.write(value.clone());
+                slot = slot.add(1);
+            }
+            self.set_len(len);
+        }
+    }
+
+    /// Drop the items from index `len` on. A shared block is replaced by one with room for
+    /// `capacity` items.
+    fn truncate(&mut self, len: usize, capacity: usize) {
+        let old_len = self.len();
+        assert!(len <= old_len);
+        if !self.is_unique() {
+            let mut kept = Self::with_capacity(capacity.max(len));
+            for value in &self.as_slice()[..len] {
+                // SAFETY: `kept` is new, so unshared, and has room for `len` items.
+                unsafe { kept.push_unchecked(value.clone()) };
+            }
+            *self = kept;
+            return;
+        }
+        // SAFETY: the block is unshared. The length drops first, so the items being dropped are
+        // already outside it.
+        unsafe {
+            self.set_len(len);
+            ptr::drop_in_place(ptr::slice_from_raw_parts_mut(
+                self.items().add(len),
+                old_len - len,
+            ));
+        }
+    }
+
+    /// Insert an item before `index`. The block never grows past `limit` items.
+    fn insert(&mut self, index: usize, value: Var, limit: usize) {
+        let len = self.len();
+        assert!(index <= len);
+        self.reserve_one(limit);
+        // SAFETY: the block is unshared with room for `len + 1` items. The items from `index` on
+        // move up one slot, which leaves slot `index` free to write.
+        unsafe {
+            let slot = self.items().add(index);
+            ptr::copy(slot, slot.add(1), len - index);
+            slot.write(value);
+            self.set_len(len + 1);
+        }
+    }
+
+    /// Remove and return the item at `index`.
+    fn remove(&mut self, index: usize) -> Var {
+        let len = self.len();
+        assert!(index < len);
+        self.make_unique(0);
+        // SAFETY: the block is unshared. The item is read out and the ones after it move down
+        // over its slot, so exactly the first `len - 1` slots stay initialized.
+        unsafe {
+            let slot = self.items().add(index);
+            let value = slot.read();
+            ptr::copy(slot.add(1), slot, len - index - 1);
+            self.set_len(len - 1);
+            value
+        }
+    }
+}
+
+impl Clone for Block {
+    #[inline]
+    fn clone(&self) -> Self {
+        let refs = self.header().refs.fetch_add(1, Ordering::Relaxed);
+        // As in `Arc`: a count this large can only come from leaking handles.
+        if refs > isize::MAX as usize {
+            std::process::abort();
+        }
+        Self(self.0)
+    }
+}
+
+impl Drop for Block {
+    #[inline]
+    fn drop(&mut self) {
+        // The only handle can skip the decrement: no other handle exists to copy from, so the
+        // count cannot rise again.
+        if !self.is_unique() {
+            if self.header().refs.fetch_sub(1, Ordering::Release) != 1 {
+                return;
+            }
+            atomic::fence(Ordering::Acquire);
+        }
+        let layout = Self::layout(self.capacity());
+        // SAFETY: this was the last handle. The first `len` items are initialized, and the
+        // buffer was allocated with this layout.
+        unsafe {
+            ptr::drop_in_place(ptr::slice_from_raw_parts_mut(self.items(), self.len()));
+            alloc::dealloc(self.0.as_ptr().cast(), layout);
+        }
+    }
+}
+
+#[derive(Clone)]
+enum Node {
+    Branch(Arc<Branch>),
+    /// A full block of `LEAF_WIDTH` items.
+    Leaf(Block),
+    /// Slots before the start of the list, whose items have been released.
+    Dropped,
+}
+
+#[derive(Clone)]
+struct Branch {
+    children: Vec<Node>,
+}
+
+impl Branch {
+    fn new() -> Arc<Self> {
+        Arc::new(Self {
+            children: Vec::with_capacity(LEAF_WIDTH),
+        })
+    }
+}
+
+/// A persistent vector for lists longer than `FLAT_MAX`.
+///
+/// Items sit in numbered slots. The slots up to `end` are filled, and the list is those from
+/// `start` on, so dropping items from the front moves `start` and releases what the dropped slots
+/// held. The last slots, at most
+/// `LEAF_WIDTH` of them, are in `tail`. The slots before them are in full leaves under `root`,
+/// found by taking `LEAF_BITS` of the slot number at each level, starting at `shift`. The children
+/// of a branch at level `LEAF_BITS` are leaves, and those of a higher branch are branches.
+///
+/// Two trees can share a leaf only where it covers the same slots modulo `LEAF_WIDTH` in both, so
+/// a tree built from part of another starts at a slot chosen to line the two up.
+#[derive(Clone)]
+struct Tree {
+    start: usize,
+    end: usize,
+    shift: u32,
+    root: Arc<Branch>,
+    tail: Block,
+}
+
+/// A run of consecutive items held in one block.
+struct Chunk<'a> {
+    /// The list index of the first item.
+    start: usize,
+    items: &'a [Var],
+    /// The block, if it is a full tree leaf and `items` is all of it.
+    leaf: Option<&'a Block>,
+}
+
+/// A tree is rebuilt without its dropped slots once it has this many, if they outnumber its items.
+const COMPACT_MIN_DROPPED: usize = 8 * LEAF_WIDTH;
+
+impl Tree {
+    fn new() -> Self {
+        Self::with_padding(0)
+    }
+
+    /// An empty tree whose first item will go in slot `padding`.
+    fn with_padding(padding: usize) -> Self {
+        assert!(padding < LEAF_WIDTH);
+        let mut tail = Block::with_capacity(LEAF_WIDTH);
+        for _ in 0..padding {
+            // SAFETY: the block is new, so unshared, and `padding` is less than its capacity.
+            unsafe { tail.push_unchecked(v_none()) };
+        }
+        Self {
+            start: padding,
+            end: padding,
+            shift: LEAF_BITS,
+            root: Branch::new(),
+            tail,
+        }
+    }
+
+    #[inline]
+    fn len(&self) -> usize {
+        self.end - self.start
+    }
+
+    /// The first slot of the tail.
+    #[inline]
+    fn tail_start(&self) -> usize {
+        self.end - self.tail.len()
+    }
+
+    /// The leaf holding `slot`, which must come before the tail.
+    fn leaf_at(&self, slot: usize) -> &Block {
+        let mut branch = &*self.root;
+        let mut level = self.shift;
+        loop {
+            match &branch.children[(slot >> level) & LEAF_MASK] {
+                Node::Leaf(leaf) => return leaf,
+                Node::Branch(child) => {
+                    branch = child;
+                    level -= LEAF_BITS;
+                }
+                Node::Dropped => unreachable!("slot before the start of the list"),
+            }
+        }
+    }
+
+    /// The items from `index` back to the start of their block, or of the list, and on to the
+    /// block's end.
+    fn chunk_at(&self, index: usize) -> Chunk<'_> {
+        let slot = self.start + index;
+        let tail_start = self.tail_start();
+        let (first_slot, block, leaf) = if slot >= tail_start {
+            (tail_start, &self.tail, None)
+        } else {
+            let leaf = self.leaf_at(slot);
+            (slot & !LEAF_MASK, leaf, Some(leaf))
+        };
+        let dropped = self.start.saturating_sub(first_slot);
+        Chunk {
+            start: first_slot + dropped - self.start,
+            items: &block.as_slice()[dropped..],
+            leaf: leaf.filter(|_| dropped == 0),
+        }
+    }
+
+    #[inline]
+    fn get(&self, index: usize) -> &Var {
+        let chunk = self.chunk_at(index);
+        &chunk.items[index - chunk.start]
+    }
+
+    fn set(&mut self, index: usize, value: Var) {
+        let slot = self.start + index;
+        let tail_start = self.tail_start();
+        if slot >= tail_start {
+            self.tail.as_mut_slice()[slot - tail_start] = value;
+            return;
+        }
+        let mut branch = Arc::make_mut(&mut self.root);
+        let mut level = self.shift;
+        loop {
+            match &mut branch.children[(slot >> level) & LEAF_MASK] {
+                Node::Leaf(leaf) => {
+                    leaf.as_mut_slice()[slot & LEAF_MASK] = value;
+                    return;
+                }
+                Node::Branch(child) => {
+                    branch = Arc::make_mut(child);
+                    level -= LEAF_BITS;
+                }
+                Node::Dropped => unreachable!("slot before the start of the list"),
+            }
+        }
+    }
+
+    /// Move a full tail into the tree and start an empty one.
+    fn rotate_full_tail(&mut self) {
+        if self.tail.len() == LEAF_WIDTH {
+            let full = std::mem::replace(&mut self.tail, Block::with_capacity(LEAF_WIDTH));
+            self.push_leaf(full);
+        }
+    }
+
+    fn push(&mut self, value: Var) {
+        self.rotate_full_tail();
+        self.tail.push(value, LEAF_WIDTH);
+        self.end += 1;
+    }
+
+    /// Add copies of `values` at the end, a block at a time.
+    fn extend_from_slice(&mut self, mut values: &[Var]) {
+        while !values.is_empty() {
+            self.rotate_full_tail();
+            let room = LEAF_WIDTH - self.tail.len();
+            let (now, later) = values.split_at(room.min(values.len()));
+            self.tail.extend_from_slice(now, LEAF_WIDTH);
+            self.end += now.len();
+            values = later;
+        }
+    }
+
+    /// Add the items from index `from` up to `to` of a list, read through `chunk_at`, at the end.
+    ///
+    /// A full leaf of the list is shared, not copied, when it lands on a leaf boundary here.
+    fn extend_from<'a>(&mut self, chunk_at: impl Fn(usize) -> Chunk<'a>, from: usize, to: usize) {
+        let mut index = from;
+        while index < to {
+            let chunk = chunk_at(index);
+            let end = to.min(chunk.start + chunk.items.len());
+            assert!(index < end, "list range out of bounds");
+            self.rotate_full_tail();
+            if let Some(leaf) = chunk.leaf
+                && self.tail.len() == 0
+                && index == chunk.start
+                && end == chunk.start + LEAF_WIDTH
+            {
+                self.end += LEAF_WIDTH;
+                self.push_leaf(leaf.clone());
+            } else {
+                self.extend_from_slice(&chunk.items[index - chunk.start..end - chunk.start]);
+            }
+            index = end;
+        }
+    }
+
+    /// Add a full leaf to the tree as its last. The tail must be empty, and `end` must already
+    /// count the leaf's items.
+    fn push_leaf(&mut self, leaf: Block) {
+        debug_assert_eq!(leaf.len(), LEAF_WIDTH);
+        debug_assert_eq!(self.tail.len(), 0);
+        let leaf_start = self.end - LEAF_WIDTH;
+        // A root at level `shift` holds `LEAF_WIDTH << shift` slots. When it is full, it becomes
+        // the first child of a new root one level up.
+        if leaf_start == LEAF_WIDTH << self.shift {
+            let full_root = std::mem::replace(&mut self.root, Branch::new());
+            Arc::get_mut(&mut self.root)
+                .expect("new root is unshared")
+                .children
+                .push(Node::Branch(full_root));
+            self.shift += LEAF_BITS;
+        }
+        Self::insert_leaf(&mut self.root, self.shift, leaf_start, leaf);
+    }
+
+    fn insert_leaf(branch: &mut Arc<Branch>, level: u32, leaf_start: usize, leaf: Block) {
+        let branch = Arc::make_mut(branch);
+        if level == LEAF_BITS {
+            branch.children.push(Node::Leaf(leaf));
+            return;
+        }
+        let slot = (leaf_start >> level) & LEAF_MASK;
+        if slot == branch.children.len() {
+            branch.children.push(Node::Branch(Branch::new()));
+        }
+        let Node::Branch(child) = &mut branch.children[slot] else {
+            unreachable!("a branch above the lowest level holds branches");
+        };
+        Self::insert_leaf(child, level - LEAF_BITS, leaf_start, leaf);
+    }
+
+    /// Take the last leaf out of the tree, removing any branch that leaves empty.
+    fn remove_last_leaf(branch: &mut Arc<Branch>, level: u32) -> Block {
+        let branch = Arc::make_mut(branch);
+        if level == LEAF_BITS {
+            let Some(Node::Leaf(leaf)) = branch.children.pop() else {
+                unreachable!("the lowest branches hold leaves, and a leaf is there to take");
+            };
+            return leaf;
+        }
+        let Some(Node::Branch(child)) = branch.children.last_mut() else {
+            unreachable!("a branch above the lowest level holds branches");
+        };
+        let leaf = Self::remove_last_leaf(child, level - LEAF_BITS);
+        if child.children.is_empty() {
+            branch.children.pop();
+        }
+        leaf
+    }
+
+    /// Drop items from the end until `len` are left.
+    fn truncate(&mut self, len: usize) {
+        let end = self.start + len;
+        while self.end > end {
+            if self.tail.len() == 0 {
+                self.tail = Self::remove_last_leaf(&mut self.root, self.shift);
+            }
+            let cut = (self.end - end).min(self.tail.len());
+            self.tail.truncate(self.tail.len() - cut, LEAF_WIDTH);
+            self.end -= cut;
+        }
+    }
+
+    /// Drop `count` items from the front.
+    fn drop_front(&mut self, count: usize) {
+        assert!(count <= self.len());
+        let (from, to) = (self.start, self.start + count);
+        self.start = to;
+        // Slot numbers only grow. Once the dropped slots are the larger part of the tree, start
+        // again from a low slot. The new tree lines up with this one, so it shares the leaves.
+        if self.start >= COMPACT_MIN_DROPPED && self.start > self.len() {
+            let mut compact = Self::with_padding(self.start & LEAF_MASK);
+            compact.extend_from(|index| self.chunk_at(index), 0, self.len());
+            *self = compact;
+            return;
+        }
+        if count == 1 {
+            self.release_one(from);
+        } else {
+            self.release(from, to);
+        }
+    }
+
+    /// `release` for the single slot `slot`, as when a queue gives up its first item.
+    fn release_one(&mut self, slot: usize) {
+        let tail_start = self.tail_start();
+        if slot >= tail_start {
+            self.tail.as_mut_slice()[slot - tail_start] = v_none();
+            return;
+        }
+        let mut branch = Arc::make_mut(&mut self.root);
+        let mut level = self.shift;
+        while level > LEAF_BITS {
+            let Node::Branch(child) = &mut branch.children[(slot >> level) & LEAF_MASK] else {
+                unreachable!("a branch above the lowest level that holds a kept slot");
+            };
+            branch = Arc::make_mut(child);
+            level -= LEAF_BITS;
+        }
+        match &mut branch.children[(slot >> LEAF_BITS) & LEAF_MASK] {
+            Node::Leaf(leaf) if slot & LEAF_MASK != LEAF_MASK => {
+                leaf.as_mut_slice()[slot & LEAF_MASK] = v_none();
+            }
+            // The last slot of its leaf, so the whole leaf is gone.
+            leaf => *leaf = Node::Dropped,
+        }
+    }
+
+    /// Let go of the items in slots `from` up to `to`, which the list no longer includes, so
+    /// that this tree does not keep them alive.
+    fn release(&mut self, from: usize, to: usize) {
+        let tail_start = self.tail_start();
+        if to > tail_start {
+            let first = from.max(tail_start) - tail_start;
+            self.tail.as_mut_slice()[first..to - tail_start].fill(v_none());
+        }
+        let to = to.min(tail_start);
+        if from < to {
+            Self::release_in(&mut self.root, self.shift, 0, from, to);
+        }
+    }
+
+    /// `release` for the part of the range under `branch`, whose first slot is `base`.
+    fn release_in(branch: &mut Arc<Branch>, level: u32, base: usize, from: usize, to: usize) {
+        let branch = Arc::make_mut(branch);
+        let first = (from - base) >> level;
+        for (index, child) in branch.children.iter_mut().enumerate().skip(first) {
+            let child_base = base + (index << level);
+            if child_base >= to {
+                break;
+            }
+            // Everything below `to` is dropped, so a child that ends there or before is all gone.
+            if child_base + (1 << level) <= to {
+                *child = Node::Dropped;
+                continue;
+            }
+            let from = from.max(child_base);
+            match child {
+                Node::Branch(child) => {
+                    Self::release_in(child, level - LEAF_BITS, child_base, from, to);
+                }
+                Node::Leaf(leaf) => {
+                    leaf.as_mut_slice()[from - child_base..to - child_base].fill(v_none());
+                }
+                Node::Dropped => {}
+            }
+        }
+    }
+}
+
+/// A MOO list. See the module documentation.
+///
+/// The pointer is to a `Block` header, or, with `TREE_TAG` set, to the `Tree` of an `Arc<Tree>`.
+#[repr(transparent)]
+pub struct List(NonNull<u8>);
+
+const TREE_TAG: usize = 1;
+const _: () = assert!(align_of::<Tree>() > TREE_TAG && align_of::<BlockHeader>() > TREE_TAG);
+
+// SAFETY: a list owns a `Block` or an `Arc<Tree>`, both of which are `Send + Sync`.
+unsafe impl Send for List {}
+unsafe impl Sync for List {}
+
+enum Repr<'a> {
+    Flat(&'a Block),
+    Tree(&'a Tree),
+}
+
+enum Owned {
+    Flat(Block),
+    Tree(Arc<Tree>),
+}
+
+/// Why a list is not its base with items appended. See [`List::append_suffix`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ListAppendError {
     /// The candidate does not add elements.
@@ -45,31 +723,121 @@ pub enum ListAppendError {
 }
 
 impl List {
+    #[inline]
+    fn from_block(block: Block) -> Self {
+        Self(ManuallyDrop::new(block).0.cast())
+    }
+
+    #[inline]
+    fn from_tree(tree: Arc<Tree>) -> Self {
+        let ptr = Arc::into_raw(tree).cast_mut().cast::<u8>();
+        // SAFETY: the pointer came from an `Arc`, so it is not null, and setting a low bit keeps
+        // it so.
+        Self(unsafe { NonNull::new_unchecked(ptr.map_addr(|addr| addr | TREE_TAG)) })
+    }
+
+    /// A list of the tree's items: the tree itself, or a single block if it has become short.
+    fn from_edited_tree(tree: Arc<Tree>) -> Self {
+        let list = Self::from_tree(tree);
+        if list.len() > FLAT_MAX {
+            return list;
+        }
+        list.iter_ref().cloned().collect()
+    }
+
+    #[inline]
+    fn is_tree(&self) -> bool {
+        self.0.addr().get() & TREE_TAG != 0
+    }
+
+    #[inline]
+    fn tree_ptr(&self) -> *const Tree {
+        self.0
+            .as_ptr()
+            .map_addr(|addr| addr & !TREE_TAG)
+            .cast::<Tree>()
+    }
+
+    #[inline]
+    fn repr(&self) -> Repr<'_> {
+        if self.is_tree() {
+            // SAFETY: a tagged pointer is to the `Tree` of an `Arc` this list keeps alive.
+            Repr::Tree(unsafe { &*self.tree_ptr() })
+        } else {
+            // SAFETY: an untagged list and a `Block` are both a pointer to a block header, and
+            // this list owns a count on that block.
+            Repr::Flat(unsafe { &*(self as *const Self).cast::<Block>() })
+        }
+    }
+
+    #[inline]
+    fn into_owned(self) -> Owned {
+        let this = ManuallyDrop::new(self);
+        if this.is_tree() {
+            // SAFETY: the pointer came from `Arc::into_raw`, and this list's count passes to the
+            // `Arc`.
+            Owned::Tree(unsafe { Arc::from_raw(this.tree_ptr()) })
+        } else {
+            Owned::Flat(Block(this.0.cast()))
+        }
+    }
+
     /// Whether both share the same storage, or are small lists of identical items: never true
     /// for lists that differ. See `Var::is_identical`.
     pub fn is_identical(&self, other: &Self) -> bool {
-        if self.0.ptr_eq(&other.0) {
+        if self.0 == other.0 {
             return true;
         }
-        // A small list is held inline, so no copy shares its storage; its few items decide.
-        self.0.is_inline()
-            && other.0.is_inline()
-            && self.0.len() == other.0.len()
+        // Small lists are cheap to build afresh, so their few items decide.
+        const SMALL: usize = 3;
+        self.len() <= SMALL
+            && self.len() == other.len()
             && self
-                .0
-                .iter()
-                .zip(other.0.iter())
+                .iter_ref()
+                .zip(other.iter_ref())
                 .all(|(a, b)| a.is_identical(b))
     }
 
     #[inline]
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.len() == 0
     }
 
     #[inline]
     pub fn len(&self) -> usize {
-        self.0.len()
+        match self.repr() {
+            Repr::Flat(block) => block.len(),
+            Repr::Tree(tree) => tree.len(),
+        }
+    }
+
+    #[inline]
+    fn get(&self, index: usize) -> &Var {
+        match self.repr() {
+            Repr::Flat(block) => &block.as_slice()[index],
+            Repr::Tree(tree) => tree.get(index),
+        }
+    }
+
+    /// The items from `index` back to the start of their block, or of the list, and on to the
+    /// block's end.
+    fn chunk_at(&self, index: usize) -> Chunk<'_> {
+        match self.repr() {
+            Repr::Flat(block) => Chunk {
+                start: 0,
+                items: block.as_slice(),
+                leaf: None,
+            },
+            Repr::Tree(tree) => tree.chunk_at(index),
+        }
+    }
+
+    /// The slot of the first item, by which a tree built from this list lines up with it.
+    fn first_slot(&self) -> usize {
+        match self.repr() {
+            Repr::Flat(_) => 0,
+            Repr::Tree(tree) => tree.start,
+        }
     }
 
     pub fn build(values: &[Var]) -> Var {
@@ -77,21 +845,33 @@ impl List {
     }
 
     pub fn mk_list(values: &[Var]) -> List {
+        if values.len() <= FLAT_MAX {
+            return Self::from_block(Block::from_slice(values));
+        }
         values.iter().cloned().collect()
     }
 
     pub fn iter(&self) -> impl Iterator<Item = Var> + '_ {
-        self.0.iter().cloned()
+        self.iter_ref().cloned()
     }
 
-    pub fn iter_ref(&self) -> impl ExactSizeIterator<Item = &Var> + '_ {
-        self.0.iter()
+    pub fn iter_ref(&self) -> Iter<'_> {
+        let (current, tree) = match self.repr() {
+            Repr::Flat(block) => (block.as_slice(), None),
+            Repr::Tree(tree) => (&[][..], Some(tree)),
+        };
+        Iter {
+            current: current.iter(),
+            tree,
+            next_chunk: 0,
+            remaining: self.len(),
+        }
     }
 
     /// Return the suffix added to this list after a bounded prefix comparison.
     ///
-    /// Shared RRB-tree chunks need no element comparisons. The comparison budget
-    /// limits work on changed or independently constructed chunks.
+    /// Blocks the two lists share need no element comparisons. The comparison budget limits work
+    /// on changed or independently constructed blocks.
     pub fn append_suffix(
         &self,
         candidate: &Self,
@@ -102,17 +882,15 @@ impl List {
             return Err(ListAppendError::NotLonger);
         }
 
-        let mut prefix_focus = self.0.focus();
-        let mut candidate_focus = candidate.0.focus();
         let mut index = 0;
-
         while index < prefix_len {
-            let (prefix_range, prefix_chunk) = prefix_focus.chunk_at(index);
-            let (candidate_range, candidate_chunk) = candidate_focus.chunk_at(index);
-            let end = prefix_len.min(prefix_range.end).min(candidate_range.end);
-            let prefix_slice = &prefix_chunk[index - prefix_range.start..end - prefix_range.start];
-            let candidate_slice =
-                &candidate_chunk[index - candidate_range.start..end - candidate_range.start];
+            let prefix = self.chunk_at(index);
+            let candidate = candidate.chunk_at(index);
+            let end = prefix_len
+                .min(prefix.start + prefix.items.len())
+                .min(candidate.start + candidate.items.len());
+            let prefix_slice = &prefix.items[index - prefix.start..end - prefix.start];
+            let candidate_slice = &candidate.items[index - candidate.start..end - candidate.start];
 
             let chunks_are_shared = std::ptr::eq(prefix_slice.as_ptr(), candidate_slice.as_ptr());
             if !chunks_are_shared {
@@ -128,27 +906,189 @@ impl List {
             index = end;
         }
 
-        Ok(Self(Box::new(candidate.0.skip(prefix_len))))
+        Ok(candidate.slice(prefix_len, candidate.len()))
     }
 
     #[inline]
     pub fn into_vec(self) -> Vec<Var> {
-        (*self.0).into_iter().collect()
+        self.iter().collect()
+    }
+
+    /// This list with `value` added at the end.
+    fn pushed(self, value: Var) -> Self {
+        match self.into_owned() {
+            Owned::Flat(mut block) if block.len() < FLAT_MAX => {
+                block.push(value, FLAT_MAX);
+                Self::from_block(block)
+            }
+            Owned::Flat(block) => {
+                let mut tree = Tree::new();
+                tree.extend_from_slice(block.as_slice());
+                tree.push(value);
+                Self::from_tree(Arc::new(tree))
+            }
+            Owned::Tree(mut tree) => {
+                Arc::make_mut(&mut tree).push(value);
+                Self::from_tree(tree)
+            }
+        }
+    }
+
+    /// The items before `index`, then `insert`, then the items from `index + skip` on.
+    ///
+    /// A long result is a new tree that shares this list's leaves on the longer side of the edit
+    /// and copies the items on the shorter side.
+    fn spliced(&self, index: usize, skip: usize, insert: Option<Var>) -> Self {
+        let len = self.len();
+        assert!(index + skip <= len, "list index out of bounds");
+        let (before, after) = (index, len - index - skip);
+        let inserted = usize::from(insert.is_some());
+        if before + inserted + after <= FLAT_MAX {
+            let before = self.iter_ref().take(index).cloned();
+            let after = self.iter_ref().skip(index + skip).cloned();
+            return before.chain(insert).chain(after).collect();
+        }
+        // Item `i` of this list is in slot `first_slot + i`. Start the new tree at the slot that
+        // keeps the longer side in slots congruent to its own.
+        let first_slot = if !self.is_tree() {
+            0
+        } else if before >= after {
+            self.first_slot()
+        } else {
+            self.first_slot() + skip + LEAF_WIDTH - inserted
+        };
+        let mut tree = Tree::with_padding(first_slot & LEAF_MASK);
+        tree.extend_from(|index| self.chunk_at(index), 0, index);
+        if let Some(value) = insert {
+            tree.push(value);
+        }
+        tree.extend_from(|index| self.chunk_at(index), index + skip, len);
+        Self::from_tree(Arc::new(tree))
+    }
+
+    /// This list with `value` inserted before `index`.
+    fn inserted(self, index: usize, value: Var) -> Self {
+        let len = self.len();
+        assert!(index <= len, "list index out of bounds");
+        if index == len {
+            return self.pushed(value);
+        }
+        match self.into_owned() {
+            Owned::Flat(mut block) if block.len() < FLAT_MAX => {
+                block.insert(index, value, FLAT_MAX);
+                Self::from_block(block)
+            }
+            Owned::Flat(block) => Self::from_block(block).spliced(index, 0, Some(value)),
+            Owned::Tree(tree) => Self::from_tree(tree).spliced(index, 0, Some(value)),
+        }
+    }
+
+    /// This list without the item at `index`.
+    fn removed(self, index: usize) -> Self {
+        let len = self.len();
+        assert!(index < len, "list index out of bounds");
+        match self.into_owned() {
+            Owned::Flat(mut block) => {
+                block.remove(index);
+                Self::from_block(block)
+            }
+            Owned::Tree(mut tree) if index == 0 => {
+                Arc::make_mut(&mut tree).drop_front(1);
+                Self::from_edited_tree(tree)
+            }
+            Owned::Tree(mut tree) if index == len - 1 => {
+                Arc::make_mut(&mut tree).truncate(len - 1);
+                Self::from_edited_tree(tree)
+            }
+            Owned::Tree(tree) => Self::from_tree(tree).spliced(index, 1, None),
+        }
+    }
+
+    /// This list with the item at `index` replaced.
+    fn replaced(self, index: usize, value: Var) -> Self {
+        match self.into_owned() {
+            Owned::Flat(mut block) => {
+                block.as_mut_slice()[index] = value;
+                Self::from_block(block)
+            }
+            Owned::Tree(mut tree) => {
+                Arc::make_mut(&mut tree).set(index, value);
+                Self::from_tree(tree)
+            }
+        }
+    }
+
+    /// The items from index `from` up to `to`. A long slice of a long list shares its leaves.
+    fn slice(&self, from: usize, to: usize) -> Self {
+        assert!(from <= to && to <= self.len(), "list range out of bounds");
+        let len = to - from;
+        if len <= FLAT_MAX || !self.is_tree() {
+            return self.iter_ref().skip(from).take(len).cloned().collect();
+        }
+        // Cutting the end off a copy of the tree costs a step per leaf cut. Building a tree from
+        // the wanted leaves costs a step per leaf kept. Take the cheaper.
+        if self.len() - to > len {
+            let mut tree = Tree::with_padding((self.first_slot() + from) & LEAF_MASK);
+            tree.extend_from(|index| self.chunk_at(index), from, to);
+            return Self::from_tree(Arc::new(tree));
+        }
+        let Owned::Tree(mut tree) = self.clone().into_owned() else {
+            unreachable!("checked above");
+        };
+        let edit = Arc::make_mut(&mut tree);
+        edit.truncate(to);
+        edit.drop_front(from);
+        Self::from_tree(tree)
+    }
+
+    /// This list followed by the items of `other`.
+    ///
+    /// A long list keeps its own leaves and takes copies of `other`'s items, so that the result
+    /// is recognizably this list with a suffix; see `append_suffix`. A short list is copied onto
+    /// the front of a long `other`, which keeps its leaves.
+    fn appended(self, other: &Self) -> Self {
+        let (len, other_len) = (self.len(), other.len());
+        if other_len == 0 {
+            return self;
+        }
+        if other.is_tree() && !self.is_tree() {
+            // Start at the slot that puts `other`'s items in slots congruent to their own.
+            let first_slot = other.first_slot() + LEAF_WIDTH - (len & LEAF_MASK);
+            let mut tree = Tree::with_padding(first_slot & LEAF_MASK);
+            tree.extend_from(|index| self.chunk_at(index), 0, len);
+            tree.extend_from(|index| other.chunk_at(index), 0, other_len);
+            return Self::from_tree(Arc::new(tree));
+        }
+        match self.into_owned() {
+            Owned::Flat(mut block) if len + other_len <= FLAT_MAX && !other.is_tree() => {
+                block.extend_from_slice(other.chunk_at(0).items, FLAT_MAX);
+                Self::from_block(block)
+            }
+            Owned::Flat(block) => {
+                let mut tree = Tree::new();
+                tree.extend_from_slice(block.as_slice());
+                tree.extend_from(|index| other.chunk_at(index), 0, other_len);
+                Self::from_tree(Arc::new(tree))
+            }
+            Owned::Tree(mut tree) => {
+                Arc::make_mut(&mut tree).extend_from(|index| other.chunk_at(index), 0, other_len);
+                Self::from_tree(tree)
+            }
+        }
     }
 
     #[inline]
-    pub fn push_owned(mut self, value: &Var) -> Var {
-        self.0.push_back(value.clone());
-        Var::from_list_with_hint(self, OP_HINT_LIST_APPEND)
+    pub fn push_owned(self, value: &Var) -> Var {
+        Var::from_list_with_hint(self.pushed(value.clone()), OP_HINT_LIST_APPEND)
     }
 
+    /// Insert `value` before `index`, which must not be past the end.
     #[inline]
-    pub fn insert_owned(mut self, index: usize, value: &Var) -> Var {
-        self.0.insert(index, value.clone());
-        Var::from_list(self)
+    pub fn insert_owned(self, index: usize, value: &Var) -> Var {
+        Var::from_list(self.inserted(index, value.clone()))
     }
 
-    pub fn index_set_owned(mut self, index: usize, value: &Var) -> Result<Var, Error> {
+    pub fn index_set_owned(self, index: usize, value: &Var) -> Result<Var, Error> {
         if index >= self.len() {
             return Err(E_RANGE.with_msg(|| {
                 format!(
@@ -159,25 +1099,20 @@ impl List {
             }));
         }
 
-        self.0[index] = value.clone();
-        Ok(Var::from_list(self))
+        Ok(Var::from_list(self.replaced(index, value.clone())))
     }
 
-    pub fn append_owned(mut self, other: &Var) -> Result<Var, Error> {
+    pub fn append_owned(self, other: &Var) -> Result<Var, Error> {
         let Some(other) = other.as_list() else {
             return Err(E_TYPE.msg("attempt to append non-list"));
         };
-        if other.len() <= SMALL_APPEND_MAX_ELEMENTS {
-            for value in other.iter_ref() {
-                self.0.push_back(value.clone());
-            }
-        } else {
-            self.0.append(other.0.as_ref().clone());
-        }
-        Ok(Var::from_list_with_hint(self, OP_HINT_LIST_APPEND))
+        Ok(Var::from_list_with_hint(
+            self.appended(other),
+            OP_HINT_LIST_APPEND,
+        ))
     }
 
-    pub fn remove_at_owned(mut self, index: usize) -> Result<Var, Error> {
+    pub fn remove_at_owned(self, index: usize) -> Result<Var, Error> {
         if index >= self.len() {
             return Err(E_RANGE.with_msg(|| {
                 format!(
@@ -188,8 +1123,7 @@ impl List {
             }));
         }
 
-        self.0.remove(index);
-        Ok(Var::from_list(self))
+        Ok(Var::from_list(self.removed(index)))
     }
 
     pub fn range_set_owned(self, from: isize, to: isize, with: &Var) -> Result<Var, Error> {
@@ -206,8 +1140,7 @@ impl List {
 
         // 1..0 is a "special" MOO-ism for front insertion.
         if from == 0 && to == -1 {
-            let new_iter = with_val.iter_ref().cloned().chain(self.iter_ref().cloned());
-            return Ok(v_list_iter(new_iter));
+            return Ok(Var::from_list(with_val.clone().appended(&self)));
         }
 
         let from = usize::try_from(from).unwrap_or(0);
@@ -238,13 +1171,9 @@ impl List {
 
     /// Remove the first found instance of `item` from the list.
     pub fn set_remove(&self, item: &Var) -> Result<Var, Error> {
-        let idx = self.0.iter().position(|v| *v == *item);
-        let result = if let Some(idx) = idx {
-            let mut new = (*self.0).clone();
-            new.remove(idx);
-            List(Box::new(new))
-        } else {
-            self.clone()
+        let result = match self.iter_ref().position(|v| *v == *item) {
+            Some(index) => self.clone().removed(index),
+            None => self.clone(),
         };
         Ok(Var::from_list(result))
     }
@@ -255,33 +1184,117 @@ impl List {
         if self.iter_ref().any(|v| v == item) {
             return Ok(Var::from_list(self.clone()));
         }
-        let mut l = (*self.0).clone();
-        l.push_back(item.clone());
-        Ok(Var::from_list(List(Box::new(l))))
+        Ok(Var::from_list(self.clone().pushed(item.clone())))
     }
 
     pub fn pop_front(&self) -> Result<(Var, Var), Error> {
         if self.is_empty() {
             return Err(E_RANGE.msg("attempt to pop from empty list"));
         }
-        let mut l = (*self.0).clone();
-        let first = l.pop_front().unwrap();
-        Ok((first, Var::from_list(List(Box::new(l)))))
+        let first = self.get(0).clone();
+        Ok((first, Var::from_list(self.clone().removed(0))))
     }
 }
 
+impl Clone for List {
+    #[inline]
+    fn clone(&self) -> Self {
+        match self.repr() {
+            Repr::Flat(block) => Self::from_block(block.clone()),
+            Repr::Tree(_) => {
+                // SAFETY: the pointer came from `Arc::into_raw`. The `Arc` is only borrowed here:
+                // `ManuallyDrop` leaves this list's count in place.
+                let tree = ManuallyDrop::new(unsafe { Arc::from_raw(self.tree_ptr()) });
+                Self::from_tree(Arc::clone(&tree))
+            }
+        }
+    }
+}
+
+impl Drop for List {
+    #[inline]
+    fn drop(&mut self) {
+        // SAFETY: `self` is not used again, so its count passes to the owned form and is
+        // released with it.
+        drop(unsafe { ptr::read(self) }.into_owned());
+    }
+}
+
+/// The items of a list, in order.
+#[derive(Clone)]
+pub struct Iter<'a> {
+    /// What is left of the block being read.
+    current: std::slice::Iter<'a, Var>,
+    tree: Option<&'a Tree>,
+    /// The index of the first item after `current`'s block.
+    next_chunk: usize,
+    remaining: usize,
+}
+
+impl<'a> Iter<'a> {
+    /// Start reading the block that holds the item at `index`, from that item.
+    fn seek(&mut self, tree: &'a Tree, index: usize) {
+        let chunk = tree.chunk_at(index);
+        self.current = chunk.items[index - chunk.start..].iter();
+        self.next_chunk = chunk.start + chunk.items.len();
+    }
+}
+
+impl<'a> Iterator for Iter<'a> {
+    type Item = &'a Var;
+
+    #[inline]
+    fn next(&mut self) -> Option<&'a Var> {
+        if let Some(value) = self.current.next() {
+            self.remaining -= 1;
+            return Some(value);
+        }
+        if self.remaining == 0 {
+            return None;
+        }
+        let tree = self.tree?;
+        self.seek(tree, self.next_chunk);
+        self.remaining -= 1;
+        self.current.next()
+    }
+
+    fn nth(&mut self, n: usize) -> Option<&'a Var> {
+        if n >= self.remaining {
+            self.current = [].iter();
+            self.remaining = 0;
+            return None;
+        }
+        if n >= self.current.len()
+            && let Some(tree) = self.tree
+        {
+            self.seek(tree, tree.len() - self.remaining + n);
+            self.remaining -= n + 1;
+            return self.current.next();
+        }
+        self.remaining -= n + 1;
+        self.current.nth(n)
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.remaining, Some(self.remaining))
+    }
+}
+
+impl ExactSizeIterator for Iter<'_> {}
+
 impl Debug for List {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.0)
+        f.debug_list().entries(self.iter_ref()).finish()
     }
 }
 impl Sequence for List {
     fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        List::is_empty(self)
     }
 
     fn len(&self) -> usize {
-        self.0.len()
+        List::len(self)
     }
 
     fn index_in(&self, value: &Var, case_sensitive: bool) -> Result<Option<usize>, Error> {
@@ -310,8 +1323,6 @@ impl Sequence for List {
     }
 
     fn index(&self, index: usize) -> Result<Var, Error> {
-        // For some reason this `if` is _slightly_ faster than just using .get(index).map_err(|_| E_RANGE.into())
-        // Perf counters show fewer branches.
         if index >= self.len() {
             return Err(E_RANGE.with_msg(|| {
                 format!(
@@ -323,7 +1334,7 @@ impl Sequence for List {
                 )
             }));
         }
-        Ok(self.0[index].clone())
+        Ok(self.get(index).clone())
     }
 
     fn index_set(&self, index: usize, value: &Var) -> Result<Var, Error> {
@@ -352,9 +1363,9 @@ impl Sequence for List {
                 )
             }));
         }
-        let (from, to) = (max(from, 0) as usize, to as usize);
-        let range_iter = self.iter_ref().skip(from).take(to - from + 1).cloned();
-        Ok(Var::mk_list_iter(range_iter))
+        let end = min(to as usize + 1, self.len());
+        let from = min(max(from, 0) as usize, end);
+        Ok(Var::from_list(self.slice(from, end)))
     }
 
     fn range_set(&self, from: isize, to: isize, with: &Var) -> Result<Var, Error> {
@@ -380,11 +1391,15 @@ impl Index<usize> for List {
     type Output = Var;
 
     fn index(&self, index: usize) -> &Self::Output {
-        &self.0[index]
+        assert!(index < self.len(), "list index out of bounds");
+        self.get(index)
     }
 }
 impl PartialEq for List {
     fn eq(&self, other: &Self) -> bool {
+        if self.0 == other.0 {
+            return true;
+        }
         if self.len() != other.len() {
             return false;
         }
@@ -434,15 +1449,29 @@ impl Hash for List {
 
 impl FromIterator<Var> for Var {
     fn from_iter<T: IntoIterator<Item = Var>>(iter: T) -> Self {
-        let l: imbl::Vector<Var> = imbl::Vector::from_iter(iter);
-        Var::from_list(List(Box::new(l)))
+        Var::from_list(List::from_iter(iter))
     }
 }
 
 impl std::iter::FromIterator<Var> for List {
     fn from_iter<T: IntoIterator<Item = Var>>(iter: T) -> Self {
-        let l: imbl::Vector<Var> = imbl::Vector::from_iter(iter);
-        List(Box::new(l))
+        let mut iter = iter.into_iter();
+        let mut block = Block::with_capacity(iter.size_hint().0.min(FLAT_MAX));
+        while block.len() < FLAT_MAX {
+            let Some(value) = iter.next() else {
+                return List::from_block(block);
+            };
+            if block.len() == block.capacity() {
+                block.reserve_one(FLAT_MAX);
+            }
+            // SAFETY: the block is new, so unshared, and has spare capacity.
+            unsafe { block.push_unchecked(value) };
+        }
+        let mut list = List::from_block(block);
+        for value in iter {
+            list = list.pushed(value);
+        }
+        list
     }
 }
 
@@ -941,5 +1970,450 @@ mod tests {
             )
             .unwrap();
         assert_eq!(r, v_list(&[v_str("?"), v_str("."), v_str("@abort")]));
+    }
+}
+
+/// Tests of the list's own structure: block growth, the tree, and sharing between copies.
+#[cfg(test)]
+mod structure_tests {
+    use super::{Block, FLAT_MAX, LEAF_WIDTH, List};
+
+    /// The comparison budget the database gives `append_suffix`.
+    const DATABASE_APPEND_BUDGET: usize = 128;
+    use crate::{Sequence, Var, v_int};
+    use proptest::prelude::*;
+
+    fn ints(n: usize) -> List {
+        (0..n as i64).map(v_int).collect()
+    }
+
+    fn list_of(var: &Var) -> List {
+        var.as_list().expect("list").clone()
+    }
+
+    fn assert_matches(list: &List, model: &[i64]) {
+        assert_eq!(list.len(), model.len());
+        assert!(
+            list.iter_ref()
+                .map(|v| v.as_integer().unwrap())
+                .eq(model.iter().copied())
+        );
+        assert_eq!(list.iter_ref().len(), model.len());
+        for index in (0..model.len()).step_by(model.len() / 97 + 1) {
+            assert_eq!(list[index], v_int(model[index]));
+            // `nth` from the start and from part way through a block.
+            assert_eq!(list.iter_ref().nth(index), Some(&v_int(model[index])));
+            let mut iter = list.iter_ref();
+            iter.next();
+            assert_eq!(
+                iter.nth(index).map(|v| v.as_integer().unwrap()),
+                model.get(index + 1).copied()
+            );
+        }
+        assert_eq!(list.iter_ref().nth(model.len()), None);
+    }
+
+    /// Lengths on both sides of each change of shape: empty, block growth, block to tree, a full
+    /// tail, and a full root at one and two levels.
+    const LENGTHS: [usize; 20] = [
+        0,
+        1,
+        3,
+        4,
+        5,
+        FLAT_MAX - 1,
+        FLAT_MAX,
+        FLAT_MAX + 1,
+        3 * LEAF_WIDTH,
+        3 * LEAF_WIDTH + 1,
+        LEAF_WIDTH * LEAF_WIDTH,
+        LEAF_WIDTH * LEAF_WIDTH + 1,
+        LEAF_WIDTH * LEAF_WIDTH + LEAF_WIDTH,
+        LEAF_WIDTH * LEAF_WIDTH + LEAF_WIDTH + 1,
+        2 * LEAF_WIDTH * LEAF_WIDTH + 7,
+        LEAF_WIDTH * LEAF_WIDTH * LEAF_WIDTH,
+        LEAF_WIDTH * LEAF_WIDTH * LEAF_WIDTH + 1,
+        LEAF_WIDTH * LEAF_WIDTH * LEAF_WIDTH + LEAF_WIDTH,
+        LEAF_WIDTH * LEAF_WIDTH * LEAF_WIDTH + LEAF_WIDTH + 1,
+        40_000,
+    ];
+
+    /// Miri is too slow for the three-level trees.
+    fn lengths() -> impl Iterator<Item = usize> {
+        let limit = if cfg!(miri) { 2100 } else { usize::MAX };
+        LENGTHS.into_iter().filter(move |len| *len <= limit)
+    }
+
+    #[test]
+    fn built_lists_hold_their_items_at_every_shape() {
+        for len in lengths() {
+            let model: Vec<i64> = (0..len as i64).collect();
+            assert_matches(&ints(len), &model);
+            let values: Vec<Var> = model.iter().copied().map(v_int).collect();
+            assert_matches(&List::mk_list(&values), &model);
+        }
+    }
+
+    #[test]
+    fn pushing_one_at_a_time_matches_building_at_once() {
+        let mut list = ints(0);
+        let mut model = vec![];
+        let lengths: Vec<usize> = lengths().collect();
+        let mut next_check = 0;
+        for i in 0..lengths[lengths.len() - 1].min(LENGTHS[LENGTHS.len() - 2]) as i64 + 2 {
+            if lengths.get(next_check) == Some(&model.len()) {
+                assert_matches(&list, &model);
+                assert_eq!(list, ints(model.len()));
+                next_check += 1;
+            }
+            list = list.pushed(v_int(i));
+            model.push(i);
+        }
+    }
+
+    #[test]
+    fn edits_leave_other_copies_unchanged() {
+        for len in lengths().filter(|len| *len > 0) {
+            let original = ints(len);
+            let model: Vec<i64> = (0..len as i64).collect();
+            for index in [0, len / 2, len - 1] {
+                let set = original.clone().replaced(index, v_int(-1));
+                let mut expected = model.clone();
+                expected[index] = -1;
+                assert_matches(&set, &expected);
+
+                let removed = original.clone().removed(index);
+                let mut expected = model.clone();
+                expected.remove(index);
+                assert_matches(&removed, &expected);
+
+                let inserted = original.clone().inserted(index, v_int(-2));
+                let mut expected = model.clone();
+                expected.insert(index, -2);
+                assert_matches(&inserted, &expected);
+            }
+            let pushed = original.clone().pushed(v_int(-3));
+            let mut expected = model.clone();
+            expected.push(-3);
+            assert_matches(&pushed, &expected);
+            assert_matches(&original, &model);
+        }
+    }
+
+    #[test]
+    fn an_unshared_list_is_edited_where_it_is() {
+        // Room for the push without growing, so the block must stay put.
+        let list = ints(3).pushed(v_int(3)).removed(3);
+        let before = list.get(0) as *const Var;
+        let list = list.pushed(v_int(9));
+        assert_eq!(list.get(0) as *const Var, before);
+        let list = list.replaced(1, v_int(7));
+        assert_eq!(list.get(0) as *const Var, before);
+        assert_eq!(list, [0, 7, 2, 9].into_iter().map(v_int).collect());
+    }
+
+    #[test]
+    fn a_long_list_shares_untouched_blocks_with_its_edit() {
+        let original = ints(5000);
+        let edited = original.clone().replaced(4000, v_int(-1));
+        assert!(std::ptr::eq(original.get(10), edited.get(10)));
+        assert!(std::ptr::eq(original.get(4999), edited.get(4999)));
+        assert!(!std::ptr::eq(original.get(4000), edited.get(4000)));
+        assert_eq!(original[4000], v_int(4000));
+    }
+
+    // Miri rejects `Var`'s storage of a list pointer as an integer, so it cannot run tests that
+    // put a list in a `Var`.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn nested_lists_are_released() {
+        let inner = Var::from(ints(200));
+        let outer: List = (0..300).map(|_| inner.clone()).collect();
+        let copy = outer.clone();
+        drop(outer);
+        assert_eq!(copy[299], inner);
+        drop(copy);
+        // Only `inner` holds its list now, so a push goes into its tail where it is.
+        let before = inner.as_list().unwrap().get(199) as *const Var;
+        let pushed = inner.push_owned(&v_int(5)).unwrap();
+        assert_eq!(pushed.as_list().unwrap().get(199) as *const Var, before);
+    }
+
+    #[test]
+    fn a_shared_block_grows_before_it_is_extended() {
+        let mut block = Block::with_capacity(8);
+        block.push(v_int(1), 8);
+        let other = block.clone();
+        block.extend_from_slice(&[v_int(2), v_int(3), v_int(4)], 8);
+        assert_eq!(block.as_slice(), [1, 2, 3, 4].map(v_int));
+        assert_eq!(other.as_slice(), [v_int(1)]);
+    }
+
+    #[test]
+    #[should_panic(expected = "list index out of bounds")]
+    fn inserting_past_the_end_of_a_long_list_panics() {
+        ints(200).inserted(201, v_int(0));
+    }
+
+    #[test]
+    #[should_panic(expected = "list index out of bounds")]
+    fn inserting_past_the_end_of_a_short_list_panics() {
+        ints(3).inserted(4, v_int(0));
+    }
+
+    #[test]
+    fn a_long_list_drains_from_either_end() {
+        let len = if cfg!(miri) { 700 } else { 5000 };
+        let mut model: Vec<i64> = (0..len).collect();
+        let (mut front, mut back) = (ints(model.len()), ints(model.len()));
+        let original = front.clone();
+        while !model.is_empty() {
+            model.remove(0);
+            front = front.removed(0);
+            let last = back.len() - 1;
+            back = back.removed(last);
+            if model.len().is_multiple_of(97) {
+                assert_matches(&front, &model);
+                let kept: Vec<i64> = (0..model.len() as i64).collect();
+                assert_matches(&back, &kept);
+            }
+        }
+        assert_eq!(original.len(), len as usize);
+        assert_eq!(original[len as usize - 1], v_int(len - 1));
+    }
+
+    #[test]
+    fn edits_near_the_front_share_the_rest_of_a_long_list() {
+        let original = ints(5000);
+        let shared = |list: &List, index: usize, original_index: usize| {
+            std::ptr::eq(list.get(index), original.get(original_index))
+        };
+
+        let prepended = ints(1).appended(&original);
+        assert!(shared(&prepended, 4000, 3999));
+        let inserted = original.clone().inserted(2, v_int(-1));
+        assert!(shared(&inserted, 4000, 3999));
+        let removed = original.clone().removed(2);
+        assert!(shared(&removed, 4000, 4001));
+        let dropped = original.clone().removed(0);
+        assert!(shared(&dropped, 4000, 4001));
+        let popped = original.clone().removed(4999);
+        assert!(shared(&popped, 10, 10));
+        let sliced = original.slice(100, 4900);
+        assert!(shared(&sliced, 3000, 3100));
+        // An edit to a list that no longer starts on a block boundary still lines up with it.
+        let again = dropped.clone().inserted(1, v_int(-1));
+        assert!(shared(&again, 4000, 4000));
+
+        let mut model: Vec<i64> = (0..5000).collect();
+        model.insert(0, 0);
+        assert_matches(&prepended, &model);
+        assert_matches(&sliced, &(100..4900).collect::<Vec<i64>>());
+        assert_matches(&again, &{
+            let mut model: Vec<i64> = (1..5000).collect();
+            model.insert(1, -1);
+            model
+        });
+        assert_matches(&original, &(0..5000).collect::<Vec<i64>>());
+    }
+
+    #[test]
+    fn a_short_slice_of_a_long_list_shares_its_leaves() {
+        let original = ints(100_000);
+        for (from, to) in [
+            (0, 65),
+            (1, 66),
+            (50_000, 50_200),
+            (99_900, 100_000),
+            (7, 99_990),
+        ] {
+            let sliced = original.slice(from, to);
+            assert_matches(&sliced, &(from as i64..to as i64).collect::<Vec<_>>());
+            assert!(std::ptr::eq(sliced.get(40), original.get(from + 40)));
+        }
+    }
+
+    #[test]
+    fn appending_to_a_long_list_stays_within_the_database_budget() {
+        for (len, added) in [(129, 258), (65, 4000), (5000, 1), (5000, 9000), (64, 300)] {
+            let base = ints(len);
+            let appended = base.clone().appended(&ints(added));
+            let suffix = base.append_suffix(&appended, DATABASE_APPEND_BUDGET);
+            assert_eq!(suffix, Ok(ints(added)), "{len} + {added}");
+        }
+    }
+
+    // Through `Var`, so not under Miri; see `nested_lists_are_released`.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn an_item_dropped_from_the_front_is_released_at_once() {
+        // Whether `payload` is the only holder of its list shows in whether a push moves it.
+        let is_unshared = |payload: Var| {
+            let before = payload.as_list().unwrap().get(199) as *const Var;
+            let pushed = payload.push_owned(&v_int(0)).unwrap();
+            std::ptr::eq(pushed.as_list().unwrap().get(199), before)
+        };
+        for drop_from_a_shared_tree in [false, true] {
+            let payload = Var::from(ints(200));
+            let mut list: List = (0..1000).map(|_| payload.clone()).collect();
+            list = list.replaced(0, Var::from(ints(200)));
+            let first = list.get(0).clone();
+            let other_copy = drop_from_a_shared_tree.then(|| list.clone());
+            let rest = list.removed(0);
+            drop(other_copy);
+            assert_eq!(rest.len(), 999);
+            assert!(is_unshared(first));
+        }
+    }
+
+    #[derive(Clone, Debug)]
+    enum Edit {
+        Push(i64),
+        Insert(usize, i64),
+        Remove(usize),
+        Set(usize, i64),
+        Append(usize),
+        Prepend(usize),
+        Slice(usize, usize),
+        Rebuild(usize),
+        Range(usize, usize),
+        RangeSet(usize, usize, usize),
+        SetAdd(i64),
+        SetRemove(i64),
+        PopFront,
+        KeepCopy,
+    }
+
+    fn edit() -> impl Strategy<Value = Edit> {
+        let value = -5i64..5000;
+        prop_oneof![
+            4 => value.clone().prop_map(Edit::Push),
+            2 => (any::<usize>(), value.clone()).prop_map(|(i, v)| Edit::Insert(i, v)),
+            2 => any::<usize>().prop_map(Edit::Remove),
+            2 => (any::<usize>(), value.clone()).prop_map(|(i, v)| Edit::Set(i, v)),
+            2 => (0usize..150).prop_map(Edit::Append),
+            1 => (0usize..150).prop_map(Edit::Prepend),
+            2 => (any::<usize>(), any::<usize>()).prop_map(|(a, b)| Edit::Slice(a, b)),
+            1 => (0usize..if cfg!(miri) { 300 } else { 2500 }).prop_map(Edit::Rebuild),
+            1 => (any::<usize>(), any::<usize>()).prop_map(|(a, b)| Edit::Range(a, b)),
+            1 => (any::<usize>(), any::<usize>(), 0usize..80)
+                .prop_map(|(a, b, n)| Edit::RangeSet(a, b, n)),
+            1 => value.clone().prop_map(Edit::SetAdd),
+            1 => value.prop_map(Edit::SetRemove),
+            1 => Just(Edit::PopFront),
+            2 => Just(Edit::KeepCopy),
+        ]
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(if cfg!(miri) { 4 } else { 200 }))]
+
+        /// Any run of edits leaves the list equal to a `Vec` given the same edits, and leaves
+        /// every earlier copy as it was.
+        #[test]
+        fn edits_match_a_vec(edits in prop::collection::vec(edit(), 1..60)) {
+            let mut list = ints(0);
+            let mut model: Vec<i64> = vec![];
+            let mut copies: Vec<(List, Vec<i64>)> = vec![];
+            for edit in edits {
+                let len = model.len();
+                // See `nested_lists_are_released` for why Miri skips these.
+                let through_var = matches!(
+                    edit,
+                    Edit::Range(..) | Edit::RangeSet(..) | Edit::SetAdd(_) | Edit::SetRemove(_)
+                );
+                if cfg!(miri) && through_var {
+                    continue;
+                }
+                match edit {
+                    Edit::Push(v) => {
+                        let base = list.clone();
+                        list = list.pushed(v_int(v));
+                        model.push(v);
+                        let suffix = base.append_suffix(&list, DATABASE_APPEND_BUDGET).unwrap();
+                        prop_assert_eq!(suffix.len(), 1);
+                        prop_assert_eq!(&suffix[0], &v_int(v));
+                    }
+                    Edit::Insert(i, v) => {
+                        let i = i % (len + 1);
+                        list = list.inserted(i, v_int(v));
+                        model.insert(i, v);
+                    }
+                    Edit::Remove(i) if len > 0 => {
+                        list = list.removed(i % len);
+                        model.remove(i % len);
+                    }
+                    Edit::Set(i, v) if len > 0 => {
+                        list = list.replaced(i % len, v_int(v));
+                        model[i % len] = v;
+                    }
+                    Edit::Append(n) => {
+                        let base = list.clone();
+                        list = list.appended(&ints(n));
+                        model.extend(0..n as i64);
+                        if n > 0 {
+                            let suffix =
+                                base.append_suffix(&list, DATABASE_APPEND_BUDGET).unwrap();
+                            prop_assert_eq!(suffix, ints(n));
+                        }
+                    }
+                    Edit::Prepend(n) => {
+                        list = ints(n).appended(&list);
+                        model.splice(0..0, 0..n as i64);
+                    }
+                    Edit::Slice(a, b) => {
+                        let (a, b) = (a % (len + 1), b % (len + 1));
+                        let (from, to) = (a.min(b), a.max(b));
+                        list = list.slice(from, to);
+                        model = model[from..to].to_vec();
+                    }
+                    Edit::Rebuild(n) => {
+                        list = ints(n);
+                        model = (0..n as i64).collect();
+                    }
+                    Edit::Range(a, b) if len > 0 => {
+                        let (a, b) = (a % len, b % len);
+                        let (from, to) = (a.min(b), a.max(b));
+                        list = list_of(&list.range(from as isize, to as isize).unwrap());
+                        model = model[from..=to].to_vec();
+                    }
+                    Edit::RangeSet(a, b, n) if len > 0 => {
+                        let (a, b) = (a % len, b % len);
+                        let (from, to) = (a.min(b), a.max(b));
+                        let with = Var::from(ints(n));
+                        list = list_of(
+                            &list.range_set_owned(from as isize, to as isize, &with).unwrap(),
+                        );
+                        model.splice(from..=to, 0..n as i64);
+                    }
+                    Edit::SetAdd(v) => {
+                        list = list_of(&list.set_add(&v_int(v)).unwrap());
+                        if !model.contains(&v) {
+                            model.push(v);
+                        }
+                    }
+                    Edit::SetRemove(v) => {
+                        list = list_of(&list.set_remove(&v_int(v)).unwrap());
+                        if let Some(i) = model.iter().position(|x| *x == v) {
+                            model.remove(i);
+                        }
+                    }
+                    Edit::PopFront if len > 0 => {
+                        prop_assert_eq!(list.get(0), &v_int(model.remove(0)));
+                        list = list.removed(0);
+                    }
+                    Edit::KeepCopy => copies.push((list.clone(), model.clone())),
+                    Edit::Remove(_)
+                    | Edit::Set(..)
+                    | Edit::Range(..)
+                    | Edit::RangeSet(..)
+                    | Edit::PopFront => {}
+                }
+                assert_matches(&list, &model);
+            }
+            for (copy, model) in &copies {
+                assert_matches(copy, model);
+            }
+        }
     }
 }
