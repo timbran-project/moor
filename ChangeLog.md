@@ -23,6 +23,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   allowed one request every N seconds instead of N a second.
 - Duration settings in the configuration file, such as `checkpoint_interval` and `gc_interval`, no
   longer accept months or years (`1M`, `1y`). Use days or weeks instead (`30d`, `4w`).
+- Lists have a new implementation built for how MOO uses them. Short lists, which are most lists,
+  are cheaper to build, copy and append to. Editing the middle of a list, or adding to its front, is
+  faster for lists of up to a few thousand items and slower for very long ones: two to three times
+  slower for a list of 100,000 items.
 - Error guards run faster. Entering a guard for literal error codes or for `ANY` costs less, and so
   does catching an error in a catch expression with no default, such as `` `x.name ! E_PROPNF' ``.
   Existing verbs get the improvement without recompilation.

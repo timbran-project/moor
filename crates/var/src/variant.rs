@@ -2333,7 +2333,7 @@ mod tests {
         let changed = big.as_list().unwrap().clone().push_owned(&v_int(100));
         assert!(!big.is_identical(&changed));
 
-        // Small lists are held inline, so their items decide.
+        // Small lists are cheap to build afresh, so their items decide.
         assert!(v_list(&[v_int(1), v_int(2)]).is_identical(&v_list(&[v_int(1), v_int(2)])));
         assert!(!v_list(&[v_int(1), v_int(2)]).is_identical(&v_list(&[v_int(1), v_int(3)])));
 

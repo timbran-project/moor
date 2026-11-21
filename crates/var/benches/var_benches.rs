@@ -45,6 +45,13 @@ impl BenchContext for LargeListContext {
     }
 }
 
+struct MediumListContext(Var);
+impl BenchContext for MediumListContext {
+    fn prepare(_num_chunks: usize) -> Self {
+        MediumListContext(v_list(&(0..1000).map(v_int).collect::<Vec<_>>()))
+    }
+}
+
 fn int_add(ctx: &mut IntContext, chunk_size: usize, _chunk_num: usize) {
     let mut v = ctx.0.clone();
     for _ in 0..chunk_size {
@@ -213,6 +220,86 @@ fn list_index_assign(ctx: &mut LargeListContext, chunk_size: usize, _chunk_num: 
             .unwrap();
     }
     black_box(v);
+}
+
+/// Insert into the middle of a list that is also held elsewhere, as an edit to a stored value is.
+fn list_insert_middle(base: &Var, chunk_size: usize) {
+    let middle = v_int(base.len().unwrap() as i64 / 2);
+    for _ in 0..chunk_size {
+        black_box(
+            base.insert(&middle, &v_int(-1), IndexMode::ZeroBased)
+                .unwrap(),
+        );
+    }
+}
+
+fn list_remove_middle(base: &Var, chunk_size: usize) {
+    let middle = v_int(base.len().unwrap() as i64 / 2);
+    for _ in 0..chunk_size {
+        black_box(base.remove_at(&middle, IndexMode::ZeroBased).unwrap());
+    }
+}
+
+fn list_insert_middle_1k(ctx: &mut MediumListContext, chunk_size: usize, _chunk_num: usize) {
+    list_insert_middle(&ctx.0, chunk_size);
+}
+
+fn list_remove_middle_1k(ctx: &mut MediumListContext, chunk_size: usize, _chunk_num: usize) {
+    list_remove_middle(&ctx.0, chunk_size);
+}
+
+fn list_insert_middle_100k(ctx: &mut LargeListContext, chunk_size: usize, _chunk_num: usize) {
+    list_insert_middle(&ctx.0, chunk_size);
+}
+
+fn list_remove_middle_100k(ctx: &mut LargeListContext, chunk_size: usize, _chunk_num: usize) {
+    list_remove_middle(&ctx.0, chunk_size);
+}
+
+/// Take items off the front of a 1,000-item list until none are left, as a work queue does.
+fn list_drain_front_1k(ctx: &mut MediumListContext, chunk_size: usize, _chunk_num: usize) {
+    for _ in 0..chunk_size {
+        let mut queue = ctx.0.clone();
+        while !queue.is_empty().unwrap() {
+            queue = queue
+                .remove_at_owned(&v_int(0), IndexMode::ZeroBased)
+                .unwrap();
+        }
+        black_box(queue);
+    }
+}
+
+fn list_remove_last_100k(ctx: &mut LargeListContext, chunk_size: usize, _chunk_num: usize) {
+    let last = v_int(ctx.0.len().unwrap() as i64 - 1);
+    for _ in 0..chunk_size {
+        black_box(ctx.0.remove_at(&last, IndexMode::ZeroBased).unwrap());
+    }
+}
+
+/// `long_list[1..65]`.
+fn list_take_prefix_100k(ctx: &mut LargeListContext, chunk_size: usize, _chunk_num: usize) {
+    for _ in 0..chunk_size {
+        black_box(
+            ctx.0
+                .range(&v_int(0), &v_int(64), IndexMode::ZeroBased)
+                .unwrap(),
+        );
+    }
+}
+
+/// `long_list[2..$]`.
+fn list_drop_first_100k(ctx: &mut LargeListContext, chunk_size: usize, _chunk_num: usize) {
+    let last = v_int(ctx.0.len().unwrap() as i64 - 1);
+    for _ in 0..chunk_size {
+        black_box(ctx.0.range(&v_int(1), &last, IndexMode::ZeroBased).unwrap());
+    }
+}
+
+/// `{item, @long_list}`.
+fn list_prepend_100k(ctx: &mut LargeListContext, chunk_size: usize, _chunk_num: usize) {
+    for _ in 0..chunk_size {
+        black_box(v_list(&[v_int(-1)]).append(&ctx.0).unwrap());
+    }
 }
 
 // === VAR CONSTRUCTION BENCHMARKS ===
@@ -741,6 +828,19 @@ benchmark_main!(
             let g = g.throughput(Throughput::per_operation(1, "list_ops"));
             g.bench("list_index_pos", list_index_pos);
             g.bench("list_index_assign", list_index_assign);
+            g.bench("list_insert_middle_100k", list_insert_middle_100k);
+            g.bench("list_remove_middle_100k", list_remove_middle_100k);
+            g.bench("list_remove_last_100k", list_remove_last_100k);
+            g.bench("list_prepend_100k", list_prepend_100k);
+            g.bench("list_take_prefix_100k", list_take_prefix_100k);
+            g.bench("list_drop_first_100k", list_drop_first_100k);
+        });
+
+        runner.group::<MediumListContext>("Medium List Operations", |g| {
+            let g = g.throughput(Throughput::per_operation(1, "list_ops"));
+            g.bench("list_insert_middle_1k", list_insert_middle_1k);
+            g.bench("list_remove_middle_1k", list_remove_middle_1k);
+            g.bench("list_drain_front_1k", list_drain_front_1k);
         });
 
         runner.group::<NoContext>("Var Construction Benchmarks", |g| {
