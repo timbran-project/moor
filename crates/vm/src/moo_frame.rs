@@ -227,6 +227,8 @@ pub enum ScopeKind {
     Comprehension,
     /// A single catch arm held by the frame's program. The payload is its table index.
     LiteralCatch,
+    /// A single arm that catches any error. The payload is its handler label.
+    AnyCatch,
 }
 
 /// A scope is a record of the current size of the valstack when it was created, and are
@@ -971,6 +973,9 @@ impl MooStackFrame {
                     .cloned()
                     .collect(),
             ),
+            ScopeKind::AnyCatch => ScopeType::TryCatch(
+                std::iter::once((CatchType::Any, Label(scope.payload))).collect(),
+            ),
             ScopeKind::If => ScopeType::If,
             ScopeKind::Eif => ScopeType::Eif,
             ScopeKind::While => ScopeType::While,
@@ -1037,6 +1042,9 @@ impl MooStackFrame {
     }
 
     pub(crate) fn catch_label(&self, scope: &Scope, error: &Error) -> Option<Label> {
+        if scope.kind == ScopeKind::AnyCatch {
+            return Some(Label(scope.payload));
+        }
         self.try_catches_for_scope(scope)?
             .iter()
             .find_map(|(catch, label)| catch.matches(error).then_some(*label))
@@ -1095,10 +1103,18 @@ impl MooStackFrame {
         );
     }
 
-    pub(crate) fn push_literal_catch(&mut self, arm: u16, end_label: Label, width: Option<u16>) {
+    /// Enter a single-arm guard whose handler needs no payload: `kind` is `LiteralCatch` or
+    /// `AnyCatch`. `width` is the environment width of a `try` statement.
+    pub(crate) fn push_static_catch(
+        &mut self,
+        kind: ScopeKind,
+        payload: u16,
+        end_label: Label,
+        width: Option<u16>,
+    ) {
         self.push_scope_record(
-            ScopeKind::LiteralCatch,
-            arm,
+            kind,
+            payload,
             Self::narrow_u16(self.valstack.len()),
             self.pc,
             self.label_position(end_label),

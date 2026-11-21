@@ -73,13 +73,11 @@ impl List {
     }
 
     pub fn build(values: &[Var]) -> Var {
-        let l = imbl::Vector::from(values.to_vec());
-        Var::from_list(List(Box::new(l)))
+        Var::from_list(Self::mk_list(values))
     }
 
     pub fn mk_list(values: &[Var]) -> List {
-        let l = imbl::Vector::from(values.to_vec());
-        List(Box::new(l))
+        values.iter().cloned().collect()
     }
 
     pub fn iter(&self) -> impl Iterator<Item = Var> + '_ {

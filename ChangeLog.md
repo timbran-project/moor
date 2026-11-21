@@ -14,8 +14,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.0 series (`v2.0-release` branch)
 
-- Guards for literal error codes run faster. Existing verbs get the improvement without
-  recompilation.
+- Error guards run faster. Entering a guard for literal error codes or for `ANY` costs less, and so
+  does catching an error in a catch expression with no default, such as `` `x.name ! E_PROPNF' ``.
+  Existing verbs get the improvement without recompilation.
 - A `try` statement no longer loses its earlier `except` arms when a later arm's error codes contain
   a catch expression, such as ``except (`x ! E_RANGE => E_TYPE')``. Before, errors meant for the
   earlier arms were not caught.

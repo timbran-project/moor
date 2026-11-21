@@ -24,6 +24,16 @@ use crate::exec_state::ExecState;
 use crate::moo_execute::ExecutionResult;
 use crate::{Activation, Frame, MooStackFrame, ScopeKind, probes};
 
+/// What a catch handler does with the `{code, message, value, stack}` list it is given.
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+enum CatchValueUse {
+    /// The handler pops the list at once.
+    Discarded,
+    /// The handler keeps only the error code.
+    CodeOnly,
+    Whole,
+}
+
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum FinallyReason {
     Fallthrough,
@@ -60,7 +70,7 @@ impl ExecState {
             match &a.frame {
                 Frame::Moo(_) => stack_list.push(v_list(&[
                     a.this.clone(),
-                    v_str(&a.verb_name.as_string()),
+                    v_arc_str(a.verb_name.as_arc_str()),
                     v_obj(a.authority_principal()),
                     v_obj(a.verb_definer()),
                     v_obj(a.player()),
@@ -68,7 +78,7 @@ impl ExecState {
                 ])),
                 Frame::Native(_) => stack_list.push(v_list(&[
                     a.this.clone(),
-                    v_str(&a.verb_name.as_string()),
+                    v_arc_str(a.verb_name.as_arc_str()),
                     v_obj(a.authority_principal()),
                     v_obj(a.verb_definer()),
                     v_obj(a.player()),
@@ -268,16 +278,23 @@ impl ExecState {
         None
     }
 
-    fn catch_discards_value(&self, activation_idx: usize, catch_label: Label) -> bool {
+    /// How much of the caught error the handler at `catch_label` reads, judged from its first
+    /// instructions.
+    fn catch_value_use(&self, activation_idx: usize, catch_label: Label) -> CatchValueUse {
         let Some(activation) = self.stack.get(activation_idx) else {
-            return false;
+            return CatchValueUse::Whole;
         };
         let Frame::Moo(frame) = &activation.frame else {
-            return false;
+            return CatchValueUse::Whole;
         };
 
-        let handler_pc = frame.label_position(catch_label);
-        matches!(frame.opcodes().get(handler_pc as usize), Some(Op::Pop))
+        let handler_pc = usize::from(frame.label_position(catch_label));
+        match frame.opcodes().get(handler_pc..) {
+            Some([Op::Pop, ..]) => CatchValueUse::Discarded,
+            // A catch expression with no default indexes the error code out of the value.
+            Some([Op::ImmInt(1), Op::Ref, ..]) => CatchValueUse::CodeOnly,
+            _ => CatchValueUse::Whole,
+        }
     }
 
     fn catch_error_in_current_activation(&mut self, error: &Error) -> bool {
@@ -287,16 +304,15 @@ impl ExecState {
             return false;
         };
 
-        let catch_discards_value = self.catch_discards_value(activation_idx, catch_label);
-        if !catch_discards_value && activation_idx + 1 != self.stack.len() {
-            return false;
-        }
-
-        let stack = if catch_discards_value {
-            None
+        let value_use = self.catch_value_use(activation_idx, catch_label);
+        let stack = if value_use == CatchValueUse::Whole {
+            // The stack list for a handler below the top activation is built by `throw_error`.
+            if activation_idx + 1 != self.stack.len() {
+                return false;
+            }
+            Some(Self::make_stack_list_from(&self.stack, activation_idx))
         } else {
-            let stack_start = activation_idx;
-            Some(Self::make_stack_list_from(&self.stack, stack_start))
+            None
         };
 
         self.stack.truncate(activation_idx + 1);
@@ -312,13 +328,16 @@ impl ExecState {
             frame.discard_scope();
         }
         frame.jump(&catch_label);
-        if catch_discards_value {
-            frame.pc += 1;
-        } else {
-            frame.push(Self::catch_value(
+        match value_use {
+            CatchValueUse::Discarded => frame.pc += 1,
+            CatchValueUse::CodeOnly => {
+                frame.pc += 2;
+                frame.push(v_err(error.err_type()));
+            }
+            CatchValueUse::Whole => frame.push(Self::catch_value(
                 error,
                 stack.as_ref().expect("catch stack value not built"),
-            ));
+            )),
         }
         true
     }

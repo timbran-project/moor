@@ -326,6 +326,10 @@ benchmark_main!(
                 .throughput(Throughput::per_operation(1, "opcodes"));
             g.factory(&|| VmBenchContext::with_program("while(1) 1; endwhile"))
                 .bench("guard_baseline_bare", run_program);
+            g.factory(&|| VmBenchContext::with_program("while(1) {1}; endwhile"))
+                .bench("guard_baseline_list_of_one", run_program);
+            g.factory(&|| VmBenchContext::with_program("while(1) {1, 2, 3, 4, 5, 6}; endwhile"))
+                .bench("guard_baseline_list_of_six", run_program);
             g.factory(&|| VmBenchContext::with_program("while(1) if (1) 1; endif endwhile"))
                 .bench("guard_baseline_if", run_program);
             g.factory(&|| VmBenchContext::with_program("while(1) `1 ! E_DIV'; endwhile"))
@@ -344,6 +348,22 @@ benchmark_main!(
             .bench("guard_stmt_literal", run_program);
             g.factory(&|| VmBenchContext::with_program("while(1) `1 / 0 ! E_DIV => 0'; endwhile"))
                 .bench("guard_expr_literal_raise", run_program);
+            g.factory(&|| VmBenchContext::with_program("while(1) `1 / 0 ! E_DIV'; endwhile"))
+                .bench("guard_raise_keep_value", run_program);
+            g.factory(&|| VmBenchContext::with_program("while(1) `1 / 0 ! ANY => 0'; endwhile"))
+                .bench("guard_raise_any", run_program);
+            g.factory(&|| {
+                VmBenchContext::with_program("while(1) `#0.nope ! E_PROPNF => 0'; endwhile")
+            })
+            .bench("guard_raise_propnf", run_program);
+            g.factory(&|| {
+                VmBenchContext::with_program("while(1) `raise(E_PERM) ! E_PERM => 0'; endwhile")
+            })
+            .bench("guard_raise_builtin", run_program);
+            g.factory(&|| {
+                VmBenchContext::with_program("while(1) try 1 / 0; except e (E_DIV) endtry endwhile")
+            })
+            .bench("guard_raise_stmt_bound", run_program);
         });
     }
 );

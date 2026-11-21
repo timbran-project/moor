@@ -67,15 +67,12 @@ mod tests {
     }
 
     #[test]
-    fn literal_catch_preserves_each_tick_slice_boundary() {
+    fn static_catch_preserves_each_tick_slice_boundary() {
         use crate::vm::kernel_host::KernelHost;
         use moor_vm::{
             ExecutionResult, FeaturesConfig, FrameExecutionContext, MooStackFrame,
             moo_frame_execute,
         };
-        let program =
-            moor_compiler::compile("return `123 ! E_DIV, E_PERM => 0';", Default::default())
-                .unwrap();
         let this = v_obj(SYSTEM_OBJECT);
         let context = FrameExecutionContext::new(
             system_permissions(),
@@ -85,30 +82,37 @@ mod tests {
             SYSTEM_OBJECT,
         );
         let features = FeaturesConfig::default();
-        // The five setup instructions finish immediately before TryCatch.
-        for slice in 1..=6 {
-            let mut frame = MooStackFrame::new(program.clone());
-            let mut ticks = 0;
-            assert!(matches!(
-                moo_frame_execute(
-                    &mut KernelHost,
-                    slice,
-                    &mut ticks,
-                    &context,
-                    &mut frame,
-                    &features
-                ),
-                ExecutionResult::More
-            ));
-            assert_eq!((ticks, usize::from(frame.pc)), (slice, slice));
-            if slice == 6 {
-                assert!(frame.scratch.is_none());
-                assert!(frame.scope_payloads.is_empty());
+        // `scope_tick` is the tick of the instruction that opens the guard, after its setup.
+        for (source, scope_tick, total_ticks) in [
+            ("return `123 ! E_DIV, E_PERM => 0';", 6, 9),
+            ("return `123 ! ANY => 0';", 3, 6),
+        ] {
+            let program = moor_compiler::compile(source, Default::default()).unwrap();
+            for slice in 1..=scope_tick {
+                let mut frame = MooStackFrame::new(program.clone());
+                let mut ticks = 0;
+                assert!(matches!(
+                    moo_frame_execute(
+                        &mut KernelHost,
+                        slice,
+                        &mut ticks,
+                        &context,
+                        &mut frame,
+                        &features
+                    ),
+                    ExecutionResult::More
+                ));
+                assert_eq!((ticks, usize::from(frame.pc)), (slice, slice));
+                if slice == scope_tick {
+                    assert!(frame.scratch.is_none());
+                    assert!(frame.scope_payloads.is_empty());
+                }
+                assert!(matches!(
+                    moo_frame_execute(&mut KernelHost, 20, &mut ticks, &context, &mut frame, &features),
+                    ExecutionResult::Return(v) if v == v_int(123)
+                ));
+                assert_eq!(ticks, total_ticks);
             }
-            assert!(
-                matches!(moo_frame_execute(&mut KernelHost, 20, &mut ticks, &context, &mut frame, &features), ExecutionResult::Return(v) if v == v_int(123))
-            );
-            assert_eq!(ticks, 9);
         }
     }
 
@@ -432,5 +436,33 @@ mod tests {
         );
 
         assert_eq!(result, Ok(v_int(666)));
+    }
+
+    #[test]
+    fn guard_without_default_yields_code_of_error_from_called_verb() {
+        let compile = |source| moor_compiler::compile(source, Default::default()).unwrap();
+        let callee = compile("return 1 / 0;");
+        let caller = compile(
+            r#"
+            a = `#0:callee() ! E_DIV';
+            b = `raise(E_PERM, "message", 5) ! ANY';
+            c = `#0:callee() ! E_DIV => 7';
+            return {a, b, c, `8 ! ANY'};
+            "#,
+        );
+        let state = test_db_with_verbs(&[("callee", &callee), ("caller", &caller)])
+            .new_world_state()
+            .unwrap();
+        let result = call_verb(
+            state,
+            Arc::new(NoopClientSession::new()),
+            BuiltinRegistry::new(),
+            "caller",
+            List::mk_list(&[]),
+        );
+        assert_eq!(
+            result,
+            Ok(v_list(&[v_err(E_DIV), v_err(E_PERM), v_int(7), v_int(8)]))
+        );
     }
 }
