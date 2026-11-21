@@ -857,9 +857,16 @@ pub(crate) fn scope_type_from_ref(
                 .end_label()
                 .map_err(|e| TaskConversionError::DecodingError(format!("end_label: {e}")))?;
 
+            // A loop over a map steps by position, and records the key it had reached. Find the
+            // place from the key: the map's keys may not come back in the order they were in.
+            let current_index = match (sequence.as_map(), &current_key) {
+                (Some(map), Some(key)) => map.position_after(key),
+                _ => current_index as usize,
+            };
+
             Ok(KernelScopeType::ForSequence {
                 sequence,
-                current_index: current_index as usize,
+                current_index,
                 current_key,
                 value_bind,
                 key_bind,
@@ -2734,6 +2741,40 @@ mod tests {
         );
         let serialized = moo_stack_frame_to_flatbuffer(&frame);
         assert!(serialized.is_ok());
+    }
+
+    #[test]
+    fn a_restored_map_loop_finds_its_place_from_the_key() {
+        use planus::{ReadAsRoot, WriteAsOffset};
+        let key = |n: i64| moor_var::v_int(n);
+        let map = moor_var::v_map(&[(key(10), key(1)), (key(20), key(2)), (key(30), key(3))]);
+        // The stored position disagrees with the stored key, as it would if the keys came back
+        // in another order. The key decides. A list has no key, so its position stands.
+        for (sequence, current_key, stored_index, expected_index) in [
+            (map.clone(), Some(key(20)), 1, 2),
+            (map.clone(), Some(key(30)), 0, 3),
+            (map.clone(), None, 0, 0),
+            (moor_var::v_list(&[key(1), key(2)]), None, 1, 1),
+        ] {
+            let scope = KernelScopeType::ForSequence {
+                sequence,
+                current_index: stored_index,
+                current_key,
+                value_bind: Name(0, 0, 0),
+                key_bind: None,
+                end_label: Label(0),
+            };
+            let stored = scope_type_to_flatbuffer(&scope).unwrap();
+            let mut builder = planus::Builder::new();
+            let offset = stored.prepare(&mut builder);
+            let bytes = builder.finish(offset, None);
+            let restored =
+                scope_type_from_ref(fb::ScopeTypeRef::read_as_root(bytes).unwrap()).unwrap();
+            let KernelScopeType::ForSequence { current_index, .. } = restored else {
+                panic!("expected a for-sequence scope");
+            };
+            assert_eq!(current_index, expected_index);
+        }
     }
 
     #[test]

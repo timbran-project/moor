@@ -114,6 +114,70 @@ fn map_build_large(ctx: &mut MapContext, chunk_size: usize, _chunk_num: usize) {
 }
 
 /// Build the eight-entry map from its pairs.
+/// A string-keyed map of `SIZE` entries that something else also holds, as a property value is
+/// when a verb edits it. Every edit here has to copy what it changes.
+struct SharedStringMap<const SIZE: usize> {
+    map: Var,
+    keys: Vec<Var>,
+    new_key: Var,
+    value: Var,
+}
+
+impl<const SIZE: usize> BenchContext for SharedStringMap<SIZE> {
+    fn prepare(_num_chunks: usize) -> Self {
+        let keys: Vec<Var> = (0..SIZE)
+            .map(|i| v_str(&format!("key_{:05}", (i * 7919) % SIZE)))
+            .collect();
+        let pairs: Vec<(Var, Var)> = keys
+            .iter()
+            .enumerate()
+            .map(|(i, key)| (key.clone(), v_int(i as i64)))
+            .collect();
+        Self {
+            map: Var::mk_map(&pairs),
+            keys,
+            new_key: v_str("key_00000_new"),
+            value: v_int(-1),
+        }
+    }
+}
+
+fn shared_set_existing<const SIZE: usize>(
+    ctx: &mut SharedStringMap<SIZE>,
+    chunk_size: usize,
+    _chunk_num: usize,
+) {
+    for i in 0..chunk_size {
+        let key = &ctx.keys[i % SIZE];
+        black_box(ctx.map.set(key, &ctx.value, IndexMode::ZeroBased).unwrap());
+    }
+}
+
+fn shared_set_new<const SIZE: usize>(
+    ctx: &mut SharedStringMap<SIZE>,
+    chunk_size: usize,
+    _chunk_num: usize,
+) {
+    for _ in 0..chunk_size {
+        black_box(
+            ctx.map
+                .set(&ctx.new_key, &ctx.value, IndexMode::ZeroBased)
+                .unwrap(),
+        );
+    }
+}
+
+fn shared_remove<const SIZE: usize>(
+    ctx: &mut SharedStringMap<SIZE>,
+    chunk_size: usize,
+    _chunk_num: usize,
+) {
+    for i in 0..chunk_size {
+        let key = &ctx.keys[i % SIZE];
+        black_box(ctx.map.remove(key, false).unwrap());
+    }
+}
+
 fn map_build_small(ctx: &mut MapContext, chunk_size: usize, _chunk_num: usize) {
     for _ in 0..chunk_size {
         black_box(Var::mk_map(&ctx.small_pairs));
@@ -365,6 +429,34 @@ benchmark_main!(
                 "map_remove_insert_case_sensitive_steady",
                 map_remove_insert_case_sensitive_steady,
             );
+        });
+
+        runner.group::<SharedStringMap<8>>("Shared String-Keyed Map, 8 Entries", |g| {
+            let g = g.throughput(Throughput::per_operation(1, "map_ops"));
+            g.bench("map_shared_set_existing_8", shared_set_existing::<8>);
+            g.bench("map_shared_set_new_8", shared_set_new::<8>);
+            g.bench("map_shared_remove_8", shared_remove::<8>);
+        });
+
+        runner.group::<SharedStringMap<32>>("Shared String-Keyed Map, 32 Entries", |g| {
+            let g = g.throughput(Throughput::per_operation(1, "map_ops"));
+            g.bench("map_shared_set_existing_32", shared_set_existing::<32>);
+            g.bench("map_shared_set_new_32", shared_set_new::<32>);
+            g.bench("map_shared_remove_32", shared_remove::<32>);
+        });
+
+        runner.group::<SharedStringMap<64>>("Shared String-Keyed Map, 64 Entries", |g| {
+            let g = g.throughput(Throughput::per_operation(1, "map_ops"));
+            g.bench("map_shared_set_existing_64", shared_set_existing::<64>);
+            g.bench("map_shared_set_new_64", shared_set_new::<64>);
+            g.bench("map_shared_remove_64", shared_remove::<64>);
+        });
+
+        runner.group::<SharedStringMap<1000>>("Shared String-Keyed Map, 1000 Entries", |g| {
+            let g = g.throughput(Throughput::per_operation(1, "map_ops"));
+            g.bench("map_shared_set_existing_1000", shared_set_existing::<1000>);
+            g.bench("map_shared_set_new_1000", shared_set_new::<1000>);
+            g.bench("map_shared_remove_1000", shared_remove::<1000>);
         });
     }
 );

@@ -1022,16 +1022,14 @@ pub fn moo_frame_execute<H: VmHost>(
                     continue;
                 }
 
-                // Get next element - maps need special key iteration, sequences use direct indexing.
+                // Get the next element by position.
                 if is_associative {
                     let TypeClass::Associative(a) = scope.sequence.type_class() else {
                         unreachable!()
                     };
-                    let next = match &scope.current_key {
-                        Some(current_key) => a.next_after(current_key, false),
-                        None => a.first(),
-                    };
-                    let (key, value) = match next {
+                    // The map is a value that cannot change under the loop, so its entries are
+                    // taken by position. `current_key` is kept up to date for stored tasks.
+                    let (key, value) = match a.index(scope.current_index) {
                         Ok(k_v) => k_v,
                         Err(e) => return ExecutionResult::RaiseError(e),
                     };

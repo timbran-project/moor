@@ -22,21 +22,22 @@
 
 use crate::{
     Error, Sequence, Var,
+    block::{Shape, ShapeOwned, ShapeRef},
     error::ErrorCode::{E_RANGE, E_TYPE},
     v_list_iter, v_none,
     variant::OP_HINT_LIST_APPEND,
 };
 use std::{
-    alloc::{self, Layout},
     cmp::{max, min},
     fmt::{Debug, Formatter},
     hash::Hash,
-    mem::ManuallyDrop,
     ops::Index,
-    ptr::{self, NonNull},
-    sync::atomic::{self, AtomicUsize, Ordering},
 };
 use triomphe::Arc;
+
+type Block = crate::block::Block<Var>;
+type Repr<'a> = ShapeRef<'a, Var, Tree>;
+type Owned = ShapeOwned<Var, Tree>;
 
 /// The most items a list holds in one block. A longer list is a tree.
 ///
@@ -48,289 +49,6 @@ const FLAT_MAX: usize = 64;
 const LEAF_BITS: u32 = 5;
 const LEAF_WIDTH: usize = 1 << LEAF_BITS;
 const LEAF_MASK: usize = LEAF_WIDTH - 1;
-
-/// The least capacity a block grows to when an item is added to it.
-const MIN_GROWN_CAPACITY: usize = 4;
-
-#[repr(C)]
-struct BlockHeader {
-    refs: AtomicUsize,
-    len: u32,
-    capacity: u32,
-}
-
-// The items follow the header directly.
-const _: () = assert!(size_of::<BlockHeader>().is_multiple_of(align_of::<Var>()));
-const _: () = assert!(align_of::<BlockHeader>() >= align_of::<Var>());
-
-/// A reference-counted buffer of items: a header followed by room for `capacity` items, the first
-/// `len` of which are initialized.
-///
-/// Cloning shares the buffer. Every method that changes the items first makes the handle the only
-/// one to its buffer, copying the items if it was shared.
-#[repr(transparent)]
-struct Block(NonNull<BlockHeader>);
-
-// SAFETY: a block owns `Var`s, which are `Send + Sync`, and its count is atomic.
-unsafe impl Send for Block {}
-unsafe impl Sync for Block {}
-
-impl Block {
-    fn layout(capacity: usize) -> Layout {
-        let items = Layout::array::<Var>(capacity).expect("list block too large");
-        let (layout, offset) = Layout::new::<BlockHeader>()
-            .extend(items)
-            .expect("list block too large");
-        debug_assert_eq!(offset, size_of::<BlockHeader>());
-        layout.pad_to_align()
-    }
-
-    fn with_capacity(capacity: usize) -> Self {
-        let layout = Self::layout(capacity);
-        let header = BlockHeader {
-            refs: AtomicUsize::new(1),
-            len: 0,
-            capacity: u32::try_from(capacity).expect("list block too large"),
-        };
-        // SAFETY: the layout has the size of the header at least, so it is not zero-sized.
-        let ptr = unsafe { alloc::alloc(layout) }.cast::<BlockHeader>();
-        let Some(ptr) = NonNull::new(ptr) else {
-            alloc::handle_alloc_error(layout)
-        };
-        // SAFETY: `ptr` is valid for a header and suitably aligned.
-        unsafe { ptr.as_ptr().write(header) };
-        Self(ptr)
-    }
-
-    fn from_slice(values: &[Var]) -> Self {
-        let mut block = Self::with_capacity(values.len());
-        for value in values {
-            // SAFETY: the block is new, so unshared, and has room for every value.
-            unsafe { block.push_unchecked(value.clone()) };
-        }
-        block
-    }
-
-    #[inline]
-    fn header(&self) -> &BlockHeader {
-        // SAFETY: the pointer is to a live header for as long as this handle exists.
-        unsafe { self.0.as_ref() }
-    }
-
-    #[inline]
-    fn len(&self) -> usize {
-        self.header().len as usize
-    }
-
-    #[inline]
-    fn capacity(&self) -> usize {
-        self.header().capacity as usize
-    }
-
-    #[inline]
-    fn items(&self) -> *mut Var {
-        // SAFETY: the allocation extends at least to the end of the header.
-        unsafe { self.0.as_ptr().add(1).cast::<Var>() }
-    }
-
-    #[inline]
-    fn as_slice(&self) -> &[Var] {
-        // SAFETY: the first `len` items are initialized, and nothing writes to a shared block.
-        unsafe { std::slice::from_raw_parts(self.items(), self.len()) }
-    }
-
-    #[inline]
-    fn is_unique(&self) -> bool {
-        self.header().refs.load(Ordering::Acquire) == 1
-    }
-
-    /// Set the length.
-    ///
-    /// # Safety
-    /// The block must be unshared, and exactly the first `len` items initialized.
-    #[inline]
-    unsafe fn set_len(&mut self, len: usize) {
-        // SAFETY: the caller holds the only handle, so nothing else reads the header.
-        unsafe { (*self.0.as_ptr()).len = len as u32 };
-    }
-
-    /// Add an item at the end.
-    ///
-    /// # Safety
-    /// The block must be unshared and have spare capacity.
-    #[inline]
-    unsafe fn push_unchecked(&mut self, value: Var) {
-        let len = self.len();
-        debug_assert!(len < self.capacity());
-        // SAFETY: by the caller's contract slot `len` is in bounds, unused, and ours alone.
-        unsafe {
-            self.items().add(len).write(value);
-            self.set_len(len + 1);
-        }
-    }
-
-    /// Make this the only handle to its buffer, with room for at least `capacity` items.
-    fn make_unique(&mut self, capacity: usize) {
-        let len = self.len();
-        let capacity = capacity.max(len);
-        if !self.is_unique() {
-            let mut copy = Self::with_capacity(capacity);
-            for value in self.as_slice() {
-                // SAFETY: `copy` is new, so unshared, and has room for every item.
-                unsafe { copy.push_unchecked(value.clone()) };
-            }
-            *self = copy;
-            return;
-        }
-        if self.capacity() >= capacity {
-            return;
-        }
-        let old_layout = Self::layout(self.capacity());
-        let new_layout = Self::layout(capacity);
-        // SAFETY: the buffer was allocated with `old_layout`, and we hold the only handle to it.
-        // Moving it moves the header and the initialized items with it.
-        let ptr = unsafe { alloc::realloc(self.0.as_ptr().cast(), old_layout, new_layout.size()) }
-            .cast::<BlockHeader>();
-        let Some(ptr) = NonNull::new(ptr) else {
-            alloc::handle_alloc_error(new_layout)
-        };
-        self.0 = ptr;
-        // SAFETY: the header is live and ours alone.
-        unsafe { (*self.0.as_ptr()).capacity = capacity as u32 };
-    }
-
-    /// The items, for writing. Copies them first if the buffer is shared.
-    fn as_mut_slice(&mut self) -> &mut [Var] {
-        self.make_unique(0);
-        // SAFETY: the block is now unshared and its first `len` items are initialized.
-        unsafe { std::slice::from_raw_parts_mut(self.items(), self.len()) }
-    }
-
-    /// Make room to add one item to an unshared buffer, growing by doubling up to `limit` items.
-    fn reserve_one(&mut self, limit: usize) {
-        let len = self.len();
-        debug_assert!(len < limit);
-        if len < self.capacity() && self.is_unique() {
-            return;
-        }
-        let grown = (len * 2).clamp(MIN_GROWN_CAPACITY, limit).max(len + 1);
-        self.make_unique(grown.max(self.capacity()));
-    }
-
-    /// Add an item at the end. The block never grows past `limit` items.
-    fn push(&mut self, value: Var, limit: usize) {
-        self.reserve_one(limit);
-        // SAFETY: `reserve_one` left the block unshared with spare capacity.
-        unsafe { self.push_unchecked(value) };
-    }
-
-    /// Add copies of `values` at the end. The block must not grow past `limit` items.
-    fn extend_from_slice(&mut self, values: &[Var], limit: usize) {
-        let len = self.len() + values.len();
-        assert!(len <= limit);
-        // Keep a tail's full capacity, so that later pushes do not grow it again.
-        self.make_unique(len.max(self.capacity()));
-        // SAFETY: the block is unshared and was just given room for every value. The length is
-        // set once the copies are in place; if a clone panics, the copies made so far leak.
-        unsafe {
-            let mut slot = self.items().add(self.len());
-            for value in values {
-                slot.write(value.clone());
-                slot = slot.add(1);
-            }
-            self.set_len(len);
-        }
-    }
-
-    /// Drop the items from index `len` on. A shared block is replaced by one with room for
-    /// `capacity` items.
-    fn truncate(&mut self, len: usize, capacity: usize) {
-        let old_len = self.len();
-        assert!(len <= old_len);
-        if !self.is_unique() {
-            let mut kept = Self::with_capacity(capacity.max(len));
-            for value in &self.as_slice()[..len] {
-                // SAFETY: `kept` is new, so unshared, and has room for `len` items.
-                unsafe { kept.push_unchecked(value.clone()) };
-            }
-            *self = kept;
-            return;
-        }
-        // SAFETY: the block is unshared. The length drops first, so the items being dropped are
-        // already outside it.
-        unsafe {
-            self.set_len(len);
-            ptr::drop_in_place(ptr::slice_from_raw_parts_mut(
-                self.items().add(len),
-                old_len - len,
-            ));
-        }
-    }
-
-    /// Insert an item before `index`. The block never grows past `limit` items.
-    fn insert(&mut self, index: usize, value: Var, limit: usize) {
-        let len = self.len();
-        assert!(index <= len);
-        self.reserve_one(limit);
-        // SAFETY: the block is unshared with room for `len + 1` items. The items from `index` on
-        // move up one slot, which leaves slot `index` free to write.
-        unsafe {
-            let slot = self.items().add(index);
-            ptr::copy(slot, slot.add(1), len - index);
-            slot.write(value);
-            self.set_len(len + 1);
-        }
-    }
-
-    /// Remove and return the item at `index`.
-    fn remove(&mut self, index: usize) -> Var {
-        let len = self.len();
-        assert!(index < len);
-        self.make_unique(0);
-        // SAFETY: the block is unshared. The item is read out and the ones after it move down
-        // over its slot, so exactly the first `len - 1` slots stay initialized.
-        unsafe {
-            let slot = self.items().add(index);
-            let value = slot.read();
-            ptr::copy(slot.add(1), slot, len - index - 1);
-            self.set_len(len - 1);
-            value
-        }
-    }
-}
-
-impl Clone for Block {
-    #[inline]
-    fn clone(&self) -> Self {
-        let refs = self.header().refs.fetch_add(1, Ordering::Relaxed);
-        // As in `Arc`: a count this large can only come from leaking handles.
-        if refs > isize::MAX as usize {
-            std::process::abort();
-        }
-        Self(self.0)
-    }
-}
-
-impl Drop for Block {
-    #[inline]
-    fn drop(&mut self) {
-        // The only handle can skip the decrement: no other handle exists to copy from, so the
-        // count cannot rise again.
-        if !self.is_unique() {
-            if self.header().refs.fetch_sub(1, Ordering::Release) != 1 {
-                return;
-            }
-            atomic::fence(Ordering::Acquire);
-        }
-        let layout = Self::layout(self.capacity());
-        // SAFETY: this was the last handle. The first `len` items are initialized, and the
-        // buffer was allocated with this layout.
-        unsafe {
-            ptr::drop_in_place(ptr::slice_from_raw_parts_mut(self.items(), self.len()));
-            alloc::dealloc(self.0.as_ptr().cast(), layout);
-        }
-    }
-}
 
 #[derive(Clone)]
 enum Node {
@@ -689,27 +407,9 @@ impl Tree {
 }
 
 /// A MOO list. See the module documentation.
-///
-/// The pointer is to a `Block` header, or, with `TREE_TAG` set, to the `Tree` of an `Arc<Tree>`.
+#[derive(Clone)]
 #[repr(transparent)]
-pub struct List(NonNull<u8>);
-
-const TREE_TAG: usize = 1;
-const _: () = assert!(align_of::<Tree>() > TREE_TAG && align_of::<BlockHeader>() > TREE_TAG);
-
-// SAFETY: a list owns a `Block` or an `Arc<Tree>`, both of which are `Send + Sync`.
-unsafe impl Send for List {}
-unsafe impl Sync for List {}
-
-enum Repr<'a> {
-    Flat(&'a Block),
-    Tree(&'a Tree),
-}
-
-enum Owned {
-    Flat(Block),
-    Tree(Arc<Tree>),
-}
+pub struct List(Shape<Var, Tree>);
 
 /// Why a list is not its base with items appended. See [`List::append_suffix`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -725,15 +425,12 @@ pub enum ListAppendError {
 impl List {
     #[inline]
     fn from_block(block: Block) -> Self {
-        Self(ManuallyDrop::new(block).0.cast())
+        Self(Shape::from_block(block))
     }
 
     #[inline]
     fn from_tree(tree: Arc<Tree>) -> Self {
-        let ptr = Arc::into_raw(tree).cast_mut().cast::<u8>();
-        // SAFETY: the pointer came from an `Arc`, so it is not null, and setting a low bit keeps
-        // it so.
-        Self(unsafe { NonNull::new_unchecked(ptr.map_addr(|addr| addr | TREE_TAG)) })
+        Self(Shape::from_tree(tree))
     }
 
     /// A list of the tree's items: the tree itself, or a single block if it has become short.
@@ -747,45 +444,23 @@ impl List {
 
     #[inline]
     fn is_tree(&self) -> bool {
-        self.0.addr().get() & TREE_TAG != 0
-    }
-
-    #[inline]
-    fn tree_ptr(&self) -> *const Tree {
-        self.0
-            .as_ptr()
-            .map_addr(|addr| addr & !TREE_TAG)
-            .cast::<Tree>()
+        self.0.is_tree()
     }
 
     #[inline]
     fn repr(&self) -> Repr<'_> {
-        if self.is_tree() {
-            // SAFETY: a tagged pointer is to the `Tree` of an `Arc` this list keeps alive.
-            Repr::Tree(unsafe { &*self.tree_ptr() })
-        } else {
-            // SAFETY: an untagged list and a `Block` are both a pointer to a block header, and
-            // this list owns a count on that block.
-            Repr::Flat(unsafe { &*(self as *const Self).cast::<Block>() })
-        }
+        self.0.get()
     }
 
     #[inline]
     fn into_owned(self) -> Owned {
-        let this = ManuallyDrop::new(self);
-        if this.is_tree() {
-            // SAFETY: the pointer came from `Arc::into_raw`, and this list's count passes to the
-            // `Arc`.
-            Owned::Tree(unsafe { Arc::from_raw(this.tree_ptr()) })
-        } else {
-            Owned::Flat(Block(this.0.cast()))
-        }
+        self.0.into_owned()
     }
 
     /// Whether both share the same storage, or are small lists of identical items: never true
     /// for lists that differ. See `Var::is_identical`.
     pub fn is_identical(&self, other: &Self) -> bool {
-        if self.0 == other.0 {
+        if self.0.ptr_eq(&other.0) {
             return true;
         }
         // Small lists are cheap to build afresh, so their few items decide.
@@ -1196,30 +871,6 @@ impl List {
     }
 }
 
-impl Clone for List {
-    #[inline]
-    fn clone(&self) -> Self {
-        match self.repr() {
-            Repr::Flat(block) => Self::from_block(block.clone()),
-            Repr::Tree(_) => {
-                // SAFETY: the pointer came from `Arc::into_raw`. The `Arc` is only borrowed here:
-                // `ManuallyDrop` leaves this list's count in place.
-                let tree = ManuallyDrop::new(unsafe { Arc::from_raw(self.tree_ptr()) });
-                Self::from_tree(Arc::clone(&tree))
-            }
-        }
-    }
-}
-
-impl Drop for List {
-    #[inline]
-    fn drop(&mut self) {
-        // SAFETY: `self` is not used again, so its count passes to the owned form and is
-        // released with it.
-        drop(unsafe { ptr::read(self) }.into_owned());
-    }
-}
-
 /// The items of a list, in order.
 #[derive(Clone)]
 pub struct Iter<'a> {
@@ -1397,7 +1048,7 @@ impl Index<usize> for List {
 }
 impl PartialEq for List {
     fn eq(&self, other: &Self) -> bool {
-        if self.0 == other.0 {
+        if self.0.ptr_eq(&other.0) {
             return true;
         }
         if self.len() != other.len() {
@@ -1976,7 +1627,7 @@ mod tests {
 /// Tests of the list's own structure: block growth, the tree, and sharing between copies.
 #[cfg(test)]
 mod structure_tests {
-    use super::{Block, FLAT_MAX, LEAF_WIDTH, List};
+    use super::{FLAT_MAX, LEAF_WIDTH, List};
 
     /// The comparison budget the database gives `append_suffix`.
     const DATABASE_APPEND_BUDGET: usize = 128;
@@ -2137,16 +1788,6 @@ mod structure_tests {
         let before = inner.as_list().unwrap().get(199) as *const Var;
         let pushed = inner.push_owned(&v_int(5)).unwrap();
         assert_eq!(pushed.as_list().unwrap().get(199) as *const Var, before);
-    }
-
-    #[test]
-    fn a_shared_block_grows_before_it_is_extended() {
-        let mut block = Block::with_capacity(8);
-        block.push(v_int(1), 8);
-        let other = block.clone();
-        block.extend_from_slice(&[v_int(2), v_int(3), v_int(4)], 8);
-        assert_eq!(block.as_slice(), [1, 2, 3, 4].map(v_int));
-        assert_eq!(other.as_slice(), [v_int(1)]);
     }
 
     #[test]
