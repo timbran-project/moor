@@ -306,6 +306,8 @@ export const Login: React.FC<LoginProps> = (
         onConnect(mode, username.trim(), password, effectiveEncryptPassword);
     };
 
+    // Enter in a field submits the form by itself. A key handler that also called this logged in
+    // twice: once for the form's submit on key down, and again on key up.
     const handleSubmit = (e?: React.FormEvent) => {
         e?.preventDefault();
 
@@ -329,13 +331,6 @@ export const Login: React.FC<LoginProps> = (
         }
 
         onConnect(mode, username.trim(), password);
-    };
-
-    const handleKeyPress = (e: React.KeyboardEvent) => {
-        if (e.key === "Enter") {
-            e.preventDefault();
-            handleSubmit();
-        }
     };
 
     // OAuth2 wizard step calculation
@@ -1155,7 +1150,6 @@ export const Login: React.FC<LoginProps> = (
                                 spellCheck={false}
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
-                                onKeyUp={handleKeyPress}
                                 disabled={authState.isConnecting}
                                 required
                                 aria-invalid={authState.error ? "true" : "false"}
@@ -1177,7 +1171,6 @@ export const Login: React.FC<LoginProps> = (
                                 autoComplete={mode === "connect" ? "current-password" : "new-password"}
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                onKeyUp={handleKeyPress}
                                 disabled={authState.isConnecting}
                                 required
                                 aria-invalid={authState.error ? "true" : "false"}
@@ -1199,7 +1192,6 @@ export const Login: React.FC<LoginProps> = (
                                     autoComplete="new-password"
                                     value={confirmPassword}
                                     onChange={(e) => setConfirmPassword(e.target.value)}
-                                    onKeyUp={handleKeyPress}
                                     disabled={authState.isConnecting}
                                     required
                                     aria-invalid={password !== confirmPassword && confirmPassword !== ""
