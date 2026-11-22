@@ -1,7 +1,7 @@
 # Single-process backend deployment for mooR.
 #
 x-moor-image: &moor-image
-  image: ghcr.io/timbran-project/moor:latest
+  image: ghcr.io/timbran-project/moor:${MOOR_VERSION:-latest}
 
 services:
   moor:
@@ -30,6 +30,6 @@ services:
         --export=/moor/export
         --enable-curl-worker
     ports:
-      - "8888:8888"
-      - "8080:8080"
+      - "${MOOR_BIND:-0.0.0.0}:8888:8888"
+      - "${MOOR_BIND:-0.0.0.0}:8080:8080"
     restart: unless-stopped

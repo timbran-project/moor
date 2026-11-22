@@ -378,3 +378,43 @@ jobs:
         run: |
           gh release upload "$TAG" --clobber \
               "dist/${NAME}.tar.gz" "dist/${NAME}.tar.gz.sha256"
+
+  # The cloud-init file for this release: the template with the release filled in. It is attached
+  # once the images exist, since a machine started from it pulls them.
+  cloud-init:
+    name: Attach cloud-init file
+    needs: [prepare, create-manifests, draft-release]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: refs/tags/${{ needs.prepare.outputs.tag }}
+
+      - name: Fill in the release and attach
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          mkdir -p dist
+          sed "s/@MOOR_VERSION@/${TAG}/" deploy/cloud-init/moor.yaml > dist/moor-cloud-init.yaml
+
+          # Exactly one setting, and no placeholder left behind.
+          if grep --quiet '@MOOR_VERSION@' dist/moor-cloud-init.yaml; then
+              echo "The placeholder was not replaced." >&2
+              exit 1
+          fi
+          if [[ "$(grep --count "^      MOOR_VERSION=${TAG}\$" dist/moor-cloud-init.yaml)" != 1 ]]; then
+              echo "MOOR_VERSION=${TAG} was not set." >&2
+              exit 1
+          fi
+          if [[ "$(head -n 1 dist/moor-cloud-init.yaml)" != "#cloud-config" ]]; then
+              echo "The file does not start with #cloud-config." >&2
+              exit 1
+          fi
+
+          gh release upload "$TAG" --clobber dist/moor-cloud-init.yaml
+

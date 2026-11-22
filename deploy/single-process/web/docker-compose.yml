@@ -1,7 +1,7 @@
 # Web deployment using the single-process `moor` backend.
 #
 x-moor-image: &moor-image
-  image: ghcr.io/timbran-project/moor:latest
+  image: ghcr.io/timbran-project/moor:${MOOR_VERSION:-latest}
 
 networks:
   moor_net:
@@ -37,7 +37,7 @@ services:
         --enable-curl-worker
         --web-listen-address=0.0.0.0:8081
     ports:
-      - "8888:8888"
+      - "${MOOR_BIND:-0.0.0.0}:8888:8888"
     networks:
       - moor_net
     restart: unless-stopped
@@ -62,7 +62,7 @@ services:
       moor:
         condition: service_started
     ports:
-      - "8080:80"
+      - "${MOOR_BIND:-0.0.0.0}:8080:80"
     networks:
       - moor_net
     restart: unless-stopped
