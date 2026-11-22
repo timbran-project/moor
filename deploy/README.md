@@ -34,6 +34,9 @@ testing.
 - **Running only telnet plus the embedded API?** → See
   [single-process/basic/](single-process/basic/) for the minimal single-process Docker deployment.
 
+- **Starting a server on a new cloud machine?** → See [cloud-init/](cloud-init/) for a file that
+  sets up the single-process web deployment on first boot.
+
 - **Need the split-process examples?** → See [clustered/](clustered/).
 
 - **Running a public web-enabled MOO on the internet?** → See
