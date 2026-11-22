@@ -14,6 +14,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.1 series (`main` branch)
 
+### Added
+
+- Each release on GitHub now comes with a tarball of the server programs for x86-64 and arm64 Linux,
+  for running mooR without containers and without building it. They are the binaries from the
+  container image with the debugging information removed, and need glibc 2.36 or newer. Each has a
+  checksum and a build attestation.
+
 ### Changed
 
 - `moor --version` now shows the commit it was built from, as the other server programs do, and
