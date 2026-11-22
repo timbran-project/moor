@@ -17,6 +17,7 @@ services:
     volumes:
       - ./moor-data:/moor/moor-data
       - ../../../cores:/moor/cores:ro
+      - ./moor.yaml:/moor/moor.yaml:ro
       - ./moor-config:/moor/.config
       - ./moor-local-share:/moor/.local/share
       - ./export:/moor/export
@@ -25,10 +26,12 @@ services:
         /moor/moor-data
         --db=production.db
         --generate-keypair
-        --import=/moor/cores/lambda-moor/src
+        --config-file=/moor/moor.yaml
+        --import=/moor/cores/${MOOR_CORE:-snore}/src
         --import-format=objdef
         --export=/moor/export
         --enable-curl-worker
+        --enable-git-worker
     ports:
       - "${MOOR_BIND:-0.0.0.0}:8888:8888"
       - "${MOOR_BIND:-0.0.0.0}:8080:8080"

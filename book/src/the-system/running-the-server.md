@@ -78,10 +78,10 @@ change them to fit.
 
 Once you have mooR running, you'll need to:
 
-1. **Change the wizard's password** - The wizard account can do anything in the world. A new
-   LambdaCore world's wizard has no password at all, and a new Cowbell world's has the one that
-   ships with the core. Connect as the wizard and set your own with `@password` before anyone else
-   can reach the server.
+1. **Change the wizard's password** - The wizard account can do anything in the world, and a new
+   world's wizard has a password everybody knows: none at all in Snore and LambdaCore, and `test`
+   for Cowbell's `archwizard`. Change it with `@password` before anyone else can reach the server.
+   [Docker Compose Setup](docker-compose-setup.md#before-you-open-it-to-anyone) has the steps.
 2. **Understand the selected MOO core** - See [Understanding MOO Cores](understanding-moo-cores.md)
 3. **Configure your server** - See [Server Configuration](server-configuration.md)
 4. **Set up player access** - Configure telnet and/or web interfaces
