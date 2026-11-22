@@ -14,6 +14,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.0 series (`v2.0-release` branch)
 
+- Meadow's "Room HUD" setting is removed, and the room panel is always available. It still stays out
+  of the way while the narrative shows the room.
 - Meadow no longer shows an empty screen on a first login, or after a reload when history is off or
   not yet set up. The room panel now appears whenever the narrative has no description of the room
   you are in. Before, it only appeared after a description had scrolled out of view.
