@@ -73,8 +73,13 @@ impl From<Format> for ImportFormat {
     }
 }
 
+/// The version with the commit it was built from, as the other server programs print it.
+static VERSION_STRING: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
+    format!("{} (commit: {})", build::PKG_VERSION, build::short_commit())
+});
+
 #[derive(Parser, Debug)]
-#[command(version = build::PKG_VERSION)]
+#[command(name = "moor", version = VERSION_STRING.as_str())]
 struct Args {
     #[arg(
         value_name = "data-dir",
