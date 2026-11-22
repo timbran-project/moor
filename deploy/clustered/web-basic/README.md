@@ -108,10 +108,10 @@ COMPOSE_PROFILES=file-worker docker compose stop
 On first run, the system will:
 
 1. Generate an enrollment token for secure host-daemon communication
-2. Import the default LambdaMOO core database (if no existing database)
+2. Import the Snore core into a new database (if no database exists yet)
 3. Start all services (daemon, telnet host, web host, frontend, curl worker)
 
-Default wizard credentials (if using lambda-moor core):
+Default wizard credentials (with the Snore core these examples import):
 
 - Username: `Wizard`
 - Password: (none - press enter)

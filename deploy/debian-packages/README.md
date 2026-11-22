@@ -15,7 +15,7 @@ mooR can be packaged into several Debian packages:
 
 Install either `moor` or the split `moor-daemon`/host packages on a server. The `moor` and
 `moor-daemon` packages conflict because they own different service models and duplicate the bundled
-LambdaCore assets.
+Snore core.
 
 ## Use Case
 
@@ -188,7 +188,7 @@ sudo systemctl edit moor-web-host
 On first install, initialize the database:
 
 ```bash
-# The daemon will auto-import the lambda-moor core on first run
+# The daemon will import the Snore core on first run
 sudo systemctl start moor-daemon
 
 # Check logs to verify initialization
@@ -350,7 +350,7 @@ sudo systemctl status moor-daemon moor-telnet-host moor-web-host
 
 ### Cores
 
-- `/usr/share/moor/cores/lambda-moor/` (default MOO core)
+- `/usr/share/moor/cores/snore/` (default MOO core)
 
 ## Backup and Restore
 
@@ -583,9 +583,9 @@ See the main [deploy/README.md](../README.md) for Docker-based testing alternati
 
 ### Database initialization fails
 
-1. Check that lambda-moor core is installed:
+1. Check that the Snore core is installed:
    ```bash
-   ls -la /usr/share/moor/cores/lambda-moor/
+   ls -la /usr/share/moor/cores/snore/
    ```
 
 2. Check daemon has write access:

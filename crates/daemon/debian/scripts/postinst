@@ -22,8 +22,8 @@ create_directories() {
   chmod 700 ${CONFIG_DIR}
 
   echo ""
-  echo "** The moor-daemon package includes a LambdaCore-based core (with modifications for moor)"
-  echo "** at /usr/share/moor/cores/lambda-moor/src - see README.md in that directory for details."
+  echo "** The moor-daemon package includes the Snore core, a LambdaCore fork written for mooR,"
+  echo "** at /usr/share/moor/cores/snore/src - see README.md beside that directory for details."
   echo "** This core will be used by default. To use a different core, update"
   echo "** /etc/moor/daemon-config.yaml (import_export.input_path) and restart with 'systemctl restart moor-daemon'."
   echo ""

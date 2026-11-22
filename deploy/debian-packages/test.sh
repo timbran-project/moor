@@ -117,7 +117,7 @@ incus file push "$TELNET_DEB" "$CONTAINER_NAME/tmp/"
 # Copy cores directory for database import
 log_info "Copying MOO core database..."
 incus exec "$CONTAINER_NAME" -- mkdir -p /tmp/cores
-incus file push -r "$SCRIPT_DIR/../../cores/lambda-moor" "$CONTAINER_NAME/tmp/cores/"
+incus file push -r "$SCRIPT_DIR/../../cores/snore" "$CONTAINER_NAME/tmp/cores/"
 
 # Update package lists
 log_info "Updating package lists in container..."
@@ -165,7 +165,7 @@ incus exec "$CONTAINER_NAME" -- apt-get install -y telnet curl
 # Configure daemon to import core database
 log_info "Configuring daemon to import core database..."
 incus exec "$CONTAINER_NAME" -- bash -c 'cat > /etc/default/moor-daemon << EOF
-MOOR_DAEMON_ARGS="--import=/tmp/cores/lambda-moor/src --import-format=objdef"
+MOOR_DAEMON_ARGS="--import=/tmp/cores/snore/src --import-format=objdef"
 EOF'
 
 # Start services

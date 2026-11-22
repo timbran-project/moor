@@ -6,13 +6,16 @@ features:
   type_dispatch: true
   flyweight_type: true
   bool_type: true
-  use_boolean_returns: false
+  use_boolean_returns: true
   custom_errors: true
+  use_uuobjids: true
+  anonymous_objects: true
+  enable_eventlog: true
   symbol_type: true
-  use_symbols_in_builtins: false
+  use_symbols_in_builtins: true
 
 import_export:
-  input_path: "/usr/share/moor/cores/lambda-moor/src"
+  input_path: "/usr/share/moor/cores/snore/src"
   import_format: "Objdef"
   output_path: "/var/spool/moor-daemon/core.export"
   checkpoint_interval: "600s"

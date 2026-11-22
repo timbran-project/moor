@@ -18,8 +18,8 @@ installs a service, creates a user or sets up a data directory: that part is you
 - `web-client/`: the files of the web client, to serve with a web server of your choice.
 - `LICENSE`: the GNU Affero General Public License, version 3.
 
-There is no world here. A new server needs a core to start from, such as Cowbell or LambdaCore, both
-of which are in the mooR source repository under `cores/`.
+There is no world here. A new server needs a core to start from, such as Cowbell or Snore, both of
+which are in the mooR source repository under `cores/`.
 
 ## What you need
 

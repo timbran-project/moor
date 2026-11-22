@@ -40,6 +40,19 @@ spec:
             - --generate-keypair
             - --import=$(IMPORT_PATH)
             - --import-format=$(IMPORT_FORMAT)
+            # Server features the Snore and Cowbell cores are written for.
+            - --rich-notify=true
+            - --type-dispatch=true
+            - --flyweight-type=true
+            - --bool-type=true
+            - --symbol-type=true
+            - --use-boolean-returns=true
+            - --custom-errors=true
+            - --use-uuobjids=true
+            - --anonymous-objects=true
+            - --enable-eventlog=true
+            - --use-symbols-in-builtins=true
+            - --persistent-tasks=true
           env:
             - name: RUST_BACKTRACE
               valueFrom:

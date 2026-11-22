@@ -12,7 +12,7 @@ setup and environment isolation automatically.
 1. Clone the mooR repository
 2. Run one of the start scripts in the repository root:
    - For the modern Cowbell core: `./scripts/start-moor-cowbell.sh`
-   - For classic LambdaCore: `./scripts/start-moor-lambdacore.sh`
+   - For Snore, a classic MOO core: `./scripts/start-moor-snore.sh`
 3. Connect to your MOO via http://localhost:8080/ -- or `telnet` (or your favourite MUD client) to
    port 8888
 
