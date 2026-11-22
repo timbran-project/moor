@@ -22,6 +22,9 @@ the embedded curl worker enabled.
 **`deploy/single-process/web/`** : Combined backend plus a static file server (nginx) serving
 Meadow, curl worker enabled.
 
+Both single-process examples start a new world from the Snore core unless `MOOR_CORE` names another,
+such as `cowbell`.
+
 **`deploy/clustered/telnet-only/`** : Split daemon and telnet host.
 
 **`deploy/clustered/web-basic/`** : Split web deployment with HTTP.
@@ -101,46 +104,38 @@ need automation. Follow the README in the selected configuration directory.
 
 The single-process examples read these settings from `.env`:
 
-| Setting               | What it does                               | Default        |
-| --------------------- | ------------------------------------------ | -------------- |
-| `USER_ID`, `GROUP_ID` | The user and group the containers run as   | `1000`, `1000` |
-| `MOOR_VERSION`        | The release to run, which is the image tag | `latest`       |
-| `MOOR_BIND`           | The address the published ports listen on  | `0.0.0.0`      |
+| Setting               | What it does                                             | Default        |
+| --------------------- | -------------------------------------------------------- | -------------- |
+| `USER_ID`, `GROUP_ID` | The user and group the containers run as                 | `1000`, `1000` |
+| `MOOR_VERSION`        | The release to run, which is the image tag               | `latest`       |
+| `MOOR_BIND`           | The address the published ports listen on                | `0.0.0.0`      |
+| `MOOR_CORE`           | The core a new world starts from, a directory in `cores` | `snore`        |
 
 ### Before You Open It to Anyone
 
-A new world has a wizard account, which can do anything in it. LambdaCore's wizard has no password,
-and Cowbell's has the one that ships with the core. On a machine other people can reach, anyone who
+A new world has a wizard account, which can do anything in it, and its password is one everybody
+knows. In a Snore or LambdaCore world the wizard is `wizard` and has no password. In a Cowbell world
+it is `archwizard`, with the password `test`. On a machine other people can reach, anyone who
 connects first can take the world over.
 
-So change the wizard's password before the server is reachable. The simplest way is to start with
+So change the password before the server is reachable. The simplest way is to start with
 `MOOR_BIND=127.0.0.1`, which makes the ports answer only on the machine itself. Connect from that
-machine, log in as the wizard, and set a password with `@password`. Then remove the setting and run
-`docker compose up -d` again. [Starting on a Cloud Machine](cloud-machine.md) walks through the same
-steps over an SSH tunnel.
+machine and change it:
 
-### Service Components
+```
+connect wizard
+@password <new-password>
+```
 
-A single-process mooR deployment includes:
+or, for Cowbell:
 
-**moor** : The combined backend, telnet host, web host, and embedded curl worker in the bundled
-examples.
+```
+connect archwizard test
+@password test <new-password>
+```
 
-**moor-frontend** : a static file server (nginx in the provided examples) serving the web client and
-proxying API requests to the backend (web deployments only).
-
-Clustered deployments split the backend into:
-
-**moor-daemon** : The core MOO server handling database, task scheduling, and execution.
-
-**moor-telnet-host** : Traditional telnet interface (port 8888 by default).
-
-**moor-web-host** : REST API and WebSocket server for web clients.
-
-**moor-curl-worker** : Handles outbound HTTP requests from MOO code.
-
-The single-process backend uses in-process endpoints. Clustered same-machine deployments communicate
-via Unix domain sockets (IPC). Containers run as your user to avoid permission issues.
+Then remove the setting and run `docker compose up -d` again.
+[Starting on a Cloud Machine](cloud-machine.md) walks through the same steps over an SSH tunnel.
 
 ## Development Quick Start
 

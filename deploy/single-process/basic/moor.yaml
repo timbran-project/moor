@@ -1,0 +1,17 @@
+# Server features for the single-process examples.
+#
+# These turn on the language and runtime features that the Cowbell and Snore cores are written
+# for. Paths, ports and workers are set on the command line in docker-compose.yml.
+features:
+  persistent_tasks: true
+  rich_notify: true
+  type_dispatch: true
+  flyweight_type: true
+  bool_type: true
+  use_boolean_returns: true
+  custom_errors: true
+  use_uuobjids: true
+  anonymous_objects: true
+  enable_eventlog: true
+  symbol_type: true
+  use_symbols_in_builtins: true
