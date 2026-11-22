@@ -35,8 +35,8 @@ use moor_var::{
     E_ARGS, E_INVARG, E_INVIND, E_PERM, E_RANGE, E_TYPE, E_VARNF, E_VERBNF, Error, IndexMode, List,
     Obj, SYSTEM_OBJECT, Sequence, Symbol, TypeClass, Var, VarType, Variant,
     program::names::{GlobalName, Name},
-    v_arc_str, v_bool, v_bool_int, v_empty_list, v_empty_map, v_empty_str, v_err, v_error, v_float,
-    v_flyweight, v_int, v_list_iter, v_map, v_none, v_obj, v_sym,
+    v_bool, v_bool_int, v_empty_list, v_empty_map, v_empty_str, v_err, v_error, v_float,
+    v_flyweight, v_int, v_list_iter, v_map, v_none, v_obj, v_sym, v_symbol_str,
 };
 use std::{sync::LazyLock, time::Duration};
 
@@ -1512,7 +1512,13 @@ pub fn moo_frame_execute<H: VmHost>(
                 binary_var_op!(f, div);
             }
             Op::Add => {
-                binary_var_op!(f, add);
+                // The left operand is edited where it sits on the stack, so that a string
+                // nothing else holds is appended to in place.
+                let rhs = f.pop();
+                if let Err(err_code) = f.peek_top_mut().add_assign(&rhs) {
+                    f.pop();
+                    return push_error_cold(err_code);
+                }
             }
             Op::Exp => {
                 binary_var_op!(f, pow);
@@ -2300,7 +2306,7 @@ fn get_property<H: VmHost>(
                         if features_config.use_symbols_in_builtins {
                             v_sym(*k)
                         } else {
-                            v_arc_str(k.as_arc_str())
+                            v_symbol_str(*k)
                         },
                         v.clone(),
                     )

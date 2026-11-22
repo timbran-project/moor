@@ -34,6 +34,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   place when nothing else refers to it, instead of copying it first. Loops that build or update a
   collection this way run three to four times faster. Existing verbs get the improvement without
   recompilation, and the stored form of a verb is unchanged.
+- Strings have a new implementation. Adding to the end of a string held in a variable, as in
+  `s = s + x`, and setting one character, as in `s[i] = c`, now edit the string in place when
+  nothing else refers to it. Reading a character or a range of an all-ASCII string no longer scans
+  it from the start, and copying a string value no longer scans it at all.
 - Error guards run faster. Entering a guard for literal error codes or for `ANY` costs less, and so
   does catching an error in a catch expression with no default, such as `` `x.name ! E_PROPNF' ``.
   Existing verbs get the improvement without recompilation.

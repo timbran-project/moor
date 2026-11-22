@@ -28,7 +28,7 @@ use moor_var::program::names::Name;
 use moor_var::program::opcode::{
     ComprehensionType, ListComprehend, Op, Op::Jump, RangeComprehend, ScatterLabel,
 };
-use moor_var::{Symbol, Variant, v_arc_str, v_int, v_sym};
+use moor_var::{Symbol, Variant, v_int, v_sym, v_symbol_str};
 
 impl CodegenState {
     fn advance_comprehension_position(&mut self, position: Name) {
@@ -290,7 +290,7 @@ impl CodegenState {
                 self.generate_expr(delegate.as_ref())?;
                 for (k, v) in slots {
                     self.generate_expr(v)?;
-                    self.generate_expr(&Expr::Value(v_arc_str(k.as_arc_str())))?;
+                    self.generate_expr(&Expr::Value(v_symbol_str(*k)))?;
                 }
                 match contents {
                     Some(expr) => self.generate_expr(expr.as_ref())?,

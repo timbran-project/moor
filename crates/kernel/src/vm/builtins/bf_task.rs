@@ -29,8 +29,8 @@ use crate::vm::{FinallyReason, TaskSuspend};
 use moor_common::builtins::offset_for_builtin;
 use moor_common::tasks::TaskId;
 use moor_var::{
-    E_ARGS, E_INVARG, E_PERM, E_TYPE, List, Obj, Symbol, Var, Variant, v_arc_str, v_bool,
-    v_empty_map, v_float, v_int, v_list, v_list_iter, v_map, v_obj, v_str, v_string, v_sym,
+    E_ARGS, E_INVARG, E_PERM, E_TYPE, List, Obj, Symbol, Var, Variant, v_bool, v_empty_map,
+    v_float, v_int, v_list, v_list_iter, v_map, v_obj, v_str, v_string, v_sym, v_symbol_str,
 };
 use std::time::{Duration, SystemTime};
 
@@ -365,7 +365,7 @@ fn bf_queued_tasks(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
             let y = v_int(0);
             let programmer = v_obj(task.authority_principal);
             let verb_loc = v_obj(task.verb_definer);
-            let verb_name = v_arc_str(task.verb_name.as_arc_str());
+            let verb_name = v_symbol_str(task.verb_name);
             let line = v_int(task.line_number as i64);
             let this = task.this.clone();
             v_list(&[
@@ -403,7 +403,7 @@ fn bf_active_tasks(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
         if bf_args.config.symbol_type {
             v_sym(s)
         } else {
-            v_arc_str(s.as_arc_str())
+            v_symbol_str(s)
         }
     };
 
@@ -550,7 +550,7 @@ fn task_telemetry_to_var(bf_args: &BfCallState<'_>, telemetry: &TaskTelemetry) -
     let phase = if bf_args.config.symbol_type {
         v_sym(phase)
     } else {
-        v_arc_str(phase.as_arc_str())
+        v_symbol_str(phase)
     };
 
     let mut pairs = vec![

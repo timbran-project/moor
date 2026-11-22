@@ -162,6 +162,26 @@ mod tests {
                 "{\"azc\", \"abc\"}",
             ),
             (
+                "x = \"abc\"; y = x; x = x + \"d\"; return {x, y};",
+                "{\"abcd\", \"abc\"}",
+            ),
+            (
+                "x = \"ab\"; x = x + x; x = x + x; return x;",
+                "\"abababab\"",
+            ),
+            (
+                "x = \"\"; for i in [1..5] x = x + tostr(i); endfor return {x, length(x)};",
+                "{\"12345\", 5}",
+            ),
+            (
+                "x = \"h\"; for i in [1..3] x = x + \"é\"; endfor x[2] = \"a\"; return {x, length(x), x[3]};",
+                "{\"haéé\", 4, \"é\"}",
+            ),
+            (
+                "x = \"abc\"; y = x; x[1..2] = \"zz\"; return {x, y};",
+                "{\"zzc\", \"abc\"}",
+            ),
+            (
                 "x = {1, 2, 3}; y = x; x[2..3] = {}; return {x, y};",
                 "{{1}, {1, 2, 3}}",
             ),

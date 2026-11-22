@@ -16,8 +16,8 @@ use std::fmt::Write as _;
 use moor_common::tasks::Exception;
 use moor_compiler::{BUILTINS, Label, Offset, Op, to_literal};
 use moor_var::{
-    Error, NOTHING, Sequence, Var, v_arc_str, v_bool, v_err, v_int, v_list, v_none, v_obj, v_str,
-    v_string,
+    Error, NOTHING, Sequence, Var, v_bool, v_err, v_int, v_list, v_none, v_obj, v_str, v_string,
+    v_symbol_str,
 };
 
 use crate::exec_state::ExecState;
@@ -70,7 +70,7 @@ impl ExecState {
             match &a.frame {
                 Frame::Moo(_) => stack_list.push(v_list(&[
                     a.this.clone(),
-                    v_arc_str(a.verb_name.as_arc_str()),
+                    v_symbol_str(a.verb_name),
                     v_obj(a.authority_principal()),
                     v_obj(a.verb_definer()),
                     v_obj(a.player()),
@@ -78,7 +78,7 @@ impl ExecState {
                 ])),
                 Frame::Native(_) => stack_list.push(v_list(&[
                     a.this.clone(),
-                    v_arc_str(a.verb_name.as_arc_str()),
+                    v_symbol_str(a.verb_name),
                     v_obj(a.authority_principal()),
                     v_obj(a.verb_definer()),
                     v_obj(a.player()),
@@ -88,7 +88,7 @@ impl ExecState {
                     let bf_name = BUILTINS.name_of(bf_frame.bf_id).unwrap();
                     stack_list.push(v_list(&[
                         a.this.clone(),
-                        v_arc_str(bf_name.as_arc_str()),
+                        v_symbol_str(bf_name),
                         v_obj(a.authority_principal()),
                         v_obj(NOTHING),
                         v_obj(a.player()),

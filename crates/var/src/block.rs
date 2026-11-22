@@ -11,7 +11,7 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Reference-counted storage shared by lists and maps.
+//! Reference-counted storage shared by lists, maps and strings.
 //!
 //! [`Block`] is a buffer of items that is copied before it is changed if anything else holds it.
 //! [`Shape`] is one pointer to either a block or a tree, which is what a list or a map is.
@@ -112,9 +112,16 @@ impl<T> Block<T> {
         unsafe { std::slice::from_raw_parts(self.items(), self.len()) }
     }
 
+    /// Whether this is the only handle to its buffer.
     #[inline]
-    fn is_unique(&self) -> bool {
+    pub(crate) fn is_unique(&self) -> bool {
         self.header().refs.load(Ordering::Acquire) == 1
+    }
+
+    /// Whether both handles are to the same buffer.
+    #[inline]
+    pub(crate) fn ptr_eq(&self, other: &Self) -> bool {
+        self.0 == other.0
     }
 
     /// Set the length.
