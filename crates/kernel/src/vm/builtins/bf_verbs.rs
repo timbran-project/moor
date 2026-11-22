@@ -1129,8 +1129,8 @@ fn bf_prepositions(_bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
 fn native_line(native: &NativeProgram) -> String {
     format!(
         "native {} {}",
-        to_literal(&v_str(&native.library.as_arc_str())),
-        to_literal(&v_str(&native.function.as_arc_str()))
+        to_literal(&v_str(native.library.as_str())),
+        to_literal(&v_str(native.function.as_str()))
     )
 }
 
@@ -1203,8 +1203,8 @@ fn bf_verb_native(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     .map_err(world_state_bf_err)?;
     Ok(Ret(match program {
         ProgramType::Native(native) => v_list(&[
-            v_str(&native.library.as_arc_str()),
-            v_str(&native.function.as_arc_str()),
+            v_str(native.library.as_str()),
+            v_str(native.function.as_str()),
         ]),
         ProgramType::MooR(_) => v_empty_list(),
     }))

@@ -40,7 +40,7 @@ impl PackageDeclaration {
     pub fn attribute(&self, key: &str) -> Option<&Var> {
         self.attributes
             .iter()
-            .find(|(name, _)| name.as_arc_str().as_str() == key)
+            .find(|(name, _)| name.as_str() == key)
             .map(|(_, value)| value)
     }
 }
@@ -98,7 +98,7 @@ impl ObjFileContext {
                 Arc::new(
                     self.constants
                         .iter()
-                        .filter(|(name, _)| name.as_arc_str().contains(NAMESPACE_SEPARATOR))
+                        .filter(|(name, _)| name.as_str().contains(NAMESPACE_SEPARATOR))
                         .filter_map(|(name, value)| Some((*name, value.as_object()?)))
                         .collect(),
                 )

@@ -228,7 +228,7 @@ impl InputMetadata {
         };
 
         for (key, value) in metadata {
-            match key.as_arc_str().as_str() {
+            match key.as_str() {
                 "input_type" => {
                     result.input_type = value.as_string().map(|s| s.to_string());
                 }
@@ -630,7 +630,7 @@ impl TelnetConnection {
         );
         for (key, value) in &plan.changed {
             let on = value.as_ref().is_some_and(|v| v.is_true());
-            match key.as_arc_str().as_str() {
+            match key.as_str() {
                 "utf8" => self.supports_utf8 = on,
                 "screen-reader" => self.screen_reader_mode = on,
                 _ => {}
@@ -675,9 +675,9 @@ impl TelnetConnection {
         option_name: Symbol,
         value: Option<Var>,
     ) -> Result<(), eyre::Error> {
-        let option_str = option_name.as_arc_str();
+        let option_str = option_name.as_str();
 
-        match option_str.as_str() {
+        match option_str {
             "binary" => {
                 let binary_mode = value.as_ref().map(|v| v.is_true()).unwrap_or(false);
                 debug!("Setting binary mode to {}", binary_mode);
@@ -718,7 +718,7 @@ impl TelnetConnection {
             }
             "gmcp" | "msdp" | "mxp" | "eor" | "mccp2" | "naws" | "ttype" | "charset" => {
                 let enable = value.as_ref().is_some_and(|v| v.is_true());
-                let option = match option_str.as_str() {
+                let option = match option_str {
                     "gmcp" => OPT_GMCP,
                     "msdp" => OPT_MSDP,
                     "mxp" => OPT_MXP,
@@ -1975,14 +1975,9 @@ fn event_frames(view: &OutputView<'_>, event: Event) -> Vec<ConnectionFrame> {
             kind,
             payload,
             ..
-        } => data_frame(
-            view.negotiator,
-            &namespace.as_arc_str(),
-            &kind.as_arc_str(),
-            &payload,
-        )
-        .into_iter()
-        .collect(),
+        } => data_frame(view.negotiator, namespace.as_str(), kind.as_str(), &payload)
+            .into_iter()
+            .collect(),
         Event::Present(_) | Event::Unpresent(_) | Event::SetConnectionOption { .. } => {
             // Web UI elements, and options delivered as ClientEvent::SetConnectionOption.
             trace!("Ignoring event in telnet client");
@@ -2023,7 +2018,7 @@ fn is_prompt(metadata: Option<&[(Symbol, Var)]>) -> bool {
     metadata
         .into_iter()
         .flatten()
-        .any(|(key, value)| key.as_arc_str().as_str() == "prompt" && value.is_true())
+        .any(|(key, value)| key.as_str() == "prompt" && value.is_true())
 }
 
 /// Produce the right kind of "telnet" compatible output for the given content.
@@ -2035,7 +2030,7 @@ fn output_format(
 ) -> Result<FormattedOutput, eyre::Error> {
     match content.variant() {
         Variant::Str(s) => output_str_format(s.as_str(), content_type, width, options),
-        Variant::Sym(s) => output_str_format(&s.as_arc_str(), content_type, width, options),
+        Variant::Sym(s) => output_str_format(s.as_str(), content_type, width, options),
         Variant::List(l) => {
             // If the content is a list, it must be a list of strings.
             let mut output = String::new();
@@ -2064,9 +2059,9 @@ fn output_str_format(
         debug!("output_str_format: no content_type, using plain");
         return Ok(FormattedOutput::Plain(content.to_string()));
     };
-    let content_type_str = content_type.as_arc_str();
+    let content_type_str = content_type.as_str();
     debug!("output_str_format: content_type={}", content_type_str);
-    Ok(match content_type_str.as_str() {
+    Ok(match content_type_str {
         // The djot renderer handles most markdown syntax too.
         CONTENT_TYPE_MARKDOWN
         | CONTENT_TYPE_MARKDOWN_SLASH

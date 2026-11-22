@@ -241,7 +241,7 @@ pub(crate) fn declarations_value(declarations: &[PackageDeclaration]) -> Var {
             let attributes = declaration
                 .attributes
                 .iter()
-                .map(|(key, value)| v_list(&[v_str(&key.as_arc_str()), value.clone()]))
+                .map(|(key, value)| v_list(&[v_str(key.as_str()), value.clone()]))
                 .collect::<Vec<_>>();
             (v_str(&declaration.name), v_list(&attributes))
         })

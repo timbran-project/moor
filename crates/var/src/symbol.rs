@@ -21,8 +21,8 @@
 //!
 //! The implementation is thread-safe and uses lock-free data structures where possible.
 
+use crate::string::Str;
 use ahash::AHasher;
-use arcstr::ArcStr;
 use boxcar::Vec as BoxcarVec;
 use papaya::{Equivalent, HashMap};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -113,16 +113,15 @@ thread_local! {
 /// Store all symbol data in a single entry to ensure atomicity.
 #[derive(Clone)]
 struct SymbolData {
-    original_string: ArcStr,
+    original_string: Str,
     repr_id: u32,
     compare_id: u32,
 }
 
 /// Reverse-lookup entry keyed by repr_id.
 struct SymbolReprData {
-    original_string: ArcStr,
-    /// The same text as a MOO string, so a string value backed by a symbol can lend one out.
-    original_str: crate::string::Str,
+    /// The text as a MOO string, which a string value backed by this symbol lends out.
+    original_string: Str,
     byte_len: usize,
     char_len: usize,
     is_ascii: bool,
@@ -172,7 +171,7 @@ impl SymbolGroup {
     #[inline]
     fn find_overflow_variant(&self, original: &str) -> Option<&SymbolData> {
         for (_index, variant) in self.overflow_variants.iter() {
-            if &*variant.original_string == original {
+            if variant.original_string.as_str() == original {
                 return Some(variant);
             }
         }
@@ -186,7 +185,7 @@ impl SymbolGroup {
         global_state: &GlobalInternerState,
     ) -> &SymbolData {
         if let Some(first_variant) = self.first_variant.get()
-            && &*first_variant.original_string == original
+            && first_variant.original_string.as_str() == original
         {
             return first_variant;
         }
@@ -199,7 +198,7 @@ impl SymbolGroup {
         let _lock = self.insert_lock.lock();
 
         if let Some(first_variant) = self.first_variant.get()
-            && &*first_variant.original_string == original
+            && first_variant.original_string.as_str() == original
         {
             return first_variant;
         }
@@ -247,7 +246,7 @@ struct GlobalInternerState {
     repr_id_to_symbol: BoxcarVec<SymbolReprData>,
     /// compare_id -> the text of the group holding it, so two groups whose texts hash alike get
     /// different ids.
-    compare_ids: HashMap<u32, ArcStr, BuildHasherDefault<AHasher>>,
+    compare_ids: HashMap<u32, Box<str>, BuildHasherDefault<AHasher>>,
 }
 
 impl GlobalInternerState {
@@ -265,8 +264,8 @@ impl GlobalInternerState {
         let guard = self.compare_ids.pin();
         let mut id = preferred_compare_id(text);
         loop {
-            let holder = guard.get_or_insert_with(id, || ArcStr::from(text));
-            if UniCase::new(holder.as_str()) == UniCase::new(text) {
+            let holder = guard.get_or_insert_with(id, || Box::from(text));
+            if UniCase::new(&**holder) == UniCase::new(text) {
                 return id;
             }
             id = id.wrapping_add(1);
@@ -297,24 +296,23 @@ impl GlobalInternerState {
     }
 
     fn make_symbol_data(&self, original: &str, compare_id: u32) -> SymbolData {
-        let arc_str = ArcStr::from(original);
-        let byte_len = arc_str.len();
-        let is_ascii = arc_str.is_ascii();
+        let text = Str::mk_str(original);
+        let byte_len = original.len();
+        let is_ascii = original.is_ascii();
         let char_len = if is_ascii {
             byte_len
         } else {
-            arc_str.chars().count()
+            original.chars().count()
         };
         let repr_id = self.repr_id_to_symbol.push(SymbolReprData {
-            original_str: crate::string::Str::mk_str(&arc_str),
-            original_string: arc_str.clone(),
+            original_string: text.clone(),
             byte_len,
             char_len,
             is_ascii,
         }) as u32;
 
         SymbolData {
-            original_string: arc_str,
+            original_string: text,
             repr_id,
             compare_id,
         }
@@ -410,30 +408,12 @@ impl Symbol {
 
     /// Get the original string as an owned `String`.
     pub fn as_string(&self) -> String {
-        GLOBAL_INTERNER
-            .get_repr_data_by_repr_id(self.repr_id)
-            .unwrap_or_else(|| {
-                panic!(
-                    "Symbol: Invalid repr_id {}. String not found in interner.",
-                    self.repr_id
-                )
-            })
-            .original_string
-            .to_string()
+        self.as_str().to_string()
     }
 
-    /// Get the original string as an `ArcStr`.
-    ///
-    /// This is more efficient than `as_string()` when you need to share
-    /// the string data or when the string will be cloned multiple times.
-    pub fn as_arc_str(&self) -> ArcStr {
-        self.as_arc_str_ref().clone()
-    }
-
-    /// Get the original string as a borrowed `ArcStr` from the global interner.
-    ///
-    /// This does not clone or bump any reference counts.
-    pub fn as_arc_str_ref(&self) -> &ArcStr {
+    /// The original string as a MOO string, lent by the global interner. The interner never
+    /// drops a symbol's text, so the borrow lasts for the life of the process.
+    pub(crate) fn as_str_ref(&self) -> &'static Str {
         let repr = GLOBAL_INTERNER
             .get_repr_data_by_repr_id(self.repr_id)
             .unwrap_or_else(|| {
@@ -445,22 +425,9 @@ impl Symbol {
         &repr.original_string
     }
 
-    /// Get the original string as a borrowed MOO string from the global interner.
-    pub(crate) fn as_str_ref(&self) -> &'static crate::string::Str {
-        let repr = GLOBAL_INTERNER
-            .get_repr_data_by_repr_id(self.repr_id)
-            .unwrap_or_else(|| {
-                panic!(
-                    "Symbol: Invalid repr_id {}. String not found in interner.",
-                    self.repr_id
-                )
-            });
-        &repr.original_str
-    }
-
-    /// Get the original string as a borrowed `&str` from the global interner.
-    pub fn as_str(&self) -> &str {
-        self.as_arc_str_ref().as_str()
+    /// The original string, lent by the global interner.
+    pub fn as_str(&self) -> &'static str {
+        self.as_str_ref().as_str()
     }
 
     /// Return the Unicode case-folded spelling for persistent, case-insensitive keys.
@@ -528,7 +495,7 @@ impl Hash for Symbol {
 
 impl Display for Symbol {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", &*self.as_arc_str())
+        write!(f, "{}", self.as_str())
     }
 }
 
@@ -537,7 +504,7 @@ impl Debug for Symbol {
         match GLOBAL_INTERNER.get_repr_data_by_repr_id(self.repr_id) {
             Some(s) => f
                 .debug_struct("Symbol")
-                .field("value", &&*s.original_string)
+                .field("value", &s.original_string.as_str())
                 .field("cmp_id", &self.compare_id)
                 .field("repr_id", &self.repr_id)
                 .finish(),
@@ -579,7 +546,7 @@ impl From<&String> for Symbol {
 
 impl Serialize for Symbol {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(&self.as_arc_str())
+        serializer.serialize_str(self.as_str())
     }
 }
 
@@ -633,7 +600,7 @@ mod tests {
         interner
             .compare_ids
             .pin()
-            .insert(preferred, ArcStr::from("squatter"));
+            .insert(preferred, Box::from("squatter"));
         let second = interner.claim_compare_id("second text");
         assert_eq!(second, preferred.wrapping_add(1));
         assert_ne!(first, second);
@@ -718,19 +685,13 @@ mod tests {
     }
 
     #[test]
-    fn test_symbol_arc_methods() {
-        // Test with global interner since that's what the Symbol methods use
+    fn case_variants_compare_equal_and_keep_their_own_spelling() {
         let sym1 = Symbol::mk("TestArcMethods");
         let sym2 = Symbol::mk("testarcmethods");
 
-        // Test Arc<str> method
-        let arc_str = sym1.as_arc_str();
-        assert_eq!(&*arc_str, "TestArcMethods");
-
-        // Test that case variants have same compare_id but different strings
         assert_eq!(sym1.compare_id, sym2.compare_id);
-        assert_eq!(&*sym1.as_arc_str(), "TestArcMethods");
-        assert_eq!(&*sym2.as_arc_str(), "testarcmethods");
+        assert_eq!(sym1.as_str(), "TestArcMethods");
+        assert_eq!(sym2.as_str(), "testarcmethods");
     }
 
     #[test]
@@ -783,7 +744,7 @@ mod tests {
         let deserialized: Symbol = serde_json::from_str(&serialized).unwrap();
 
         assert_eq!(sym, deserialized);
-        assert_eq!(sym.as_arc_str(), deserialized.as_arc_str());
+        assert_eq!(sym.as_str(), deserialized.as_str());
     }
 
     #[test]

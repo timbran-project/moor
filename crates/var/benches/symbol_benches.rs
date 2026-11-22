@@ -130,11 +130,11 @@ fn symbol_as_string(ctx: &mut SymbolRetrievalContext, chunk_size: usize, _chunk_
     }
 }
 
-fn symbol_as_arc_str(ctx: &mut SymbolRetrievalContext, chunk_size: usize, _chunk_num: usize) {
+fn symbol_as_str(ctx: &mut SymbolRetrievalContext, chunk_size: usize, _chunk_num: usize) {
     let symbols = &ctx.symbols;
     for i in 0..chunk_size {
         let sym = &symbols[i % symbols.len()];
-        let s = sym.as_arc_str();
+        let s = sym.as_str();
         black_box(s);
     }
 }
@@ -586,7 +586,7 @@ benchmark_main!(
         runner.group::<SymbolRetrievalContext>("Symbol Retrieval", |g| {
             let g = g.throughput(Throughput::per_operation(1, "retrievals"));
             g.bench("symbol_as_string", symbol_as_string);
-            g.bench("symbol_as_arc_str", symbol_as_arc_str);
+            g.bench("symbol_as_str", symbol_as_str);
             g.bench("symbol_display", symbol_display);
             g.bench("symbol_debug", symbol_debug);
         });

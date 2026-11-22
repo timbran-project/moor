@@ -124,10 +124,10 @@ impl<'a> Unparse<'a> {
             };
             let name = self.unparse_variable(&item.id);
             if let Some(expr) = &item.expr {
-                write!(writer, "{prefix}{} = ", name.as_arc_str())?;
+                write!(writer, "{prefix}{} = ", name.as_str())?;
                 self.write_expr(expr, writer)?;
             } else {
-                write!(writer, "{prefix}{}", name.as_arc_str())?;
+                write!(writer, "{prefix}{}", name.as_str())?;
             }
         }
         Ok(())
@@ -187,21 +187,21 @@ impl<'a> Unparse<'a> {
             match label {
                 ScatterLabel::Required(name) => {
                     if let Some(var) = lambda.0.body.var_names().find_variable(name) {
-                        write!(writer, "{}", var.to_symbol().as_arc_str())?;
+                        write!(writer, "{}", var.to_symbol().as_str())?;
                     } else {
                         write!(writer, "param_{}", name.0)?;
                     }
                 }
                 ScatterLabel::Optional(name, _) => {
                     if let Some(var) = lambda.0.body.var_names().find_variable(name) {
-                        write!(writer, "?{}", var.to_symbol().as_arc_str())?;
+                        write!(writer, "?{}", var.to_symbol().as_str())?;
                     } else {
                         write!(writer, "?param_{}", name.0)?;
                     }
                 }
                 ScatterLabel::Rest(name) => {
                     if let Some(var) = lambda.0.body.var_names().find_variable(name) {
-                        write!(writer, "@{}", var.to_symbol().as_arc_str())?;
+                        write!(writer, "@{}", var.to_symbol().as_str())?;
                     } else {
                         write!(writer, "@param_{}", name.0)?;
                     }
@@ -257,7 +257,7 @@ impl<'a> Unparse<'a> {
                     if !scope_buf.is_empty() {
                         write!(scope_buf, ", ")?;
                     }
-                    write!(scope_buf, "{}: ", symbol.as_arc_str())?;
+                    write!(scope_buf, "{}: ", symbol.as_str())?;
                     self.write_value_literal(
                         var_value,
                         indent_depth + INDENT_LEVEL,
@@ -475,7 +475,7 @@ pub fn write_literal<W: std::fmt::Write>(v: &Var, writer: &mut W) -> Result<(), 
             let slots = fl.slots_storage();
             if !slots.is_empty() {
                 for (k, v) in slots.iter() {
-                    write!(writer, ", .{} = ", k.as_arc_str())?;
+                    write!(writer, ", .{} = ", k.as_str())?;
                     write_literal(v, writer)?;
                 }
             }
@@ -492,7 +492,7 @@ pub fn write_literal<W: std::fmt::Write>(v: &Var, writer: &mut W) -> Result<(), 
             }
             write!(writer, ">")?;
         }
-        Variant::Sym(s) => write!(writer, "'{}", s.as_arc_str())?,
+        Variant::Sym(s) => write!(writer, "'{}", s.as_str())?,
         Variant::Binary(b) => {
             let encoded = general_purpose::URL_SAFE.encode(b.as_bytes());
             write!(writer, "b\"{encoded}\"")?;
@@ -618,7 +618,7 @@ pub fn write_literal_objsub<W: std::fmt::Write>(
             let slots = fl.slots_storage();
             if !slots.is_empty() {
                 for (k, v) in slots.iter() {
-                    write!(writer, ", .{} = ", k.as_arc_str())?;
+                    write!(writer, ", .{} = ", k.as_str())?;
                     write_literal_objsub(v, name_subs, indent_depth + INDENT_LEVEL, writer)?;
                 }
             }

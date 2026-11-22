@@ -379,13 +379,13 @@ impl NativeVerbs {
     pub fn describe(&self) -> Var {
         v_list_iter(self.libraries.iter().map(|library| {
             v_list(&[
-                v_str(&library.name.as_arc_str()),
+                v_str(library.name.as_str()),
                 v_str(&library.version),
                 v_list_iter(
                     library
                         .functions
                         .iter()
-                        .map(|(name, _)| v_str(&name.as_arc_str())),
+                        .map(|(name, _)| v_str(name.as_str())),
                 ),
             ])
         }))

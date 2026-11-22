@@ -141,7 +141,7 @@ impl Context<'_> {
                         .is_property_clear(self.permissions, &target, *property)?
                         && !(target == self.object && restored.contains(property))
                     {
-                        losses.push(v_list(&[v_obj(target), v_str(&property.as_arc_str())]));
+                        losses.push(v_list(&[v_obj(target), v_str(property.as_str())]));
                     }
                 }
             }
@@ -206,7 +206,7 @@ impl Context<'_> {
                 v_list(
                     &removed
                         .iter()
-                        .map(|property| v_str(&property.as_arc_str()))
+                        .map(|property| v_str(property.as_str()))
                         .collect::<Vec<_>>(),
                 ),
             ),

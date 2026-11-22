@@ -474,12 +474,8 @@ async fn perform_http_request(
         None
     };
 
-    info!(
-        method = method.as_arc_str().as_str(),
-        url = url.as_str(),
-        "HTTP request"
-    );
-    let mut response = match method.as_arc_str().to_lowercase().as_str() {
+    info!(method = method.as_str(), url = url.as_str(), "HTTP request");
+    let mut response = match method.as_str().to_lowercase().as_str() {
         "get" => {
             CURL_METRICS.requests.inc(HttpMethod::Get);
             let client = client.get(url);
@@ -534,7 +530,7 @@ async fn perform_http_request(
         _ => {
             return Err(WorkerError::RequestError(format!(
                 "Unsupported HTTP method ({})",
-                method.as_arc_str()
+                method.as_str()
             )));
         }
     };

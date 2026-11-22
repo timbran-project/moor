@@ -701,7 +701,7 @@ fn constants_value(constants: &HashMap<Symbol, Var>, keep: impl Fn(&Symbol) -> b
     let entries = constants
         .iter()
         .filter(|(name, _)| keep(name))
-        .map(|(name, value)| (v_str(&name.as_arc_str()), value.clone()))
+        .map(|(name, value)| (v_str(name.as_str()), value.clone()))
         .collect::<Vec<_>>();
     Constants::Map(v_map(&entries).as_map().unwrap().clone())
 }

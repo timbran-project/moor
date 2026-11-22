@@ -728,7 +728,7 @@ impl<'a> LiteralParser<'a> {
                     .ok_or_else(|| {
                         self.parse_error(&format!(
                             "captured variable '{}' does not identify one lambda variable",
-                            symbol.as_arc_str()
+                            symbol.as_str()
                         ))
                     })?;
 
@@ -744,7 +744,7 @@ impl<'a> LiteralParser<'a> {
                 if !frame[var_offset].is_none() {
                     return Err(self.parse_error(&format!(
                         "captured variable '{}' is specified more than once",
-                        symbol.as_arc_str()
+                        symbol.as_str()
                     )));
                 }
                 frame[var_offset] = value;

@@ -350,7 +350,7 @@ impl ExecState {
             format!(
                 "{}:{} line: {:?}",
                 to_literal(&a.this),
-                a.verb_name.as_arc_str(),
+                a.verb_name.as_str(),
                 a.frame.find_line_no()
             )
         });

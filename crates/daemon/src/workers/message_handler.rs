@@ -98,10 +98,9 @@ static WORKER_DISPATCH: LazyLock<WorkerDispatchMetrics> = LazyLock::new(|| Worke
 });
 
 fn count_request(worker_type: Symbol, result: &str) {
-    WORKER_DISPATCH.requests.inc(&[
-        ("worker_type", worker_type.as_arc_str().as_str()),
-        ("result", result),
-    ]);
+    WORKER_DISPATCH
+        .requests
+        .inc(&[("worker_type", worker_type.as_str()), ("result", result)]);
 }
 
 /// Visit the daemon's worker dispatch metrics.
@@ -234,8 +233,8 @@ impl WorkersMessageHandlerImpl {
         seen_types.extend(counts.keys().copied());
         for worker_type in seen_types.iter() {
             let (workers, pending) = counts.get(worker_type).copied().unwrap_or_default();
-            let name = worker_type.as_arc_str();
-            let labels = [("worker_type", name.as_str())];
+            let name = worker_type.as_str();
+            let labels = [("worker_type", name)];
             WORKER_DISPATCH.workers.set(&labels, workers);
             WORKER_DISPATCH.pending.set(&labels, pending);
         }

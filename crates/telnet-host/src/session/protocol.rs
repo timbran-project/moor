@@ -96,7 +96,7 @@ pub(crate) fn plan_actions(
                 kind,
                 payload,
             } => {
-                if ctx.passive || (ctx.disable_oob && namespace.as_arc_str().as_str() == "telnet") {
+                if ctx.passive || (ctx.disable_oob && namespace.as_str() == "telnet") {
                     continue;
                 }
                 push_client_data(&mut plan, ctx, limiter, namespace, kind, payload);
@@ -242,7 +242,7 @@ mod tests {
         Some((
             auth_token,
             *handler_object,
-            namespace.as_arc_str().to_string(),
+            namespace.as_str().to_string(),
             kind.clone(),
             payload,
         ))

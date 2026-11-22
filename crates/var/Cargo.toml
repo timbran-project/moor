@@ -56,7 +56,6 @@ ahash.workspace = true
 triomphe.workspace = true
 
 # Text Processing & Regex
-arcstr.workspace = true
 unicase.workspace = true
 
 # Error Handling
