@@ -8,6 +8,10 @@ it starts.
 `moor.yaml` in this directory is the template that file is made from. The release fills in which
 version to install.
 
+The book has the same steps for someone who only wants to use the file, in
+[Starting on a Cloud Machine](https://timbran.org/book/html/the-system/cloud-machine.html). This
+page is also on the machine afterwards, at `/opt/moor/src/deploy/cloud-init/README.md`.
+
 It gives you a running server, not a managed one: there is no HTTPS, no domain name, no backup and
 no automatic upgrade.
 
