@@ -19,7 +19,8 @@ They hold the same binaries as the container image for that release.
 ### What You Need
 
 - 64-bit Linux.
-- glibc 2.36 or newer. Debian 12 and Ubuntu 24.04 have it. Ubuntu 22.04 and RHEL 9 do not.
+- glibc 2.35 or newer, and the C++ runtime that comes with GCC 12 or newer. Debian 12 and Ubuntu
+  22.04 have both, as do later releases of each. RHEL 9 and its rebuilds do not.
 - `git`, if you use the Git worker.
 
 ### Checking the Download
@@ -30,8 +31,8 @@ Each tarball has a `.sha256` file beside it:
 sha256sum -c moor-*.tar.gz.sha256
 ```
 
-Each also has a build attestation, which shows that the project's release process made it. With the
-GitHub command-line tool:
+Each also has a build attestation, which shows that the project's release process made it. With a
+recent version of the GitHub command-line tool:
 
 ```bash
 gh attestation verify moor-*.tar.gz --repo timbran-project/moor

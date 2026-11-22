@@ -24,7 +24,8 @@ which are in the mooR source repository under `cores/`.
 ## What you need
 
 - 64-bit Linux, on the processor type named in the file you downloaded (`x86_64` or `aarch64`).
-- glibc 2.36 or newer. Debian 12 and Ubuntu 24.04 have it. Ubuntu 22.04 and RHEL 9 do not.
+- glibc 2.35 or newer, and the C++ runtime that comes with GCC 12 or newer. Debian 12 and Ubuntu
+  22.04 have both, as do later releases of each. RHEL 9 and its rebuilds do not.
 - `git`, if you use the Git worker.
 
 ## Checking what you downloaded
@@ -35,8 +36,8 @@ Each tarball comes with a `.sha256` file:
 sha256sum -c moor-*.tar.gz.sha256
 ```
 
-Each also has a build attestation, which shows that the project's release workflow made it. With the
-GitHub command-line tool:
+Each also has a build attestation, which shows that the project's release workflow made it. With a
+recent version of the GitHub command-line tool:
 
 ```sh
 gh attestation verify moor-*.tar.gz --repo timbran-project/moor
