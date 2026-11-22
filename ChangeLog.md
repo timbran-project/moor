@@ -56,6 +56,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Pressing Enter in Meadow's login form no longer logs in twice. The second login made an extra
+  connection on the server and ran the world's connect hooks a second time.
 - Meadow no longer shows an empty screen on a first login, or after a reload when history is off or
   not yet set up. The room panel now appears whenever the narrative has no description of the room
   you are in. Before, it only appeared after a description had scrolled out of view.
