@@ -310,6 +310,45 @@ benchmark_main!(
             .bench("list_set", run_program);
         });
 
+        runner.group::<VmBenchContext>("string_micro", |g| {
+            let g = g
+                .backend(|| Box::new(LinuxPerfBackend::new().with_compact_counters()))
+                .throughput(Throughput::per_operation(1, "opcodes"));
+            g.factory(&|| {
+                VmBenchContext::with_program(
+                    r#"while(1) s = ""; for i in [1..1000] s = s + "x"; endfor endwhile"#,
+                )
+            })
+            .bench("str_append_loop", run_program);
+            g.factory(&|| {
+                VmBenchContext::with_program(
+                    r#"while(1) s = ""; for i in [1..20] s = s + "word "; endfor endwhile"#,
+                )
+            })
+            .bench("str_append_short", run_program);
+            g.factory(&|| {
+                VmBenchContext::with_program(
+                    r#"s = "the quick brown fox jumps over the lazy dog";
+                       while(1) for i in [1..40] s[i] = "x"; endfor endwhile"#,
+                )
+            })
+            .bench("str_index_set", run_program);
+            g.factory(&|| {
+                VmBenchContext::with_program(
+                    r#"s = "the quick brown fox jumps over the lazy dog";
+                       while(1) for i in [1..40] s[i]; endfor endwhile"#,
+                )
+            })
+            .bench("str_index", run_program);
+            g.factory(&|| {
+                VmBenchContext::with_program(
+                    r#"s = "the quick brown fox jumps over the lazy dog";
+                       while(1) for i in [1..30] s[i..i + 10]; endfor endwhile"#,
+                )
+            })
+            .bench("str_range", run_program);
+        });
+
         runner.group::<VmBenchContext>("dispatch_micro", |g| {
             let g = g
                 .backend(|| Box::new(LinuxPerfBackend::new().with_compact_counters()))

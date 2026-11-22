@@ -22,7 +22,7 @@ use moor_compiler::{
 use moor_var::{
     NOTHING, Obj, Symbol, Var,
     program::{NativeProgram, ProgramType},
-    v_arc_str, v_str, v_string,
+    v_str, v_string, v_symbol_str,
 };
 use std::{collections::HashMap, io::Write, path::Path};
 
@@ -95,7 +95,7 @@ fn propname(pname: Symbol) -> String {
     if !s.is_empty() && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
         s.to_string()
     } else {
-        let name = v_arc_str(s);
+        let name = v_symbol_str(pname);
         to_literal(&name)
     }
 }

@@ -16,8 +16,8 @@ use micromeasure::{
     ReportContext, Throughput, benchmark_main, black_box,
 };
 use moor_var::{
-    E_INVARG, E_TYPE, Error, IndexMode, Obj, Symbol, Var, v_arc_str, v_bool, v_float, v_int,
-    v_list, v_none, v_obj, v_str, v_string, v_sym, v_symbol_str,
+    E_INVARG, E_TYPE, Error, IndexMode, Obj, Symbol, Var, v_bool, v_float, v_int, v_list, v_none,
+    v_obj, v_str, v_string, v_sym, v_symbol_str,
 };
 use std::time::Duration;
 
@@ -344,7 +344,6 @@ struct VarConstructInputsContext {
     objs: Vec<Obj>,
     ascii_strings: Vec<String>,
     unicode_strings: Vec<String>,
-    ascii_arc_strings: Vec<arcstr::ArcStr>,
     hot_symbol_names: Vec<String>,
     hot_symbols: Vec<Symbol>,
 }
@@ -355,7 +354,6 @@ impl BenchContext for VarConstructInputsContext {
         let mut objs = Vec::with_capacity(VAR_CONSTRUCT_INPUT_POOL_SIZE);
         let mut ascii_strings = Vec::with_capacity(VAR_CONSTRUCT_INPUT_POOL_SIZE);
         let mut unicode_strings = Vec::with_capacity(VAR_CONSTRUCT_INPUT_POOL_SIZE);
-        let mut ascii_arc_strings = Vec::with_capacity(VAR_CONSTRUCT_INPUT_POOL_SIZE);
 
         for i in 0..VAR_CONSTRUCT_INPUT_POOL_SIZE {
             ints.push(i as i64);
@@ -363,8 +361,6 @@ impl BenchContext for VarConstructInputsContext {
 
             let ascii = format!("bench_ascii_{i}");
             let unicode = format!("bench_{i}_héllø");
-
-            ascii_arc_strings.push(arcstr::ArcStr::from(ascii.clone()));
             ascii_strings.push(ascii);
             unicode_strings.push(unicode);
         }
@@ -382,7 +378,6 @@ impl BenchContext for VarConstructInputsContext {
             objs,
             ascii_strings,
             unicode_strings,
-            ascii_arc_strings,
             hot_symbol_names,
             hot_symbols,
         }
@@ -449,18 +444,6 @@ fn var_construct_variant_string_owned_ascii(
     }
 }
 
-fn var_construct_variant_arc_str_ascii(
-    ctx: &mut VarConstructInputsContext,
-    chunk_size: usize,
-    _chunk_num: usize,
-) {
-    for i in 0..chunk_size {
-        let idx = i & (VAR_CONSTRUCT_INPUT_POOL_SIZE - 1);
-        let var = v_arc_str(ctx.ascii_arc_strings[idx].clone());
-        black_box(var);
-    }
-}
-
 fn var_construct_variant_symbol_str_cached(
     ctx: &mut VarConstructInputsContext,
     chunk_size: usize,
@@ -488,7 +471,6 @@ fn var_construct_variant_sym_from_hot_str(
 struct VarConstructHotSetContext {
     ascii_strings: Vec<String>,
     unicode_strings: Vec<String>,
-    ascii_arc_strings: Vec<arcstr::ArcStr>,
     symbols: Vec<Symbol>,
 }
 
@@ -517,12 +499,10 @@ impl BenchContext for VarConstructHotSetContext {
 
         let mut ascii_strings = Vec::with_capacity(VAR_CONSTRUCT_HOT_SET_SIZE);
         let mut unicode_strings = Vec::with_capacity(VAR_CONSTRUCT_HOT_SET_SIZE);
-        let mut ascii_arc_strings = Vec::with_capacity(VAR_CONSTRUCT_HOT_SET_SIZE);
         let mut symbols = Vec::with_capacity(VAR_CONSTRUCT_HOT_SET_SIZE);
 
         for i in 0..VAR_CONSTRUCT_HOT_SET_SIZE {
             let ascii = ascii_literals[i].to_string();
-            ascii_arc_strings.push(arcstr::ArcStr::from(ascii.clone()));
             symbols.push(Symbol::mk(ascii_literals[i]));
             ascii_strings.push(ascii);
             unicode_strings.push(unicode_literals[i].to_string());
@@ -531,7 +511,6 @@ impl BenchContext for VarConstructHotSetContext {
         Self {
             ascii_strings,
             unicode_strings,
-            ascii_arc_strings,
             symbols,
         }
     }
@@ -569,18 +548,6 @@ fn var_construct_variant_string_owned_ascii_hot(
     for i in 0..chunk_size {
         let idx = i & (VAR_CONSTRUCT_HOT_SET_SIZE - 1);
         let var = v_string(ctx.ascii_strings[idx].clone());
-        black_box(var);
-    }
-}
-
-fn var_construct_variant_arc_str_ascii_hot(
-    ctx: &mut VarConstructHotSetContext,
-    chunk_size: usize,
-    _chunk_num: usize,
-) {
-    for i in 0..chunk_size {
-        let idx = i & (VAR_CONSTRUCT_HOT_SET_SIZE - 1);
-        let var = v_arc_str(ctx.ascii_arc_strings[idx].clone());
         black_box(var);
     }
 }
@@ -868,10 +835,6 @@ benchmark_main!(
                 var_construct_variant_string_owned_ascii,
             );
             g.bench(
-                "var_construct_variant_arc_str_ascii",
-                var_construct_variant_arc_str_ascii,
-            );
-            g.bench(
                 "var_construct_variant_symbol_str_cached",
                 var_construct_variant_symbol_str_cached,
             );
@@ -894,10 +857,6 @@ benchmark_main!(
             g.bench(
                 "var_construct_variant_string_owned_ascii_hot",
                 var_construct_variant_string_owned_ascii_hot,
-            );
-            g.bench(
-                "var_construct_variant_arc_str_ascii_hot",
-                var_construct_variant_arc_str_ascii_hot,
             );
             g.bench(
                 "var_construct_variant_symbol_str_cached_hot",

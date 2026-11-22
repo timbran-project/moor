@@ -70,6 +70,15 @@ static EMPTY_STR: LazyLock<Str> = LazyLock::new(|| Str::mk_str(""));
 /// Borrowed empty list storage for TAG_EMPTY_LIST accessors.
 static EMPTY_LIST: LazyLock<List> = LazyLock::new(|| List::mk_list(&[]));
 
+/// One-character strings for the ASCII characters, backed by symbols so that making, copying and
+/// dropping one touches neither the allocator nor a reference count.
+static ASCII_CHAR_STRS: LazyLock<[Var; 128]> = LazyLock::new(|| {
+    std::array::from_fn(|code| {
+        let ch = [code as u8];
+        Var::from_symbol_str(Symbol::mk(std::str::from_utf8(&ch).unwrap()))
+    })
+});
+
 /// Cached empty string Var.
 static EMPTY_STR_VAR: LazyLock<Var> = LazyLock::new(Var::mk_empty_str);
 
@@ -173,6 +182,109 @@ impl Var {
         let bytes = len16.to_ne_bytes();
         let is_ascii = if byte_len == char_len { 1 } else { 0 };
         [bytes[0], bytes[1], is_ascii, 0, 0, 0, hint]
+    }
+
+    /// Meta bytes for a string from what is already known about it. `char_len` is `None` when
+    /// the count is too large to cache.
+    #[inline(always)]
+    fn meta_for_str(char_len: Option<usize>, is_ascii: bool, hint: u8) -> [u8; 7] {
+        let len16 = match char_len {
+            Some(len) if len < LEN_OVERFLOW as usize => len as u16,
+            _ => LEN_OVERFLOW,
+        };
+        let bytes = len16.to_ne_bytes();
+        [bytes[0], bytes[1], u8::from(is_ascii), 0, 0, 0, hint]
+    }
+
+    /// The cached character count of a string value, or `None` if it is too large to cache.
+    #[inline(always)]
+    fn cached_str_len(&self) -> Option<usize> {
+        let cached = self.cached_len();
+        (cached != LEN_OVERFLOW).then_some(cached as usize)
+    }
+
+    /// The string held by a `TAG_STR` value, for editing.
+    ///
+    /// # Safety
+    /// The tag must be `TAG_STR`, and the caller must bring the cached character count and
+    /// ASCII flag in `meta` up to date with whatever it changes.
+    #[inline(always)]
+    unsafe fn str_mut(&mut self) -> &mut string::Str {
+        debug_assert_eq!(self.tag, TAG_STR);
+        // SAFETY: a `TAG_STR` value's data word is a `Str`.
+        unsafe { &mut *(&mut self.data as *mut u64 as *mut string::Str) }
+    }
+
+    /// Append the string `other` to this string, in place if nothing else holds this one.
+    /// Returns false, changing nothing, unless both are strings.
+    ///
+    /// The cached character count and ASCII flag are worked out from those of the two operands,
+    /// so the cost is in proportion to the text added, not to the length of the result.
+    pub fn str_append_assign(&mut self, other: &Var) -> bool {
+        if !self.is_string() || !other.is_string() {
+            return false;
+        }
+        if other.tag == TAG_EMPTY_STR {
+            self.meta[6] = OP_HINT_STR_APPEND;
+            return true;
+        }
+        if self.tag != TAG_STR {
+            // An empty string has no buffer to add to, and a symbol's text belongs to the
+            // interner.
+            let other = other.as_str().unwrap();
+            *self = self.as_str().unwrap().str_append(other);
+            return true;
+        }
+        let char_len = self
+            .cached_str_len()
+            .zip(other.cached_str_len())
+            .map(|(a, b)| a + b);
+        let is_ascii = self.str_is_ascii() && other.str_is_ascii();
+        // SAFETY: the tag was checked, and the meta bytes are set below.
+        unsafe { self.str_mut() }.push_str(other.as_str().unwrap().as_str());
+        self.meta = Self::meta_for_str(char_len, is_ascii, OP_HINT_STR_APPEND);
+        true
+    }
+
+    /// Replace one character of an owned string, in place if nothing else holds it and the new
+    /// character takes as many bytes as the old. Returns the value unchanged if any check that
+    /// `index_set` makes would fail, so that `index_set` can report it.
+    fn str_index_set_owned(
+        mut self,
+        idx: &Self,
+        value: &Self,
+        index_mode: IndexMode,
+    ) -> Result<Self, Self> {
+        let (Some(idx), Some(len)) = (idx.as_integer(), self.cached_str_len()) else {
+            return Err(self);
+        };
+        let idx = index_mode.adjust_i64(idx);
+        if self.tag != TAG_STR
+            || !value.is_string()
+            || value.cached_len() != 1
+            || idx < 0
+            || idx as usize >= len
+        {
+            return Err(self);
+        }
+        let idx = idx as usize;
+        let with = value.as_str().unwrap().as_str();
+        let was_ascii = self.str_is_ascii();
+        // SAFETY: the tag was checked, and the meta bytes are set below.
+        let subject = unsafe { self.str_mut() };
+        let range = if was_ascii {
+            idx..idx + 1
+        } else {
+            let mut chars = subject.as_str().char_indices();
+            let start = chars.nth(idx).map(|(at, _)| at).unwrap();
+            start..chars.next().map_or(subject.as_str().len(), |(at, _)| at)
+        };
+        subject.replace_byte_range(range, with);
+        // Replacing a character can only add a non-ASCII one to an ASCII string, or take the
+        // last one out of a string that had some.
+        let is_ascii = with.is_ascii() && (was_ascii || subject.as_str().is_ascii());
+        self.meta = Self::meta_for_str(Some(len), is_ascii, OP_HINT_NONE);
+        Ok(self)
     }
 
     /// Check if a string Var contains only ASCII characters.
@@ -344,7 +456,7 @@ impl Var {
     }
 
     /// Create a string-typed Var from an interned symbol.
-    /// This avoids ArcStr clone/drop traffic on Var clone/drop.
+    /// The value shares the interner's copy of the text, so clone and drop touch no count.
     pub fn from_symbol_str(symbol: Symbol) -> Self {
         Self::from_symbol_str_with_hint(symbol, OP_HINT_NONE)
     }
@@ -376,7 +488,7 @@ impl Var {
         } else {
             str_ref.chars().count()
         };
-        // SAFETY: Str is #[repr(transparent)] around Arc<String>, exactly 8 bytes
+        // SAFETY: Str is #[repr(transparent)] around a one-pointer Block, exactly 8 bytes
         let data: u64 = unsafe { std::mem::transmute(s) };
         Self {
             tag: TAG_STR,
@@ -728,9 +840,7 @@ impl Var {
             TAG_EMPTY_STR => Some(&*EMPTY_STR),
             TAG_SYMBOL_STR => {
                 let sym: Symbol = unsafe { std::mem::transmute(self.data) };
-                let arc_ref = sym.as_arc_str_ref();
-                // SAFETY: Str is repr(transparent) over ArcStr.
-                Some(unsafe { &*(arc_ref as *const arcstr::ArcStr as *const string::Str) })
+                Some(sym.as_str_ref())
             }
             _ => None,
         }
@@ -969,7 +1079,16 @@ impl Var {
         // Dispatch directly on tag - we already know it's not scalar
         match self.tag {
             TAG_LIST | TAG_EMPTY_LIST => self.as_list().unwrap().index(idx),
-            TAG_STR | TAG_EMPTY_STR | TAG_SYMBOL_STR => self.as_str().unwrap().index(idx),
+            TAG_STR | TAG_EMPTY_STR | TAG_SYMBOL_STR => {
+                let subject = self.as_str().unwrap();
+                // In an ASCII string the character at an index is the byte at that index.
+                if self.str_is_ascii()
+                    && let Some(byte) = subject.as_str().as_bytes().get(idx)
+                {
+                    return Ok(ASCII_CHAR_STRS[usize::from(*byte)].clone());
+                }
+                subject.index(idx)
+            }
             TAG_BINARY => self.as_binary().unwrap().index(idx),
             TAG_MAP => Ok(self.as_map().unwrap().index(idx)?.1),
             _ => unreachable!(),
@@ -1001,9 +1120,9 @@ impl Var {
         }
     }
 
-    /// Like `set`, but can consume owned list values without cloning the base list.
+    /// Like `set`, but can consume an owned list or string without copying it.
     pub fn set_owned(self, key: &Var, value: &Var, index_mode: IndexMode) -> Result<Self, Error> {
-        if matches!(self.tag, TAG_LIST | TAG_EMPTY_LIST) {
+        if matches!(self.tag, TAG_LIST | TAG_EMPTY_LIST | TAG_STR) {
             return self.index_set_owned(key, value, index_mode);
         }
         if self.tag == TAG_MAP {
@@ -1105,6 +1224,12 @@ impl Var {
             }
             return list.index_set_owned(idx, value);
         }
+        if self.tag == TAG_STR {
+            return match self.str_index_set_owned(idx, value, index_mode) {
+                Ok(changed) => Ok(changed),
+                Err(unchanged) => unchanged.index_set(idx, value, index_mode),
+            };
+        }
         self.index_set(idx, value, index_mode)
     }
 
@@ -1201,6 +1326,9 @@ impl Var {
                         }));
                     }
                 };
+                if self.str_is_ascii() {
+                    return self.as_str().unwrap().range_ascii(from, to);
+                }
                 s.range(from, to)
             }
             TypeClass::Associative(a) => a.range(from, to),
@@ -1642,7 +1770,14 @@ impl Var {
             // Str, List, Map, Lambda: data contains transmuted value, clone = Arc bump
             TAG_STR => {
                 let s = unsafe { &*(&self.data as *const u64 as *const string::Str) };
-                Self::from_str_type(s.clone())
+                // Built directly: `from_str_type` would scan the text to work out the cached
+                // count and ASCII flag, which this value already has.
+                Self {
+                    tag: TAG_STR,
+                    meta: self.meta,
+                    // SAFETY: `Str` is one pointer wide.
+                    data: unsafe { std::mem::transmute::<string::Str, u64>(s.clone()) },
+                }
             }
             TAG_LIST => {
                 let l = unsafe { &*(&self.data as *const u64 as *const List) };
@@ -2083,11 +2218,6 @@ pub fn v_str(s: &str) -> Var {
 
 pub fn v_string(s: String) -> Var {
     Var::mk_string(s)
-}
-
-pub fn v_arc_str(s: arcstr::ArcStr) -> Var {
-    let str_val = crate::string::Str::mk_arc_str(s);
-    Var::from_str_type(str_val)
 }
 
 pub fn v_symbol_str(symbol: Symbol) -> Var {

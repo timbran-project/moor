@@ -31,8 +31,8 @@ use moor_common::{
 use moor_compiler::offset_for_builtin;
 use moor_var::{
     Associative, E_ARGS, E_INVARG, E_NACC, E_PERM, E_TYPE, E_VERBNF, List, NOTHING, Obj,
-    SYSTEM_OBJECT, Sequence, Symbol, Var, Variant, v_arc_str, v_empty_list, v_empty_str, v_int,
-    v_list, v_list_iter, v_map_iter, v_obj, v_str, v_string, v_sym,
+    SYSTEM_OBJECT, Sequence, Symbol, Var, Variant, v_empty_list, v_empty_str, v_int, v_list,
+    v_list_iter, v_map_iter, v_obj, v_str, v_string, v_sym, v_symbol_str,
 };
 
 use crate::{
@@ -1122,7 +1122,7 @@ fn bf_verbs(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     .map_err(world_state_bf_err)?;
     let verbs: Vec<_> = verbs
         .iter()
-        .map(|v| v_arc_str(v.names().first().unwrap().as_arc_str()))
+        .map(|v| v_symbol_str(*v.names().first().unwrap()))
         .collect();
     Ok(Ret(v_list(&verbs)))
 }
@@ -1146,10 +1146,7 @@ fn bf_properties(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     let props: Vec<_> = if bf_args.config.use_symbols_in_builtins {
         props.iter().map(|p| v_sym(p.name())).collect()
     } else {
-        props
-            .iter()
-            .map(|p| v_arc_str(p.name().as_arc_str()))
-            .collect()
+        props.iter().map(|p| v_symbol_str(p.name())).collect()
     };
     Ok(Ret(v_list(&props)))
 }

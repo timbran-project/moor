@@ -11,11 +11,22 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use arcstr::ArcStr;
+//! MOO strings.
+//!
+//! A [`Str`] is a reference-counted buffer of UTF-8 bytes with spare capacity, held in the same
+//! [`Block`] that lists and maps use. Cloning shares the buffer. An edit through `&mut Str`
+//! changes the buffer in place when nothing else holds it, and copies it once when something
+//! does. The methods of [`Sequence`] take `&self` and always build a new string.
+//!
+//! Lengths and indexes in MOO are in characters. A string does not record how many characters it
+//! has or whether it is all ASCII; the `Var` that holds it caches both.
+
+use crate::block::Block;
 use std::{
     cmp::{Ordering, max},
-    fmt::{Display, Formatter},
+    fmt::{Debug, Display, Formatter},
     hash::Hash,
+    ops::Range,
 };
 
 use crate::{
@@ -25,40 +36,108 @@ use crate::{
     variant::Var,
 };
 
-#[derive(Clone, Debug)]
+/// The least capacity, in bytes, a string grows to when text is added to it.
+const MIN_GROWN_CAPACITY: usize = 16;
+
+/// A string. The bytes of the block are always valid UTF-8.
+#[derive(Clone)]
 #[repr(transparent)]
-pub struct Str(ArcStr);
+pub struct Str(Block<u8>);
 
 impl Str {
     /// Whether both share the same storage. See `Var::is_identical`.
     pub fn is_identical(&self, other: &Self) -> bool {
-        ArcStr::ptr_eq(&self.0, &other.0)
+        self.0.ptr_eq(&other.0)
     }
 
     pub fn mk_str(s: &str) -> Self {
-        Str(ArcStr::from(s))
+        Str(Block::from_slice(s.as_bytes()))
     }
 
     pub fn mk_string(s: String) -> Self {
-        Str(ArcStr::from(s))
+        Self::mk_str(&s)
     }
 
-    pub fn mk_arc_str(s: ArcStr) -> Self {
-        Str(s)
+    /// An empty string with room for `capacity` bytes.
+    pub fn with_capacity(capacity: usize) -> Self {
+        Str(Block::with_capacity(capacity))
     }
 
+    /// The parts joined in order, in a buffer of exactly their size.
+    pub fn concat(parts: &[&str]) -> Self {
+        let mut joined = Self::with_capacity(parts.iter().map(|part| part.len()).sum());
+        for part in parts {
+            joined.0.extend_from_slice(part.as_bytes(), usize::MAX);
+        }
+        joined
+    }
+
+    #[inline]
     pub fn as_str(&self) -> &str {
-        &self.0
+        // SAFETY: every way of writing to the block keeps it valid UTF-8.
+        unsafe { std::str::from_utf8_unchecked(self.0.as_slice()) }
     }
 
-    pub fn as_arc_str(&self) -> ArcStr {
-        self.0.clone()
+    /// Add `text` at the end, in place if nothing else holds this string.
+    ///
+    /// A string that is the only handle to its buffer grows by doubling, so a run of appends
+    /// costs time in proportion to the text added. A shared string is copied once into a buffer
+    /// of exactly the new size: most strings are never appended to again, and one that is will
+    /// be unshared by then and start doubling.
+    pub fn push_str(&mut self, text: &str) {
+        if text.is_empty() {
+            return;
+        }
+        let needed = self.0.len() + text.len();
+        let capacity = if !self.0.is_unique() {
+            needed
+        } else if needed > self.0.capacity() {
+            needed.max(self.0.capacity() * 2).max(MIN_GROWN_CAPACITY)
+        } else {
+            self.0.capacity()
+        };
+        self.0.make_unique(capacity);
+        self.0.extend_from_slice(text.as_bytes(), usize::MAX);
+    }
+
+    /// Replace the bytes in `range` with `text`. Both ends of the range must be on character
+    /// boundaries. When the replacement is the same size the bytes are overwritten, in place if
+    /// nothing else holds this string.
+    pub fn replace_byte_range(&mut self, range: Range<usize>, text: &str) {
+        let subject = self.as_str();
+        assert!(subject.is_char_boundary(range.start) && subject.is_char_boundary(range.end));
+        if text.len() == range.len() {
+            self.0.as_mut_slice()[range].copy_from_slice(text.as_bytes());
+            return;
+        }
+        *self = Self::concat(&[&subject[..range.start], text, &subject[range.end..]]);
+    }
+
+    /// `range` for a string known to be all ASCII, where a character index is a byte index.
+    pub(crate) fn range_ascii(&self, from: isize, to: isize) -> Result<Var, Error> {
+        if to < from {
+            return Ok(Var::mk_str(""));
+        }
+        let subject = self.as_str();
+        let start = max(from, 0) as usize;
+        match subject.get(start..(to as usize).saturating_add(1)) {
+            Some(text) => Ok(Var::mk_str(text)),
+            // Out of bounds: let the general path word the error.
+            None => self.range(from, to),
+        }
     }
 
     pub fn str_append(&self, other: &Self) -> Var {
-        let mut s = String::from(&*self.0);
-        s.push_str(other.as_str());
-        Var::from_str_type_with_hint(Str(ArcStr::from(s)), OP_HINT_STR_APPEND)
+        Var::from_str_type_with_hint(
+            Self::concat(&[self.as_str(), other.as_str()]),
+            OP_HINT_STR_APPEND,
+        )
+    }
+}
+
+impl Debug for Str {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Str").field(&self.as_str()).finish()
     }
 }
 
@@ -669,9 +748,9 @@ impl Sequence for Str {
             return Err(E_INVARG.msg("String index set value must be a single character"));
         }
 
-        let mut s = subject.to_string();
-        s.replace_range(start_byte..end_byte, value.as_str());
-        Ok(Var::from_str_type(Str(ArcStr::from(s))))
+        let mut changed = self.clone();
+        changed.replace_byte_range(start_byte..end_byte, value.as_str());
+        Ok(Var::from_str_type(changed))
     }
 
     fn push(&self, value: &Var) -> Result<Var, Error> {
@@ -680,10 +759,8 @@ impl Sequence for Str {
                 .with_msg(|| format!("Cannot push {} to string", value.type_code().to_literal())));
         };
 
-        let mut new_copy = self.as_str().to_string();
-        new_copy.push_str(value.as_str());
         Ok(Var::from_str_type_with_hint(
-            Str(ArcStr::from(new_copy)),
+            Str::concat(&[self.as_str(), value.as_str()]),
             OP_HINT_STR_APPEND,
         ))
     }
@@ -701,9 +778,12 @@ impl Sequence for Str {
 
         let byte_index = insertion_byte_index(self.as_str(), index);
 
-        let mut new_copy = self.as_str().to_string();
-        new_copy.insert_str(byte_index, value.as_str());
-        Ok(Var::from_str_type(Str(ArcStr::from(new_copy))))
+        let (before, after) = self.as_str().split_at(byte_index);
+        Ok(Var::from_str_type(Str::concat(&[
+            before,
+            value.as_str(),
+            after,
+        ])))
     }
 
     fn range(&self, from: isize, to: isize) -> Result<Var, Error> {
@@ -720,9 +800,9 @@ impl Sequence for Str {
             }));
         }
 
-        // Extract characters directly using iterator
-        let result: String = s.chars().skip(start).take(to - start + 1).collect();
-        Ok(Var::mk_str(&result))
+        let start_byte = insertion_byte_index(s, start);
+        let end_byte = start_byte + insertion_byte_index(&s[start_byte..], to - start + 1);
+        Ok(Var::mk_str(&s[start_byte..end_byte]))
     }
 
     fn range_set(&self, from: isize, to: isize, with: &Var) -> Result<Var, Error> {
@@ -763,26 +843,18 @@ impl Sequence for Str {
         };
 
         let start_byte = char_index_to_byte_index(from);
-        let mut result_str = if from > 0 {
-            base_str[..start_byte].to_string()
-        } else {
-            "".to_string()
+        // Everything after the replaced range. A negative `to` replaces nothing, so the whole
+        // string follows the inserted text.
+        let suffix = match usize::try_from(to) {
+            Ok(to) if to + 1 < char_len => &base_str[char_index_to_byte_index(to + 1)..],
+            Ok(_) => "",
+            Err(_) => base_str,
         };
-        result_str.push_str(with_val.as_str());
-
-        match usize::try_from(to) {
-            Ok(to) => {
-                if to + 1 < char_len {
-                    let suffix_start = char_index_to_byte_index(to + 1);
-                    result_str.push_str(&base_str[suffix_start..]);
-                }
-            }
-            Err(_) => {
-                result_str.push_str(base_str);
-            }
-        }
-
-        Ok(Var::from_str_type(Str(ArcStr::from(result_str))))
+        Ok(Var::from_str_type(Str::concat(&[
+            &base_str[..start_byte],
+            with_val.as_str(),
+            suffix,
+        ])))
     }
 
     fn append(&self, other: &Var) -> Result<Var, Error> {
@@ -792,9 +864,10 @@ impl Sequence for Str {
             }));
         };
 
-        let mut new_copy = self.as_str().to_string();
-        new_copy.push_str(other.as_str());
-        Ok(Var::from_str_type(Str(ArcStr::from(new_copy))))
+        Ok(Var::from_str_type(Str::concat(&[
+            self.as_str(),
+            other.as_str(),
+        ])))
     }
 
     fn remove_at(&self, index: usize) -> Result<Var, Error> {
@@ -809,9 +882,10 @@ impl Sequence for Str {
             }));
         };
 
-        let mut new_copy = subject.to_string();
-        new_copy.replace_range(start_byte..end_byte, "");
-        Ok(Var::from_str_type(Str(ArcStr::from(new_copy))))
+        Ok(Var::from_str_type(Str::concat(&[
+            &subject[..start_byte],
+            &subject[end_byte..],
+        ])))
     }
 }
 
@@ -917,6 +991,217 @@ mod tests {
         assert!(!s.is_scalar());
         assert_eq!(s.len().unwrap(), 0);
         assert!(s.is_empty().unwrap());
+    }
+
+    /// The cached count and ASCII flag of a string value must match a value made from the same
+    /// text from scratch.
+    fn assert_caches_match(value: &Var, text: &str) {
+        let fresh = Var::mk_str(text);
+        assert_eq!(value.as_string().unwrap(), text);
+        assert_eq!(value.len().unwrap(), fresh.len().unwrap());
+        assert_eq!(value.str_is_ascii(), fresh.str_is_ascii());
+        assert_eq!(value, &fresh);
+    }
+
+    #[test]
+    fn appending_to_an_unshared_string_keeps_its_buffer() {
+        let mut s = Str::mk_str("a");
+        // Grow it once so that it has spare capacity.
+        s.push_str("b");
+        let grown = s.as_str().as_ptr();
+        s.push_str("c");
+        assert_eq!(s.as_str(), "abc");
+        assert_eq!(s.as_str().as_ptr(), grown);
+    }
+
+    #[test]
+    fn appending_to_a_shared_string_leaves_the_other_holder_alone() {
+        let mut s = Str::mk_str("abc");
+        let other = s.clone();
+        s.push_str("def");
+        assert_eq!(s.as_str(), "abcdef");
+        assert_eq!(other.as_str(), "abc");
+        assert!(!s.is_identical(&other));
+    }
+
+    #[test]
+    fn many_appends_build_the_whole_string() {
+        let mut s = Str::mk_str("");
+        let mut expected = String::new();
+        for i in 0..2000 {
+            let piece = if i % 7 == 0 { "é" } else { "x" };
+            s.push_str(piece);
+            expected.push_str(piece);
+        }
+        assert_eq!(s.as_str(), expected);
+    }
+
+    #[test]
+    fn replacing_bytes_of_the_same_width_edits_in_place() {
+        let mut s = Str::mk_str("abc");
+        let buffer = s.as_str().as_ptr();
+        s.replace_byte_range(1..2, "z");
+        assert_eq!(s.as_str(), "azc");
+        assert_eq!(s.as_str().as_ptr(), buffer);
+
+        let other = s.clone();
+        s.replace_byte_range(0..1, "q");
+        assert_eq!((s.as_str(), other.as_str()), ("qzc", "azc"));
+    }
+
+    #[test]
+    fn replacing_bytes_of_another_width_rebuilds_the_string() {
+        let mut s = Str::mk_str("abc");
+        s.replace_byte_range(1..2, "é");
+        assert_eq!(s.as_str(), "aéc");
+        s.replace_byte_range(1..3, "");
+        assert_eq!(s.as_str(), "ac");
+    }
+
+    #[test]
+    fn appending_in_place_keeps_the_cached_count_and_ascii_flag() {
+        for (start, pieces) in [
+            ("abc", vec!["def", "", "g"]),
+            ("abc", vec!["é", "x"]),
+            ("é", vec!["abc", "😊"]),
+            ("", vec!["a", "b"]),
+            ("", vec!["", "é"]),
+        ] {
+            let mut value = Var::mk_str(start);
+            let mut text = start.to_string();
+            for piece in pieces {
+                assert!(value.str_append_assign(&Var::mk_str(piece)));
+                text.push_str(piece);
+                assert_caches_match(&value, &text);
+            }
+        }
+    }
+
+    #[test]
+    fn appending_in_place_past_the_cached_count_limit_still_counts_right() {
+        let mut value = Var::mk_str(&"x".repeat(65_530));
+        let mut text = "x".repeat(65_530);
+        for piece in ["yyyy", "é", "zzzzzzzz"] {
+            assert!(value.str_append_assign(&Var::mk_str(piece)));
+            text.push_str(piece);
+            assert_caches_match(&value, &text);
+        }
+    }
+
+    #[test]
+    fn appending_in_place_leaves_a_copy_of_the_value_alone() {
+        let mut value = Var::mk_str("abc");
+        let copy = value.clone();
+        assert!(value.str_append_assign(&copy));
+        assert_caches_match(&value, "abcabc");
+        assert_caches_match(&copy, "abc");
+    }
+
+    #[test]
+    fn appending_to_a_symbol_backed_string_does_not_change_the_symbol() {
+        let symbol = crate::Symbol::mk("in_place_append_test_symbol");
+        let mut value = crate::v_symbol_str(symbol);
+        assert!(value.str_append_assign(&Var::mk_str("!")));
+        assert_caches_match(&value, "in_place_append_test_symbol!");
+        assert_eq!(symbol.as_str(), "in_place_append_test_symbol");
+    }
+
+    #[test]
+    fn appending_in_place_refuses_anything_but_two_strings() {
+        let mut text = Var::mk_str("abc");
+        assert!(!text.str_append_assign(&v_int(1)));
+        assert_caches_match(&text, "abc");
+        let mut number = v_int(1);
+        assert!(!number.str_append_assign(&Var::mk_str("abc")));
+        assert_eq!(number, v_int(1));
+    }
+
+    #[test]
+    fn setting_a_character_of_an_owned_string_keeps_the_caches_right() {
+        for (start, index, with, expected) in [
+            ("abc", 2, "z", "azc"),
+            ("abc", 2, "é", "aéc"),
+            ("aéc", 2, "z", "azc"),
+            ("aéc", 3, "z", "aéz"),
+            ("aé😊", 3, "é", "aéé"),
+        ] {
+            let original = Var::mk_str(start);
+            let changed = original
+                .clone()
+                .index_set_owned(&v_int(index), &Var::mk_str(with), IndexMode::OneBased)
+                .unwrap();
+            assert_caches_match(&changed, expected);
+            assert_caches_match(&original, start);
+        }
+    }
+
+    #[test]
+    fn setting_a_character_of_an_owned_string_reports_the_same_errors() {
+        for (index, with) in [
+            (v_int(0), Var::mk_str("z")),
+            (v_int(4), Var::mk_str("z")),
+            (v_int(1), Var::mk_str("zz")),
+            (v_int(1), Var::mk_str("")),
+            (v_int(1), v_int(1)),
+            (Var::mk_str("1"), Var::mk_str("z")),
+        ] {
+            let subject = Var::mk_str("abc");
+            assert_eq!(
+                subject
+                    .clone()
+                    .index_set_owned(&index, &with, IndexMode::OneBased)
+                    .unwrap_err(),
+                subject
+                    .index_set(&index, &with, IndexMode::OneBased)
+                    .unwrap_err(),
+            );
+        }
+    }
+
+    #[test]
+    fn index_and_range_agree_for_ascii_and_other_strings() {
+        // The same reads through the general path, which a non-ASCII string takes.
+        let ascii = Var::mk_str("hello world");
+        let seq = Str::mk_str("hello world");
+        for i in 0..11 {
+            assert_eq!(
+                ascii.index(&v_int(i + 1), IndexMode::OneBased).unwrap(),
+                seq.index(i as usize).unwrap()
+            );
+        }
+        assert!(ascii.index(&v_int(12), IndexMode::OneBased).is_err());
+        for (from, to) in [
+            (1, 5),
+            (7, 11),
+            (3, 3),
+            (5, 4),
+            (1, 11),
+            (0, 5),
+            (1, 12),
+            (12, 12),
+            (12, 11),
+        ] {
+            assert_eq!(
+                ascii.range(&v_int(from), &v_int(to), IndexMode::OneBased),
+                seq.range(from as isize - 1, to as isize - 1),
+                "range {from}..{to}"
+            );
+        }
+        assert!(
+            ascii
+                .range(&v_int(1), &v_int(12), IndexMode::OneBased)
+                .is_err()
+        );
+        let wide = Var::mk_str("aé😊z");
+        assert_eq!(
+            wide.range(&v_int(2), &v_int(3), IndexMode::OneBased)
+                .unwrap(),
+            Var::mk_str("é😊")
+        );
+        assert_eq!(
+            wide.index(&v_int(4), IndexMode::OneBased).unwrap(),
+            Var::mk_str("z")
+        );
     }
 
     #[test]

@@ -53,8 +53,8 @@ use moor_compiler::{
 use moor_db::{ANCESTRY_CACHE_STATS, DatabaseRelation, PROP_CACHE_STATS, VERB_CACHE_STATS};
 use moor_var::{
     Associative, E_ARGS, E_INVARG, E_INVIND, E_QUOTA, E_TYPE, Error, Obj, Symbol, Var,
-    VarType::TYPE_NONE, v_arc_str, v_float, v_int, v_list, v_list_iter, v_map, v_obj, v_str,
-    v_string, v_sym,
+    VarType::TYPE_NONE, v_float, v_int, v_list, v_list_iter, v_map, v_obj, v_str, v_string, v_sym,
+    v_symbol_str,
 };
 use uuid::Uuid;
 
@@ -66,7 +66,7 @@ pub(crate) fn bf_noop(bf_args: &mut BfCallState<'_>) -> Result<BfRet, BfErr> {
     );
     Err(BfErr::Raise(E_INVIND.with_msg_and_value(
         || format!("Builtin {} is not implemented", bf_args.name),
-        v_arc_str(bf_args.name.as_arc_str()),
+        v_symbol_str(bf_args.name),
     )))
 }
 
@@ -774,7 +774,7 @@ fn bf_function_info_to_list(bf: &Builtin) -> Var {
     });
 
     v_list(&[
-        v_arc_str(bf.name.as_arc_str()),
+        v_symbol_str(bf.name),
         min_args,
         max_args,
         v_list_iter(types),
@@ -1132,7 +1132,7 @@ fn counter_map_from_entries(entries: &[MetricEntry], use_symbols: bool) -> Var {
         let op_name = if use_symbols {
             v_sym(*name_sym)
         } else {
-            v_arc_str(name_sym.as_arc_str())
+            v_symbol_str(*name_sym)
         };
 
         result.push((

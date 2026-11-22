@@ -121,6 +121,8 @@ struct SymbolData {
 /// Reverse-lookup entry keyed by repr_id.
 struct SymbolReprData {
     original_string: ArcStr,
+    /// The same text as a MOO string, so a string value backed by a symbol can lend one out.
+    original_str: crate::string::Str,
     byte_len: usize,
     char_len: usize,
     is_ascii: bool,
@@ -304,6 +306,7 @@ impl GlobalInternerState {
             arc_str.chars().count()
         };
         let repr_id = self.repr_id_to_symbol.push(SymbolReprData {
+            original_str: crate::string::Str::mk_str(&arc_str),
             original_string: arc_str.clone(),
             byte_len,
             char_len,
@@ -440,6 +443,19 @@ impl Symbol {
                 )
             });
         &repr.original_string
+    }
+
+    /// Get the original string as a borrowed MOO string from the global interner.
+    pub(crate) fn as_str_ref(&self) -> &'static crate::string::Str {
+        let repr = GLOBAL_INTERNER
+            .get_repr_data_by_repr_id(self.repr_id)
+            .unwrap_or_else(|| {
+                panic!(
+                    "Symbol: Invalid repr_id {}. String not found in interner.",
+                    self.repr_id
+                )
+            });
+        &repr.original_str
     }
 
     /// Get the original string as a borrowed `&str` from the global interner.

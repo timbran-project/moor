@@ -75,6 +75,27 @@ impl Var {
         self.add_slow(v)
     }
 
+    /// `self = self + v`. A string is appended to in place when nothing else holds it.
+    #[inline]
+    pub fn add_assign(&mut self, v: &Self) -> Result<(), Error> {
+        if let (Some(l), Some(r)) = (self.as_integer(), v.as_integer()) {
+            *self = l
+                .checked_add(r)
+                .map(v_int)
+                .ok_or_else(|| E_INVARG.msg("Integer overflow"))?;
+            return Ok(());
+        }
+        self.add_assign_slow(v)
+    }
+
+    #[inline(never)]
+    fn add_assign_slow(&mut self, v: &Self) -> Result<(), Error> {
+        if !self.str_append_assign(v) {
+            *self = self.add(v)?;
+        }
+        Ok(())
+    }
+
     #[inline(never)]
     fn add_slow(&self, v: &Self) -> Result<Self, Error> {
         match (self.variant(), v.variant()) {
