@@ -29,8 +29,18 @@ assets = [
     ],
     ["debian/moor-daemon-config.yaml", "/etc/moor/daemon-config.yaml", "644"],
     [
-        "../../cores/lambda-moor/**/*",
-        "/usr/share/moor/cores/lambda-moor/",
+        "../../cores/snore/src/*",
+        "/usr/share/moor/cores/snore/src/",
+        "644",
+    ],
+    [
+        "../../cores/snore/README.md",
+        "/usr/share/moor/cores/snore/README.md",
+        "644",
+    ],
+    [
+        "../../cores/snore/LICENSE.md",
+        "/usr/share/moor/cores/snore/LICENSE.md",
         "644",
     ],
 ]

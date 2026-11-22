@@ -31,6 +31,7 @@ sessions/
 # Runtime data and IPC (managed by start scripts)
 run-cowbell/
 run-lambda-moor/
+run-snore/
 
 # OAuth2 config files with secrets
 *-oauth2.yaml

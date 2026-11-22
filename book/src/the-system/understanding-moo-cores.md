@@ -102,12 +102,25 @@ mooR repository root. Cowbell is included in the repository under `cores/cowbell
 
 See: <https://github.com/timbran-project/moor/tree/main/cores/cowbell>
 
+## The Snore Core
+
+[Snore](https://github.com/timbran-project/moor/tree/main/cores/snore) is a fork of LambdaCore
+written for mooR. It keeps the familiar MOO commands, rooms, objects, mail, news and guests, and
+live programming, so it feels familiar to longtime players and matches what most MOO tutorials
+teach. Its internals use mooR's own features, such as booleans, maps and closures.
+
+**Current Status**: Snore is the core to choose for a classic, text-first MOO. The deployment
+examples under `deploy/` start from it unless told otherwise.
+
+**How to run**: Start it with the `./scripts/start-moor-snore.sh` script in the mooR repository
+root. It is in the repository under `cores/snore/`.
+
 ## Choosing Your Path
 
 When setting up a mooR server, you'll need to decide:
 
 1. **Start with Cowbell**: Use mooR's current feature set and web-client integration
-2. **Start with lambda-moor**: Use a LambdaCore-derived environment and compatibility settings
+2. **Start with Snore**: Use a classic, LambdaCore-style world written for mooR
 3. **Start with minimal-core**: Begin with basic objects and build your own systems
 4. **Adapt existing code**: Port or combine content from other cores
 

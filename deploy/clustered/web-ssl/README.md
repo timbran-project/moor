@@ -141,7 +141,7 @@ Or use a systemd timer (see appendix below).
 
 ## First-Time MOO Setup
 
-Default wizard credentials (if using lambda-moor core):
+Default wizard credentials (with the Snore core these examples import):
 
 - Username: `Wizard`
 - Password: (none - press enter)
