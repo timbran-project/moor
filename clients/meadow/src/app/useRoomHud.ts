@@ -11,11 +11,19 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { usePresentationContext } from "../context/PresentationContext";
 import { usePersistentState } from "../hooks/usePersistentState";
 import { extractRoomLookKey } from "../lib/var";
 import { Presentation } from "../types/presentation";
+
+interface RoomDockLatch {
+    roomKey: string | null;
+    messageId: string | null;
+    latched: boolean;
+}
+
+const NO_LATCH: RoomDockLatch = { roomKey: null, messageId: null, latched: false };
 
 const serializeBool = (value: boolean) => value ? "true" : "false";
 const deserializeBool = (raw: string): boolean | null => {
@@ -41,8 +49,13 @@ export const useRoomHud = () => {
         },
     );
 
-    const [isCurrentRoomLookDockLatched, setIsCurrentRoomLookDockLatched] = useState(false);
-    const [currentRoomLookMessageId, setCurrentRoomLookMessageId] = useState<string | null>(null);
+    // Whether the room dock is shown for a room, and which narrative message that was decided
+    // against. The room is part of the state, so a decision made for one room never applies to
+    // another and nothing has to reset it when the room changes. An effect that reset it ran
+    // after the output window's first report for a new room and discarded it: with no room
+    // description in the narrative, as on a first login or a reload without history, no later
+    // report came, and the dock stayed hidden over an empty narrative.
+    const [dockLatch, setDockLatch] = useState<RoomDockLatch>(NO_LATCH);
 
     const getRoomLookKeyFromPresentation = useCallback((presentation: Presentation): string | null => {
         const kind = (presentation.attrs.kind || "").toLowerCase();
@@ -81,21 +94,21 @@ export const useRoomHud = () => {
             return;
         }
 
-        if (lookMessageId && lookMessageId !== currentRoomLookMessageId) {
-            setCurrentRoomLookMessageId(lookMessageId);
-            setIsCurrentRoomLookDockLatched(false);
-            return;
-        }
-
-        if (!isVisible) {
-            setIsCurrentRoomLookDockLatched(true);
-        }
-    }, [currentRoomLookKey, currentRoomLookMessageId]);
-
-    useEffect(() => {
-        setCurrentRoomLookMessageId(null);
-        setIsCurrentRoomLookDockLatched(false);
+        setDockLatch((previous) => {
+            const forThisRoom = previous.roomKey === roomKey ? previous : { ...NO_LATCH, roomKey };
+            // A new description of the room in the narrative starts over: it is the one to watch.
+            if (lookMessageId && lookMessageId !== forThisRoom.messageId) {
+                return { roomKey, messageId: lookMessageId, latched: false };
+            }
+            // Out of view, or not in the narrative at all: show the dock, and keep showing it.
+            if (!isVisible && !forThisRoom.latched) {
+                return { ...forThisRoom, latched: true };
+            }
+            return forThisRoom === previous ? previous : forThisRoom;
+        });
     }, [currentRoomLookKey]);
+
+    const isCurrentRoomLookDockLatched = dockLatch.roomKey === currentRoomLookKey && dockLatch.latched;
 
     const topDockPresentations = useMemo(() => {
         const current = getTopDockPresentations();
@@ -126,8 +139,7 @@ export const useRoomHud = () => {
 
     /** Clears latching state after an authority reset (player switch). */
     const resetLatching = useCallback(() => {
-        setCurrentRoomLookMessageId(null);
-        setIsCurrentRoomLookDockLatched(false);
+        setDockLatch(NO_LATCH);
     }, []);
 
     return {
