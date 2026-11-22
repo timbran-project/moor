@@ -50,6 +50,9 @@ Cloud hosting offers advantages like:
 - Automatic backups and scaling options
 - Geographic distribution for better latency
 
+Each mooR release includes a file that sets a server up on a new cloud machine when it first starts.
+See [Starting on a Cloud Machine](cloud-machine.md).
+
 ### Local Development
 
 You can also run mooR locally for:

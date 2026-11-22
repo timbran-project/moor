@@ -74,11 +74,13 @@ docker compose version
 The root Compose file builds the backend and Meadow images from monorepo-relative contexts. Keep the
 repository checkout intact when using that development configuration.
 
-The deployment examples under `deploy/` pull the multi-platform
-`ghcr.io/timbran-project/moor:latest` image by default, so Docker selects AMD64 or ARM64
-automatically. Replace `latest` with a release such as `1.0.2` for a reproducible deployment. The
-backend image contains the compiled Meadow assets used by the bundled nginx configurations. A
-standalone Meadow image is also published as `ghcr.io/timbran-project/moor-frontend`.
+The deployment examples under `deploy/` pull the multi-platform `ghcr.io/timbran-project/moor`
+image, so Docker selects x86-64 or arm64 automatically. They use the `latest` tag unless told
+otherwise. For a deployment that stays on the version you tested, name a release: the single-process
+examples take it from `MOOR_VERSION` in `.env`, and in the clustered examples you edit the image tag
+in the compose file. The backend image contains the compiled Meadow assets used by the bundled nginx
+configurations. A standalone Meadow image is also published as
+`ghcr.io/timbran-project/moor-frontend`.
 
 The deployment examples may be copied to a deployment host when using the published images. Keep a
 repository checkout available if you uncomment their monorepo-relative local `build:` sections.
@@ -96,6 +98,26 @@ docker compose logs -f
 The single-process examples are operated directly with Docker Compose. Clustered examples include
 additional `start.sh` and `test.sh` scripts where enrollment, permissions, or multi-service checks
 need automation. Follow the README in the selected configuration directory.
+
+The single-process examples read these settings from `.env`:
+
+| Setting               | What it does                               | Default        |
+| --------------------- | ------------------------------------------ | -------------- |
+| `USER_ID`, `GROUP_ID` | The user and group the containers run as   | `1000`, `1000` |
+| `MOOR_VERSION`        | The release to run, which is the image tag | `latest`       |
+| `MOOR_BIND`           | The address the published ports listen on  | `0.0.0.0`      |
+
+### Before You Open It to Anyone
+
+A new world has a wizard account, which can do anything in it. LambdaCore's wizard has no password,
+and Cowbell's has the one that ships with the core. On a machine other people can reach, anyone who
+connects first can take the world over.
+
+So change the wizard's password before the server is reachable. The simplest way is to start with
+`MOOR_BIND=127.0.0.1`, which makes the ports answer only on the machine itself. Connect from that
+machine, log in as the wizard, and set a password with `@password`. Then remove the setting and run
+`docker compose up -d` again. [Starting on a Cloud Machine](cloud-machine.md) walks through the same
+steps over an SSH tunnel.
 
 ### Service Components
 
@@ -275,9 +297,10 @@ docker compose restart moor-frontend
 **Port conflicts** : If ports 8080 (web) or 8888 (telnet) are already in use, modify the port
 mappings in the compose file.
 
-**Permission denied errors** : Use the `./start.sh` script which handles user permissions
-automatically. If running `docker compose` directly, ensure you've exported `USER_ID` and `GROUP_ID`
-environment variables and pre-created the data directories.
+**Permission denied errors** : The containers run as the user and group named by `USER_ID` and
+`GROUP_ID`, and must be able to write to the data directories. Set both to your own (`id -u` and
+`id -g`) in `.env`, and create the data directories yourself before the first start, since Docker
+creates missing ones as root. The clustered examples have a `./start.sh` that does this for you.
 
 **Services won't start** : Check logs with `docker compose logs <service-name>`. Verify all required
 directories exist and are accessible.

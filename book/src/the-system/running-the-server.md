@@ -28,10 +28,9 @@ For detailed instructions and other installation options, see the sections below
 mooR can run in two modes:
 
 **Single-process (default)** runs the combined `moor` binary, which bundles the daemon, telnet host,
-web host, and curl worker into one process. This is the simplest path and is what the provided
-single-process Docker Compose configurations use by default. A combined Debian package can be built
-locally, while the published `1.0.2` channel contains the split-service packages. Most users should
-start with the single-process Docker configuration.
+web host, and curl worker into one process. This is the simplest path, and it is what the quick
+start, the single-process Docker Compose configurations and the cloud machine setup all use. Most
+people should start here.
 
 **Clustered deployment (advanced)** runs the daemon, hosts, and workers as separate processes that
 communicate over ZeroMQ sockets. This enables distributing components across multiple machines for
@@ -46,34 +45,47 @@ modular components that can run as one process or as separate processes.
 👉 **[Server Architecture](server-architecture.md)** - Learn about mooR's components and how they
 work together
 
-## Installation Methods
+## Ways to Install
 
-mooR provides several ways to get up and running, each suited for different needs and environments:
+Pick the row that matches what you are doing.
 
-### Docker Compose (Recommended)
+| You want to...                                 | Use                                                                              |
+| ---------------------------------------------- | -------------------------------------------------------------------------------- |
+| Try mooR on your own computer                  | The [quick start](#quick-start-guide) above                                      |
+| Run a server with Docker                       | [Docker Compose Setup](docker-compose-setup.md)                                  |
+| Start a server on a rented cloud machine       | [Starting on a Cloud Machine](cloud-machine.md)                                  |
+| Run without containers, and without compiling  | [Prebuilt binaries](alternative-installation-methods.md#prebuilt-binaries)       |
+| Install as system services on Debian or Ubuntu | [Debian packages](alternative-installation-methods.md#debian-packages)           |
+| Build it yourself, or work on mooR             | [Building from source](alternative-installation-methods.md#building-from-source) |
+| Spread the server across several machines      | [Clustered Deployment](clustered-deployment.md)                                  |
 
-The easiest and most reliable method for most users. The default Docker Compose configuration runs
-the single-process `moor` binary with the Meadow frontend, making it simple to get a complete MOO
-environment running.
+All of them end with the same server. They differ in how much is set up for you.
 
-👉 **[Docker Compose Setup](docker-compose-setup.md)** - Complete guide to running mooR with Docker
+### What a Release Includes
 
-### Alternative Methods
+Each mooR release publishes three things, built and checked by the project:
 
-For specific environments or use cases, mooR also supports traditional installation approaches,
-including Debian packages (single-process or split-service) and building from source.
+- **Container images**, for x86-64 and arm64. The Docker Compose configurations use these.
+- **Prebuilt binaries**, as a tarball for each of the two processor types.
+- **A cloud-init file**, which sets up a new cloud machine on its first boot.
 
-👉 **[Alternative Installation Methods](alternative-installation-methods.md)** - Debian packages and
-building from source
+Everything else in the repository's `deploy/` directory is an example to adapt: the Docker Compose
+configurations, the nginx configurations, the Kubernetes manifests and the Debian packaging. They
+are tested and kept working, but your deployment will differ from them, and you are expected to
+change them to fit.
 
 ## Next Steps
 
 Once you have mooR running, you'll need to:
 
-1. **Understand the selected MOO core** - See [Understanding MOO Cores](understanding-moo-cores.md)
-2. **Configure your server** - See [Server Configuration](server-configuration.md)
-3. **Set up player access** - Configure telnet and/or web interfaces
-4. **Customize your MOO** - Add content, modify settings, and create your virtual world
+1. **Change the wizard's password** - The wizard account can do anything in the world. A new
+   LambdaCore world's wizard has no password at all, and a new Cowbell world's has the one that
+   ships with the core. Connect as the wizard and set your own with `@password` before anyone else
+   can reach the server.
+2. **Understand the selected MOO core** - See [Understanding MOO Cores](understanding-moo-cores.md)
+3. **Configure your server** - See [Server Configuration](server-configuration.md)
+4. **Set up player access** - Configure telnet and/or web interfaces
+5. **Customize your MOO** - Add content, modify settings, and create your virtual world
 
 ## Getting Help
 
