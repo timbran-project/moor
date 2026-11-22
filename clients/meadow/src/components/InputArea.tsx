@@ -11,7 +11,7 @@
 // this program. If not, see <https://www.gnu.org/licenses/>.
 //
 
-import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useArgumentCoordinator } from "../context/ArgumentContext";
 import { useAuthContext } from "../context/AuthContext";
 import { useCommandArgument } from "../hooks/useCommandArgument";
@@ -78,6 +78,7 @@ export const InputArea: React.FC<InputAreaProps> = ({
         Math.floor(Math.random() * ENCOURAGING_PLACEHOLDERS.length)
     );
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const inputBoxRef = useRef<HTMLDivElement>(null);
 
     // Say mode and verb palette settings
     const [sayModeEnabled, setSayModeEnabled] = useState(getSayModeEnabled);
@@ -261,9 +262,17 @@ export const InputArea: React.FC<InputAreaProps> = ({
     }, [visible, disabled, inputMetadata]);
 
     // Auto-resize textarea based on content
-    useEffect(() => {
+    useLayoutEffect(() => {
         const textarea = textareaRef.current;
         if (!textarea) return;
+
+        // Measuring needs the height reset to `auto`, which makes the textarea shorter for a moment.
+        // Left alone, that shrinks the whole input box, the output above grows to fill the space,
+        // and the browser pulls its scroll position back to fit. The output then sits a few pixels
+        // off until the next frame scrolls it down again, which shows as a shake on every key.
+        // Holding the box at its current height while measuring keeps the layout above it still.
+        const box = inputBoxRef.current;
+        if (box) box.style.height = `${box.getBoundingClientRect().height}px`;
 
         // Reset height to auto to get the scroll height
         textarea.style.height = "auto";
@@ -275,6 +284,8 @@ export const InputArea: React.FC<InputAreaProps> = ({
 
         const newHeight = Math.min(Math.max(scrollHeight, minHeight), maxHeight);
         textarea.style.height = `${newHeight}px`;
+
+        if (box) box.style.height = "";
     }, [input]);
 
     // Navigate through command history (caller handles cursor/multiline checks)
@@ -584,7 +595,7 @@ export const InputArea: React.FC<InputAreaProps> = ({
             />
 
             {/* Input area with pill inside */}
-            <div className="input_area_box">
+            <div className="input_area_box" ref={inputBoxRef}>
                 {activePill
                     ? (
                         <button
