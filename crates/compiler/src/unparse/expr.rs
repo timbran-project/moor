@@ -143,7 +143,7 @@ impl<'a> Unparse<'a> {
             Expr::Value(value) => self.write_value_literal(value, 0, writer),
             Expr::TypeConstant(typ) => write!(writer, "{}", typ.to_literal()).map_err(Into::into),
             Expr::Id(id) => {
-                write!(writer, "{}", self.unparse_variable(id).as_arc_str()).map_err(Into::into)
+                write!(writer, "{}", self.unparse_variable(id).as_str()).map_err(Into::into)
             }
             Expr::Return(expr) => {
                 write!(writer, "return")?;
@@ -175,11 +175,7 @@ impl<'a> Unparse<'a> {
             }
             Expr::Decl { id, is_const, expr } => {
                 let prefix = if *is_const { "const" } else { "let" };
-                write!(
-                    writer,
-                    "{prefix} {}",
-                    self.unparse_variable(id).as_arc_str()
-                )?;
+                write!(writer, "{prefix} {}", self.unparse_variable(id).as_str())?;
                 if let Some(expr) = expr {
                     write!(writer, " = ")?;
                     self.write_expr(expr, writer)?;
@@ -206,7 +202,7 @@ impl<'a> Unparse<'a> {
             Expr::Call { function, args } => {
                 match function {
                     CallTarget::Builtin(name) => {
-                        write!(writer, "{}(", name.as_arc_str())?;
+                        write!(writer, "{}(", name.as_str())?;
                     }
                     CallTarget::Expr(expr) => {
                         let needs_parens = self.fully_paren
@@ -326,7 +322,7 @@ impl<'a> Unparse<'a> {
                 write!(writer, "<")?;
                 self.write_expr(delegate, writer)?;
                 for (slot, value) in slots {
-                    write!(writer, ", .{} = ", slot.as_arc_str())?;
+                    write!(writer, ", .{} = ", slot.as_str())?;
                     self.write_expr(value, writer)?;
                 }
                 if let Some(contents) = contents {
@@ -349,7 +345,7 @@ impl<'a> Unparse<'a> {
                 write!(
                     writer,
                     " for {} in [",
-                    self.unparse_variable(variable).as_arc_str()
+                    self.unparse_variable(variable).as_str()
                 )?;
                 self.write_expr(from, writer)?;
                 write!(writer, "..")?;
@@ -375,7 +371,7 @@ impl<'a> Unparse<'a> {
                 write!(
                     writer,
                     " for {} in (",
-                    self.unparse_variable(variable).as_arc_str()
+                    self.unparse_variable(variable).as_str()
                 )?;
                 self.write_expr(list, writer)?;
                 if let Some(filter) = filter {
@@ -476,7 +472,7 @@ fn try_write_name<W: std::fmt::Write>(expr: &Expr, writer: &mut W) -> Result<boo
     match expr {
         Expr::Value(value) => {
             if let Ok(symbol) = value.as_symbol() {
-                write_name_fragment(symbol.as_arc_str().as_ref(), writer)?;
+                write_name_fragment(symbol.as_str(), writer)?;
                 return Ok(true);
             }
             if let Some(s) = value.as_string() {
@@ -501,7 +497,7 @@ fn write_literal_name<W: std::fmt::Write>(
 ) -> Result<(), DecompileError> {
     if let Expr::Value(value) = expr {
         if let Ok(symbol) = value.as_symbol() {
-            write!(writer, "{}", symbol.as_arc_str())?;
+            write!(writer, "{}", symbol.as_str())?;
         } else if let Some(s) = value.as_string() {
             write!(writer, "{s}")?;
         }
@@ -521,7 +517,7 @@ fn write_system_verb_name<W: std::fmt::Write>(
     writer: &mut W,
 ) -> Result<(), DecompileError> {
     match expr {
-        Expr::Id(id) => write!(writer, "{}", unparse.unparse_variable(id).as_arc_str())?,
+        Expr::Id(id) => write!(writer, "{}", unparse.unparse_variable(id).as_str())?,
         _ => write_literal_name(expr, writer)?,
     }
     Ok(())

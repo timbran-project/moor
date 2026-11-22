@@ -175,7 +175,7 @@ impl<'a> Unparse<'a> {
                     write!(writer, "except ")?;
                     if let Some(id) = &except.id {
                         let id = self.unparse_variable(id);
-                        write!(writer, "{} ", id.as_arc_str())?;
+                        write!(writer, "{} ", id.as_str())?;
                     }
                     write!(writer, "(")?;
                     self.write_catch_codes(&except.codes, writer)?;
@@ -207,7 +207,7 @@ impl<'a> Unparse<'a> {
                 write!(writer, "break")?;
                 if let Some(exit) = &exit {
                     let exit_name = self.unparse_variable(exit);
-                    write!(writer, " {}", exit_name.as_arc_str())?;
+                    write!(writer, " {}", exit_name.as_str())?;
                 }
                 writeln!(writer, ";")?;
                 Ok(())
@@ -217,7 +217,7 @@ impl<'a> Unparse<'a> {
                 write!(writer, "continue")?;
                 if let Some(exit) = &exit {
                     let exit_name = self.unparse_variable(exit);
-                    write!(writer, " {}", exit_name.as_arc_str())?;
+                    write!(writer, " {}", exit_name.as_str())?;
                 }
                 writeln!(writer, ";")?;
                 Ok(())

@@ -457,11 +457,7 @@ pub fn read_textdump<T: io::Read>(
             continue;
         }
         if loader
-            .set_object_metadata(
-                &target_obj,
-                import_export_id_sym,
-                v_str(&prop_name.as_arc_str()),
-            )
+            .set_object_metadata(&target_obj, import_export_id_sym, v_str(prop_name.as_str()))
             .is_ok()
         {
             created += 1;

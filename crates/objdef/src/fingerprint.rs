@@ -139,8 +139,8 @@ pub fn program_fingerprint(program: &ProgramType) -> Result<String, String> {
             // Names compare without case, as symbols do.
             let projection = v_list(&[
                 v_str(NATIVE_PROGRAM_SCHEMA),
-                v_str(&native.library.as_arc_str().to_lowercase()),
-                v_str(&native.function.as_arc_str().to_lowercase()),
+                v_str(&native.library.as_str().to_lowercase()),
+                v_str(&native.function.as_str().to_lowercase()),
             ]);
             return Ok(format!("{NATIVE_PROGRAM_SCHEMA}:{}", digest(&projection)?));
         }

@@ -123,7 +123,7 @@ where
         };
         let still_named = BUILTINS
             .name_of(*id)
-            .is_some_and(|name| name.as_arc_str().as_str() == declaration.name);
+            .is_some_and(|name| name.as_str() == declaration.name);
         if !still_named {
             return false;
         }

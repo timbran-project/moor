@@ -243,10 +243,10 @@ pub(crate) fn collect_export_object(
 
     definition
         .property_definitions
-        .sort_by_key(|property| property.name.as_arc_str());
+        .sort_by_key(|property| property.name.as_str());
     definition
         .property_overrides
-        .sort_by_key(|property| property.name.as_arc_str());
+        .sort_by_key(|property| property.name.as_str());
     Ok(definition)
 }
 
@@ -484,10 +484,7 @@ fn string_or_symbol_to_string(value: &Var) -> Option<String> {
     if let Some(s) = value.as_string() {
         return Some(s.to_string());
     }
-    value
-        .as_symbol()
-        .ok()
-        .map(|sym| sym.as_arc_str().to_string())
+    value.as_symbol().ok().map(|sym| sym.as_str().to_string())
 }
 
 fn collect_snapshot_identities(export: &dyn SnapshotExportSession) -> Vec<ObjectExportIdentity> {

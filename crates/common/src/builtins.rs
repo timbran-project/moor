@@ -1608,8 +1608,8 @@ where
             )
         });
         hash.u16(id.0);
-        hash.str(builtin.name.as_arc_str().as_str());
-        hash.str(builtin.bf_override_name.as_arc_str().as_str());
+        hash.str(builtin.name.as_str());
+        hash.str(builtin.bf_override_name.as_str());
         hash.u8(builtin.implemented as u8);
         hash.u8(builtin.exposed as u8);
     }
@@ -1687,7 +1687,7 @@ mod tests {
             assert_eq!(
                 BUILTINS
                     .name_of(BuiltinId(declaration.id))
-                    .map(|name| name.as_arc_str().to_string())
+                    .map(|name| name.as_str().to_string())
                     .as_deref(),
                 Some(declaration.name),
                 "builtin id {}",

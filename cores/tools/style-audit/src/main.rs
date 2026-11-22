@@ -110,7 +110,7 @@ fn run() -> Result<bool, Box<dyn Error>> {
         definitions
             .constants()
             .iter()
-            .filter(|(name, _)| name.as_arc_str().contains(NAMESPACE_SEPARATOR))
+            .filter(|(name, _)| name.as_str().contains(NAMESPACE_SEPARATOR))
             .filter_map(|(name, value)| Some((*name, value.as_object()?)))
             .collect(),
     ));

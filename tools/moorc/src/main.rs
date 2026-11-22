@@ -606,7 +606,7 @@ fn main() -> Result<(), eyre::Report> {
             if let Ok(verbs) = tx.verbs(&wizard_permissions, &o) {
                 for verb in verbs.iter() {
                     for name in verb.names() {
-                        if name.as_arc_str().starts_with("test_") {
+                        if name.as_str().starts_with("test_") {
                             unit_tests.push((o, *name));
                         }
                     }
@@ -639,7 +639,7 @@ fn main() -> Result<(), eyre::Report> {
                     .iter()
                     .filter(|(o, verb)| {
                         *o == filter_obj
-                            && filter_verb.is_none_or(|fv| verb.as_arc_str().as_str() == fv)
+                            && filter_verb.is_none_or(|fv| verb.as_str() == fv)
                             && !unit_tests.contains(&(*o, *verb))
                     })
                     .cloned()

@@ -562,16 +562,10 @@ pub fn render_parse_shape(parse: &crate::parse_tree::Parse) -> String {
             let decl = self.parse.variables.decl_for(variable);
             match decl.identifier.nr {
                 VarName::Named(sym) => {
-                    if self
-                        .parse
-                        .variables
-                        .find_named(sym.as_arc_str().as_ref())
-                        .len()
-                        > 1
-                    {
+                    if self.parse.variables.find_named(sym.as_str()).len() > 1 {
                         format!("{sym}@{}", variable.scope_id)
                     } else {
-                        sym.as_arc_str().to_string()
+                        sym.as_str().to_string()
                     }
                 }
                 VarName::Register(register) => format!("<register_{register}>"),

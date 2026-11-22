@@ -266,7 +266,7 @@ impl WorkerRpcSendClient {
                 moor_rpc::WorkerErrorUnion::NoWorkerAvailable(Box::new(
                     moor_rpc::NoWorkerAvailable {
                         worker_type: Box::new(moor_rpc::Symbol {
-                            value: symbol.as_arc_str().to_string(),
+                            value: symbol.as_str().to_string(),
                         }),
                     },
                 ))

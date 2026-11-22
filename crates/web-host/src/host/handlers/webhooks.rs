@@ -362,8 +362,7 @@ fn handle_webhook_result(result: &Var) -> Result<Response, Box<dyn std::error::E
                         return Err("Header value must be a string".into());
                     };
 
-                    response_builder =
-                        response_builder.header(key.as_arc_str().as_str(), value_str.as_str());
+                    response_builder = response_builder.header(key.as_str(), value_str.as_str());
                 }
             }
 

@@ -91,7 +91,7 @@ fn canon_name(oid: &Obj, index_names: &HashMap<Obj, String>) -> String {
 }
 
 fn propname(pname: Symbol) -> String {
-    let s = pname.as_arc_str();
+    let s = pname.as_str();
     if !s.is_empty() && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
         s.to_string()
     } else {
@@ -255,7 +255,7 @@ pub(crate) fn write_validated_dump_object<W: Write>(
 
 pub(crate) fn validate_verb_names(object: &ObjectDefinition) -> Result<(), ObjectDumpError> {
     for (verb_index, verb) in object.verbs.iter().enumerate() {
-        if verb.names.is_empty() || verb.names.iter().any(|name| name.as_arc_str().is_empty()) {
+        if verb.names.is_empty() || verb.names.iter().any(|name| name.as_str().is_empty()) {
             return Err(ObjectDumpError::EmptyVerbName {
                 obj: object.oid,
                 verb_index: verb_index + 1,
@@ -325,13 +325,13 @@ fn write_verb<W: Write>(
         .join(" ");
 
     let names = if v.names.len() == 1
-        && !v.names[0].as_arc_str().is_empty()
+        && !v.names[0].as_str().is_empty()
         && v.names[0]
-            .as_arc_str()
+            .as_str()
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '_')
     {
-        v.names[0].as_arc_str().to_string()
+        v.names[0].as_str().to_string()
     } else {
         to_literal(&v_string(joined_names.clone()))
     };
@@ -612,7 +612,7 @@ fn metadata_entries<'a>(
 }
 
 fn object_metadata_order_key(key: &Symbol) -> u8 {
-    match key.as_arc_str().as_ref() {
+    match key.as_str() {
         "import_export_id" => 0,
         "import_export_hierarchy" => 1,
         _ => 2,
@@ -620,11 +620,11 @@ fn object_metadata_order_key(key: &Symbol) -> u8 {
 }
 
 fn metadata_key(key: &Symbol) -> String {
-    let text = key.as_arc_str();
-    if is_bare_metadata_key(&text) {
+    let text = key.as_str();
+    if is_bare_metadata_key(text) {
         return text.to_string();
     }
-    to_literal(&v_str(&text))
+    to_literal(&v_str(text))
 }
 
 fn is_bare_metadata_key(text: &str) -> bool {

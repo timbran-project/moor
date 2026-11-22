@@ -447,8 +447,8 @@ pub fn encode_program_type_to_fb(program: &ProgramType) -> Result<fb::StoredProg
         ProgramType::Native(native) => Ok(fb::StoredProgram {
             language: fb::StoredProgramLanguage::StoredNativeProgram(Box::new(
                 fb::StoredNativeProgram {
-                    library: native.library.as_arc_str().to_string(),
-                    function: native.function.as_arc_str().to_string(),
+                    library: native.library.as_str().to_string(),
+                    function: native.function.as_str().to_string(),
                 },
             )),
         }),
@@ -1433,7 +1433,7 @@ mod tests {
                 moor_common::builtins::BUILTINS
                     .name_of(id)
                     .unwrap()
-                    .as_arc_str()
+                    .as_str()
                     .to_string()
             })
             .collect();
