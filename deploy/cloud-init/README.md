@@ -23,7 +23,8 @@ On the machine's first boot it:
 2. creates a `moor` user for the server to run as;
 3. fetches the mooR deployment files for one release into `/opt/moor/src`;
 4. starts the [single-process web deployment](../single-process/web/), which is the whole server in
-   one container with nginx serving the web client. The world starts from LambdaCore.
+   one container with nginx serving the web client. The world starts from the Cowbell core, which is
+   built for the web client.
 
 The web client is then on port 8080 and telnet on port 8888, **reachable only from the machine
 itself** until you open them, for the reason given under "Before you let anyone in".
@@ -60,11 +61,19 @@ itself** until you open them, for the reason given under "Before you let anyone 
 To change what the file does, copy `moor.yaml`, replace `@MOOR_VERSION@` with a release, and use
 your copy.
 
+## Choosing the core
+
+The file starts a new world from **Cowbell**, the core built for the web client. For a classic MOO
+core in the LambdaCore tradition, at home over telnet, use **Snore**: download the file, change
+`MOOR_CORE=cowbell` to `MOOR_CORE=snore`, and paste its contents as the user data. The core is only
+read when the world is first made.
+
 ## Before you let anyone in
 
-A new LambdaCore world has a wizard account with no password. Anyone who can reach the server can
-log in as the wizard and take it over. So the server starts out listening only on the machine
-itself, and you set the password over an SSH tunnel.
+A new world has a wizard account that can do anything in it, and its password is one everybody
+knows. Anyone who can reach a new server can take it over. So the server starts out listening only
+on the machine itself. You change the password through an SSH tunnel, and open the server
+afterwards.
 
 1. From your own computer, open a tunnel to the machine:
 
@@ -72,18 +81,26 @@ itself, and you set the password over an SSH tunnel.
    ssh -L 8888:127.0.0.1:8888 -L 8080:127.0.0.1:8080 <user>@<address>
    ```
 
-2. In another terminal, connect and set the password:
+2. In another terminal on your own computer, connect and change the password. A Cowbell world's
+   wizard is `archwizard`, with the password `test`:
 
    ```sh
    telnet localhost 8888
    ```
 
    ```
-   connect wizard
-   @password <new-password>
+   connect archwizard test
+   @password test <new-password>
    ```
 
-3. On the machine, open the server to the network and restart it:
+   While the tunnel is open, the web client is also at `http://localhost:8080`.
+
+3. Look at what else Cowbell starts with. It has a `Test_Player` account, a welcome message that
+   names the wizard's password, and account creation open to visitors. Cowbell's guide to
+   [accounts](https://github.com/timbran-project/moor/blob/main/cores/cowbell/book/src/running/accounts.md)
+   says how to change each.
+
+4. On the machine, open the server to the network and restart it:
 
    ```sh
    cd /opt/moor/src/deploy/single-process/web
@@ -91,9 +108,12 @@ itself, and you set the password over an SSH tunnel.
    sudo docker compose up -d
    ```
 
-4. Allow ports 8080 and 8888 in the provider's firewall.
+5. In the provider's firewall, allow ports 8080 and 8888.
 
-The web client is then at `http://<address>:8080` and telnet at `<address>:8888`.
+The web client is now at `http://<address>:8080`, and telnet at `<address>:8888`.
+
+If you chose the Snore core, the wizard is `wizard` and has no password: use `connect wizard` and
+then `@password <new-password>`.
 
 ## After that
 

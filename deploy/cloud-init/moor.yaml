@@ -12,8 +12,8 @@
 #   - the web client is at   http://127.0.0.1:8080
 #   - telnet is at           127.0.0.1:8888
 #
-# Both listen only on the machine itself at first, because a new world has a wizard account that
-# anyone can log in to until it has a password. The README says how to set one and then open the
+# Both listen only on the machine itself at first, because a new world has a wizard account whose
+# password is known to everyone, or missing. The README says how to change it and then open the
 # server to the network. It is at deploy/cloud-init/README.md in the mooR repository, and on the
 # machine at /opt/moor/src/deploy/cloud-init/README.md.
 #
@@ -32,6 +32,9 @@ write_files:
     content: |
       # The mooR release to run: a Git tag, which is also the container image tag.
       MOOR_VERSION=@MOOR_VERSION@
+      # The core the new world starts from: cowbell, built for the web client, or snore, a classic
+      # MOO core. Only read when the database is first made.
+      MOOR_CORE=cowbell
       # Where the deployment files come from.
       MOOR_REPO=https://github.com/timbran-project/moor.git
 
@@ -81,7 +84,8 @@ write_files:
               echo "USER_ID=$(id -u moor)"
               echo "GROUP_ID=$(id -g moor)"
               echo "MOOR_VERSION=$MOOR_VERSION"
-              # Reachable only from this machine until the wizard has a password. See README.md.
+              echo "MOOR_CORE=$MOOR_CORE"
+              # Reachable only from this machine until the wizard's password is changed.
               echo "MOOR_BIND=127.0.0.1"
           } > .env
       fi
@@ -94,7 +98,8 @@ write_files:
 
       if grep -q '^MOOR_BIND=127.0.0.1$' .env; then
           echo "mooR is running, and reachable only from this machine."
-          echo "To set the wizard's password and open it up, see $home/src/deploy/cloud-init/README.md"
+          echo "To change the wizard's password and open it to the network, see"
+          echo "$home/src/deploy/cloud-init/README.md"
       else
           echo "mooR is running."
       fi
