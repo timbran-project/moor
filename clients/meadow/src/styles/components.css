@@ -3627,7 +3627,9 @@ button:disabled {
   border: none;
   resize: none;
   overflow: auto;
-  min-height: 1.4em;
+  /* The same minimum the resize code in InputArea applies. With a smaller one here, the box is
+     3px shorter until the first key is typed, and then jumps. */
+  min-height: 3rem;
   height: auto;
   max-height: 6rem;
   flex: 1;
@@ -3817,6 +3819,10 @@ button:disabled {
   transition: all 0.15s ease;
   white-space: nowrap;
   flex-shrink: 0;
+  /* The pill sits on the text baseline beside the input. Its padding and border would make it
+     taller than a line of text and push the whole input box 3px taller whenever it appears, so
+     take them back out of its layout height. */
+  margin-block: -3px;
 }
 
 .say-mode-pill:hover {
