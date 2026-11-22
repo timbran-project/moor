@@ -11,7 +11,7 @@ data:
   database-name: "production.db"
 
   # Core import configuration
-  import-path: "/cores/lambda-moor/src"
+  import-path: "/cores/snore/src"
   import-format: "objdef"
 
   # ZeroMQ ports for TCP communication

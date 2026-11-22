@@ -26,8 +26,18 @@ assets = [
     ["debian/moor.service", "/lib/systemd/system/moor.service", "644"],
     ["debian/moor-config.yaml", "/etc/moor/moor-config.yaml", "644"],
     [
-        "../../cores/lambda-moor/**/*",
-        "/usr/share/moor/cores/lambda-moor/",
+        "../../cores/snore/src/*",
+        "/usr/share/moor/cores/snore/src/",
+        "644",
+    ],
+    [
+        "../../cores/snore/README.md",
+        "/usr/share/moor/cores/snore/README.md",
+        "644",
+    ],
+    [
+        "../../cores/snore/LICENSE.md",
+        "/usr/share/moor/cores/snore/LICENSE.md",
         "644",
     ],
 ]

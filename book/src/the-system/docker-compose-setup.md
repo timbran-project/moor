@@ -150,10 +150,10 @@ the repository root. These scripts automatically handle Docker permissions and r
 ./scripts/start-moor-cowbell.sh
 ```
 
-**LambdaCore** (Classic LambdaMOO core, 1.8.x compatible):
+**Snore** (A classic MOO core, forked from LambdaCore and written for mooR):
 
 ```bash
-./scripts/start-moor-lambdacore.sh
+./scripts/start-moor-snore.sh
 ```
 
 On the first start, the script imports that core's objdef source into a new persistent database. On
@@ -166,7 +166,7 @@ step-by-step explanation.
 Each script uses its own isolated runtime directory:
 
 - `run-cowbell/`
-- `run-lambda-moor/`
+- `run-snore/`
 
 This ensures that you can switch between cores without database or keypair "pollution". Each
 environment maintains its own persistent database, configuration, and host keys.
@@ -238,7 +238,7 @@ only in that database.
 All Docker Compose configurations store data in local directories. For the development scripts,
 these are consolidated under core-specific runtime directories:
 
-- `./run-cowbell/` or `./run-lambda-moor/`
+- `./run-cowbell/` or `./run-snore/`
   - `moor-data/` - Main database directory
   - `hosts/` - Host-specific state and keys
   - `config/` - Server cryptographic keypairs

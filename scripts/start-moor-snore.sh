@@ -12,12 +12,12 @@
 # You should have received a copy of the GNU Affero General Public License along
 # with this program. If not, see <https://www.gnu.org/licenses/>.
 
-# Start mooR with the LambdaCore core
+# Start mooR with the Snore core
 set -e
 
 # Configuration
-export RUN_DIR="run-lambda-moor"
-export IMPORT_PATH="/db/cores/lambda-moor/src"
+export RUN_DIR="run-snore"
+export IMPORT_PATH="/db/cores/snore/src"
 export BUILD_PROFILE="release-fast"
 COMPOSE_ARGS=()
 
@@ -36,7 +36,7 @@ if [ -d "$RUN_DIR" ] && [ "$(stat -c '%u' "$RUN_DIR" 2>/dev/null)" == "0" ]; the
     exit 1
 fi
 
-echo "Starting mooR with LambdaCore..."
+echo "Starting mooR with Snore..."
 echo "Build profile: $BUILD_PROFILE"
 echo "Runtime directory: $RUN_DIR"
 

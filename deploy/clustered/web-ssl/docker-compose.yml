@@ -48,7 +48,11 @@ services:
         --workers-response-listen=ipc:///var/run/moor/workers-response.sock
         --workers-request-listen=ipc:///var/run/moor/workers-request.sock
         --generate-keypair
-        --import=/moor/cores/lambda-moor/src --import-format=objdef
+        --import=/moor/cores/snore/src --import-format=objdef
+        --rich-notify=true --type-dispatch=true --flyweight-type=true
+        --bool-type=true --symbol-type=true --use-boolean-returns=true
+        --custom-errors=true --use-uuobjids=true --anonymous-objects=true
+        --enable-eventlog=true --use-symbols-in-builtins=true --persistent-tasks=true
     networks:
       - moor_net
     restart: unless-stopped

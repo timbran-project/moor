@@ -22,8 +22,8 @@
 # This configuration uses debug builds by default for faster compilation during development.
 # Production deployments should use release builds for better performance.
 
-# The first time the system starts, it will import cores/lambda-moor from the cores directory.
-# This is a fork of LambdaCore, reconstituted in mooR's `objdef` format, with some modifications.
+# The first time the system starts, it will import cores/snore from the cores directory.
+# Snore is a fork of LambdaCore, written for mooR.
 # To import an existing LambdaMOO 1.8.x DB, change --import to point to it, and change --import-format to textdump
 # After import, `moor-data` will contain the database that resulted.
 # To re-import simply delete this directory.
@@ -86,7 +86,11 @@ services:
         --workers-request-listen=tcp://0.0.0.0:7896
         --enrollment-listen=tcp://0.0.0.0:7900
         --generate-keypair
-        --import=/db/cores/lambda-moor/src --import-format=objdef
+        --import=/db/cores/snore/src --import-format=objdef
+        --rich-notify=true --type-dispatch=true --flyweight-type=true
+        --bool-type=true --symbol-type=true --use-boolean-returns=true
+        --custom-errors=true --use-uuobjids=true --anonymous-objects=true
+        --enable-eventlog=true --use-symbols-in-builtins=true --persistent-tasks=true
         --export=/db/export
     ports:
       # ZMQ ports

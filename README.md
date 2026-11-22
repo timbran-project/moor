@@ -77,12 +77,12 @@ You need Docker. Clone the 2.0 branch and start a world:
 git clone -b v2.0-release https://github.com/timbran-project/moor.git
 cd moor
 ./scripts/start-moor-cowbell.sh       # Cowbell, a modern starting world
-./scripts/start-moor-lambdacore.sh    # or LambdaCore, the classic LambdaMOO core
+./scripts/start-moor-snore.sh         # or Snore, a classic MOO core
 ```
 
 Then open [http://localhost:8080](http://localhost:8080) in a browser, or point a MUD client at
 `localhost`, port `8888`. Each core keeps its data in its own directory (`run-cowbell/`,
-`run-lambda-moor/`).
+`run-snore/`).
 
 The scripts build in release mode; pass `--debug` for a faster first compile. For other ways to run
 mooR, including without Docker, see

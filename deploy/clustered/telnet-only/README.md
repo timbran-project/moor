@@ -79,10 +79,10 @@ replace `latest` with a version such as `1.0.2`.
 
 On first run, the system will:
 
-1. Import the default LambdaMOO core database (if no existing database)
+1. Import the Snore core into a new database (if no database exists yet)
 2. Start the telnet listener on port 8888
 
-Default wizard credentials (if using lambda-moor core):
+Default wizard credentials (with the Snore core these examples import):
 
 - Username: `Wizard`
 - Password: (none - press enter)
