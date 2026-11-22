@@ -1,4 +1,4 @@
-name: Release - Publish container images
+name: Release - Publish container images and binaries
 
 on:
   push:
@@ -255,3 +255,126 @@ jobs:
           subject-name: ghcr.io/${{ needs.prepare.outputs.namespace }}/${{ matrix.image }}
           subject-digest: ${{ steps.manifest.outputs.digest }}
           push-to-registry: true
+
+  # The GitHub release the binaries are attached to. A tag pushed for the first time gets a draft,
+  # so the notes can be written before anyone sees it. A release that already exists is left as it
+  # is, and the binaries are added to it.
+  draft-release:
+    name: Prepare GitHub release
+    needs: prepare
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Create a draft release if the tag has none
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          STABLE: ${{ needs.prepare.outputs.stable }}
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+              echo "Release $TAG already exists."
+              exit 0
+          fi
+
+          flags=(--draft --verify-tag --title "Release $TAG")
+          if [[ "$STABLE" != "true" ]]; then
+              flags+=(--prerelease)
+          fi
+          gh release create "$TAG" "${flags[@]}" \
+              --notes "See ChangeLog.md for what changed in this release."
+
+  # Tarballs of the server programs, for running mooR without containers. The files are copied out
+  # of the image built above, so the tarball and the image hold the same binaries.
+  binaries:
+    name: Package binaries (${{ matrix.arch_tag }})
+    needs: [prepare, build, draft-release]
+    permissions:
+      contents: write
+      packages: read
+      attestations: write
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Each architecture is packaged on its own kind of runner, so that `strip` understands
+          # the binaries and they can be run as a check.
+          - arch_tag: x86_64
+            runner: ubuntu-24.04
+          - arch_tag: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: refs/tags/${{ needs.prepare.outputs.tag }}
+
+      - name: Log in to GHCR
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build tarball
+        id: package
+        env:
+          IMAGE: ghcr.io/${{ needs.prepare.outputs.namespace }}/moor:${{ needs.prepare.outputs.tag }}-${{ matrix.arch_tag }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          ARCH_TAG: ${{ matrix.arch_tag }}
+          COMMIT: ${{ needs.prepare.outputs.commit }}
+        run: |
+          name="moor-${TAG}-linux-${ARCH_TAG}"
+          mkdir -p dist
+
+          docker pull --quiet "$IMAGE"
+          container=$(docker create "$IMAGE")
+          docker cp --quiet "${container}:/moor" "dist/${name}"
+          docker rm "$container" > /dev/null
+
+          # Debugging information is most of the size. Function names stay, for crash reports.
+          for file in "dist/${name}"/*; do
+              if [[ -f "$file" && -x "$file" ]]; then
+                  strip --strip-debug "$file"
+              fi
+          done
+
+          cp LICENSE "dist/${name}/LICENSE"
+          cp deploy/release/binaries-README.md "dist/${name}/README.md"
+
+          # The programs must start on this runner and must be the commit that was tagged.
+          for program in moor moor-daemon moor-telnet-host moor-web-host moorc; do
+              version=$("dist/${name}/${program}" --version)
+              echo "$version"
+              if [[ "$version" != *"${COMMIT:0:7}"* ]]; then
+                  echo "${program} does not report commit ${COMMIT:0:7}" >&2
+                  exit 1
+              fi
+          done
+
+          # Fixed owner, order and timestamps, so the same input gives the same tarball.
+          tar --sort=name --owner=0 --group=0 --numeric-owner \
+              --mtime="$(git log -1 --format=%cI)" \
+              -C dist -czf "dist/${name}.tar.gz" "$name"
+          (cd dist && sha256sum "${name}.tar.gz" > "${name}.tar.gz.sha256")
+          ls -l dist
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      - name: Attest tarball
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: dist/${{ steps.package.outputs.name }}.tar.gz
+
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          NAME: ${{ steps.package.outputs.name }}
+        run: |
+          gh release upload "$TAG" --clobber \
+              "dist/${NAME}.tar.gz" "dist/${NAME}.tar.gz.sha256"

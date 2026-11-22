@@ -14,9 +14,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.0 series (`v2.0-release` branch)
 
+- Each release on GitHub now comes with a tarball of the server programs for x86-64 and arm64 Linux,
+  for running mooR without containers and without building it. They are the binaries from the
+  container image with the debugging information removed, and need glibc 2.36 or newer. Each has a
+  checksum and a build attestation.
 - `moor --version` now shows the commit it was built from, as the other server programs do, and
   calls itself `moor`, not `moor-server`.
-
 - The web host no longer rate-limits `/auth/connect` and `/auth/create`. Rate limiting belongs in
   the reverse proxy, and the nginx configurations in `deploy/` now limit both endpoints to 5
   requests a second per client address, with bursts of 10. A configuration that still has a
