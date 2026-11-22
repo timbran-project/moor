@@ -54,6 +54,7 @@
   - [Starting a MOO from Objdef Source](the-system/bootstrapping-from-source.md)
   - [Server Architecture](the-system/server-architecture.md)
   - [Docker Compose Setup](the-system/docker-compose-setup.md)
+  - [Starting on a Cloud Machine](the-system/cloud-machine.md)
   - [Alternative Installation Methods](the-system/alternative-installation-methods.md)
   - [Server Configuration](the-system/server-configuration.md)
   - [Native Verbs](the-system/native-verbs.md)

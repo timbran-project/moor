@@ -33,9 +33,8 @@ docker compose -f deploy/clustered/web-ssl/docker-compose.yml up -d
 
 ### Debian Packages
 
-The published `1.0.2` Debian channel does not include a matching Meadow package. For a Debian/Ubuntu
-web deployment, build the server and web client packages from the same monorepo checkout, then
-configure a reverse proxy such as nginx:
+For a Debian or Ubuntu web deployment, build the server and web client packages from the same
+checkout of the repository, so that they match, then configure a reverse proxy such as nginx:
 
 ```bash
 # From the mooR repository root
@@ -131,6 +130,29 @@ server {
     }
 }
 ```
+
+### Limiting Logins
+
+The web host does not limit how often someone can try to log in or create an account. Do that in the
+proxy. The nginx configurations under `deploy/` allow each client address 5 requests a second to
+those two endpoints, with bursts of 10, and answer 429 beyond that:
+
+```nginx
+# In the http block:
+limit_req_zone $binary_remote_addr zone=moor_auth:10m rate=5r/s;
+limit_req_status 429;
+
+# In the server block, before the general /auth/ location:
+location ~ ^/auth/(connect|create)$ {
+    limit_req zone=moor_auth burst=10 nodelay;
+    proxy_pass http://moor_api;
+    # ...the same proxy_set_header lines as /auth/
+}
+```
+
+If another proxy sits in front of this one, set the client address first with nginx's `realip`
+module. Otherwise every visitor appears to come from that proxy and shares one limit. Webhooks are
+not limited either; limit them here too if they are reachable from the internet.
 
 ### HTTPS Configuration
 

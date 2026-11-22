@@ -1,7 +1,70 @@
 # Alternative Installation Methods
 
-While Docker Compose is the recommended approach for most users, mooR provides several other
-installation methods for different use cases and environments.
+Docker Compose is the usual way to run mooR. This page covers three ways to run it without
+containers: prebuilt binaries, Debian packages, and building from source.
+
+## Prebuilt Binaries
+
+Each mooR release has a tarball of the server programs, ready to run. Use it if you want neither
+containers nor a build from source, which needs the Rust toolchain and a good deal of disk space.
+
+The tarballs are on the release's page on
+[GitHub](https://github.com/timbran-project/moor/releases), one for each processor type:
+
+- `moor-<release>-linux-x86_64.tar.gz`
+- `moor-<release>-linux-aarch64.tar.gz`
+
+They hold the same binaries as the container image for that release.
+
+### What You Need
+
+- 64-bit Linux.
+- glibc 2.36 or newer. Debian 12 and Ubuntu 24.04 have it. Ubuntu 22.04 and RHEL 9 do not.
+- `git`, if you use the Git worker.
+
+### Checking the Download
+
+Each tarball has a `.sha256` file beside it:
+
+```bash
+sha256sum -c moor-*.tar.gz.sha256
+```
+
+Each also has a build attestation, which shows that the project's release process made it. With the
+GitHub command-line tool:
+
+```bash
+gh attestation verify moor-*.tar.gz --repo timbran-project/moor
+```
+
+### What Is in It
+
+```bash
+tar xzf moor-<release>-linux-x86_64.tar.gz
+cd moor-<release>-linux-x86_64
+./moor --version
+```
+
+- `moor`: the whole server in one process. Start with this one.
+- `moor-daemon`, `moor-telnet-host`, `moor-web-host`: the same server as separate processes, for a
+  [clustered deployment](clustered-deployment.md).
+- `moor-curl-worker`, `moor-file-worker`, `moor-git-worker`: workers that let MOO code make HTTP
+  requests, read and write files, and use Git.
+- `moorc`: the compiler. It builds and exports databases and runs tests.
+- `moor-emh`: the [repair tool](moor-emh-tool.md) for a database the server cannot start.
+- `web-client/`: the files of the web client, to serve with a web server of your choice.
+
+The tarball has no world in it. A new server needs a core to start from; see
+[Understanding MOO Cores](understanding-moo-cores.md) and
+[Starting a MOO from Objdef Source](bootstrapping-from-source.md). The cores are in the mooR
+repository under `cores/`.
+
+### What Is Left to You
+
+A tarball installs nothing. Creating a user for the server, choosing where its data lives, starting
+it at boot and upgrading it are yours to arrange. [Server Configuration](server-configuration.md)
+lists the options each program takes, and every program prints them with `--help`. If you want those
+things done for you, use Docker Compose or the Debian packages.
 
 ## Debian Packages
 
@@ -23,31 +86,13 @@ mooR can be built as several package types:
 The server packages integrate with systemd, create the necessary users and directories, and include
 the LambdaMOO-based lambda-moor core database by default.
 
-The 1.0.2 GitHub release contains split-service and command-line packages for amd64 and arm64. It
-does not contain the combined `moor` package or a `1.0.2` `moor-web-client` package. Build those
-packages locally from the monorepo when needed.
+Build the packages from the repository with the scripts it provides. A release's page on GitHub
+lists the files that release includes; do not install packages from one release line onto a database
+from another, since the database format changes between major versions.
 
-### Installation Options
+### Building and Installing
 
-**Option 1: Download from Releases**
-
-Download pre-built `.deb` packages from the
-[mooR 1.0.2 GitHub release](https://github.com/timbran-project/moor/releases/tag/1.0.2):
-
-```bash
-# After downloading the packages for your architecture:
-sudo apt install \
-    ./moor-daemon_*.deb \
-    ./moor-telnet-host_*.deb \
-    ./moor-web-host_*.deb \
-    ./moor-curl-worker_*.deb
-```
-
-Using `apt install` with local paths installs required distribution dependencies at the same time.
-
-**Option 2: Build Locally**
-
-Build packages yourself using the provided scripts in `deploy/debian-packages/`:
+The scripts are in `deploy/debian-packages/`:
 
 ```bash
 cd deploy/debian-packages
@@ -89,8 +134,8 @@ Debian packages are ideal when:
 - You prefer traditional package management over containers
 - You're setting up a production server on bare metal or VPS
 
-Use a locally built combined `moor` package for single-server deployments. The published `1.0.2`
-packages use the split-service layout described in [Clustered Deployment](clustered-deployment.md).
+Use the combined `moor` package for a single server. The split-service packages are for the layout
+described in [Clustered Deployment](clustered-deployment.md).
 
 ## Building from Source
 
@@ -167,11 +212,13 @@ and options for the server executables are documented in the
 
 ## Choosing Your Method
 
-| Method              | Best For                 | Pros                                            | Cons                                |
-| ------------------- | ------------------------ | ----------------------------------------------- | ----------------------------------- |
-| **Docker Compose**  | Most users, quick setup  | Easy, complete environment, works everywhere    | Requires Docker knowledge           |
-| **Debian Packages** | Production Linux servers | System integration, familiar package management | Limited to Debian-based systems     |
-| **Source Build**    | Developers, custom needs | Full control, latest code, all platforms        | Complex setup, manual configuration |
+| Method                | Best for                           | What you get                                 | What is left to you                  |
+| --------------------- | ---------------------------------- | -------------------------------------------- | ------------------------------------ |
+| **Docker Compose**    | Most servers                       | A complete, working setup                    | Knowing some Docker                  |
+| **Cloud machine**     | A new rented machine               | A running server from first boot             | HTTPS, backups, upgrades             |
+| **Prebuilt binaries** | No containers, no compiling        | The programs, ready to run                   | Everything around them               |
+| **Debian packages**   | Debian or Ubuntu, managed services | systemd services and standard file locations | Building the packages                |
+| **Source build**      | Development, other platforms       | Full control and the latest code             | Toolchain, build time, all the setup |
 
 ## Getting Help
 
