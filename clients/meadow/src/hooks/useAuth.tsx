@@ -58,6 +58,7 @@ export type EstablishSession = (
 
 export const useAuth = (onSystemMessage: (message: string, duration?: number) => void) => {
     // Transient credentials are never part of the persisted AuthSession or rendered state.
+    const connectInFlight = useRef(false);
     const pendingEncryptionPassword = useRef<
         {
             authToken: string;
@@ -195,6 +196,12 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
         password: string,
         encryptPassword?: string,
     ) => {
+        // One login at a time. Each request makes a connection on the server and runs the world's
+        // connect hooks, so a second request while the first is in flight is never harmless.
+        if (connectInFlight.current) {
+            return;
+        }
+        connectInFlight.current = true;
         pendingEncryptionPassword.current = null;
         try {
             setAuthState(prev => ({ ...prev, isConnecting: true, error: null }));
@@ -398,6 +405,8 @@ export const useAuth = (onSystemMessage: (message: string, duration?: number) =>
                 isConnecting: false,
                 error: errorMessage,
             }));
+        } finally {
+            connectInFlight.current = false;
         }
     }, [establishSession, onSystemMessage]);
 

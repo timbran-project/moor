@@ -14,6 +14,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.0 series (`v2.0-release` branch)
 
+- Pressing Enter in Meadow's login form no longer logs in twice. The second login made an extra
+  connection on the server and ran the world's connect hooks a second time.
 - Meadow's "Room HUD" setting is removed, and the room panel is always available. It still stays out
   of the way while the narrative shows the room.
 - Meadow no longer shows an empty screen on a first login, or after a reload when history is off or
