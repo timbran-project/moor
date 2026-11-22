@@ -36,6 +36,15 @@ mod tests {
         Push(name)
     }
 
+    /// The last read of a variable before it is overwritten takes the value out of it.
+    fn expect_push_clear(name: Name) -> Op {
+        if is_scope0_local(name) {
+            return PushClearScope0Local(name.0);
+        }
+
+        PushClear(name)
+    }
+
     fn expect_put_pop(name: Name) -> Op {
         if is_scope0_local(name) {
             return PutPopScope0Local(name.0);
@@ -218,7 +227,7 @@ mod tests {
                     jump_label: 1.into(),
                     environment_width: 0,
                 },
-                expect_push(x),
+                expect_push_clear(x),
                 ImmInt(1),
                 Add,
                 expect_put_pop(x),
@@ -627,7 +636,7 @@ mod tests {
         assert_eq!(
             binary.main_vector().to_vec(),
             vec![
-                expect_push(a),
+                expect_push_clear(a),
                 ImmInt(2),
                 Imm(0.into()),
                 Dup,
@@ -649,7 +658,7 @@ mod tests {
         assert_eq!(
             binary.main_vector().to_vec(),
             vec![
-                expect_push(a),
+                expect_push_clear(a),
                 ImmInt(2),
                 ImmInt(4),
                 Imm(0.into()),
@@ -1481,7 +1490,7 @@ mod tests {
                 ImmInt(3),
                 ListAddTail,
                 expect_put_pop(y),
-                expect_push(x),
+                expect_push_clear(x),
                 expect_push(y),
                 ImmInt(2),
                 Ref,

@@ -520,6 +520,17 @@ fn push_error_cold(error: Error) -> ExecutionResult {
 
 #[cold]
 #[inline(never)]
+fn variable_not_found(program: &Program, name: &Name) -> ExecutionResult {
+    match program.var_names().ident_for_name(name) {
+        Some(var_name) => ExecutionResult::PushError(
+            E_VARNF.with_msg(|| format!("Variable `{var_name}` not found")),
+        ),
+        None => ExecutionResult::PushError(E_VARNF.msg("Variable not found")),
+    }
+}
+
+#[cold]
+#[inline(never)]
 fn invalid_property_name_error(propname: &Var) -> Error {
     E_TYPE.with_msg(|| format!("Invalid property name: {}", to_literal(propname)))
 }
@@ -1578,13 +1589,7 @@ pub fn moo_frame_execute<H: VmHost>(
             }
             Op::Push(ident) => {
                 let Some(v) = f.get_env(ident) else {
-                    if let Some(var_name) = program.var_names().ident_for_name(ident) {
-                        return ExecutionResult::PushError(
-                            E_VARNF.with_msg(|| format!("Variable `{var_name}` not found")),
-                        );
-                    } else {
-                        return ExecutionResult::PushError(E_VARNF.msg("Variable not found"));
-                    }
+                    return variable_not_found(program, ident);
                 };
                 f.push(v.clone());
             }
@@ -1598,6 +1603,33 @@ pub fn moo_frame_execute<H: VmHost>(
                     return ExecutionResult::PushError(E_VARNF.msg("Variable not found"));
                 };
                 f.push(v.clone());
+            }
+            Op::PushClear(ident) => {
+                let taken = if ident.1 == 0 {
+                    f.environment.take_scope0(ident.0 as usize)
+                } else {
+                    f.environment.take(ident.1 as usize, ident.0 as usize)
+                };
+                let v = match taken {
+                    Some(v) => v,
+                    // Unset, or a global that has a default: read it the way `Push` does.
+                    None => match f.get_env(ident) {
+                        Some(v) => v.clone(),
+                        None => return variable_not_found(program, ident),
+                    },
+                };
+                f.push(v);
+            }
+            Op::PushClearScope0Local(offset) => {
+                let Some(v) = f.environment.take_scope0(*offset as usize) else {
+                    if let Some(var_name) = program.var_names().ident_for_scope0_offset(*offset) {
+                        return ExecutionResult::PushError(
+                            E_VARNF.with_msg(|| format!("Variable `{var_name}` not found")),
+                        );
+                    }
+                    return ExecutionResult::PushError(E_VARNF.msg("Variable not found"));
+                };
+                f.push(v);
             }
             Op::Put(ident) => {
                 let ident = *ident;

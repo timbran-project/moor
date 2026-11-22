@@ -18,6 +18,26 @@
 //! - Efficient execution: PC is a direct index into the word stream
 //! - Natural alignment: most arguments are u16 (Label, Offset, Name fields)
 //! - Simple jumps: labels are word offsets
+//!
+//! # Execution-only instructions
+//!
+//! Some instructions exist only in a loaded program and have no opcode number here. Each one is a
+//! variant of a stored instruction that the loader may substitute when it can prove the
+//! substitution is safe, and each is written back as the instruction it replaced:
+//!
+//! | In memory              | Stored as         | Substituted by                  |
+//! |------------------------|-------------------|---------------------------------|
+//! | `PushClear`            | `Push`            | `moor_var::program::last_use`   |
+//! | `PushClearScope0Local` | `PushScope0Local` | `moor_var::program::last_use`   |
+//!
+//! This keeps the stored form independent of what a given server version knows how to optimize:
+//! a program written by one version loads in any other that supports the stored format, and each
+//! applies its own substitutions. [`OpStream::decode_at`] therefore never returns one of these
+//! instructions; they appear only after the loader has run its passes.
+//!
+//! To add another, give it a stored equivalent in [`OpStream::encode`], add a row above, and make
+//! sure the pass that substitutes it runs both when a program is compiled and when it is decoded,
+//! so the two always produce the same instructions.
 
 use moor_var::{
     ErrorCode, Obj, Symbol, VarType,
@@ -290,15 +310,16 @@ impl OpStream {
             Op::Ge => self.words.push(OP_GE),
             Op::In => self.words.push(OP_IN),
 
-            Op::Push(name) => {
+            // The `PushClear` forms are execution-only and are stored as the pushes they replaced.
+            // See "Execution-only instructions" in the module documentation.
+            Op::Push(name) | Op::PushClear(name) => {
                 self.words.push(OP_PUSH);
                 self.encode_name(name);
             }
-            Op::PushScope0Local(offset) => {
+            Op::PushScope0Local(offset) | Op::PushClearScope0Local(offset) => {
                 self.words.push(OP_PUSH_SCOPE0_LOCAL);
                 self.words.push(*offset);
             }
-
             Op::Put(name) => {
                 self.words.push(OP_PUT);
                 self.encode_name(name);
@@ -1090,6 +1111,21 @@ mod tests {
             stream.decode_at(&mut pc),
             Err(DecodeError::NonRealFloat(_))
         ));
+    }
+
+    #[test]
+    fn execution_only_instructions_are_stored_as_the_ones_they_replace() {
+        let words = |op: Op| {
+            let mut stream = OpStream::new();
+            stream.encode(&op);
+            stream.into_words()
+        };
+        let name = Name(20, 1, 3);
+        assert_eq!(words(Op::PushClear(name)), words(Op::Push(name)));
+        assert_eq!(
+            words(Op::PushClearScope0Local(20)),
+            words(Op::PushScope0Local(20))
+        );
     }
 
     #[test]

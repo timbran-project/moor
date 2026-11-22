@@ -689,11 +689,11 @@ impl Decompile {
             Op::Imm(literal_label) => {
                 self.push_expr(Expr::Value(self.find_literal(&literal_label)?));
             }
-            Op::Push(varname) => {
+            Op::Push(varname) | Op::PushClear(varname) => {
                 let varname = self.decompile_name(&varname)?;
                 self.push_expr(Expr::Id(varname));
             }
-            Op::PushScope0Local(offset) => {
+            Op::PushScope0Local(offset) | Op::PushClearScope0Local(offset) => {
                 let varname = self.decompile_scope0_local(offset)?;
                 self.push_expr(Expr::Id(varname));
             }
