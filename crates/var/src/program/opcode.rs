@@ -190,6 +190,20 @@ pub enum Op {
     PutScope0Local(u16),
     /// Store and pop into a non-global variable in scope 0 by direct slot offset.
     PutPopScope0Local(u16),
+
+    // Execution-only instructions.
+    //
+    // These exist only in a loaded program. Each replaces a stored instruction where a pass over
+    // the program has shown the replacement to be safe, and each is written to storage as the
+    // instruction it replaced, so the stored format does not know about them. The stored
+    // equivalents are listed in `moor_schema::opcode_stream`.
+    /// Push a variable and leave it unset, so the stack holds the only reference to the value and
+    /// it can be edited in place. Replaces a `Push` that is the last read of a variable before it
+    /// is overwritten; see [`last_use`](crate::program::last_use). Stored as `Push`.
+    PushClear(Name),
+    /// `PushClear` for a non-global variable in scope 0 by direct slot offset. Stored as
+    /// `PushScope0Local`.
+    PushClearScope0Local(u16),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]

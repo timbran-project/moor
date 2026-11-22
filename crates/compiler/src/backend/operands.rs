@@ -17,6 +17,7 @@ use moor_var::{
     ErrorCode, Var,
     program::{
         labels::{Label, Offset},
+        last_use::mark_program,
         opcode::{
             ForRangeOperand, ForSequenceOperand, ListComprehend, Op, RangeComprehend, ScatterArgs,
             ScatterLabel,
@@ -235,14 +236,16 @@ pub struct ProgramOperandParts {
 
 impl ProgramOperandParts {
     pub fn build_program(
-        self,
+        mut self,
         var_names: moor_var::program::names::Names,
         jump_labels: Vec<moor_var::program::labels::JumpLabel>,
-        main_vector: Vec<Op>,
+        mut main_vector: Vec<Op>,
         main_max_stack: usize,
         main_max_scope_depth: usize,
         line_number_spans: Vec<(usize, usize)>,
     ) -> Program {
+        // Stored programs get the same pass when they are decoded.
+        mark_program(&mut main_vector, &mut self.fork_vectors);
         Program(Arc::new(PrgInner {
             literal_catches: moor_var::program::program::LiteralCatches::from_vectors(
                 &main_vector,

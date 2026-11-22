@@ -692,6 +692,11 @@ pub fn decode_fb_program(fb_prog_ref: fb::StoredMooRProgramRef) -> Result<Progra
             .collect();
     let jump_labels = jump_labels?;
 
+    // Stored programs hold no execution-only instructions; put them in now, as the compiler does
+    // for a new program. See "Execution-only instructions" in `opcode_stream`.
+    let mut fork_vectors = fork_vectors;
+    moor_var::program::last_use::mark_program(&mut main_vector, &mut fork_vectors);
+
     // Decode variable names (full Names structure with decls HashMap)
     let fb_var_names = fb_decode!(fb_prog_ref, var_names);
     let var_names = decode_names_from_fb(fb_var_names, "Failed to read lambda")?;

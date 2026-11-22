@@ -142,6 +142,107 @@ mod tests {
     }
 
     #[test]
+    fn editing_a_variable_in_place_leaves_other_values_alone() {
+        for (source, expected) in [
+            // Another variable holding the same collection keeps the old contents.
+            (
+                "x = {1, 2}; y = x; x[1] = 9; return {x, y};",
+                "{{9, 2}, {1, 2}}",
+            ),
+            (
+                "x = {1}; y = x; x = {@x, 2}; return {x, y};",
+                "{{1, 2}, {1}}",
+            ),
+            (
+                "x = [1 -> 2]; y = x; x[3] = 4; return {x, y};",
+                "{[1 -> 2, 3 -> 4], [1 -> 2]}",
+            ),
+            (
+                "x = \"abc\"; y = x; x[2] = \"z\"; return {x, y};",
+                "{\"azc\", \"abc\"}",
+            ),
+            (
+                "x = {1, 2, 3}; y = x; x[2..3] = {}; return {x, y};",
+                "{{1}, {1, 2, 3}}",
+            ),
+            // The variable is read again while its new value is being built.
+            ("x = {1, 2}; x = {@x, length(x)}; return x;", "{1, 2, 2}"),
+            ("x = {1}; x[1] = x; return x;", "{{1}}"),
+            ("x = {1, 2}; x[$] = x[1]; return x;", "{1, 1}"),
+            ("x = 1; y = x; x = 5; return {x, y};", "{5, 1}"),
+            // An error a handler in this verb can catch leaves the variable as it was.
+            (
+                "x = {1}; try x[5] = 2; except (E_RANGE) return x; endtry",
+                "{1}",
+            ),
+            ("x = {1}; `x[5] = 2 ! E_RANGE'; return x;", "{1}"),
+            (
+                "x = {1}; try x = {@x, 1 / 0}; finally return x; endtry",
+                "{1}",
+            ),
+            // Loops and nested scopes.
+            (
+                "x = {}; for i in [1..5] x = {@x, i}; endfor return x;",
+                "{1, 2, 3, 4, 5}",
+            ),
+            (
+                "x = {}; begin let x = {7}; x = {@x, 8}; end return x;",
+                "{}",
+            ),
+            ("x = {1}; f = {v} => {@v, 2}; x = f(x); return x;", "{1, 2}"),
+        ] {
+            let expected = run_moo(&format!("return {expected};")).unwrap();
+            assert_eq!(run_moo(source).unwrap(), expected, "{source}");
+        }
+    }
+
+    #[test]
+    fn reading_a_variable_that_was_never_set_still_fails_when_it_would_be_taken() {
+        let result = run_moo("x = {@x, 1}; return x;");
+        let Err(moor_common::tasks::Exception { error, .. }) = result else {
+            panic!("expected an error, got {result:?}");
+        };
+        assert_eq!(error.err_type(), moor_var::E_VARNF);
+    }
+
+    #[test]
+    fn taking_pushes_are_not_stored_and_come_back_when_a_program_is_loaded() {
+        use moor_schema::convert::{program_to_stored, stored_to_program};
+        use moor_var::program::{opcode::Op, program::Program};
+
+        let compiled = compile(
+            "x = {}; for i in [1..3] x = {@x, i}; endfor fork (0) x[1] = 2; endfork return x;",
+            CompileOptions::default(),
+        )
+        .unwrap();
+        let plain = |ops: &mut Vec<Op>| {
+            let mut changed = false;
+            for op in ops {
+                *op = match op {
+                    Op::PushClear(name) => Op::Push(*name),
+                    Op::PushClearScope0Local(offset) => Op::PushScope0Local(*offset),
+                    _ => continue,
+                };
+                changed = true;
+            }
+            changed
+        };
+        // The same program as a server without the last-use pass compiles it.
+        let mut without = (*compiled.0).clone();
+        assert!(plain(&mut without.main_vector));
+        assert!(without.fork_vectors.iter_mut().all(|(_, ops)| plain(ops)));
+        let without = Program(triomphe::Arc::new(without));
+
+        // Both are stored as the same bytes, so either server can read what the other wrote.
+        let stored = program_to_stored(&compiled).unwrap();
+        assert_eq!(stored, program_to_stored(&without).unwrap());
+
+        let loaded = stored_to_program(&stored).unwrap();
+        assert_eq!(loaded.main_vector(), compiled.main_vector());
+        assert_eq!(loaded.0.fork_vectors, compiled.0.fork_vectors);
+    }
+
+    #[test]
     fn nested_parameterless_lambda_scope_layout() {
         use moor_schema::convert::{program_to_stored, stored_to_program};
 

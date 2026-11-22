@@ -17,6 +17,7 @@ use crate::{
 };
 
 pub mod labels;
+pub mod last_use;
 pub mod names;
 pub mod opcode;
 pub mod stored_program;

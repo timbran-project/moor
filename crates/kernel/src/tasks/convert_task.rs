@@ -2778,6 +2778,72 @@ mod tests {
     }
 
     #[test]
+    fn a_frame_stored_between_taking_a_variable_and_storing_it_resumes() {
+        use planus::{ReadAsRoot, WriteAsOffset};
+        let program = compile(
+            "x = {1, 2}; x = {@x, 3}; return x;",
+            CompileOptions::default(),
+        )
+        .unwrap();
+        let x = program.find_var("x");
+        let taken_at = program
+            .main_vector()
+            .iter()
+            .position(|op| {
+                matches!(
+                    op,
+                    moor_compiler::Op::PushClear(_) | moor_compiler::Op::PushClearScope0Local(_)
+                )
+            })
+            .expect("the append should take `x` out of its variable");
+
+        let mut frame = KernelMooStackFrame::new(program);
+        let this = moor_var::v_obj(moor_var::SYSTEM_OBJECT);
+        let context = moor_vm::FrameExecutionContext::new(
+            TaskPermissions::new(moor_var::SYSTEM_OBJECT, BitEnum::default()),
+            moor_var::SYSTEM_OBJECT,
+            &this,
+            moor_var::Symbol::mk("test"),
+            moor_var::SYSTEM_OBJECT,
+        );
+        let run = |frame: &mut KernelMooStackFrame, ticks| {
+            let mut used = 0;
+            moor_vm::moo_frame_execute(
+                &mut crate::vm::kernel_host::KernelHost,
+                ticks,
+                &mut used,
+                &context,
+                frame,
+                &Default::default(),
+            )
+        };
+        assert!(matches!(
+            run(&mut frame, taken_at + 1),
+            moor_vm::ExecutionResult::More
+        ));
+        // The list is on the stack and the variable is empty.
+        assert!(frame.get_env(&x).is_none());
+
+        let stored = moo_stack_frame_to_flatbuffer(&frame).unwrap();
+        let mut builder = planus::Builder::new();
+        let offset = stored.prepare(&mut builder);
+        let bytes = builder.finish(offset, None);
+        let mut restored =
+            moo_stack_frame_from_ref(fb::MooStackFrameRef::read_as_root(bytes).unwrap()).unwrap();
+        assert!(restored.get_env(&x).is_none());
+
+        let expected =
+            moor_var::v_list(&[moor_var::v_int(1), moor_var::v_int(2), moor_var::v_int(3)]);
+        for frame in [&mut frame, &mut restored] {
+            match run(frame, 1000) {
+                moor_vm::ExecutionResult::Return(value)
+                | moor_vm::ExecutionResult::Complete(value) => assert_eq!(value, expected),
+                other => panic!("expected the frame to return, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
     fn suspended_frame_restores_pending_and_active_static_handlers() {
         use planus::{ReadAsRoot, WriteAsOffset};
         let literal =

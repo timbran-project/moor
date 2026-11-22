@@ -16,7 +16,7 @@
 //! cache locality.
 //! Uninitialized slots use v_none() (all zeros) as a sentinel, enabling fast zero-fill.
 
-use moor_var::{Var, program::names::GlobalName};
+use moor_var::{Var, program::names::GlobalName, v_none};
 use smallvec::SmallVec;
 use std::ptr;
 
@@ -254,6 +254,29 @@ impl Environment {
     pub fn set(&mut self, scope_index: usize, var_index: usize, value: Var) {
         let idx = self.absolute_index(scope_index, var_index);
         self.values[idx] = value;
+    }
+
+    /// Take a variable's value out of the given scope, leaving the slot unset.
+    /// Returns None if the slot was already unset.
+    #[inline]
+    pub fn take(&mut self, scope_index: usize, var_index: usize) -> Option<Var> {
+        let idx = self.absolute_index(scope_index, var_index);
+        self.take_absolute(idx)
+    }
+
+    /// Take a variable's value out of the outermost scope, leaving the slot unset.
+    #[inline(always)]
+    pub fn take_scope0(&mut self, var_index: usize) -> Option<Var> {
+        self.take_absolute(var_index)
+    }
+
+    #[inline(always)]
+    fn take_absolute(&mut self, idx: usize) -> Option<Var> {
+        let slot = &mut self.values[idx];
+        if slot.is_none() {
+            return None;
+        }
+        Some(std::mem::replace(slot, v_none()))
     }
 
     /// Set a variable in the outermost scope.

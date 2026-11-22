@@ -30,6 +30,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Maps have a new implementation as well. A `for` loop over a map no longer searches for each next
   key, which made loops over large maps slow. Copying a map, reading a key and setting a key are
   cheaper. The order of keys is unchanged.
+- Changing a list or map held in a variable, as in `x[i] = v` or `x = {@x, v}`, now edits it in
+  place when nothing else refers to it, instead of copying it first. Loops that build or update a
+  collection this way run three to four times faster. Existing verbs get the improvement without
+  recompilation, and the stored form of a verb is unchanged.
 - Error guards run faster. Entering a guard for literal error codes or for `ANY` costs less, and so
   does catching an error in a catch expression with no default, such as `` `x.name ! E_PROPNF' ``.
   Existing verbs get the improvement without recompilation.
