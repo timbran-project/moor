@@ -16,6 +16,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- `moor --version` now shows the commit it was built from, as the other server programs do, and
+  calls itself `moor`, not `moor-server`.
+
 - The web host no longer rate-limits `/auth/connect` and `/auth/create`. Rate limiting belongs in
   the reverse proxy, and the nginx configurations in `deploy/` now limit both endpoints to 5
   requests a second per client address, with bursts of 10. A configuration that still has a
