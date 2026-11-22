@@ -23,6 +23,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Meadow's "Room HUD" setting is removed, and the room panel is always available. It still stays out
+  of the way while the narrative shows the room.
 - `moor --version` now shows the commit it was built from, as the other server programs do, and
   calls itself `moor`, not `moor-server`.
 

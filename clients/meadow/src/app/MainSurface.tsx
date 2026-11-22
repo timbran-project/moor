@@ -231,8 +231,6 @@ export const MainSurface: React.FC = () => {
 
     // Room HUD dock interpretation
     const {
-        roomHudEnabled,
-        setRoomHudEnabled,
         currentRoomLookKey,
         handleActiveRoomLookVisibilityChange,
         topDockPresentations,
@@ -559,8 +557,6 @@ export const MainSurface: React.FC = () => {
                         narrativeFontSize={narrativeFontSize}
                         onDecreaseNarrativeFontSize={decreaseNarrativeFontSize}
                         onIncreaseNarrativeFontSize={increaseNarrativeFontSize}
-                        roomHudEnabled={roomHudEnabled}
-                        onToggleRoomHud={() => setRoomHudEnabled((prev) => !prev)}
                     />
 
                     {/* Account menu */}
