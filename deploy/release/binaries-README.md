@@ -54,6 +54,5 @@ Every program prints its options with `--help`.
 
 ## Debugging information
 
-The debugging information has been removed to keep the download small, which takes the binaries from
-about 1.9 GB to about 150 MB. Function names are kept, so a crash report still shows where it
-happened.
+The debugging information has been removed to keep the download small. Function names are kept, so a
+crash report still shows where it happened.

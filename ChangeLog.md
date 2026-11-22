@@ -23,6 +23,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The published container images now carry line-number debugging information only, not the full set.
+  Crash reports still show the file and line. The programs in an image are less than half the size
+  they were.
 - Meadow's "Room HUD" setting is removed, and the room panel is always available. It still stays out
   of the way while the narrative shows the room.
 - `moor --version` now shows the commit it was built from, as the other server programs do, and
