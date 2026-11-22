@@ -52,6 +52,21 @@ jobs:
       - name: Render Kubernetes manifests
         run: kubectl kustomize deploy/clustered/kubernetes > /tmp/moor-kubernetes.yaml
 
+      - name: Check the cloud-init template
+        run: |
+          if ! command -v cloud-init > /dev/null; then
+            sudo apt-get update
+            sudo apt-get install --yes --no-install-recommends cloud-init
+          fi
+          cloud-init schema --config-file deploy/cloud-init/moor.yaml
+
+          # The script it writes to the machine must parse, and must be filled in by a release.
+          yq '.write_files[] | select(.path == "/usr/local/sbin/moor-first-boot") | .content' \
+            deploy/cloud-init/moor.yaml > /tmp/moor-first-boot
+          test -s /tmp/moor-first-boot
+          sh -n /tmp/moor-first-boot
+          grep --quiet '^      MOOR_VERSION=@MOOR_VERSION@$' deploy/cloud-init/moor.yaml
+
   frontend-image:
     name: Meadow container image
     runs-on: ubuntu-24.04

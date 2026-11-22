@@ -1,0 +1,105 @@
+#cloud-config
+#
+# Start a mooR server on a new cloud machine.
+#
+# This is the template. Each mooR release has a copy of it, named moor-cloud-init.yaml, with the
+# release filled in below; use that one unless you are changing how this works.
+#
+# Give the file to your provider as "user data" when you create a machine running Ubuntu 24.04.
+# On its first boot the machine installs Docker, fetches the mooR deployment files, and starts the
+# single-process web deployment from deploy/single-process/web. When it is done:
+#
+#   - the web client is at   http://127.0.0.1:8080
+#   - telnet is at           127.0.0.1:8888
+#
+# Both listen only on the machine itself at first, because a new world has a wizard account that
+# anyone can log in to until it has a password. The README says how to set one and then open the
+# server to the network. It is at deploy/cloud-init/README.md in the mooR repository, and on the
+# machine at /opt/moor/src/deploy/cloud-init/README.md.
+#
+# MOOR_VERSION below names both the Git tag the deployment files come from and the container image
+# tag, so the two always match.
+
+package_update: true
+packages:
+  - docker.io
+  - docker-compose-v2
+  - git
+
+write_files:
+  - path: /etc/moor/install.env
+    permissions: "0644"
+    content: |
+      # The mooR release to run: a Git tag, which is also the container image tag.
+      MOOR_VERSION=@MOOR_VERSION@
+      # Where the deployment files come from.
+      MOOR_REPO=https://github.com/timbran-project/moor.git
+
+  - path: /usr/local/sbin/moor-first-boot
+    permissions: "0755"
+    content: |
+      #!/bin/sh
+      # Fetch the mooR deployment files for one release and start the server.
+      # Run once by cloud-init. Its output goes to /var/log/cloud-init-output.log.
+      set -eu
+
+      . /etc/moor/install.env
+
+      case "$MOOR_VERSION" in
+          "" | @*)
+              echo "MOOR_VERSION is not set in /etc/moor/install.env." >&2
+              echo "Use moor-cloud-init.yaml from a mooR release, or set it and run this again." >&2
+              exit 1
+              ;;
+      esac
+
+      for program in docker git; do
+          if ! command -v "$program" > /dev/null; then
+              echo "$program is not installed, so the package installation must have failed." >&2
+              echo "Install it, then run /usr/local/sbin/moor-first-boot again." >&2
+              exit 1
+          fi
+      done
+
+      home=/opt/moor
+      deployment="$home/src/deploy/single-process/web"
+
+      # The server runs as its own user, and owns only its own files.
+      if ! id moor > /dev/null 2>&1; then
+          useradd --system --home-dir "$home" --shell /usr/sbin/nologin moor
+      fi
+      mkdir -p "$home"
+
+      if [ ! -d "$home/src" ]; then
+          git clone --depth 1 --branch "$MOOR_VERSION" "$MOOR_REPO" "$home/src"
+      fi
+
+      cd "$deployment"
+      # Written once. Running this again keeps the settings as they are, MOOR_BIND among them.
+      if [ ! -f .env ]; then
+          {
+              echo "USER_ID=$(id -u moor)"
+              echo "GROUP_ID=$(id -g moor)"
+              echo "MOOR_VERSION=$MOOR_VERSION"
+              # Reachable only from this machine until the wizard has a password. See README.md.
+              echo "MOOR_BIND=127.0.0.1"
+          } > .env
+      fi
+
+      # The container writes to these as the moor user. Docker would otherwise create them as root.
+      mkdir -p moor-data moor-config moor-local-share export
+      chown moor:moor moor-data moor-config moor-local-share export
+
+      docker compose up -d
+
+      if grep -q '^MOOR_BIND=127.0.0.1$' .env; then
+          echo "mooR is running, and reachable only from this machine."
+          echo "To set the wizard's password and open it up, see $home/src/deploy/cloud-init/README.md"
+      else
+          echo "mooR is running."
+      fi
+
+runcmd:
+  - [/usr/local/sbin/moor-first-boot]
+
+final_message: "cloud-init finished after $UPTIME seconds. Look above for 'mooR is running'."
