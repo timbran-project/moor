@@ -13,7 +13,6 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { usePresentationContext } from "../context/PresentationContext";
-import { usePersistentState } from "../hooks/usePersistentState";
 import { extractRoomLookKey } from "../lib/var";
 import { Presentation } from "../types/presentation";
 
@@ -25,29 +24,13 @@ interface RoomDockLatch {
 
 const NO_LATCH: RoomDockLatch = { roomKey: null, messageId: null, latched: false };
 
-const serializeBool = (value: boolean) => value ? "true" : "false";
-const deserializeBool = (raw: string): boolean | null => {
-    if (raw === "true") return true;
-    if (raw === "false") return false;
-    return null;
-};
-
 /**
  * Owns room-look dock interpretation: deriving the current room key from top
- * dock presentations, suppressing the in-narrative duplicate until the HUD is
- * scrolled away or disabled, and computing the filtered top-dock list.
+ * dock presentations, keeping the dock hidden while the narrative shows a
+ * description of the room, and computing the filtered top-dock list.
  */
 export const useRoomHud = () => {
     const { getTopDockPresentations } = usePresentationContext();
-
-    const [roomHudEnabled, setRoomHudEnabled] = usePersistentState<boolean>(
-        "moor-room-hud-enabled",
-        () => true,
-        {
-            serialize: serializeBool,
-            deserialize: deserializeBool,
-        },
-    );
 
     // Whether the room dock is shown for a room, and which narrative message that was decided
     // against. The room is part of the state, so a decision made for one room never applies to
@@ -73,9 +56,6 @@ export const useRoomHud = () => {
     }, []);
 
     const currentRoomLookKey = useMemo(() => {
-        if (!roomHudEnabled) {
-            return null;
-        }
         const current = getTopDockPresentations();
         for (const presentation of current) {
             if (presentation.id === "room-look") {
@@ -83,7 +63,7 @@ export const useRoomHud = () => {
             }
         }
         return null;
-    }, [getRoomLookKeyFromPresentation, getTopDockPresentations, roomHudEnabled]);
+    }, [getRoomLookKeyFromPresentation, getTopDockPresentations]);
 
     const handleActiveRoomLookVisibilityChange = useCallback((
         roomKey: string | null,
@@ -112,9 +92,6 @@ export const useRoomHud = () => {
 
     const topDockPresentations = useMemo(() => {
         const current = getTopDockPresentations();
-        if (!roomHudEnabled) {
-            return current.filter((presentation) => getRoomLookKeyFromPresentation(presentation) === null);
-        }
         const suppressRoomKey = !isCurrentRoomLookDockLatched ? currentRoomLookKey : null;
         if (!suppressRoomKey) {
             return current;
@@ -134,7 +111,6 @@ export const useRoomHud = () => {
         getRoomLookKeyFromPresentation,
         getTopDockPresentations,
         isCurrentRoomLookDockLatched,
-        roomHudEnabled,
     ]);
 
     /** Clears latching state after an authority reset (player switch). */
@@ -143,8 +119,6 @@ export const useRoomHud = () => {
     }, []);
 
     return {
-        roomHudEnabled,
-        setRoomHudEnabled,
         currentRoomLookKey,
         handleActiveRoomLookVisibilityChange,
         topDockPresentations,
