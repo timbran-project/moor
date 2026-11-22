@@ -54,6 +54,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Meadow no longer shows an empty screen on a first login, or after a reload when history is off or
+  not yet set up. The room panel now appears whenever the narrative has no description of the room
+  you are in. Before, it only appeared after a description had scrolled out of view.
 - A guard whose error codes include a value that is not an error, such as `` `x ! c' `` with `c` set
   to a number, no longer panics the task. As in LambdaMOO, such a value matches no error.
 - A `try` statement no longer loses its earlier `except` arms when a later arm's error codes contain
