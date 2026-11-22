@@ -49,19 +49,41 @@ ARG CARGO_BUILD_FLAGS=""
 ARG CARGO_BUILD_JOBS=6
 
 # Build either debug (fast) or release (optimized) based on BUILD_PROFILE
+# Build the nine programs the image ships, and nothing else. The workspace has ten more binaries
+# (load tests, benchmarks and a profiler) that are not in the image. In the release profile each
+# binary is a separate whole-program link with full debugging information, so building those ten
+# as well roughly doubled the time, memory and disk a release build needs.
+ARG MOOR_PACKAGES="moor-daemon moor-server moor-web-host moor-telnet-host moor-curl-worker moor-file-worker moor-git-worker moorc moor-emh"
+ARG MOOR_BINARIES="moor-daemon moor moor-web-host moor-telnet-host moor-curl-worker moor-file-worker moor-git-worker moorc moor-emh"
+# For machines with little memory, such as hosted CI runners. Measured on the largest program,
+# `moor`, one release link peaks at about 17 GB with the profile's full debugging information,
+# 8 GB with line tables only and 7 GB with none.
+#   RELEASE_DEBUG       overrides how much debugging information a release build carries
+#   LINK_SEQUENTIALLY   "true" builds one program at a time, so that two links never overlap
+ARG RELEASE_DEBUG=""
+ARG LINK_SEQUENTIALLY="false"
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/moor-build/target,sharing=locked \
     VERGEN_GIT_SHA="$(git rev-parse --verify HEAD)" && \
     export VERGEN_GIT_SHA && \
-    if [ "$BUILD_PROFILE" = "release" ] || [ "$BUILD_PROFILE" = "release-fast" ]; then \
-        PROFILE_FLAG="--profile $BUILD_PROFILE"; \
-        if [ "$BUILD_PROFILE" = "release" ]; then PROFILE_FLAG="--release"; fi; \
-        cargo build $PROFILE_FLAG -j $CARGO_BUILD_JOBS $CARGO_BUILD_FLAGS && \
-        cp -r target/$BUILD_PROFILE /moor-build/target-final; \
+    PACKAGE_FLAGS="" && \
+    for package in $MOOR_PACKAGES; do PACKAGE_FLAGS="$PACKAGE_FLAGS -p $package"; done && \
+    case "$BUILD_PROFILE" in \
+        release) PROFILE_FLAG="--release"; OUT_DIR=release ;; \
+        release-fast) PROFILE_FLAG="--profile release-fast"; OUT_DIR=release-fast ;; \
+        *) PROFILE_FLAG=""; OUT_DIR=debug ;; \
+    esac && \
+    if [ -n "$RELEASE_DEBUG" ]; then export CARGO_PROFILE_RELEASE_DEBUG="$RELEASE_DEBUG"; fi && \
+    if [ "$LINK_SEQUENTIALLY" = "true" ]; then \
+        for package in $MOOR_PACKAGES; do \
+            cargo build $PROFILE_FLAG -j $CARGO_BUILD_JOBS -p "$package" $CARGO_BUILD_FLAGS || exit 1; \
+        done; \
     else \
-        cargo build -j $CARGO_BUILD_JOBS $CARGO_BUILD_FLAGS && \
-        cp -r target/debug /moor-build/target-final; \
-    fi
+        cargo build $PROFILE_FLAG -j $CARGO_BUILD_JOBS $PACKAGE_FLAGS $CARGO_BUILD_FLAGS; \
+    fi && \
+    # Copy the programs out of the cache mount, not the whole build directory with them.
+    mkdir -p /moor-build/target-final && \
+    for binary in $MOOR_BINARIES; do cp "target/$OUT_DIR/$binary" /moor-build/target-final/; done
 
 # Runtime image - slim debian with just the essentials
 FROM debian:bookworm-slim AS backend

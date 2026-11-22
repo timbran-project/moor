@@ -14,6 +14,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.0 series (`v2.0-release` branch)
 
+- The published container images now carry line-number debugging information only, not the full set.
+  Crash reports still show the file and line. The programs in an image are less than half the size
+  they were.
 - Pressing Enter in Meadow's login form no longer logs in twice. The second login made an extra
   connection on the server and ran the world's connect hooks a second time.
 - Meadow's "Room HUD" setting is removed, and the room panel is always available. It still stays out

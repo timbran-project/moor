@@ -116,18 +116,28 @@ jobs:
             arch: amd64
             arch_tag: x86_64
             runner: ubuntu-24.04
+            # A hosted runner has 16 GB of memory. One release link of the largest program needs
+            # more than that with full debugging information, so the images carry line tables
+            # only, and the programs are linked one at a time.
             build_args: |
               BUILD_PROFILE=release
               CARGO_BUILD_JOBS=4
+              RELEASE_DEBUG=line-tables-only
+              LINK_SEQUENTIALLY=true
           - image: moor
             dockerfile: Dockerfile
             target: default
             arch: arm64
             arch_tag: aarch64
             runner: ubuntu-24.04-arm
+            # A hosted runner has 16 GB of memory. One release link of the largest program needs
+            # more than that with full debugging information, so the images carry line tables
+            # only, and the programs are linked one at a time.
             build_args: |
               BUILD_PROFILE=release
               CARGO_BUILD_JOBS=4
+              RELEASE_DEBUG=line-tables-only
+              LINK_SEQUENTIALLY=true
           - image: moor-frontend
             dockerfile: clients/meadow/Dockerfile
             target: frontend
