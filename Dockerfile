@@ -58,8 +58,8 @@ ARG MOOR_BINARIES="moor-daemon moor moor-web-host moor-telnet-host moor-curl-wor
 # For machines with little memory, such as hosted CI runners. Measured on the largest program,
 # `moor`, one release link peaks at about 17 GB with the profile's full debugging information,
 # 8 GB with line tables only and 7 GB with none.
-#   RELEASE_DEBUG       overrides how much debugging information a release build carries
-#   LINK_SEQUENTIALLY   "true" builds one program at a time, so that two links never overlap
+# RELEASE_DEBUG       overrides how much debugging information a release build carries
+# LINK_SEQUENTIALLY   "true" builds one program at a time, so that two links never overlap
 ARG RELEASE_DEBUG=""
 ARG LINK_SEQUENTIALLY="false"
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
@@ -81,7 +81,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     else \
         cargo build $PROFILE_FLAG -j $CARGO_BUILD_JOBS $PACKAGE_FLAGS $CARGO_BUILD_FLAGS; \
     fi && \
-    # Copy the programs out of the cache mount, not the whole build directory with them.
+# Copy the programs out of the cache mount, not the whole build directory with them.
     mkdir -p /moor-build/target-final && \
     for binary in $MOOR_BINARIES; do cp "target/$OUT_DIR/$binary" /moor-build/target-final/; done
 
