@@ -15,7 +15,7 @@ use crate::{
     task_context::{TaskGuard, rollback_current_transaction},
     tasks::{
         registry::RunningTaskPhase,
-        scheduler::test_support::{insert_active_task, scheduler},
+        scheduler::test_support::{insert_active_task, insert_active_task_for_player, scheduler},
         task_scheduler_client::TaskSchedulerClient,
     },
     vm::Fork,
@@ -260,6 +260,30 @@ fn stale_operations() -> [fn(&TaskSchedulerClient); 7] {
             )
         },
     ]
+}
+
+#[test_case::test_case(42, true, false; "boot own player")]
+#[test_case::test_case(43, false, true; "boot another player")]
+#[test_case::test_case(-11, false, false; "boot one connection")]
+fn boot_player_only_cancels_other_active_tasks_for_the_target(
+    target: i32,
+    same_player_cancelled: bool,
+    other_player_cancelled: bool,
+) {
+    let scheduler = scheduler();
+    let player = Obj::mk_id(42);
+    let other_player = Obj::mk_id(43);
+    let session = Arc::new(RecordingSession::default());
+    let caller = insert_active_task_for_player(&scheduler, TASK, player, session.clone());
+    let same = insert_active_task_for_player(&scheduler, TASK + 1, player, session.clone());
+    let other = insert_active_task_for_player(&scheduler, TASK + 2, other_player, session.clone());
+
+    TaskSchedulerClient::new(TASK, scheduler).boot_player(Obj::mk_id(target));
+
+    assert_eq!(*session.calls.lock(), ["disconnect"]);
+    assert!(!caller.control.is_cancelled());
+    assert_eq!(same.control.is_cancelled(), same_player_cancelled);
+    assert_eq!(other.control.is_cancelled(), other_player_cancelled);
 }
 
 #[test]
