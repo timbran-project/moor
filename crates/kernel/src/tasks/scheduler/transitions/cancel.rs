@@ -237,10 +237,7 @@ impl TaskLifecycle {
         }
 
         for (task_id, tc) in self.task_q.active.iter() {
-            if *task_id == disconnect_task_id {
-                continue;
-            }
-            if tc.player.eq(player) {
+            if *task_id == disconnect_task_id || tc.player != *player {
                 continue;
             }
             warn!(

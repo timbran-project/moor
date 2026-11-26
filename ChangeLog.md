@@ -14,6 +14,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased 2.0 series (`v2.0-release` branch)
 
+- `boot_player()` now cancels only the target player's other active tasks. Previously, it could
+  interrupt other players' tasks when someone logged out.
 - Each release on GitHub now comes with a tarball of the server programs for x86-64 and arm64 Linux,
   for running mooR without containers and without building it. They are the binaries from the
   container image with the debugging information removed, and need glibc 2.35 or newer. Each has a
