@@ -210,16 +210,25 @@ pub(super) fn insert_active_task(
     task_id: TaskId,
     session: Arc<dyn Session>,
 ) -> Box<Task> {
+    insert_active_task_for_player(scheduler, task_id, SYSTEM_OBJECT, session)
+}
+
+pub(super) fn insert_active_task_for_player(
+    scheduler: &Scheduler,
+    task_id: TaskId,
+    player: Obj,
+    session: Arc<dyn Session>,
+) -> Box<Task> {
     let task_start = TaskStart::StartEval {
-        player: SYSTEM_OBJECT,
+        player,
         program: Default::default(),
         initial_env: None,
     };
     let control = Arc::new(TaskControl::new());
     let task = Task::new(
         task_id,
-        SYSTEM_OBJECT,
-        SYSTEM_OBJECT,
+        player,
+        player,
         task_start.clone(),
         scheduler.server_options.load().as_ref(),
         control.clone(),
@@ -233,7 +242,7 @@ pub(super) fn insert_active_task(
             registration,
             effects: Default::default(),
             phase: RunningTaskPhase::Running,
-            player: SYSTEM_OBJECT,
+            player,
             task_start,
             dispatched_at: Instant::now(),
             run_baseline: Arc::new(OnceLock::new()),
