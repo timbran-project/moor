@@ -42,7 +42,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   are cheaper to build, copy and append to. Editing the middle of a list, or adding to its front, is
   faster for lists of up to a few thousand items and slower for very long ones: two to three times
   slower for a list of 100,000 items. Replacing one item with an equal range, as in `x[n..n] = {v}`,
-  now costs about as much as `x[n] = v`. Before, it copied the whole list.
+  now costs about as much as `x[n] = v`. Before, it copied the whole list. Assigning a general
+  range, as in `x[m..n] = {v, ...}`, no longer copies the whole list either. The unchanged part of
+  the list keeps its storage, so many range edits to a 100,000 item list take about a tenth of the
+  time. A middle edit that changes the list's length gains less, about six times.
 - Maps have a new implementation as well. A `for` loop over a map no longer searches for each next
   key, which made loops over large maps slow. Copying a map, reading a key and setting a key are
   cheaper. The order of keys is unchanged.

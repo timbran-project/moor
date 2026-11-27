@@ -350,9 +350,123 @@ macro_rules! register_range_set_benchmarks {
                 list_index_set_owned_middle(&mut ctx.0, Base::Owned, chunk_size);
             },
         );
+        // A three-item range replaced by four, and a two-item range replaced by three. Both
+        // change the list's length, so the suffix moves relative to the prefix.
+        $g.bench(
+            concat!("list_range_set_splice_grow_middle_", $suffix),
+            |ctx: &mut $context, chunk_size, _chunk_num| {
+                let (from, to) = splice_bounds(ctx.0.len().unwrap(), 3, false);
+                list_range_set_splice(&mut ctx.0, chunk_size, from, to, 3, 4);
+            },
+        );
+        $g.bench(
+            concat!("list_range_set_splice_small_grow_middle_", $suffix),
+            |ctx: &mut $context, chunk_size, _chunk_num| {
+                let (from, to) = splice_bounds(ctx.0.len().unwrap(), 2, false);
+                list_range_set_splice(&mut ctx.0, chunk_size, from, to, 2, 3);
+            },
+        );
+        // The same edits with the end of the range a whole number of blocks before the end of
+        // the list.
+        $g.bench(
+            concat!("list_range_set_splice_grow_tail_middle_", $suffix),
+            |ctx: &mut $context, chunk_size, _chunk_num| {
+                let (from, to) = splice_bounds(ctx.0.len().unwrap(), 3, true);
+                list_range_set_splice(&mut ctx.0, chunk_size, from, to, 3, 4);
+            },
+        );
+        $g.bench(
+            concat!("list_range_set_splice_small_grow_tail_middle_", $suffix),
+            |ctx: &mut $context, chunk_size, _chunk_num| {
+                let (from, to) = splice_bounds(ctx.0.len().unwrap(), 2, true);
+                list_range_set_splice(&mut ctx.0, chunk_size, from, to, 2, 3);
+            },
+        );
+        // The same grow splice with both bounds a few items off a leaf boundary.
+        $g.bench(
+            concat!("list_range_set_splice_unaligned_", $suffix),
+            |ctx: &mut $context, chunk_size, _chunk_num| {
+                let (from, to) = splice_unaligned_bounds(ctx.0.len().unwrap(), 3);
+                list_range_set_splice(&mut ctx.0, chunk_size, from, to, 3, 4);
+            },
+        );
+        // A deletion at the front, where the suffix is everything after the first item.
+        $g.bench(
+            concat!("list_range_set_delete_front_", $suffix),
+            |ctx: &mut $context, chunk_size, _chunk_num| {
+                list_range_set_splice(&mut ctx.0, chunk_size, 0, 0, 1, 0);
+            },
+        );
     }};
 }
 
+/// The bounds of a middle splice that replaces `replaced` items. Both bounds are inclusive. With
+/// `tail_aligned`, the end of the replaced range is a whole number of leaf blocks before the end
+/// of the list.
+fn splice_bounds(len: usize, replaced: usize, tail_aligned: bool) -> (usize, usize) {
+    let to = if tail_aligned && len > LEAF_WIDTH + replaced {
+        len - LEAF_WIDTH
+    } else {
+        len / 2 + replaced
+    };
+    let to = to.min(len - 1);
+    (to - (replaced - 1), to)
+}
+
+/// The bounds of a grow splice whose end is a few items past a leaf boundary, so neither the
+/// prefix nor the replacement ends on a block boundary.
+fn splice_unaligned_bounds(len: usize, replaced: usize) -> (usize, usize) {
+    let to = (len / 2 + 5).min(len - 1);
+    (to - (replaced - 1), to)
+}
+
+const LEAF_WIDTH: usize = 32;
+
+/// Splice `removed` items of the list, from `from` through `to`, for `inserted` new ones.
+///
+/// The first counted splice checks the result's length and its first new item, so the measured
+/// loop runs exactly `chunk_size` splices with no unmeasured work before it. `removed` is stated
+/// by the caller rather than derived from the bounds, so a slip in the bounds fails the check.
+fn list_range_set_splice(
+    ctx: &mut Var,
+    chunk_size: usize,
+    from: usize,
+    to: usize,
+    removed: usize,
+    inserted: usize,
+) {
+    let len = ctx.len().unwrap();
+    let (from_index, to_index) = (from, to);
+    assert_eq!(
+        to_index - from_index + 1,
+        removed,
+        "bounds cover {removed} items"
+    );
+    let (from, to) = (v_int(from as i64), v_int(to as i64));
+    let with = v_list(
+        &(0..inserted as i64)
+            .map(|i| v_int(-1 - i))
+            .collect::<Vec<_>>(),
+    );
+    for index in 0..chunk_size {
+        let spliced = ctx
+            .clone()
+            .range_set_owned(&from, &to, &with, IndexMode::ZeroBased)
+            .unwrap();
+        if index == 0 {
+            assert_eq!(spliced.len().unwrap(), len - removed + inserted);
+            if inserted > 0 {
+                assert_eq!(
+                    spliced.get(&v_int(from_index as i64), IndexMode::ZeroBased),
+                    Ok(v_int(-1))
+                );
+            }
+        }
+        black_box(spliced);
+    }
+}
+
+/// Insert into the middle of a list that is also held elsewhere, as an edit to a stored value is.
 /// Insert into the middle of a list that is also held elsewhere, as an edit to a stored value is.
 fn list_insert_middle(base: &Var, chunk_size: usize) {
     let middle = v_int(base.len().unwrap() as i64 / 2);

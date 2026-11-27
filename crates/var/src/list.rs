@@ -24,7 +24,7 @@ use crate::{
     Error, Sequence, Var,
     block::{Shape, ShapeOwned, ShapeRef},
     error::ErrorCode::{E_RANGE, E_TYPE},
-    v_list_iter, v_none,
+    v_none,
     variant::OP_HINT_LIST_APPEND,
 };
 use std::{
@@ -862,10 +862,52 @@ impl List {
             return Ok(Var::from_list(self.replaced(from, with_val[0].clone())));
         }
 
-        let base_iter = self.iter_ref().take(from).cloned();
-        let with_iter = with_val.iter_ref().cloned();
-        let end_iter = self.iter_ref().skip(to + 1).cloned();
-        Ok(v_list_iter(base_iter.chain(with_iter).chain(end_iter)))
+        let kept_from = min(to + 1, base_len);
+        Ok(Var::from_list(
+            self.spliced_range(from, kept_from, with_val),
+        ))
+    }
+
+    /// This list with the items from `from` up to `to` replaced by those of `with`, where `to` is
+    /// the `to` of `range_set_owned` plus one.
+    ///
+    /// Bounds are already checked, so the prefix and the suffix can be empty. `from` can be
+    /// `base_len + 1`, which appends to the end. The items from `kept_from` on are the suffix,
+    /// which is what follows the replaced items unless the bounds are reversed. A reversed pair,
+    /// as in a one-based `[4..1]`, has `to <= from`; the result then keeps the prefix before `from`
+    /// and the suffix after `to`, and the items between the bounds appear twice.
+    fn spliced_range(self, from: usize, kept_from: usize, with: &Self) -> Self {
+        let (len, with_len) = (self.len(), with.len());
+        let before = min(from, len);
+        let after = len - kept_from;
+        if before + with_len + after <= FLAT_MAX {
+            let before = self.iter_ref().take(before).cloned();
+            let after = self.iter_ref().skip(kept_from).cloned();
+            return before
+                .chain(with.iter_ref().cloned())
+                .chain(after)
+                .collect();
+        }
+        // Read the kept items through `chunk_at`, which shares a full leaf that lands on a leaf
+        // boundary. Start the new tree at the slot that keeps the longer side in slots congruent
+        // to its own. On the prefix side that is this list's own start. On the suffix side item
+        // `i` of the source lands at slot `self.first_slot() + kept_from + i`, so item `i` of the
+        // result keeps its slot when the suffix starts at slot `padding + before + with_len`.
+        let pad = if before >= after {
+            self.first_slot() & LEAF_MASK
+        } else {
+            let source_slot = (self.first_slot() + kept_from) as isize;
+            let dest_slot = (before + with_len) as isize;
+            (source_slot - dest_slot).rem_euclid(LEAF_WIDTH as isize) as usize
+        };
+        let mut tree = Tree::with_padding(pad);
+        // A reversed pair keeps nothing between the bounds, so `from` and `kept_from` only select
+        // the two sides.
+        tree.extend_from(|index| self.chunk_at(index), 0, before);
+        tree.extend_from(|index| with.chunk_at(index), 0, with_len);
+        tree.extend_from(|index| self.chunk_at(index), kept_from, len);
+        debug_assert_eq!(tree.len(), before + with_len + after);
+        Self::from_edited_tree(Arc::new(tree))
     }
 
     /// Remove the first found instance of `item` from the list.
@@ -2019,6 +2061,232 @@ mod structure_tests {
         }
     }
 
+    /// The items of `list` after `[from..to] = with`, and the model's.
+    ///
+    /// `range_set_owned` replaces up to and including `to`, and clamps it to the last item. When
+    /// even the first index of the range is past the end, it still deletes the last item.
+    fn assert_splice_matches(list: &List, model: &[i64], from: usize, to: usize, with: &[i64]) {
+        let len = model.len();
+        let to = if len == 0 {
+            0
+        } else if to >= len {
+            len - 1
+        } else {
+            to
+        };
+        let expected: Vec<i64> = model[..from.min(len)]
+            .iter()
+            .copied()
+            .chain(with.iter().copied())
+            .chain(model[(to + 1).min(len)..].iter().copied())
+            .collect();
+        assert_matches(list, &expected);
+    }
+
+    #[test]
+    fn a_range_splice_matches_a_vec_at_every_shape() {
+        for len in LENGTHS {
+            let base = ints(len);
+            let model: Vec<i64> = (0..len as i64).collect();
+            let mut edits: Vec<(usize, usize, Vec<i64>)> = Vec::new();
+            for from in [
+                0,
+                1,
+                LEAF_WIDTH - 1,
+                LEAF_WIDTH,
+                len / 2,
+                len.saturating_sub(1),
+            ] {
+                for span in [0, 1, 2, LEAF_WIDTH] {
+                    let to = from + span;
+                    if from > len + 1 {
+                        continue;
+                    }
+                    edits.push((from, to, vec![]));
+                    edits.push((from, to, vec![1]));
+                    edits.push((from, to, (0..33).map(|v| -(v as i64)).collect()));
+                }
+            }
+            for (from, to, with) in edits {
+                let with_list = List::mk_list(&with.iter().copied().map(v_int).collect::<Vec<_>>());
+                let spliced = list_of(
+                    &Var::from(base.clone())
+                        .range_set_owned(
+                            &v_int(from as i64),
+                            &v_int(to as i64),
+                            &Var::from(with_list),
+                            crate::IndexMode::ZeroBased,
+                        )
+                        .unwrap(),
+                );
+                assert_splice_matches(&spliced, &model, from, to, &with);
+                assert_matches(&base, &model);
+            }
+        }
+    }
+
+    #[test]
+    fn a_range_splice_shares_the_longer_kept_side() {
+        let original = ints(100_000);
+        // A replacement of the same length keeps every kept item in its own slot, so both sides
+        // of the edit stay aligned with the original's leaves.
+        let same = List::mk_list(&[v_int(-1), v_int(-2)]);
+        // A replacement of a different length shifts one side by the difference, so only the
+        // other side keeps its slots.
+        let longer = List::mk_list(&[v_int(-1), v_int(-2), v_int(-3), v_int(-4)]);
+
+        let splice = |from: usize, to: usize, with: &List| {
+            list_of(
+                &Var::from(original.clone())
+                    .range_set_owned(
+                        &v_int(from as i64),
+                        &v_int(to as i64),
+                        &Var::from(with.clone()),
+                        crate::IndexMode::ZeroBased,
+                    )
+                    .unwrap(),
+            )
+        };
+
+        // An equal-length replacement in the middle. The suffix is the longer side and keeps
+        // its blocks in place.
+        let spliced = splice(40_000, 40_001, &same);
+        assert_eq!(spliced.len(), 100_000);
+        for start in (40_002..spliced.len() - LEAF_WIDTH).filter(|s| s % LEAF_WIDTH == 0) {
+            for index in start..start + LEAF_WIDTH {
+                assert!(std::ptr::eq(spliced.get(index), original.get(index)));
+            }
+        }
+
+        // Growing the range by two shifts one side by two, so only the other keeps its slots.
+        // The shorter prefix is copied and the longer suffix is shared, two items later.
+        let spliced = splice(40_000, 40_001, &longer);
+        assert_eq!(spliced.len(), 100_002);
+        assert!(!std::ptr::eq(spliced.get(32_000), original.get(32_000)));
+        assert!(std::ptr::eq(spliced.get(80_002), original.get(80_000)));
+        // The replacement holds four items, so the suffix starts at 40,004.
+        assert_eq!(spliced[40_004], original[40_002]);
+
+        // A four-item range leaves the suffix the longer side, and it keeps its blocks in place.
+        let spliced = splice(40_000, 40_003, &longer);
+        assert_eq!(spliced.len(), 100_000);
+        for start in (40_004..spliced.len() - LEAF_WIDTH).filter(|s| s % LEAF_WIDTH == 0) {
+            for index in start..start + LEAF_WIDTH {
+                assert!(std::ptr::eq(spliced.get(index), original.get(index)));
+            }
+        }
+
+        // Replace a short late range, so the prefix is longer. The prefix keeps its storage,
+        // except the last block, which the tree rewrites when it moves the full tail.
+        for replaced in [2usize, 8] {
+            let from = 60_000;
+            let spliced = splice(from, from + replaced - 1, &same);
+            assert_eq!(spliced.len(), 100_000 - replaced + 2);
+            for start in (0..from).filter(|s| s % LEAF_WIDTH == 0) {
+                for index in start..start + LEAF_WIDTH {
+                    assert!(std::ptr::eq(spliced.get(index), original.get(index)));
+                }
+            }
+        }
+
+        // Remove a short early range. The suffix is longer, so the tree is aligned to it.
+        let spliced = list_of(
+            &Var::from(original.clone())
+                .range_set_owned(
+                    &v_int(40_000),
+                    &v_int(40_003),
+                    &Var::from(List::mk_list(&[])),
+                    crate::IndexMode::ZeroBased,
+                )
+                .unwrap(),
+        );
+        assert_eq!(spliced.len(), 99_996);
+        assert_eq!(spliced[40_000], original[40_004]);
+        // The suffix keeps its blocks. The visible tail is not a whole block, so the block
+        // before it is the one the tree rewrites when it moves the full tail into a leaf.
+        let visible_tail = spliced.len() % LEAF_WIDTH;
+        let last = (spliced.len() - visible_tail - LEAF_WIDTH) / LEAF_WIDTH * LEAF_WIDTH;
+        let mut shared = 0;
+        for start in (0..=last).filter(|s| s % LEAF_WIDTH == 0) {
+            if (start..start + LEAF_WIDTH)
+                .all(|i| std::ptr::eq(spliced.get(i), original.get(i + 4)))
+            {
+                shared += 1;
+            }
+        }
+        assert_eq!(shared, last / LEAF_WIDTH - 40_032 / LEAF_WIDTH);
+    }
+
+    #[test]
+    fn a_front_splice_matches_a_removal_and_shares_the_suffix() {
+        let original = ints(100_000);
+        let removed = list_of(
+            &Var::from(original.clone())
+                .remove_at_owned(&v_int(10), crate::IndexMode::ZeroBased)
+                .unwrap(),
+        );
+        let spliced = list_of(
+            &Var::from(original.clone())
+                .range_set_owned(
+                    &v_int(10),
+                    &v_int(10),
+                    &Var::from(List::mk_list(&[])),
+                    crate::IndexMode::ZeroBased,
+                )
+                .unwrap(),
+        );
+        let model: Vec<i64> = (0..10).chain(11..100_000).collect();
+        assert_matches(&spliced, &model);
+        assert_eq!(spliced, removed);
+        // The suffix is far more than the prefix, so it keeps its leaves, starting with the
+        // block that holds the removed item.
+        for start in [0, LEAF_WIDTH, 30_000, 60_000, 90_000] {
+            let shared = (start..start + LEAF_WIDTH)
+                .filter(|&index| {
+                    let source = if index < 10 { index } else { index + 1 };
+                    std::ptr::eq(spliced.get(index), original.get(source))
+                })
+                .count();
+            let expected = if start == 0 { 1 } else { LEAF_WIDTH };
+            assert_eq!(shared, expected, "block at {start}");
+        }
+    }
+
+    #[test]
+    fn a_reversed_range_keeps_both_sides_of_a_long_list() {
+        let original = ints(100_000);
+        let with = List::mk_list(&[v_int(-1)]);
+        let spliced = list_of(
+            &Var::from(original.clone())
+                .range_set_owned(
+                    &v_int(60_000),
+                    &v_int(40_000),
+                    &Var::from(with),
+                    crate::IndexMode::ZeroBased,
+                )
+                .unwrap(),
+        );
+        let mut expected: Vec<i64> = (0..60_000).collect();
+        expected.push(-1);
+        expected.extend(40_001..100_000);
+        assert_matches(&spliced, &expected);
+        // The prefix is more than the suffix, so it keeps its leaves.
+        assert!(std::ptr::eq(spliced.get(0), original.get(0)));
+        // A short reversed pair follows the same rule.
+        let short = list_of(
+            &Var::from(ints(100))
+                .range_set_owned(
+                    &v_int(60),
+                    &v_int(40),
+                    &Var::from(List::mk_list(&[v_int(-1)])),
+                    crate::IndexMode::ZeroBased,
+                )
+                .unwrap(),
+        );
+        let expected: Vec<i64> = (0..60).chain([-1]).chain(41..100).collect();
+        assert_matches(&short, &expected);
+    }
+
     #[test]
     fn a_short_slice_of_a_long_list_shares_its_leaves() {
         let original = ints(100_000);
@@ -2032,6 +2300,34 @@ mod structure_tests {
             let sliced = original.slice(from, to);
             assert_matches(&sliced, &(from as i64..to as i64).collect::<Vec<_>>());
             assert!(std::ptr::eq(sliced.get(40), original.get(from + 40)));
+        }
+    }
+
+    #[test]
+    fn shrinking_a_long_list_to_few_items_leaves_a_short_list() {
+        let shrunk = list_of(
+            &Var::from(ints(100_000))
+                .range_set_owned(
+                    &v_int(0),
+                    &v_int(99_999),
+                    &Var::from(List::mk_list(&[v_int(-1), v_int(-2)])),
+                    crate::IndexMode::ZeroBased,
+                )
+                .unwrap(),
+        );
+        assert_matches(&shrunk, &[-1, -2]);
+        // An ordinary short list, which shares the leaves of a long list it is appended to.
+        let short = List::mk_list(&[v_int(-1), v_int(-2)]);
+        let long = ints(100_000);
+        let from_short = short.clone().appended(&long);
+        let from_shrunk = shrunk.appended(&long);
+        assert_eq!(from_shrunk, from_short);
+        for index in [0, LEAF_WIDTH, 30_000, 60_000, 99_000] {
+            assert!(std::ptr::eq(
+                from_shrunk.get(index + 2),
+                from_short.get(index + 2)
+            ));
+            assert!(std::ptr::eq(from_shrunk.get(index + 2), long.get(index)));
         }
     }
 
