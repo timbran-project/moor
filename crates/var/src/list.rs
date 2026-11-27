@@ -856,6 +856,12 @@ impl List {
             to
         };
 
+        // Replacing one item keeps the rest of the list, as an indexed set does. A one-item input
+        // must have its own case, since `to == from` alone also covers removing one item.
+        if from == to && from < base_len && with_val.len() == 1 {
+            return Ok(Var::from_list(self.replaced(from, with_val[0].clone())));
+        }
+
         let base_iter = self.iter_ref().take(from).cloned();
         let with_iter = with_val.iter_ref().cloned();
         let end_iter = self.iter_ref().skip(to + 1).cloned();
@@ -1657,6 +1663,93 @@ mod tests {
             .unwrap();
         assert_eq!(r, v_list(&[v_str("?"), v_str("."), v_str("@abort")]));
     }
+
+    #[test]
+    fn test_range_set_with_reversed_bounds() {
+        // a = {1,2,3,4}; a[4..1] = {9}; return a; => {1,2,3,9,2,3,4}
+        //
+        // The replacement keeps the prefix before the first bound and the suffix after the second,
+        // so a reversed pair includes the items between them twice. The property test sorts its
+        // endpoints and cannot see this.
+        let base = v_list(&[v_int(1), v_int(2), v_int(3), v_int(4)]);
+        let expected = v_list(&[
+            v_int(1),
+            v_int(2),
+            v_int(3),
+            v_int(9),
+            v_int(2),
+            v_int(3),
+            v_int(4),
+        ]);
+        assert_eq!(
+            base.range_set(
+                &v_int(4),
+                &v_int(1),
+                &v_list(&[v_int(9)]),
+                IndexMode::OneBased
+            ),
+            Ok(expected.clone())
+        );
+        assert_eq!(
+            base.range_set_owned(
+                &v_int(4),
+                &v_int(1),
+                &v_list(&[v_int(9)]),
+                IndexMode::OneBased
+            ),
+            Ok(expected)
+        );
+    }
+
+    #[test]
+    fn test_range_set_one_item_keeps_the_rest_of_the_list() {
+        let base = v_list(&[v_int(1), v_int(2), v_int(3), v_int(4)]);
+        let expected = v_list(&[v_int(1), v_int(9), v_int(3), v_int(4)]);
+        assert_eq!(
+            base.range_set(
+                &v_int(2),
+                &v_int(2),
+                &v_list(&[v_int(9)]),
+                IndexMode::OneBased
+            ),
+            Ok(expected)
+        );
+        // The last item, and the range just past the end.
+        assert_eq!(
+            base.range_set(
+                &v_int(4),
+                &v_int(4),
+                &v_list(&[v_int(9)]),
+                IndexMode::OneBased
+            ),
+            Ok(v_list(&[v_int(1), v_int(2), v_int(3), v_int(9)]))
+        );
+        assert_eq!(
+            base.range_set(
+                &v_int(5),
+                &v_int(5),
+                &v_list(&[v_int(9)]),
+                IndexMode::OneBased
+            ),
+            Ok(v_list(&[v_int(1), v_int(2), v_int(3), v_int(4), v_int(9)]))
+        );
+        // A one-item range set to nothing removes the item.
+        assert_eq!(
+            base.range_set(&v_int(2), &v_int(2), &v_empty_list(), IndexMode::OneBased),
+            Ok(v_list(&[v_int(1), v_int(3), v_int(4)]))
+        );
+        // Two items are a general splice.
+        assert_eq!(
+            base.range_set(
+                &v_int(2),
+                &v_int(3),
+                &v_list(&[v_int(8), v_int(9)]),
+                IndexMode::OneBased
+            ),
+            Ok(v_list(&[v_int(1), v_int(8), v_int(9), v_int(4)]))
+        );
+        assert_eq!(base, v_list(&[v_int(1), v_int(2), v_int(3), v_int(4)]));
+    }
 }
 
 /// Tests of the list's own structure: block growth, the tree, and sharing between copies.
@@ -1891,6 +1984,39 @@ mod structure_tests {
             model
         });
         assert_matches(&original, &(0..5000).collect::<Vec<i64>>());
+    }
+
+    #[test]
+    fn a_one_item_range_replacement_keeps_the_rest_of_a_long_list() {
+        let original = ints(100_000);
+        for index in [0, 1, LEAF_WIDTH, 50_000, 99_999] {
+            let with = Var::from(List::mk_list(&[v_int(-1)]));
+            let replaced = list_of(
+                &Var::from(original.clone())
+                    .range_set_owned(
+                        &v_int(index as i64),
+                        &v_int(index as i64),
+                        &with,
+                        crate::IndexMode::ZeroBased,
+                    )
+                    .unwrap(),
+            );
+            assert_eq!(replaced.len(), 100_000);
+            assert_eq!(replaced[index], v_int(-1));
+            assert_eq!(original[index], v_int(index as i64));
+            // Items away from the edited block are the original storage. The block that holds the
+            // edit is copied, so its other slots move with it.
+            for other in [index.wrapping_sub(1), index + 1] {
+                if other < 100_000 && other / LEAF_WIDTH != index / LEAF_WIDTH {
+                    assert!(std::ptr::eq(replaced.get(other), original.get(other)));
+                }
+            }
+            for other in [50_000, 99_999] {
+                if other / LEAF_WIDTH != index / LEAF_WIDTH {
+                    assert!(std::ptr::eq(replaced.get(other), original.get(other)));
+                }
+            }
+        }
     }
 
     #[test]

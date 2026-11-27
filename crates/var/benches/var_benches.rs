@@ -52,6 +52,14 @@ impl BenchContext for MediumListContext {
     }
 }
 
+// A list of 200,000 items, well past one root of full leaves.
+struct VeryLargeListContext(Var);
+impl BenchContext for VeryLargeListContext {
+    fn prepare(_num_chunks: usize) -> Self {
+        VeryLargeListContext(v_list(&(0..200_000).map(v_int).collect::<Vec<_>>()))
+    }
+}
+
 fn int_add(ctx: &mut IntContext, chunk_size: usize, _chunk_num: usize) {
     let mut v = ctx.0.clone();
     for _ in 0..chunk_size {
@@ -220,6 +228,129 @@ fn list_index_assign(ctx: &mut LargeListContext, chunk_size: usize, _chunk_num: 
             .unwrap();
     }
     black_box(v);
+}
+
+/// How an edit gets its base. The retained cases keep a second reference to the base, so every
+/// edit copies the path it changes. The owned case consumes the edit's result, so a lone base is
+/// edited in place, as an edit to a variable is.
+#[derive(Clone, Copy)]
+enum Base {
+    Shared,
+    Owned,
+}
+
+impl Base {
+    /// The base for a chunk of edits. The shared base must exist before the timer starts.
+    fn make(self, len: usize) -> Option<Var> {
+        match self {
+            Base::Shared => None,
+            Base::Owned => Some(v_list(&(0..len as i64).map(v_int).collect::<Vec<_>>())),
+        }
+    }
+}
+
+/// The one-item range replacement and the single-index control, for one base ownership.
+///
+/// `range_set` is what `x[n..n] = {v}` calls and `range_set_owned` is what the VM calls. The
+/// shared case holds a second reference to the base, so each edit copies the path it changes. The
+/// uniquely owned case keeps the edited list as the next base, so it is edited in place.
+fn one_item_edits(ctx: &mut Var, base: Base, entry: Entry, chunk_size: usize) {
+    let len = ctx.len().unwrap();
+    let mut owned = base.make(len);
+    let with = v_list(&[v_int(-1)]);
+    let middle = v_int(len as i64 / 2);
+    let value = v_int(-1);
+    let edit = |x: Var| match entry {
+        Entry::RangeSet => x
+            .range_set(&middle, &middle, &with, IndexMode::ZeroBased)
+            .unwrap(),
+        Entry::RangeSetOwned => x
+            .range_set_owned(&middle, &middle, &with, IndexMode::ZeroBased)
+            .unwrap(),
+        Entry::IndexSetOwned => x
+            .index_set_owned(&middle, &value, IndexMode::ZeroBased)
+            .unwrap(),
+    };
+    let mut next = owned.take();
+    for _ in 0..chunk_size {
+        match next {
+            Some(current) => {
+                next = Some(edit(current));
+            }
+            None => {
+                black_box(edit(ctx.clone()));
+            }
+        }
+    }
+    owned = next;
+    if let Some(owned) = owned {
+        black_box(owned);
+    }
+}
+
+#[derive(Clone, Copy)]
+enum Entry {
+    RangeSet,
+    RangeSetOwned,
+    IndexSetOwned,
+}
+
+fn list_range_set_one_middle(ctx: &mut Var, base: Base, chunk_size: usize) {
+    one_item_edits(ctx, base, Entry::RangeSet, chunk_size);
+}
+
+fn list_range_set_owned_one_middle(ctx: &mut Var, base: Base, chunk_size: usize) {
+    one_item_edits(ctx, base, Entry::RangeSetOwned, chunk_size);
+}
+
+fn list_index_set_owned_middle(ctx: &mut Var, base: Base, chunk_size: usize) {
+    one_item_edits(ctx, base, Entry::IndexSetOwned, chunk_size);
+}
+
+/// Register the range-set benchmarks and controls for one list length, naming each case with the
+/// length and the base ownership.
+///
+/// `range_set` is what `x[n..n] = {v}` calls, `range_set_owned` is what the VM calls, and
+/// `index_set_owned` is the control.
+macro_rules! register_range_set_benchmarks {
+    ($g:expr, $context:ty, $suffix:literal) => {{
+        $g.bench(
+            concat!("list_range_set_one_middle_shared_", $suffix),
+            |ctx: &mut $context, chunk_size, _chunk_num| {
+                list_range_set_one_middle(&mut ctx.0, Base::Shared, chunk_size);
+            },
+        );
+        $g.bench(
+            concat!("list_range_set_one_middle_owned_", $suffix),
+            |ctx: &mut $context, chunk_size, _chunk_num| {
+                list_range_set_one_middle(&mut ctx.0, Base::Owned, chunk_size);
+            },
+        );
+        $g.bench(
+            concat!("list_range_set_owned_one_middle_shared_", $suffix),
+            |ctx: &mut $context, chunk_size, _chunk_num| {
+                list_range_set_owned_one_middle(&mut ctx.0, Base::Shared, chunk_size);
+            },
+        );
+        $g.bench(
+            concat!("list_range_set_owned_one_middle_owned_", $suffix),
+            |ctx: &mut $context, chunk_size, _chunk_num| {
+                list_range_set_owned_one_middle(&mut ctx.0, Base::Owned, chunk_size);
+            },
+        );
+        $g.bench(
+            concat!("list_index_set_owned_middle_shared_", $suffix),
+            |ctx: &mut $context, chunk_size, _chunk_num| {
+                list_index_set_owned_middle(&mut ctx.0, Base::Shared, chunk_size);
+            },
+        );
+        $g.bench(
+            concat!("list_index_set_owned_middle_owned_", $suffix),
+            |ctx: &mut $context, chunk_size, _chunk_num| {
+                list_index_set_owned_middle(&mut ctx.0, Base::Owned, chunk_size);
+            },
+        );
+    }};
 }
 
 /// Insert into the middle of a list that is also held elsewhere, as an edit to a stored value is.
@@ -752,7 +883,7 @@ fn var_drop(ctx: &mut DropContext, _chunk_size: usize, _chunk_num: usize) {
 
 benchmark_main!(
     BenchmarkMainOptions {
-        report_context: Some(ReportContext::default().with_environment("workload_revision", "2")),
+        report_context: Some(ReportContext::default().with_environment("workload_revision", "3")),
         filter_help: Some(
             "all, int, list, scope, construct, drop, clone, or any benchmark name substring"
                 .to_string()
@@ -787,8 +918,10 @@ benchmark_main!(
         });
 
         runner.group::<SmallListContext>("Small List Operations", |g| {
-            g.throughput(Throughput::per_operation(1, "list_ops"))
-                .bench("list_push", list_push);
+            let g = g.throughput(Throughput::per_operation(1, "list_ops"));
+            g.bench("list_push", list_push);
+            // A flat list, not a tree.
+            register_range_set_benchmarks!(g, SmallListContext, "8");
         });
 
         runner.group::<LargeListContext>("Large List Operations", |g| {
@@ -801,6 +934,12 @@ benchmark_main!(
             g.bench("list_prepend_100k", list_prepend_100k);
             g.bench("list_take_prefix_100k", list_take_prefix_100k);
             g.bench("list_drop_first_100k", list_drop_first_100k);
+            register_range_set_benchmarks!(g, LargeListContext, "100k");
+        });
+
+        runner.group::<VeryLargeListContext>("Very Large List Operations", |g| {
+            let g = g.throughput(Throughput::per_operation(1, "list_ops"));
+            register_range_set_benchmarks!(g, VeryLargeListContext, "200k");
         });
 
         runner.group::<MediumListContext>("Medium List Operations", |g| {
@@ -808,6 +947,7 @@ benchmark_main!(
             g.bench("list_insert_middle_1k", list_insert_middle_1k);
             g.bench("list_remove_middle_1k", list_remove_middle_1k);
             g.bench("list_drain_front_1k", list_drain_front_1k);
+            register_range_set_benchmarks!(g, MediumListContext, "1k");
         });
 
         runner.group::<NoContext>("Var Construction Benchmarks", |g| {
