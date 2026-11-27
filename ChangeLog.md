@@ -45,7 +45,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   now costs about as much as `x[n] = v`. Before, it copied the whole list. Assigning a general
   range, as in `x[m..n] = {v, ...}`, no longer copies the whole list either. The unchanged part of
   the list keeps its storage, so many range edits to a 100,000 item list take about a tenth of the
-  time. A middle edit that changes the list's length gains less, about six times.
+  time. A middle edit that changes the list's length gains less, about six times. Adding to a long
+  list held in a property, as in `p = {@p, v}`, no longer walks the whole list to check that the
+  rest is unchanged when the stored list and the new list have the same shape and both start at the
+  beginning of their storage. The cost then depends on the blocks around the new item instead of the
+  length. Checking a one-item append took about 0.1 µs starting from 32,799 items and 12.6 µs
+  starting from 32,800, where the tree gains a level.
 - Maps have a new implementation as well. A `for` loop over a map no longer searches for each next
   key, which made loops over large maps slow. Copying a map, reading a key and setting a key are
   cheaper. The order of keys is unchanged.

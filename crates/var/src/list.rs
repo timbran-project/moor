@@ -172,6 +172,54 @@ impl Tree {
         }
     }
 
+    /// The number of items from index 0 on that both trees take from the same blocks.
+    ///
+    /// Both trees must start at slot zero and have the same height, so their blocks cover the
+    /// same items at the same slots. Then a block both trees share holds the same items and needs
+    /// no comparison, and so does a branch both trees share, which is passed in one step. The walk
+    /// stops at the first block they do not share, which is where the caller compares item by
+    /// item. Items in a tail are copies, so the walk stops before one.
+    fn matched_prefix(&self, other: &Tree) -> usize {
+        debug_assert_eq!(self.start, 0);
+        debug_assert_eq!(other.start, 0);
+        debug_assert_eq!(self.shift, other.shift);
+        // The root covers whole blocks, so the walk covers the items up to the first tail.
+        let front = self.tail_start().min(other.tail_start());
+        if front == 0 {
+            return 0;
+        }
+        let mut slot = 0;
+        let mut mine: &Branch = &self.root;
+        let mut theirs: &Branch = &other.root;
+        let mut level = self.shift;
+        loop {
+            let index = (slot >> level) & LEAF_MASK;
+            match (mine.children.get(index), theirs.children.get(index)) {
+                (Some(Node::Branch(a)), Some(Node::Branch(b))) => {
+                    if Arc::ptr_eq(a, b) {
+                        slot += 1 << level;
+                    } else if level == LEAF_BITS {
+                        return slot;
+                    } else {
+                        (mine, theirs) = (a, b);
+                        level -= LEAF_BITS;
+                        continue;
+                    }
+                }
+                (Some(Node::Leaf(a)), Some(Node::Leaf(b))) if level == LEAF_BITS => {
+                    if !std::ptr::eq(a, b) {
+                        return slot;
+                    }
+                    slot += LEAF_WIDTH;
+                }
+                _ => return slot,
+            }
+            if slot >= front {
+                return front;
+            }
+        }
+    }
+
     #[inline]
     fn get(&self, index: usize) -> &Var {
         let chunk = self.chunk_at(index);
@@ -571,7 +619,17 @@ impl List {
             return Err(ListAppendError::NotLonger);
         }
 
-        let mut index = 0;
+        // Trees that start at different slots hold the same items at different places, and a
+        // taller tree has a new root and unshared branches down to the level the shorter tree
+        // starts at, so walking such a pair together would not line up its blocks.
+        let mut index = match (self.repr(), candidate.repr()) {
+            (Repr::Tree(prefix), Repr::Tree(candidate))
+                if prefix.start == 0 && candidate.start == 0 && prefix.shift == candidate.shift =>
+            {
+                prefix.matched_prefix(candidate)
+            }
+            _ => 0,
+        };
         while index < prefix_len {
             let prefix = self.chunk_at(index);
             let candidate = candidate.chunk_at(index);
@@ -1797,7 +1855,7 @@ mod tests {
 /// Tests of the list's own structure: block growth, the tree, and sharing between copies.
 #[cfg(test)]
 mod structure_tests {
-    use super::{FLAT_MAX, LEAF_WIDTH, List};
+    use super::{FLAT_MAX, LEAF_BITS, LEAF_WIDTH, List, ListAppendError, Repr};
 
     /// The comparison budget the database gives `append_suffix`.
     const DATABASE_APPEND_BUDGET: usize = 128;
@@ -1820,7 +1878,8 @@ mod structure_tests {
                 .eq(model.iter().copied())
         );
         assert_eq!(list.iter_ref().len(), model.len());
-        for index in (0..model.len()).step_by(model.len() / 97 + 1) {
+        let step = model.len() / 97 + 1;
+        for index in (0..model.len()).step_by(step) {
             assert_eq!(list[index], v_int(model[index]));
             // `nth` from the start and from part way through a block.
             assert_eq!(list.iter_ref().nth(index), Some(&v_int(model[index])));
@@ -1863,6 +1922,286 @@ mod structure_tests {
     fn lengths() -> impl Iterator<Item = usize> {
         let limit = if cfg!(miri) { 2100 } else { usize::MAX };
         LENGTHS.into_iter().filter(move |len| *len <= limit)
+    }
+
+    /// Lengths that are past `FLAT_MAX` and on both sides of each change of tree shape.
+    fn tree_lengths() -> impl Iterator<Item = usize> {
+        lengths().filter(|len| *len > FLAT_MAX)
+    }
+
+    /// The list `base` with one item pushed on, as a stored value makes it: the old value is
+    /// given up before the new one is kept, so the push extends the tree instead of copying it.
+    fn appended_in_storage(base: &List) -> List {
+        let stored = Var::from(base.clone());
+        let pushed = stored
+            .clone()
+            .push_owned(&v_int(base.len() as i64))
+            .unwrap();
+        drop(stored);
+        let candidate = list_of(&pushed);
+        drop(pushed);
+        candidate
+    }
+
+    #[test]
+    fn an_append_skips_the_branches_the_two_lists_share() {
+        // Only the items in the block the append changes need a comparison; every block before
+        // it is shared and each is checked with the budget that leaves room for that block alone.
+        for len in tree_lengths() {
+            let base = ints(len);
+            let candidate = appended_in_storage(&base);
+            let first_changed = (0..len)
+                .find(|&index| !std::ptr::eq(base.get(index), candidate.get(index)))
+                .unwrap_or(len);
+            let compared = len - first_changed;
+            let suffix = base
+                .append_suffix(&candidate, compared)
+                .expect("shared prefix");
+            assert_eq!(suffix, List::mk_list(&[v_int(len as i64)]), "{len}");
+            // Fewer comparisons than the changed block cannot be enough, so the shared run never
+            // pays for the blocks before it.
+            if compared != 0 {
+                assert_eq!(
+                    base.append_suffix(&candidate, compared - 1),
+                    Err(ListAppendError::ComparisonBudgetExceeded),
+                    "{len}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn an_append_skips_shared_branches_after_a_divergent_one() {
+        // The edit is past the first leaf, so reaching it means walking the shared run, and the
+        // zero budget then stops the work rather than a wrongly skipped branch passing.
+        let base = ints(LEAF_WIDTH * LEAF_WIDTH + LEAF_WIDTH);
+        let edited = base.clone().removed(0);
+        let len = edited.len();
+        let candidate = list_of(
+            &edited
+                .clone()
+                .replaced(LEAF_WIDTH * LEAF_WIDTH + LEAF_WIDTH / 2, v_int(-1))
+                .push_owned(&v_int(len as i64)),
+        );
+        assert_eq!(
+            edited.append_suffix(&candidate, 0),
+            Err(ListAppendError::ComparisonBudgetExceeded)
+        );
+        let unchanged = appended_in_storage(&edited);
+        assert_eq!(
+            edited.append_suffix(&unchanged, 0).unwrap(),
+            List::mk_list(&[v_int(len as i64)])
+        );
+    }
+
+    #[test]
+    fn a_shared_branch_after_a_front_drop_covers_only_its_own_items() {
+        // Dropping the first item leaves the tree starting at slot 1, so a shared branch from
+        // slot 1024 holds 1023 items of the list. The change at index 1023 is in the block before
+        // that branch, so the comparison reaches it only if the walk counted its slots right.
+        let stored = Var::from(ints(2056));
+        let shortened = stored
+            .clone()
+            .remove_at_owned(&v_int(0), crate::IndexMode::ZeroBased)
+            .unwrap();
+        drop(stored);
+        let base = list_of(&shortened);
+        assert_eq!(base.len(), 2055);
+        // Change the item at index 1024, the first in the shared branch. Its block starts at
+        // slot 1025, one past the branch, so the change is found only by comparing the items up
+        // to it, and the one before it is in the branch and must not be skipped with it.
+        let edited = base.clone().replaced(1024, v_int(-1));
+        assert_eq!(edited[1024], v_int(-1));
+        assert_eq!(base[1024], v_int(1025));
+        assert_eq!(base[1023], v_int(1024));
+        let changed = list_of(&Var::from(edited).push_owned(&v_int(-7)).unwrap());
+        assert_eq!(changed[1024], v_int(-1), "the append kept the change");
+        assert_eq!(
+            base.append_suffix(&changed, DATABASE_APPEND_BUDGET),
+            Err(ListAppendError::PrefixMismatch)
+        );
+        let unchanged = appended_in_storage(&base);
+        assert_eq!(
+            base.append_suffix(&unchanged, DATABASE_APPEND_BUDGET)
+                .unwrap(),
+            List::mk_list(&[v_int(2055)])
+        );
+    }
+
+    #[test]
+    fn a_front_drop_leaves_the_last_item_of_a_shared_branch_compared() {
+        // The tree starts at slot 1, so the branch from slot 1024 holds 1023 items and the item
+        // before it is in the leaf at slots 992 to 1023. A walk that advanced by the branch's
+        // whole width would skip that leaf's end, where this change is.
+        let stored = Var::from(ints(2056));
+        let shortened = stored
+            .clone()
+            .remove_at_owned(&v_int(0), crate::IndexMode::ZeroBased)
+            .unwrap();
+        drop(stored);
+        let base = list_of(&shortened);
+        assert_eq!(base.len(), 2055);
+        assert_matches(&base, &(1..2056).collect::<Vec<i64>>());
+        assert_eq!(base[1022], v_int(1023));
+        assert_eq!(base[1023], v_int(1024));
+        let edited = base.clone().replaced(1023, v_int(-1));
+        assert_eq!(edited[1023], v_int(-1));
+        let changed = appended_in_storage(&edited);
+        assert_eq!(changed.len(), 2056);
+        assert_eq!(changed[1023], v_int(-1), "the append kept the change");
+        assert_eq!(
+            base.append_suffix(&changed, DATABASE_APPEND_BUDGET),
+            Err(ListAppendError::PrefixMismatch)
+        );
+    }
+
+    /// The root's height and first slot, for a list held as a tree.
+    fn tree_shape(list: &List) -> Option<(u32, usize)> {
+        match list.repr() {
+            Repr::Tree(tree) => Some((tree.shift, tree.start)),
+            Repr::Flat(_) => None,
+        }
+    }
+
+    #[test]
+    fn an_append_that_grows_the_tree_still_classifies() {
+        // A root of a level holds `LEAF_WIDTH * LEAF_WIDTH` slots of the tree and a tail of
+        // `LEAF_WIDTH`, and the push that rotates a full tail into a full root gives the tree a
+        // new root. The push before it keeps the height. Both are checked, at the first root and
+        // at the second, which the benchmarks use.
+        let one_root = LEAF_WIDTH * LEAF_WIDTH + LEAF_WIDTH;
+        for root_levels in [LEAF_BITS, 2 * LEAF_BITS] {
+            let full = if root_levels == LEAF_BITS {
+                one_root
+            } else {
+                32_800
+            };
+            for (len, grows) in [(full - 1, false), (full, true)] {
+                let base = ints(len);
+                let candidate = appended_in_storage(&base);
+                let before = tree_shape(&base).expect("a long list is a tree");
+                let after = tree_shape(&candidate).expect("a long list is a tree");
+                assert_eq!(before, (root_levels, 0), "{len}");
+                assert_eq!(
+                    after.0,
+                    if grows {
+                        root_levels + LEAF_BITS
+                    } else {
+                        root_levels
+                    },
+                    "{len}"
+                );
+                assert_eq!(
+                    base.append_suffix(&candidate, DATABASE_APPEND_BUDGET)
+                        .unwrap(),
+                    List::mk_list(&[v_int(len as i64)])
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn an_append_of_equal_independent_lists_compares_every_item() {
+        for len in tree_lengths() {
+            let base = ints(len);
+            let candidate = ints(len + 1);
+            assert_eq!(
+                base.append_suffix(&candidate, len - 1),
+                Err(ListAppendError::ComparisonBudgetExceeded)
+            );
+            assert_eq!(
+                base.append_suffix(&candidate, len).unwrap(),
+                List::mk_list(&[v_int(len as i64)])
+            );
+        }
+    }
+
+    #[test]
+    fn an_append_compares_the_items_of_a_shortened_tree() {
+        // Dropping from the front moves the first slot, so the two trees hold the same items in
+        // different leaves. Only a tail no longer identical is compared, so the budget of one
+        // list is paid for elsewhere and the item that differs decides at once.
+        for count in [1, LEAF_WIDTH - 1, LEAF_WIDTH, LEAF_WIDTH + 1, 700] {
+            // The store gives up the value it holds before it takes the edited one.
+            let stored = Var::from(ints(4 * LEAF_WIDTH + count + 1));
+            let shortened = stored
+                .clone()
+                .remove_at_owned(&v_int(0), crate::IndexMode::ZeroBased)
+                .unwrap();
+            drop(stored);
+            let base = list_of(&shortened);
+
+            let model: Vec<i64> = (1..=4 * LEAF_WIDTH + count).map(|i| i as i64).collect();
+            assert_matches(&base, &model);
+            let len = base.len();
+            let longer = base.clone().pushed(v_int(-7));
+            let same_first = std::ptr::eq(base.get(0), longer.get(0))
+                && std::ptr::eq(base.get(len - 1), longer.get(len - 1));
+            let budget = if same_first { 0 } else { len };
+            assert_eq!(
+                base.append_suffix(&longer, budget).unwrap(),
+                List::mk_list(&[v_int(-7)])
+            );
+            if !same_first {
+                assert_eq!(
+                    base.append_suffix(&longer, 0),
+                    Err(ListAppendError::ComparisonBudgetExceeded)
+                );
+            }
+            let changed = base.clone().replaced(len - 1, v_int(-1)).pushed(v_int(-2));
+            assert_eq!(
+                base.append_suffix(&changed, len),
+                Err(ListAppendError::PrefixMismatch)
+            );
+        }
+    }
+
+    #[test]
+    fn an_append_does_not_share_a_tail() {
+        // Two lists end alike but were never in one tree, so their tails cannot be shared and
+        // the items must still be compared.
+        let base = ints(2 * LEAF_WIDTH + 9);
+        let candidate = ints(2 * LEAF_WIDTH + 10);
+        assert_eq!(
+            base.append_suffix(&candidate, 8),
+            Err(ListAppendError::ComparisonBudgetExceeded)
+        );
+        let changed = candidate.clone().replaced(0, v_int(-1));
+        assert_eq!(
+            base.append_suffix(&changed, 128),
+            Err(ListAppendError::PrefixMismatch)
+        );
+        let later = candidate.replaced(2 * LEAF_WIDTH + 1, v_int(-1));
+        assert_eq!(
+            base.append_suffix(&later, 128),
+            Err(ListAppendError::PrefixMismatch)
+        );
+    }
+
+    #[test]
+    fn a_shared_append_chain_reaches_every_tree_shape() {
+        // Each append starts from the last, so the whole chain shares its branches and only the
+        // block the append changes is compared.
+        let mut list = ints(0);
+        let mut model = vec![];
+        for i in 0..3000i64 {
+            let next = appended_in_storage(&list);
+            let first_changed = (0..model.len())
+                .find(|&index| !std::ptr::eq(list.get(index), next.get(index)))
+                .unwrap_or(model.len());
+            let compared = model.len() - first_changed;
+            assert_eq!(
+                list.append_suffix(&next, compared).unwrap(),
+                List::mk_list(&[v_int(i)]),
+                "{}",
+                model.len()
+            );
+            list = next;
+            model.push(i);
+            if tree_lengths().any(|len| len == model.len()) {
+                assert_matches(&list, &model);
+            }
+        }
     }
 
     #[test]

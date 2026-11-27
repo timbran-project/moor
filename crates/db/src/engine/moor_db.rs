@@ -829,6 +829,246 @@ mod tests {
     }
 
     #[test]
+    fn property_adjacent_edits_with_an_append_survive_reopen() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let path = tempdir.path();
+        let db = MoorDB::try_open(Some(path), DatabaseConfig::default())
+            .unwrap()
+            .0;
+
+        let mut tx = db.start_transaction();
+        let object = tx
+            .create_object(
+                ObjectKind::NextObjid,
+                ObjAttrs::new(NOTHING, NOTHING, NOTHING, BitEnum::new(), "overlap test"),
+            )
+            .unwrap();
+        let property = tx
+            .define_property(
+                &object,
+                &object,
+                Symbol::mk("values"),
+                &object,
+                BitEnum::new(),
+                Some(v_list(&(0..4096).map(v_int).collect::<Vec<_>>())),
+            )
+            .unwrap();
+        assert!(matches!(tx.commit().unwrap(), CommitResult::Success { .. }));
+
+        // An edit at 1021 is stored, then an edit one item earlier is added to it and an item is
+        // pushed on. The stored value and the candidate differ at 1020 and 1021, and the append
+        // must keep both edits.
+        let stored = db
+            .start_transaction()
+            .retrieve_property(&object, property)
+            .unwrap()
+            .0
+            .unwrap();
+        let later = stored
+            .index_set_owned(&v_int(1021), &v_int(-1), IndexMode::ZeroBased)
+            .unwrap();
+        let mut tx = db.start_transaction();
+        tx.set_property(&object, property, later.clone()).unwrap();
+        assert!(matches!(tx.commit().unwrap(), CommitResult::Success { .. }));
+
+        let mut tx = db.start_transaction();
+        let earlier = tx.retrieve_property(&object, property).unwrap().0.unwrap();
+        assert_eq!(
+            earlier
+                .clone()
+                .index_set_owned(&v_int(1021), &v_int(-1), IndexMode::ZeroBased),
+            Ok(later.clone())
+        );
+        let longer = earlier
+            .index_set_owned(&v_int(1020), &v_int(-2), IndexMode::ZeroBased)
+            .unwrap();
+        let candidate = longer.push(&v_int(-7)).unwrap();
+        tx.set_property(&object, property, candidate.clone())
+            .unwrap();
+        assert!(matches!(tx.commit().unwrap(), CommitResult::Success { .. }));
+        db.wait_for_persistence().unwrap();
+
+        db.stop().unwrap();
+        drop(db);
+
+        let reopened = MoorDB::try_open(Some(path), DatabaseConfig::default())
+            .unwrap()
+            .0;
+        let tx = reopened.start_transaction();
+        let restored = tx.retrieve_property(&object, property).unwrap().0.unwrap();
+        let items = restored.as_list().unwrap();
+        assert_eq!(items.iter_ref().count(), 4097);
+        assert_eq!(items[1020], v_int(-2));
+        assert_eq!(items[1021], v_int(-1));
+        assert_eq!(items[1022], v_int(1022));
+        assert_eq!(items[4096], v_int(-7));
+    }
+
+    #[test]
+    fn property_overlapping_slice_append_keeps_the_shorter_slices_items() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let path = tempdir.path();
+        let db = MoorDB::try_open(Some(path), DatabaseConfig::default())
+            .unwrap()
+            .0;
+
+        // One item of the origin is 1; every other is 0. That item is at 1100, so it falls at
+        // index 79 of the slice that starts at 1021 and at index 80 of the one that starts at
+        // 1020. The two slices share the leaves they overlap.
+        let origin = (0..2055)
+            .map(|i| v_int(i64::from(i == 1100)))
+            .collect::<moor_var::List>();
+        let origin_var = moor_var::Var::from(origin.clone());
+        let base = origin_var
+            .range(&v_int(1021), &v_int(2054), IndexMode::ZeroBased)
+            .unwrap();
+        assert_eq!(base.as_list().unwrap()[79], v_int(1));
+
+        let mut tx = db.start_transaction();
+        let object = tx
+            .create_object(
+                ObjectKind::NextObjid,
+                ObjAttrs::new(NOTHING, NOTHING, NOTHING, BitEnum::new(), "overlap test"),
+            )
+            .unwrap();
+        let property = tx
+            .define_property(
+                &object,
+                &object,
+                Symbol::mk("values"),
+                &object,
+                BitEnum::new(),
+                Some(base.clone()),
+            )
+            .unwrap();
+        assert!(matches!(tx.commit().unwrap(), CommitResult::Success { .. }));
+
+        // The candidate starts one item earlier, so the 1 is at index 80, and it appends.
+        let candidate = origin_var
+            .range(&v_int(1020), &v_int(2054), IndexMode::ZeroBased)
+            .unwrap()
+            .push_owned(&v_int(-7))
+            .unwrap();
+        let mut tx = db.start_transaction();
+        tx.set_property(&object, property, candidate.clone())
+            .unwrap();
+        assert!(matches!(tx.commit().unwrap(), CommitResult::Success { .. }));
+        db.wait_for_persistence().unwrap();
+        assert_eq!(
+            db.create_snapshot()
+                .unwrap()
+                .get_property_value(&object, property)
+                .unwrap()
+                .0,
+            Some(candidate.clone())
+        );
+        db.stop().unwrap();
+        drop(db);
+
+        let reopened = MoorDB::try_open(Some(path), DatabaseConfig::default())
+            .unwrap()
+            .0;
+        let tx = reopened.start_transaction();
+        let restored = tx.retrieve_property(&object, property).unwrap().0.unwrap();
+        let items = restored.as_list().unwrap();
+        // The candidate is the base plus one item at the front and one at the end.
+        assert_eq!(items.iter_ref().count(), 1036);
+        assert_eq!(items[79], v_int(0));
+        assert_eq!(items[80], v_int(1));
+        assert_eq!(items[1035], v_int(-7));
+    }
+
+    #[test]
+    fn property_front_drop_and_edit_survives_snapshot_export_and_reopen() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let path = tempdir.path();
+        let db = MoorDB::try_open(Some(path), DatabaseConfig::default())
+            .unwrap()
+            .0;
+
+        let mut tx = db.start_transaction();
+        let object = tx
+            .create_object(
+                ObjectKind::NextObjid,
+                ObjAttrs::new(NOTHING, NOTHING, NOTHING, BitEnum::new(), "front drop test"),
+            )
+            .unwrap();
+        let property = tx
+            .define_property(
+                &object,
+                &object,
+                Symbol::mk("values"),
+                &object,
+                BitEnum::new(),
+                Some(v_list(&(0..2056).map(v_int).collect::<Vec<_>>())),
+            )
+            .unwrap();
+        assert!(matches!(tx.commit().unwrap(), CommitResult::Success { .. }));
+
+        let mut tx = db.start_transaction();
+        let base = tx.retrieve_property(&object, property).unwrap().0.unwrap();
+        let shortened = base
+            .remove_at_owned(&v_int(0), IndexMode::ZeroBased)
+            .unwrap();
+        tx.set_property(&object, property, shortened.clone())
+            .unwrap();
+        assert!(matches!(tx.commit().unwrap(), CommitResult::Success { .. }));
+
+        // Drop the first item, so the tree starts at slot one. Then change logical index 1023,
+        // the last item of the leaf before the first branch both trees share, and append. The
+        // append is made from the value the commit reads, as a verb reads the property back
+        // before it pushes.
+        let shortened = db
+            .start_transaction()
+            .retrieve_property(&object, property)
+            .unwrap()
+            .0
+            .unwrap();
+        let edited = shortened
+            .clone()
+            .index_set_owned(&v_int(1024), &v_int(-1), IndexMode::OneBased)
+            .unwrap();
+        let candidate = edited.push(&v_int(-7)).unwrap();
+        let mut tx = db.start_transaction();
+        let current = tx.retrieve_property(&object, property).unwrap().0.unwrap();
+        assert_eq!(current, shortened);
+        tx.set_property(&object, property, candidate.clone())
+            .unwrap();
+        assert!(matches!(tx.commit().unwrap(), CommitResult::Success { .. }));
+        db.wait_for_persistence().unwrap();
+
+        let snapshot = db.create_snapshot().unwrap();
+        assert_eq!(
+            snapshot.get_property_value(&object, property).unwrap().0,
+            Some(candidate.clone())
+        );
+        let mut export = snapshot.begin_export(&[]).unwrap();
+        let exported = export.next_object().unwrap().unwrap();
+        let exported_property = exported
+            .properties
+            .iter()
+            .find(|definition| definition.definition.uuid() == property)
+            .unwrap();
+        assert_eq!(exported_property.value, Some(candidate.clone()));
+        drop(export);
+        drop(snapshot);
+
+        db.stop().unwrap();
+        drop(db);
+
+        let reopened = MoorDB::try_open(Some(path), DatabaseConfig::default())
+            .unwrap()
+            .0;
+        let tx = reopened.start_transaction();
+        let restored = tx.retrieve_property(&object, property).unwrap().0.unwrap();
+        let items = restored.as_list().unwrap();
+        assert_eq!(items.iter_ref().count(), 2056);
+        assert_eq!(items[1023], v_int(-1));
+        assert_eq!(items[1024], v_int(1025));
+        assert_eq!(items[2055], v_int(-7));
+    }
+
+    #[test]
     fn property_value_provider_reads_match_the_seeded_index() {
         let tempdir = tempfile::tempdir().unwrap();
         let path = tempdir.path();

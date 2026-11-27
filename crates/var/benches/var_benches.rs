@@ -16,8 +16,8 @@ use micromeasure::{
     ReportContext, Throughput, benchmark_main, black_box,
 };
 use moor_var::{
-    E_INVARG, E_TYPE, Error, IndexMode, Obj, Symbol, Var, v_bool, v_float, v_int, v_list, v_none,
-    v_obj, v_str, v_string, v_sym, v_symbol_str,
+    E_INVARG, E_TYPE, Error, IndexMode, List, ListAppendError, Obj, Symbol, Var, v_bool, v_float,
+    v_int, v_list, v_none, v_obj, v_str, v_string, v_sym, v_symbol_str,
 };
 use std::time::Duration;
 
@@ -57,6 +57,80 @@ struct VeryLargeListContext(Var);
 impl BenchContext for VeryLargeListContext {
     fn prepare(_num_chunks: usize) -> Self {
         VeryLargeListContext(v_list(&(0..200_000).map(v_int).collect::<Vec<_>>()))
+    }
+}
+
+/// A stored list and the candidate that is that list with one item pushed on. The push happens
+/// here, outside the timed call, and the stored value gives up the old list before it takes the
+/// new one, as the VM does, so the push extends the tree instead of copying it.
+struct AppendCandidate {
+    base: List,
+    candidate: List,
+}
+
+impl BenchContext for AppendCandidate {
+    fn prepare(_num_chunks: usize) -> Self {
+        // Each group gives its own length below, by factory.
+        AppendCandidate::new(0)
+    }
+}
+
+impl AppendCandidate {
+    fn new(len: usize) -> Self {
+        let stored = v_list(&(0..len as i64).map(v_int).collect::<Vec<_>>());
+        let base = stored.as_list().unwrap().clone();
+        let pushed = stored.append_owned(&v_list(&[v_int(-1)])).unwrap();
+        Self {
+            candidate: pushed.as_list().unwrap().clone(),
+            base,
+        }
+    }
+}
+
+/// A stored list and a separately built list of the same items with one more. The two share
+/// nothing.
+struct AppendIndependent {
+    base: List,
+    candidate: List,
+}
+
+impl AppendIndependent {
+    fn new(len: usize) -> Self {
+        let stored = v_list(&(0..len as i64).map(v_int).collect::<Vec<_>>());
+        let candidate: List = (0..len as i64).map(v_int).collect();
+        let appended = candidate.append_owned(&v_list(&[v_int(-1)])).unwrap();
+        Self {
+            base: stored.as_list().unwrap().clone(),
+            candidate: appended.as_list().unwrap().clone(),
+        }
+    }
+}
+
+struct LargeAppendContext(AppendCandidate);
+impl BenchContext for LargeAppendContext {
+    fn prepare(_num_chunks: usize) -> Self {
+        LargeAppendContext(AppendCandidate::new(100_000))
+    }
+}
+
+struct LargeIndependentContext(AppendIndependent);
+impl BenchContext for LargeIndependentContext {
+    fn prepare(_num_chunks: usize) -> Self {
+        LargeIndependentContext(AppendIndependent::new(100_000))
+    }
+}
+
+struct VeryLargeAppendContext(AppendCandidate);
+impl BenchContext for VeryLargeAppendContext {
+    fn prepare(_num_chunks: usize) -> Self {
+        VeryLargeAppendContext(AppendCandidate::new(200_000))
+    }
+}
+
+struct VeryLargeIndependentContext(AppendIndependent);
+impl BenchContext for VeryLargeIndependentContext {
+    fn prepare(_num_chunks: usize) -> Self {
+        VeryLargeIndependentContext(AppendIndependent::new(200_000))
     }
 }
 
@@ -530,6 +604,93 @@ fn list_take_prefix_100k(ctx: &mut LargeListContext, chunk_size: usize, _chunk_n
                 .unwrap(),
         );
     }
+}
+
+/// The comparison budget the database gives a stored property append.
+const APPEND_BUDGET: usize = 128;
+
+/// Classify a stored list against a candidate that is that list with one item pushed on. The
+/// blocks before the push are shared, so classifying them needs no element comparisons.
+fn list_append_suffix_shared(ctx: &mut AppendCandidate, chunk_size: usize) {
+    // The count tells a sample that ran the calls it reported from one that did not. Both sides
+    // are prepared once, before the timer starts.
+    let mut calls = 0usize;
+    for _ in 0..chunk_size {
+        let suffix = ctx.base.append_suffix(&ctx.candidate, APPEND_BUDGET);
+        assert_eq!(suffix.as_ref().map(List::len), Ok(1));
+        calls += 1;
+        let _ = black_box(suffix);
+    }
+    assert_eq!(calls, chunk_size);
+}
+
+/// Classify a stored list against a separately built list of the same items with one more. The
+/// bases share nothing, so the budget of element comparisons runs out part way through.
+fn list_append_suffix_independent(ctx: &mut AppendIndependent, chunk_size: usize) {
+    let mut calls = 0usize;
+    for _ in 0..chunk_size {
+        let error = ctx.base.append_suffix(&ctx.candidate, APPEND_BUDGET);
+        assert_eq!(
+            error.as_ref().err(),
+            Some(&ListAppendError::ComparisonBudgetExceeded)
+        );
+        calls += 1;
+        let _ = black_box(error);
+    }
+    assert_eq!(calls, chunk_size);
+}
+
+fn list_append_suffix_shared_100k(
+    ctx: &mut LargeAppendContext,
+    chunk_size: usize,
+    _chunk_num: usize,
+) {
+    list_append_suffix_shared(&mut ctx.0, chunk_size);
+}
+
+fn list_append_suffix_independent_100k(
+    ctx: &mut LargeIndependentContext,
+    chunk_size: usize,
+    _chunk_num: usize,
+) {
+    list_append_suffix_independent(&mut ctx.0, chunk_size);
+}
+
+fn list_append_suffix_shared_200k(
+    ctx: &mut VeryLargeAppendContext,
+    chunk_size: usize,
+    _chunk_num: usize,
+) {
+    list_append_suffix_shared(&mut ctx.0, chunk_size);
+}
+
+fn list_append_suffix_independent_200k(
+    ctx: &mut VeryLargeIndependentContext,
+    chunk_size: usize,
+    _chunk_num: usize,
+) {
+    list_append_suffix_independent(&mut ctx.0, chunk_size);
+}
+
+/// Classify a stored list against itself with one item pushed on where the push fills the root
+/// and gives the tree a new one. The two trees then differ in height, so the walk makes no
+/// shortcut and the lower half is compared item by item.
+fn list_append_suffix_shared_root_grows(
+    ctx: &mut AppendCandidate,
+    chunk_size: usize,
+    _chunk_num: usize,
+) {
+    list_append_suffix_shared(ctx, chunk_size);
+}
+
+/// The same for the length one short of that, where the push keeps the height and the walk makes
+/// its shortcut.
+fn list_append_suffix_shared_root_keeps(
+    ctx: &mut AppendCandidate,
+    chunk_size: usize,
+    _chunk_num: usize,
+) {
+    list_append_suffix_shared(ctx, chunk_size);
 }
 
 /// `long_list[2..$]`.
@@ -1051,9 +1212,67 @@ benchmark_main!(
             register_range_set_benchmarks!(g, LargeListContext, "100k");
         });
 
+        runner.group::<LargeAppendContext>("Large List Append Classification", |g| {
+            let g = g.throughput(Throughput::per_operation(1, "list_ops"));
+            g.bench(
+                "list_append_suffix_shared_100k",
+                list_append_suffix_shared_100k,
+            );
+        });
+
+        runner.group::<LargeIndependentContext>("Large List Independent Append", |g| {
+            let g = g.throughput(Throughput::per_operation(1, "list_ops"));
+            g.bench(
+                "list_append_suffix_independent_100k",
+                list_append_suffix_independent_100k,
+            );
+        });
+
         runner.group::<VeryLargeListContext>("Very Large List Operations", |g| {
             let g = g.throughput(Throughput::per_operation(1, "list_ops"));
             register_range_set_benchmarks!(g, VeryLargeListContext, "200k");
+        });
+
+        runner.group::<VeryLargeAppendContext>("Very Large List Append Classification", |g| {
+            let g = g.throughput(Throughput::per_operation(1, "list_ops"));
+            g.bench(
+                "list_append_suffix_shared_200k",
+                list_append_suffix_shared_200k,
+            );
+        });
+
+        runner.group::<VeryLargeIndependentContext>("Very Large List Independent Append", |g| {
+            let g = g.throughput(Throughput::per_operation(1, "list_ops"));
+            g.bench(
+                "list_append_suffix_independent_200k",
+                list_append_suffix_independent_200k,
+            );
+        });
+
+        // A tree of two levels is full at 32800 items, so the push at that length rotates the
+        // tail into the root and gives the tree a new root. The push one item before that keeps
+        // the height. The group shares one context type, so each of these two builds its own
+        // pair, at its own length, through a factory.
+        let keeps_height = || AppendCandidate::new(32_799);
+        runner.group::<AppendCandidate>("List Append That Keeps The Height", |g| {
+            let g = g
+                .throughput(Throughput::per_operation(1, "list_ops"))
+                .factory(&keeps_height);
+            g.bench(
+                "list_append_suffix_shared_root_full",
+                list_append_suffix_shared_root_keeps,
+            );
+        });
+
+        let grows_height = || AppendCandidate::new(32_800);
+        runner.group::<AppendCandidate>("List Append That Grows The Height", |g| {
+            let g = g
+                .throughput(Throughput::per_operation(1, "list_ops"))
+                .factory(&grows_height);
+            g.bench(
+                "list_append_suffix_shared_root_grows",
+                list_append_suffix_shared_root_grows,
+            );
         });
 
         runner.group::<MediumListContext>("Medium List Operations", |g| {
