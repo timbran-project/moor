@@ -59,6 +59,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- List properties now preserve case-only edits across restarts when the same transaction also
+  appends an item. Previously, changing `"Ada"` to `"ADA"` and then appending could restore `"Ada"`
+  after restart.
 - `boot_player()` now cancels only the target player's other active tasks. Previously, it could
   interrupt other players' tasks when someone logged out.
 - Pressing Enter in Meadow's login form no longer logs in twice. The second login made an extra

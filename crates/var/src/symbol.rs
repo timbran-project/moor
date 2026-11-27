@@ -458,6 +458,12 @@ impl Symbol {
     pub fn compare_id(&self) -> u32 {
         self.compare_id
     }
+
+    /// Whether both symbols have the exact same spelling, including case.
+    #[inline]
+    pub(crate) fn eq_exact(&self, other: &Self) -> bool {
+        self.compare_id == other.compare_id && self.repr_id == other.repr_id
+    }
 }
 
 // ============================================================================

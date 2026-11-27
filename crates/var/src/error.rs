@@ -227,6 +227,15 @@ impl ErrorCode {
     {
         Error::new(self, Some(f()), Some(value))
     }
+
+    /// Whether both error codes match, including the exact case of a custom error symbol.
+    #[inline]
+    pub(crate) fn eq_exact(&self, other: &Self) -> bool {
+        match (self, other) {
+            (ErrCustom(a), ErrCustom(b)) => a.eq_exact(b),
+            _ => self == other,
+        }
+    }
 }
 
 // TODO: this presents difficulties/confusions for Hash, Clippy warns about it.

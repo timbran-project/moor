@@ -473,6 +473,19 @@ impl List {
                 .all(|(a, b)| a.is_identical(b))
     }
 
+    /// Compare list elements using the storage guarantee of [`Var::eq_exact`].
+    pub(crate) fn eq_exact(&self, other: &Self) -> bool {
+        if self.0.ptr_eq(&other.0) {
+            return true;
+        }
+        if self.len() != other.len() {
+            return false;
+        }
+        self.iter_ref()
+            .zip(other.iter_ref())
+            .all(|(a, b)| a.eq_exact(b))
+    }
+
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
@@ -546,7 +559,8 @@ impl List {
     /// Return the suffix added to this list after a bounded prefix comparison.
     ///
     /// Blocks the two lists share need no element comparisons. The comparison budget limits work
-    /// on changed or independently constructed blocks.
+    /// on changed or independently constructed blocks, and unshared elements must match in stored
+    /// representation (case-sensitive strings and symbols, error messages, and float bits).
     pub fn append_suffix(
         &self,
         candidate: &Self,
@@ -574,7 +588,11 @@ impl List {
                     return Err(ListAppendError::ComparisonBudgetExceeded);
                 }
                 comparison_budget -= comparisons;
-                if prefix_slice != candidate_slice {
+                if !prefix_slice
+                    .iter()
+                    .zip(candidate_slice)
+                    .all(|(a, b)| a.eq_exact(b))
+                {
                     return Err(ListAppendError::PrefixMismatch);
                 }
             }
@@ -1221,6 +1239,23 @@ mod tests {
         assert_eq!(
             base.append_suffix(&candidate, 8),
             Err(ListAppendError::PrefixMismatch)
+        );
+    }
+
+    #[test]
+    fn append_suffix_rejects_case_only_prefix_change() {
+        let base = List::mk_list(&[v_str("Ada")]);
+        let edited = base.clone().replaced(0, v_str("ADA")).pushed(v_int(7));
+
+        assert_eq!(
+            base.append_suffix(&edited, 8),
+            Err(ListAppendError::PrefixMismatch)
+        );
+
+        let exact = List::mk_list(&[v_str("Ada"), v_int(7)]);
+        assert_eq!(
+            base.append_suffix(&exact, 8),
+            Ok(List::mk_list(&[v_int(7)]))
         );
     }
 

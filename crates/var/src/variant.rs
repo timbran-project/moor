@@ -814,13 +814,13 @@ impl Var {
                     && a.slots_storage()
                         .iter()
                         .zip(b.slots_storage())
-                        .all(|((n, x), (m, y))| n == m && x.is_identical(y))
+                        .all(|((n, x), (m, y))| n.eq_exact(m) && x.is_identical(y))
                     && a.contents().is_identical(b.contents())
             }
             // Error equality ignores messages and compares payloads without case, so compare
             // every part exactly.
             (Variant::Err(a), Variant::Err(b)) => {
-                a.err_type() == b.err_type()
+                a.err_type().eq_exact(&b.err_type())
                     && a.msg() == b.msg()
                     && match (a.value(), b.value()) {
                         (Some(x), Some(y)) => x.is_identical(y),
@@ -1761,6 +1761,48 @@ impl Var {
         }
     }
 
+    /// A true result means the database can keep `self` in a stored list prefix and recover
+    /// `other` exactly. Separately allocated lambdas can return false even with identical contents.
+    pub(crate) fn eq_exact(&self, other: &Self) -> bool {
+        if self.tag == other.tag && self.data == other.data {
+            return true;
+        }
+        match (self.variant(), other.variant()) {
+            (Variant::None, Variant::None) => true,
+            (Variant::Bool(a), Variant::Bool(b)) => a == b,
+            (Variant::Int(a), Variant::Int(b)) => a == b,
+            (Variant::Float(a), Variant::Float(b)) => a.to_bits() == b.to_bits(),
+            (Variant::Obj(a), Variant::Obj(b)) => a == b,
+            (Variant::Sym(a), Variant::Sym(b)) => a.eq_exact(&b),
+            (Variant::Str(a), Variant::Str(b)) => a.as_str() == b.as_str(),
+            (Variant::List(a), Variant::List(b)) => a.eq_exact(b),
+            (Variant::Map(a), Variant::Map(b)) => a.eq_exact(b),
+            (Variant::Binary(a), Variant::Binary(b)) => a.as_bytes() == b.as_bytes(),
+            (Variant::Err(a), Variant::Err(b)) => {
+                a.err_type().eq_exact(&b.err_type())
+                    && a.msg() == b.msg()
+                    && match (a.value(), b.value()) {
+                        (Some(x), Some(y)) => x.eq_exact(y),
+                        (None, None) => true,
+                        _ => false,
+                    }
+            }
+            (Variant::Flyweight(a), Variant::Flyweight(b)) => {
+                a.delegate() == b.delegate()
+                    && a.slots_storage().len() == b.slots_storage().len()
+                    && a.slots_storage()
+                        .iter()
+                        .zip(b.slots_storage())
+                        .all(|((ak, av), (bk, bv))| ak.eq_exact(bk) && av.eq_exact(bv))
+                    && a.contents().eq_exact(b.contents())
+            }
+            // Lambdas can carry literals and captured environments whose equality ignores case;
+            // only shared allocations are treated as exact matches.
+            (Variant::Lambda(a), Variant::Lambda(b)) => triomphe::Arc::ptr_eq(&a.0, &b.0),
+            _ => false,
+        }
+    }
+
     // === Internal clone helper ===
 
     #[cold]
@@ -2509,5 +2551,58 @@ mod tests {
         assert!(error("first", &upper).is_identical(&error("first", &upper)));
         assert!(!error("first", &upper).is_identical(&error("second", &upper)));
         assert!(!error("first", &upper).is_identical(&error("first", &lower)));
+    }
+
+    #[test]
+    fn eq_exact_preserves_stored_representation() {
+        assert!(v_str("Ada").eq_exact(&v_str("Ada")));
+        assert!(!v_str("Ada").eq_exact(&v_str("ADA")));
+        assert!(v_str("Ada").eq_exact(&v_symbol_str(Symbol::mk("Ada"))));
+        assert!(!v_str("Ada").eq_exact(&v_symbol_str(Symbol::mk("ADA"))));
+
+        assert!(v_sym("Ada").eq_exact(&v_sym("Ada")));
+        assert!(!v_sym("Ada").eq_exact(&v_sym("ADA")));
+
+        assert!(v_float(0.0).eq_exact(&v_float(0.0)));
+        assert!(!v_float(0.0).eq_exact(&v_float(-0.0)));
+
+        let err_a = v_error(E_INVARG.with_msg_and_value(|| "first".to_string(), v_str("Ada")));
+        let err_a_copy = v_error(E_INVARG.with_msg_and_value(|| "first".to_string(), v_str("Ada")));
+        let err_msg = v_error(E_INVARG.with_msg_and_value(|| "second".to_string(), v_str("Ada")));
+        let err_val = v_error(E_INVARG.with_msg_and_value(|| "first".to_string(), v_str("ADA")));
+        let err_custom_a = v_error(ErrorCode::ErrCustom(Symbol::mk("MyErr")).msg("x"));
+        let err_custom_b = v_error(ErrorCode::ErrCustom(Symbol::mk("MYERR")).msg("x"));
+        assert!(err_a.eq_exact(&err_a_copy));
+        assert!(!err_a.eq_exact(&err_msg));
+        assert!(!err_a.eq_exact(&err_val));
+        assert!(!err_custom_a.eq_exact(&err_custom_b));
+
+        assert!(
+            v_list(&[v_map(&[(v_str("Ada"), v_int(1))])])
+                .eq_exact(&v_list(&[v_map(&[(v_str("Ada"), v_int(1))])]))
+        );
+        assert!(
+            !v_list(&[v_map(&[(v_str("Ada"), v_int(1))])])
+                .eq_exact(&v_list(&[v_map(&[(v_str("ADA"), v_int(1))])]))
+        );
+
+        let fw_a = Var::from_flyweight(Flyweight::mk_flyweight(
+            Obj::mk_id(1),
+            &[(Symbol::mk("Name"), v_str("Ada"))],
+            List::mk_list(&[v_str("Ada")]),
+        ));
+        let fw_slot_case = Var::from_flyweight(Flyweight::mk_flyweight(
+            Obj::mk_id(1),
+            &[(Symbol::mk("name"), v_str("Ada"))],
+            List::mk_list(&[v_str("Ada")]),
+        ));
+        let fw_content_case = Var::from_flyweight(Flyweight::mk_flyweight(
+            Obj::mk_id(1),
+            &[(Symbol::mk("Name"), v_str("Ada"))],
+            List::mk_list(&[v_str("ADA")]),
+        ));
+        assert!(!fw_a.eq_exact(&fw_slot_case));
+        assert!(!fw_a.eq_exact(&fw_content_case));
+        assert!(!fw_a.is_identical(&fw_slot_case));
     }
 }

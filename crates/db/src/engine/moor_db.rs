@@ -568,7 +568,7 @@ mod tests {
         model::{CommitResult, ObjAttrs, ObjectKind, PropFlag},
         util::BitEnum,
     };
-    use moor_var::{NOTHING, Obj, Symbol, v_int, v_list};
+    use moor_var::{IndexMode, NOTHING, Obj, Symbol, v_int, v_list, v_str};
 
     fn property_value_records(
         db: &MoorDB,
@@ -777,6 +777,55 @@ mod tests {
         assert!(matches!(tx.commit().unwrap(), CommitResult::Success { .. }));
         reopened.wait_for_persistence().unwrap();
         assert!(property_value_records(&reopened).is_empty());
+    }
+
+    #[test]
+    fn property_list_preserves_case_edit_followed_by_append_after_reopen() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let path = tempdir.path();
+        let db = MoorDB::try_open(Some(path), DatabaseConfig::default())
+            .unwrap()
+            .0;
+
+        let mut tx = db.start_transaction();
+        let object = tx
+            .create_object(
+                ObjectKind::NextObjid,
+                ObjAttrs::new(NOTHING, NOTHING, NOTHING, BitEnum::new(), "case test"),
+            )
+            .unwrap();
+        let property = tx
+            .define_property(
+                &object,
+                &object,
+                Symbol::mk("names"),
+                &object,
+                BitEnum::new(),
+                Some(v_list(&[v_str("Ada")])),
+            )
+            .unwrap();
+        assert!(matches!(tx.commit().unwrap(), CommitResult::Success { .. }));
+
+        let mut tx = db.start_transaction();
+        let base = tx.retrieve_property(&object, property).unwrap().0.unwrap();
+        let edited = base
+            .index_set_owned(&v_int(1), &v_str("ADA"), IndexMode::OneBased)
+            .unwrap();
+        tx.set_property(&object, property, edited.push(&v_int(7)).unwrap())
+            .unwrap();
+        assert!(matches!(tx.commit().unwrap(), CommitResult::Success { .. }));
+        db.stop().unwrap();
+        drop(db);
+
+        let reopened = MoorDB::try_open(Some(path), DatabaseConfig::default())
+            .unwrap()
+            .0;
+        let tx = reopened.start_transaction();
+        let restored = tx.retrieve_property(&object, property).unwrap().0.unwrap();
+        let items = restored.as_list().unwrap();
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[1], v_int(7));
+        assert_eq!(items[0].as_string(), Some("ADA"));
     }
 
     #[test]

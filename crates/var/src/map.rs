@@ -500,6 +500,19 @@ impl Map {
         self.0.ptr_eq(&other.0)
     }
 
+    /// Compare keys and values using the storage guarantee of [`Var::eq_exact`].
+    pub(crate) fn eq_exact(&self, other: &Self) -> bool {
+        if self.0.ptr_eq(&other.0) {
+            return true;
+        }
+        if self.len() != other.len() {
+            return false;
+        }
+        self.iter_ref()
+            .zip(other.iter_ref())
+            .all(|((ak, av), (bk, bv))| ak.eq_exact(bk) && av.eq_exact(bv))
+    }
+
     // Construct from an Iterator of pairs. A key given more than once keeps its last pair.
     pub(crate) fn build<'a, I: Iterator<Item = &'a (Var, Var)>>(pairs: I) -> Var {
         let mut entries: Vec<Entry> = pairs.cloned().collect();
